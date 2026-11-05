@@ -1533,6 +1533,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
         val rankedSongs = remember(r.songs, q) { r.songs.sortedBy { songScore(it) } }
         val topSong = rankedSongs.firstOrNull()
+        // F6.3: a search naming an artist is laid out like their page (Top result with their top 5 songs, then Popular, Albums, Singles & EPs, Playlists, similar names)
+        val artistTop = remember(q, libRev) { if (q.length < 2) null else com.ipodemu.library.SearchRankTop.artist(app.library.artists(), q, app.userData.plays) }
+        val artistPage = remember(artistTop, libRev) { artistTop?.let { com.ipodemu.library.ArtistPage.of(it, app.library.albums(), app.userData.plays) } }
+        val similarArtists = remember(artistTop, libRev) { if (artistTop == null) emptyList() else SearchArtists.similar(app.library.artists(), q, artistTop) }
         val restSongs = if (topSong != null) rankedSongs.drop(1) else rankedSongs
         var songsExpanded by remember(q) { mutableStateOf(false) }
         var albumsExpanded by remember(q) { mutableStateOf(false) }
@@ -1571,7 +1575,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             fun shows(kind: String) = only == "" || only == kind
-            if (made.isNotEmpty() && only == "" && picks == null) {
+            val artistMode = artistTop != null && artistPage != null && only == "" && picks == null
+            if (made.isNotEmpty() && only == "" && picks == null && !artistMode) {
                 item { SectionHeader("Playlists for you") }
                 item(key = "made") {
                     androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1606,7 +1611,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             if (albumNamed) webAlbums()
-            if (topSong != null && only == "" && picks == null) {
+            if (artistMode && artistTop != null && artistPage != null) ArtistResults(artistTop, artistPage, made, similarArtists, nav, snap) { searchFocus.clearFocus() }
+            if (topSong != null && only == "" && picks == null && !artistMode) {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
                     TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
@@ -1643,7 +1649,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (!webSongsExpanded && only != "songs" && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
             // with only songs shown (or while choosing), the top song joins the library list (the Top result card is for All)
-            if (libSongs.isNotEmpty() && shows("songs")) {
+            if (libSongs.isNotEmpty() && shows("songs") && !artistMode) {
                 item { SectionHeader("In your library") }
                 val shown = if (songsExpanded || only == "songs" || picks != null) libSongs else libSongs.take(4)
                 itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t ->
@@ -1653,7 +1659,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }
-            if (r.albums.isNotEmpty() && shows("albums")) {
+            if (r.albums.isNotEmpty() && shows("albums") && !artistMode) {
                 item { SectionHeader("Your albums") }
                 val shownAlbums = if (albumsExpanded || only == "albums") r.albums else r.albums.take(3)
                 items(shownAlbums, key = { "b" + it.tracks.first().albumKey }) { g ->
@@ -1678,6 +1684,96 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
         }
         }
+    }
+}
+
+/** Artists whose names also match the search, besides the top one (the small row at the bottom of an artist search). */
+object SearchArtists {
+    fun similar(artists: List<com.ipodemu.library.Group>, q: String, top: com.ipodemu.library.Group): List<com.ipodemu.library.Group> {
+        val words = com.ipodemu.library.SearchRank.words(q)
+        if (words.isEmpty()) return emptyList()
+        return artists.filter { it.name != top.name && com.ipodemu.library.SearchRank.words(it.name).joinToString("").let { n -> words.all { w -> n.contains(w) } } }
+            .sortedByDescending { it.tracks.size }.take(12)
+    }
+}
+
+/** The artist search layout: Top result card over the artist's top 5 songs, then Popular, Albums, Singles & EPs, Playlists and similar names. */
+private fun androidx.compose.foundation.lazy.LazyListScope.ArtistResults(
+    artist: com.ipodemu.library.Group, page: com.ipodemu.library.ArtistPage, made: List<com.ipodemu.library.MadeLists.Summary>,
+    similar: List<com.ipodemu.library.Group>, nav: PlayerNav, snap: PlayerSnap, unfocus: () -> Unit,
+) {
+    item { SectionHeader("Top result") }
+    item(key = "artistTop") {
+        val app = LocalApp.current
+        val sc = LocalScheme.current
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(16.dp)).background(sc.accent.copy(alpha = 0.12f))
+            .clickable { unfocus(); nav.push(Screen.Detail(DetailKind.ARTIST, artist.name)) }.padding(12.dp)
+            .semantics { contentDescription = "Open artist ${artist.name}" }, verticalAlignment = Alignment.CenterVertically) {
+            ArtImage(artist.artKey, Modifier.size(64.dp), thumb = true, circle = true)
+            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                Txt(artist.name, size = 18f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 1)
+                Txt("Artist · ${artist.tracks.size} ${if (artist.tracks.size == 1) "song" else "songs"}", size = 13f, color = sc.onBgDim, maxLines = 1)
+            }
+            IconAction(Glyph.PLAY, "Play ${artist.name}", { unfocus(); app.player.play(artist.tracks, 0, null, from = "search") }, tint = sc.accent, size = 48.dp)
+        }
+    }
+    // the top 5 songs sit right under the card, so there is no big empty card
+    itemsIndexed(page.top, key = { i, t -> "at$i${t.path}" }) { i, t ->
+        val app = LocalApp.current
+        TrackRow(t, nav, snap, onPlay = { unfocus(); app.player.play(page.top, i, null, from = "search") })
+    }
+    if (page.popular.isNotEmpty()) {
+        item { SectionHeader("Popular") }
+        item(key = "apopular") {
+            val app = LocalApp.current
+            androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                itemsIndexed(page.popular, key = { i, t -> "ap$i${t.path}" }) { i, t ->
+                    SearchCover(t.artKey, t.title, t.album.ifEmpty { "Song" }, "Play ${t.title}") { unfocus(); app.player.play(page.popular, i, null, from = "search") }
+                }
+            }
+        }
+    }
+    for ((label, rows) in listOf("Albums" to page.albums, "Singles & EPs" to page.singles)) {
+        if (rows.isEmpty()) continue
+        item { SectionHeader(label) }
+        item(key = "a$label") {
+            androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(rows, key = { it.tracks.first().albumKey }) { g ->
+                    val year = g.tracks.maxOf { it.year }
+                    SearchCover(g.artKey, g.name, (if (year > 0) "$year · " else "") + com.ipodemu.library.ArtistPage.kind(g), "Open album ${g.name}") { unfocus(); nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }
+                }
+            }
+        }
+    }
+    if (made.isNotEmpty()) {
+        item { SectionHeader("Playlists") }
+        item(key = "amade") {
+            val app = LocalApp.current
+            androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(made, key = { it.id }) { m ->
+                    val cover = m.first?.let { f -> app.library.resolve(f.path ?: "", f.title to f.artist)?.artKey }
+                    SearchCover(cover, m.name, m.subtitle, "${m.name}, playlist for you. ${m.subtitle}") { unfocus(); nav.push(Screen.Made(m.id, m.name)) }
+                }
+            }
+        }
+    }
+    if (similar.isNotEmpty()) {
+        item { Txt("Other artists with similar names", Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp), size = 13f, color = LocalScheme.current.onBgDim) }
+        item(key = "asimilar") {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (a in similar) DesignChip(a.name, false, { unfocus(); nav.push(Screen.Detail(DetailKind.ARTIST, a.name)) })
+            }
+        }
+    }
+}
+
+/** A square cover with a title and a line under it, for the search rows. */
+@Composable
+private fun SearchCover(artKey: String?, title: String, sub: String, description: String, onClick: () -> Unit) {
+    Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).semantics { contentDescription = description }) {
+        ArtImage(artKey, Modifier.size(132.dp), corner = 10.dp)
+        Txt(title, Modifier.padding(top = 6.dp), size = 14f, weight = FontWeight.SemiBold, maxLines = 2)
+        Txt(sub, size = 12f, color = LocalScheme.current.onBgDim, maxLines = 2)
     }
 }
 

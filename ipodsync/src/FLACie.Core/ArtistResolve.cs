@@ -71,17 +71,44 @@ public static partial class ArtistResolve
                 continue;
             }
             // 3. "Eminem feat. Dido": the lead, with the others featured
-            var (lead, rest) = Feat().Match(artist) is { Success: true } f ? (f.Groups[1].Value.Trim(), f.Groups[2].Value)
-                : Joined().Match(artist) is { Success: true } j && names.ContainsKey(Key(j.Groups[1].Value)) && byArtist.ContainsKey(Key(j.Groups[1].Value)) ? (j.Groups[1].Value.Trim(), j.Groups[2].Value)
-                : (null, null);
-            if (lead is not null && rest is not null && Key(lead).Length > 0)
+            if (Split(artist, byArtist.ContainsKey, songs) is { Count: > 0 } parts && !parts.SequenceEqual([artist]))
             {
-                var featured = Regex.Split(rest, @"\s*(?:,|&|\band\b|feat\.?|ft\.?)\s*", RegexOptions.IgnoreCase).Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
-                var leadName = names.GetValueOrDefault(Key(lead), lead);
-                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [leadName, .. featured], Key(albumArtist) == k ? leadName : albumArtist,
-                    $"{leadName} with {string.Join(", ", featured)} featured"));
+                var leadName = parts[0];
+                var why = parts.Count == 1 ? $"the tag \"{artist}\" is written \"{leadName}\"" : $"{leadName} with {string.Join(", ", parts.Skip(1))} featured";
+                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, parts, Key(albumArtist) == k ? leadName : albumArtist, why));
             }
         }
         return changes;
     }
+
+    /// <summary>
+    /// The separate artists in one artist tag, or null to leave the tag alone. "/" and ";" always part names, and after feat. so do "," and " x ";
+    /// "&amp;", "and" (and "," in the lead) part names only when every part is an artist with songs of their own here, so bands stay whole (Diana Ross
+    /// &amp; the Supremes, Earth, Wind &amp; Fire, KC And Jojo). Names keep their spelling (P!nk, Eric B.; "Bob" is not B.o.B): only capitals follow
+    /// the library's own way of writing the same name. Web codes are decoded ("&amp;amp;") and a record database's number is dropped ("WizKid (4)"). A
+    /// part under 3 letters that is no artist here is a cut-off tag ("feat. Th"): null, for the owner to look at.
+    /// </summary>
+    public static List<string>? Split(string tag, Func<string, bool> isArtist, IReadOnlyList<Track> songs)
+    {
+        var s = Discogs().Replace(System.Net.WebUtility.HtmlDecode(tag), "").Trim();
+        var spelled = songs.Select(x => x.Artist).Where(n => n.Length > 0).GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.GroupBy(n => n).OrderByDescending(x => x.Count()).First().Key, StringComparer.OrdinalIgnoreCase);
+        string Clean(string n) { n = n.Trim(); return spelled.GetValueOrDefault(n, n); }
+        // an artist here by the name as written (capitals aside): by its letters alone "Bob" was B.o.B
+        bool Known(string n) => spelled.ContainsKey(n.Trim()) && isArtist(Key(n));
+        // "a & b" parts only when each side is an artist here; a name that is itself an artist here is never parted
+        // (or the lead is one and the others are not "the ...": Eminem & Dr. Dre parts, Diana Ross & the Supremes does not). The whole tag is not
+        // asked: the song being looked at makes it "an artist here" by itself
+        List<string> By(string n, string sep) => Regex.Split(n, sep, RegexOptions.IgnoreCase) is var p && p.Length > 1
+            && (p.All(x => Known(x)) || (Known(p[0]) && p.Skip(1).All(x => !Key(x).StartsWith("the ")))) ? [.. p] : [n];
+        List<string> Pair(string n) => By(n, @"\s*(?:&|\band\b)\s*");
+        var (lead, rest) = Feat().Match(s) is { Success: true } f ? (f.Groups[1].Value, f.Groups[2].Value) : (s, "");
+        var leads = Regex.Split(lead, @"\s*[/;]\s*").SelectMany(x => By(x, @"\s*,\s*")).SelectMany(Pair);
+        var featured = rest.Length == 0 ? [] : Regex.Split(rest, @"\s*(?:[/;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase).SelectMany(Pair);
+        var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (parts.Any(x => x.Count(char.IsLetterOrDigit) < 3 && !Known(x))) return null;
+        return parts;
+    }
+
+    [GeneratedRegex(@"\s*\(\d+\)(?=\s|$|[,&;/])")] private static partial Regex Discogs();
 }

@@ -136,4 +136,35 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Equal("The Prodigy", (string?)o["AlbumArtists"]![0]!["Name"]);
         Assert.Equal(1997, (int)o["ProductionYear"]!);                             // the rest of the item as Jellyfin had it
     }
+
+    // the owner's first dry-run list (5 Nov) split bands, matched "Bob" to B.o.B, turned P!nk into PNK and read "&amp;" as a name
+    static List<Track> Owners() =>
+    [
+        T("Baby Love", "Diana Ross & the Supremes", "40 Golden Motown Greats"), T("Upside Down", "Diana Ross", "Diana"),
+        T("Paid in Full", "Eric B. & Rakim", "Paid in Full"), T("Harlem Shuffle", "Bob & Earl", "Baby Driver"), T("Airplanes", "B.o.B", "B.o.B Presents"),
+        T("Room at the Top", "Tom Petty and the Heartbreakers", "Echo"), T("Free Fallin'", "Tom Petty", "Full Moon Fever"),
+        T("Just Give Me a Reason", "P!nk feat. Nate Ruess", "Now 84"), T("So What", "P!nk", "Funhouse"),
+        T("The Message", "Grandmaster Flash &amp; The Furious Five", "The Best Rap Album"),
+        T("Nude Night", "The Chemical Brothers feat. Th", "The Golden Path CDM"), T("Galvanize", "The Chemical Brothers", "Push the Button"),
+        T("One Dance", "Drake feat. WizKid (4) & Kyla", "Now 95"), T("Hotline Bling", "Drake", "Views"),
+        T("How Do U Want It", "2Pac Featuring KC And Jojo", "How Do U Want It"), T("Changes", "2Pac", "Greatest Hits"),
+        T("Die With A Smile", "Lady Gaga & Bruno Mars", "MAYHEM"), T("Poker Face", "Lady Gaga", "The Fame"), T("Grenade", "Bruno Mars", "Doo-Wops"),
+        T("Everyday", "A$AP Rocky feat. Rod Stewart x Miguel x Mark Ronson", "AT.LONG.LAST.A$AP"), T("Praise the Lord", "A$AP Rocky", "TESTING"),
+        T("I Second That Emotion", "Diana Ross & the Supremes/The Temptations", "40 Golden Motown Greats"),
+    ];
+
+    [Fact]
+    public void Bands_are_never_split_names_keep_their_spelling_and_odd_tags_are_left_for_a_look()
+    {
+        var plan = ArtistResolve.Plan(Owners());
+        foreach (var band in new[] { "Diana Ross & the Supremes", "Eric B. & Rakim", "Bob & Earl", "Tom Petty and the Heartbreakers", "The Chemical Brothers feat. Th" })
+            Assert.DoesNotContain(plan, c => c.OldArtists[0] == band);
+        Assert.Equal(["P!nk", "Nate Ruess"], For(plan, "Just Give Me a Reason", "P!nk feat. Nate Ruess").NewArtists);
+        Assert.Equal(["Grandmaster Flash & The Furious Five"], For(plan, "The Message", "Grandmaster Flash &amp; The Furious Five").NewArtists);
+        Assert.Equal(["Drake", "WizKid & Kyla"], For(plan, "One Dance", "Drake feat. WizKid (4) & Kyla").NewArtists);   // neither is an artist here: kept as one, like KC And Jojo
+        Assert.Equal(["2Pac", "KC And Jojo"], For(plan, "How Do U Want It", "2Pac Featuring KC And Jojo").NewArtists);   // a pair nobody here knows apart stays one name
+        Assert.Equal(["Lady Gaga", "Bruno Mars"], For(plan, "Die With A Smile", "Lady Gaga & Bruno Mars").NewArtists);   // both are artists of their own here
+        Assert.Equal(["A$AP Rocky", "Rod Stewart", "Miguel", "Mark Ronson"], For(plan, "Everyday", "A$AP Rocky feat. Rod Stewart x Miguel x Mark Ronson").NewArtists);
+        Assert.Equal(["Diana Ross & the Supremes", "The Temptations"], For(plan, "I Second That Emotion", "Diana Ross & the Supremes/The Temptations").NewArtists);
+    }
 }

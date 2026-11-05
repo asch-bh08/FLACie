@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (round 4 deploy, owner AFK)
+- Merged cloud/round4 (server tests 1872/1872) and deployed (rollback flacie-web:rollback-20261105-pre-r4). Earlier tonight: playlist titles with Spotify extras ("- Radio Edit") match the downloaded files (Library.FindLoose second pass), F24 rules fixed, web mic recorder fixes.
+- Web smoke: whole suite on round 3 was 648 passed / 8 failed; all 8 fixed or updated (Apple links now read, one heading, the playlist's own list, recorder mic, UA version one token, DJ words shown whenever there is no voice clip). Whole suite not rerun on round 4 yet.
+- Owner's "80s - 90s rally" import: 4 songs were cancelled by deploy restarts; reset to pending (backup .bak-20261105-retry), now 99/99.
+- Cloud: deploy restarts cancel running imports' in-flight songs (marked failed "Cancelled"): they should go back to pending on restart, not failed.
+
 ## Cloud · F26.6 imports show every song (cloud/round4)
 - An imported playlist lists every song of its import in order. Missing songs are greyed in their place, can't be played, and show Waiting, Searching, Downloading 40 %, Requested, or Couldn't find it with Retry. When a song lands it becomes a normal row in that place.
 - New /imports/{id}/downloads lists only that import's songs, with source, quality, progress and the reason for a failure. It is linked from the playlist page and from the Import row ("Downloads").

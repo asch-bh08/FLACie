@@ -189,6 +189,13 @@ window.flacie = (() => {
   };
   // synced lyrics: the line being sung is found from the audio clock every frame, so the highlight lands with the voice
   let lyr = null;
+  // glides the lyrics' own panel so [el] sits in its middle. The panel is the line's own (a page can hold more than one) and the distance is measured
+  // on screen: offsetTop counts from whatever ancestor is positioned, which is not the panel, so the lines lit up but the panel stayed put (owner, 5 Nov)
+  const centreLyric = (el, behavior) => {
+    const panel = el.closest(".ls-panel, .np-panel"); if (!panel) return;
+    const p = panel.getBoundingClientRect(), r = el.getBoundingClientRect();
+    panel.scrollTo({ top: panel.scrollTop + (r.top + r.height / 2) - (p.top + p.height / 2), behavior });
+  };
   const lyricTick = () => {
     if (lyr) {
       const ms = audio.currentTime * 1000 + 150; // a hair early: the eye needs the line before it is sung
@@ -199,9 +206,9 @@ window.flacie = (() => {
         if (items.length === lyr.times.length) {
           items.forEach((li, i) => { li.classList.toggle("cur", i === c); li.classList.toggle("past", i < c); });
           lyr.cur = c;
-          const el = items[c], panel = document.querySelector(".ls-panel, .np-panel");
+          const el = items[c];
           // the first line after the lyrics open (Info -> Lyrics, a new song) jumps straight to the current line: gliding down from the top took seconds (owner, 5 Nov)
-          if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: lyr.placed ? "smooth" : "instant" });
+          if (el) centreLyric(el, lyr.placed ? "smooth" : "instant");
           lyr.placed = true;
         }
       }
@@ -760,8 +767,8 @@ window.flacie = (() => {
     clearLyrics() { lyr = null; },
     // keeps the line being sung in the middle of the lyrics panel, scrolling only that panel (never the page behind it)
     scrollLyric() {
-      const el = document.querySelector("#lyrics .cur"), panel = document.querySelector(".ls-panel, .np-panel");
-      if (el && panel) panel.scrollTo({ top: el.offsetTop - panel.clientHeight / 2 + el.clientHeight / 2, behavior: "smooth" });
+      const el = document.querySelector("#lyrics .cur");
+      if (el) centreLyric(el, "smooth");
     },
     // the full-screen player is a history entry, so the browser's Back button closes it
     // the arrows in a shelf heading scroll the row below it, a page at a time

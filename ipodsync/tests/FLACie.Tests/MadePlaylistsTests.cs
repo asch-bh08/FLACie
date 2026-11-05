@@ -139,6 +139,29 @@ public class MadePlaylistsTests
         Assert.Equal(6, MadePlaylists.Search(MadePlaylists.Build(many, NoTaste(many)), "rock").Count);
     }
 
+    // searching "prodigy" found only Best of The Prodigy (owner, 5 Nov): an artist also finds their radio and the lists their songs are in
+    [Fact] public void AnArtistFindsTheirBestOfTheirRadioAndTheListsTheyAreIn()
+    {
+        var lib = Mixed();
+        var found = MadePlaylists.Search(MadePlaylists.Build(lib, NoTaste(lib)), "prodigy").Select(m => m.Id).ToList();
+        Assert.Equal(["made:artist:prodigy", "made:radio:prodigy"], found.Take(2));
+        Assert.Contains("made:genre:electronic", found);
+        Assert.Contains("made:decade:1990", found);
+        Assert.DoesNotContain("made:genre:rock", found);
+    }
+
+    [Fact] public void AnArtistsRadioMixesThemWithSongsLikeTheirs()
+    {
+        var lib = Mixed();
+        var radio = MadePlaylists.Build(lib, NoTaste(lib)).Single(m => m.Id == "made:radio:prodigy");
+        Assert.Equal("The Prodigy Radio", radio.Name);
+        var artists = radio.Paths.Select(p => lib.ByPath(p)!.Artist).ToList();
+        Assert.Contains("The Prodigy", artists);
+        Assert.Contains("Rockets", artists);
+        Assert.Equal("The Prodigy", artists[0]);
+        Assert.DoesNotContain(radio.Paths, p => lib.ByPath(p)!.Genre == "Rock");
+    }
+
     [Fact] public void SearchFindsNothingForNoiseOrBlank()
     {
         var lib = Mixed();

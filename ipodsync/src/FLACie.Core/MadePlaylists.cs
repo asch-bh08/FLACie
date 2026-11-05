@@ -9,7 +9,7 @@ public sealed record MadePlaylist(string Id, string Name, string Subtitle, strin
 /// <summary>
 /// Ready-made playlists, like Spotify's made-for-you and community lists, so searching "2010s", "rock" or an artist finds a list to play or keep
 /// (owner, 2 Nov). Built from the library alone, ordered by this listener's taste:
-///   one per decade with at least 15 songs ("2010s"), one per genre with at least 15 ("Rock"), and "Best of [artist]" for lead artists with at least 8.
+///   one per decade with at least 15 songs ("2010s"), one per genre with at least 15 ("Rock"), "Best of [artist]" for lead artists with at least 8, and "[artist] Radio" (their songs with others in their genres).
 /// Each holds up to 50 songs (a Best of 25), one copy of each song, and at most 3 songs per artist in a decade or genre list so one artist cannot fill it.
 /// The order is the taste score, then a fixed hash of the song: the same library and taste always give the same list (no shuffle), so a list someone
 /// liked is still there when they come back. Ids are stable ("made:decade:2010", "made:genre:rock", "made:artist:prodigy").
@@ -17,7 +17,7 @@ public sealed record MadePlaylist(string Id, string Name, string Subtitle, strin
 /// </summary>
 public static class MadePlaylists
 {
-    public const int MinDecade = 15, MinGenre = 15, MinArtist = 8, Take = 50, TakeArtist = 25, PerArtist = 3, MaxSearch = 6;
+    public const int MinDecade = 15, MinGenre = 15, MinArtist = 8, Take = 50, TakeArtist = 25, PerArtist = 3, MaxSearch = 6, RadioOwn = 10;
 
     /// <summary>Music, not spoken word (the same words the speed rules use to tell an audiobook or podcast).</summary>
     public static bool IsMusic(Track t) => !SpeedPolicy.IsSpoken(t.Genre);
@@ -52,6 +52,23 @@ public static class MadePlaylists
 
         foreach (var g in ordered.Where(s => s.Lead.Length > 0).GroupBy(s => s.Lead).Where(g => g.Count() >= MinArtist).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
             made.Add(Make($"made:artist:{g.Key}", "Best of " + ArtistName(g.Select(s => s.T.Artist)), g, TakeArtist, int.MaxValue));
+
+        // an artist's radio: their best songs, each followed by two from other artists in their genres
+        foreach (var g in ordered.Where(s => s.Lead.Length > 0).GroupBy(s => s.Lead).Where(g => g.Count() >= MinArtist).OrderByDescending(g => g.Count()).ThenBy(g => g.Key, StringComparer.Ordinal))
+        {
+            var theirs = g.Take(RadioOwn).ToList();
+            var kinds = g.Select(s => GenreKey(s.T)).Where(k => k.Length > 0).ToHashSet();
+            var like = ordered.Where(s => s.Lead != g.Key && kinds.Contains(GenreKey(s.T))).ToList();
+            if (like.Count == 0) continue;
+            var others = Make("", "", like, Take - theirs.Count, PerArtist).Paths;
+            var paths = new List<string>(Take);
+            for (int i = 0, j = 0; i < theirs.Count || j < others.Count;)
+            {
+                if (i < theirs.Count) paths.Add(theirs[i++].T.Path);
+                for (var k = 0; k < 2 && j < others.Count; k++) paths.Add(others[j++]);
+            }
+            made.Add(new MadePlaylist($"made:radio:{g.Key}", ArtistName(g.Select(s => s.T.Artist)) + " Radio", $"{paths.Count} songs · made for you", theirs[0].T.ArtKey, paths));
+        }
         return made;
     }
 
@@ -94,18 +111,29 @@ public static class MadePlaylists
 
     /// <summary>
     /// The lists whose name matches every word of the query, closest name first, six at most. "2010s", "2010" and "2013" find the 2010s, "90s" the 1990s,
-    /// "prodigy" and "best of prodigy" find Best of The Prodigy; words like "playlist" or "mix" are ignored ("rock playlist" is "rock").
+    /// "prodigy" and "best of prodigy" find Best of The Prodigy, then The Prodigy Radio and the decade and genre lists their songs are in; words like "playlist" or "mix" are ignored ("rock playlist" is "rock").
     /// </summary>
     public static List<MadePlaylist> Search(IReadOnlyList<MadePlaylist> lists, string q)
     {
         var words = Matching.SearchWords(q ?? "").Where(w => !Filler.Contains(w)).Select(DecadeWord).ToList();
         if (words.Count == 0) return [];
         var query = string.Concat(words);
-        return lists.Where(m => Matching.SearchHit(words, Hay(m)))
+        var found = lists.Where(m => Matching.SearchHit(words, Hay(m)))
             .Select(m => (m, rank: Rank(m, query)))
-            .OrderBy(x => x.rank).ThenByDescending(x => x.m.Paths.Count).ThenBy(x => x.m.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(x => x.m).Take(MaxSearch).ToList();
+            .OrderBy(x => x.rank).ThenBy(x => Kind(x.m)).ThenByDescending(x => x.m.Paths.Count).ThenBy(x => x.m.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.m).ToList();
+        // an artist asked for by name also brings the decade and genre lists their songs are in, the ones with most of them first
+        if (found.FirstOrDefault(m => Kind(m) == 0 && Rank(m, query) == 0) is { } artist)
+        {
+            var theirs = artist.Paths.ToHashSet();
+            found.AddRange(lists.Where(m => Kind(m) == 2 && !found.Contains(m)).Select(m => (m, n: m.Paths.Count(theirs.Contains))).Where(x => x.n > 0)
+                .OrderByDescending(x => x.n).ThenBy(x => x.m.Name, StringComparer.OrdinalIgnoreCase).Select(x => x.m));
+        }
+        return found.Take(MaxSearch).ToList();
     }
+
+    /// <summary>0: a Best of; 1: an artist's radio; 2: a decade or genre. A Best of comes before its radio when both are the name searched for.</summary>
+    static int Kind(MadePlaylist m) => m.Id.Split(':', 3)[1] switch { "artist" => 0, "radio" => 1, _ => 2 };
 
     // ---- the parts ----
 
@@ -121,7 +149,7 @@ public static class MadePlaylists
         return parts[1] switch
         {
             "decade" => [m.Name, parts[2][2..] + "s", "decade"],
-            "artist" => [m.Name, parts[2]],
+            "artist" or "radio" => [m.Name, parts[2]],
             _ => [m.Name, "genre"],
         };
     }
@@ -130,7 +158,7 @@ public static class MadePlaylists
     static int Rank(MadePlaylist m, string query)
     {
         var name = Squash(m.Name);
-        var own = m.Id.Split(':', 3) is var p && p[1] == "artist" ? Squash(m.Name["Best of ".Length..]) : name;
+        var own = m.Id.Split(':', 3) is var p && p[1] == "artist" ? Squash(m.Name["Best of ".Length..]) : name; // a radio's "Radio" is a filler word already
         if (name == query || own == query || Squash(p[2]) == query || (p[1] == "decade" && p[2][2..] + "s" == query)) return 0;
         if (name.StartsWith(query) || own.StartsWith(query)) return 1;
         return 2;

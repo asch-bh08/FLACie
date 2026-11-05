@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local
+- Merged cloud/round2 + all phone work; b106 web deployed (SoundCloud on, rollback flacie-web:rollback-20261105-pre-b106). APK held: smoke 21/23 (40-skip burst, pause state 7), being fixed.
+- Found and fixed a KeepAlive ping-pong in Connect.cs (311,539 msgs/min; web 150%->1% CPU, Jellyfin settles). Census line stays in the log for now.
+- New spec F24 (artist names fixed in Jellyfin after an approved dry-run list) is Cloud item 14.
+
 ## 2026-11-05 Cloud PROGRESS (cloud/round2): all 8 round 2 items done; PNG made cover in progress
 - Done: F11 337b2af, F1 chain b9b52cf, F12 6528b38, F13+F15 web 39f3f63, F6.2 1d100ec, F19 64d3e25, F4.2 d7d9293, F17 web c5ca927; fix: made cover only for song keys (1c-api) after them.
 - In progress: /art/{key}?fmt=png (row and ?s=full) as a PNG of the made cover, for the phone.

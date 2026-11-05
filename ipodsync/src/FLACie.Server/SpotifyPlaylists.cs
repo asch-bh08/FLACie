@@ -49,10 +49,10 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         return shown;
     }
 
-    public async Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct)
+    public async Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct, string? decade = null)
     {
-        var (found, _) = await GatherAsync(s, query.Trim().Length > 0 ? query : genre ?? "", ct);
-        return WebPlaylistPick.ForFilter(found.Concat(store.All).DistinctBy(l => l.Source + ":" + l.Id), query, genre, now());
+        var (found, _) = await GatherAsync(s, query.Trim().Length > 0 ? query : genre ?? decade ?? "", ct);
+        return WebPlaylistPick.ForFilter(found.Concat(store.All).DistinctBy(l => l.Source + ":" + l.Id), query, genre, now(), decade);
     }
 
     public void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0)

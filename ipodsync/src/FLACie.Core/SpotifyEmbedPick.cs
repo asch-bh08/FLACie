@@ -163,9 +163,15 @@ public static class WebPlaylistPick
     }
 
     /// <summary>The Playlists filter: every list that matches at all, best first; [genre] narrows them to that genre's lists and lists with it in their name.</summary>
-    public static List<WebPlaylist> ForFilter(IEnumerable<WebPlaylist> found, string query, string? genre, DateTime nowUtc)
+    public static List<WebPlaylist> ForFilter(IEnumerable<WebPlaylist> found, string query, string? genre, DateTime nowUtc, string? decade = null)
     {
         var all = Candidates(found, nowUtc);
+        // F26.3: the decade picked in the Filters panel ("1990s"): that decade's lists, and lists naming it ("90s", "1990s")
+        if (decade is { Length: >= 4 } d && int.TryParse(d[..4], out var start))
+        {
+            string[] says = [$"{start}s", $"{start % 100:00}s", $"{start}"];
+            all = all.Where(l => (l.Kind == WebPlaylistKind.Decade && l.Subject.StartsWith(start.ToString())) || Matching.SearchWords(l.Name).Any(w => says.Contains(w))).ToList();
+        }
         if (genre is { Length: > 0 } g)
         {
             var gw = string.Join(' ', Matching.SearchWords(g));

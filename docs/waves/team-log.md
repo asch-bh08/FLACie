@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round4: F26.3 filters that filter)
+- Done: the kind chips (All, Songs, Albums, Artists, Playlists) are one choice (radio group in ResultSections); Playlists shows only playlists (every matching list + the person's own; "More music" hidden), Albums only albums.
+- Genre and decade come from the Filters panel and narrow the Playlists view (ForFilter decade added; without outside lists our own are narrowed by name); the genre chips under Playlists are gone; "Genre"/"Other"/"Unknown"... are never offered as genres (ExploreState.NoGenre).
+- Proof: web-smoke 1z-search-filter.spec.ts (2 green). Also fixed 1r-search-artist's expected order for Local's "playlists under the Top result" (it failed on ui/living-sleeve).
+
 ## 2026-11-05 Cloud (cloud/round4: F26.2 "Lists with <artist> in")
 - Done: WebPlaylistPick.WithArtistIn: lists already read (Spotify's, Deezer's read ones, SoundCloud sets with songs) that hold the artist's songs but are not about them, most of their songs first; SongsLabel "Firestarter, Breathe + 2".
 - Shown by the new ListsWithArtist component on the artist search (after Playlists) and on the artist page (after Albums). Nothing is fetched for it (IWebPlaylists.ListsWithArtist reads the store).

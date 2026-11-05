@@ -61,20 +61,37 @@
         }
     </p>
 }
-@if (ExtraKinds is not null || (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1))
+@{ var listsKind = ListsKind && ranked; var listCount = plays.Count + Made.Count + (only == "playlists" ? AllLists.Count : 0); }
+@if (ExtraKinds is not null || listsKind || (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1))
 {
-    @* narrow the results to one kind *@
-    <div class="sr-kinds" role="group" aria-label="Show only">
-        @foreach (var (k, label, n) in new[] { ("", "All", 1), ("songs", "Songs", songs.Count), ("albums", "Albums", albums.Count), ("artists", "Artists", artists.Count), ("playlists", "Playlists", plays.Count) })
+    @* narrow the results to one kind: one choice (F26.3: Playlists shows only playlists, Albums only albums); genre and decade are in Filters *@
+    <div class="sr-kinds" role="radiogroup" aria-label="Show only" data-testid="kinds">
+        @foreach (var (k, label, n) in new[] { ("", "All", 1), ("songs", "Songs", songs.Count), ("albums", "Albums", albums.Count), ("artists", "Artists", artists.Count), ("playlists", "Playlists", listsKind ? 1 : plays.Count) })
         {
-            if (n == 0) continue;
+            if (n == 0 && only != k) continue;
             var kind = k;
-            <button class="chip @(only == kind ? "on" : "")" aria-pressed="@(only == kind ? "true" : "false")" @onclick="() => only = kind">@label</button>
+            <button class="chip @(only == kind ? "on" : "")" role="radio" aria-checked="@(only == kind ? "true" : "false")" aria-pressed="@(only == kind ? "true" : "false")" @onclick="() => PickKind(kind)">@label</button>
         }
         @ExtraKinds
     </div>
 }
 @UnderKinds
+@if (only == "playlists" && listsKind)
+{
+    @* every playlist that matches (Spotify's, Deezer's, SoundCloud's, ours, and the person's own), narrowed by the Filters panel's genre and decade *@
+    <section class="sr-section" aria-label="All playlists" data-testid="all-playlists">
+        <h2 class="section"><i>Playlists</i>@(X.Genre.Length > 0 ? " · " + X.Genre : "")@(X.Decade.Length > 0 ? " · " + X.Decade : "")</h2>
+        @if (AllLists.Count + plays.Count == 0) { <p class="status">No playlists for this yet.</p> }
+        <div class="grid">
+            @foreach (var m in AllLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+            @foreach (var p in plays)
+            {
+                var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+            }
+        </div>
+    </section>
+}
 @if (artistPage is not null && topArtist is not null)
 {
     var ta = topArtist;
@@ -249,7 +266,7 @@ else
         </div>
     </section>
 }
-@if (plays.Count > 0 && Shows("playlists"))
+@if (plays.Count > 0 && Shows("playlists") && !(only == "playlists" && listsKind))
 {
     <section aria-label="Playlists" class="sr-section">
         <h2 class="section"><i>Playlists</i></h2>
@@ -299,6 +316,12 @@ else
     [Parameter] public IReadOnlyList<MadePlaylist> Made { get; set; } = [];
     /// <summary>More chips at the end of the All / Songs / Albums / Artists row (Search's Playlists filter), so they sit on one line.</summary>
     [Parameter] public RenderFragment? ExtraKinds { get; set; }
+    /// <summary>F26.3: Playlists is one of the kinds (the search page): picking it shows <see cref="AllLists"/> and the person's own, nothing else.</summary>
+    [Parameter] public bool ListsKind { get; set; }
+    [Parameter] public IReadOnlyList<MadePlaylist> AllLists { get; set; } = [];
+    /// <summary>The kind picked ("" for All), so the page can fetch the lists it shows.</summary>
+    [Parameter] public EventCallback<string> OnKind { get; set; }
+    async Task PickKind(string kind) { only = kind; await OnKind.InvokeAsync(kind); }
     /// <summary>Shown right under that row (the Playlists filter's genres and its lists, when it is on).</summary>
     [Parameter] public RenderFragment? UnderKinds { get; set; }
     [Parameter] public bool ShowEmpty { get; set; } = true;

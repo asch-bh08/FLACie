@@ -9,11 +9,12 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>What a request to the DJ is about. The names (snake case) are also what the text model may answer with.</summary>
-public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation }
+public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation, PlayFrom, AddToPlaylist }
 
 /// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words, the
 /// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
-public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null);
+/// <summary>[Playlist]: the playlist named (F10: PlayFrom, AddToPlaylist); [AndPlay]: AddToPlaylist also plays the song next.</summary>
+public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null, string? Playlist = null, bool AndPlay = false);
 
 /// <summary>
 /// The quick rules for "talk to the DJ": the phrases people say most, matched without any model. Null when none fits (then the text model is asked).
@@ -77,6 +78,11 @@ public static partial class DjAskRules
     [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:something|some|anything|a bit of|music|songs|tunes|stuff|a mix of|a playlist of|a playlist for)\b ?(.*)$")] private static partial Regex Vague();
     [GeneratedRegex(@"^(?:play|put on|listen to|i want to hear|start playing)\s+(.+)$")] private static partial Regex PlayRx();
     [GeneratedRegex(@"^((?:play|put on|shuffle|give me)\s.+?)\s+and (?:then |also )?(?:play|put on)\s.+$")] private static partial Regex TwoAsks();
+    // F10: "play lovegame from my pop playlist (then the rest)"
+    [GeneratedRegex(@"^(?:play|put on) (.+?) (?:from|off|out of|in) (?:my (.+?)(?: playlist)?|the (.+?) playlist)(?: (?:and )?(?:then )?(?:the rest|the rest of it|the rest of (?:it|them|the playlist)|keep going|carry on))?$")] private static partial Regex PlayFromRx();
+    // "play rhythm of the night (and) add it to my pop playlist", "add rhythm of the night to pop and play it next", "add this to my pop playlist"
+    [GeneratedRegex(@"^(play|put on) (.+?) (?:and )?(?:then )?add (?:it|that|this) to (?:my |the )?(.+?)(?: playlist)?$")] private static partial Regex PlayAddRx();
+    [GeneratedRegex(@"^add (.+?) to (?:my |the )?(.+?)(?: playlist)?( (?:and |then )+(?:play it|put it on)(?: next| after this)?)?$")] private static partial Regex AddRx();
     [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:some|a bit of)\s")] private static partial Regex SomeOf();
     static readonly HashSet<string> VagueRest = ["new", "different", "else", "good", "other", "more", "random", "nice", "decent", "fresh", "old", "classic", "classics", "of it", "of that", "of this", "of them"];
     [GeneratedRegex(@"^(?:play |put on |shuffle )?(?:my |the )?(.+?)\s+playlist$|^(?:play |put on )?(?:my |the )?playlist (?:called |named )?(.+)$")] private static partial Regex PlaylistRx();
@@ -103,6 +109,14 @@ public static partial class DjAskRules
     {
         var s = Normalise(Uncensor(text));
         if (s.Length == 0 || s.Length > 200) return null;
+        if (PlayFromRx().Match(s) is { Success: true } pf)
+            return new(AskIntent.PlayFrom, pf.Groups[1].Value.Trim(), Playlist: (pf.Groups[2].Success ? pf.Groups[2].Value : pf.Groups[3].Value).Trim());
+        if (PlayAddRx().Match(s) is { Success: true } pa) return new(AskIntent.AddToPlaylist, pa.Groups[2].Value.Trim(), Playlist: pa.Groups[3].Value.Trim(), AndPlay: true);
+        if (AddRx().Match(s) is { Success: true } ad)
+        {
+            var song = ad.Groups[1].Value.Trim();
+            return new(AskIntent.AddToPlaylist, song is "it" or "this" or "that" or "this song" or "this one" ? null : song, Playlist: ad.Groups[2].Value.Trim(), AndPlay: ad.Groups[3].Success);
+        }
         // two asks in one breath ("play some Prodigy and play Smack My Bitch Up"): the first is done
         if (TwoAsks().Match(s) is { Success: true } two) s = two.Groups[1].Value.Trim();
         foreach (var (rx, intent) in Fixed) if (rx.IsMatch(s)) return new(intent);
@@ -172,6 +186,8 @@ public static partial class DjAskAi
         "loved (the songs they love: what they play through and come back to, and their hearted songs; use it for \"my favourites\", \"my favs\", \"my faves\", \"songs I love\"), " +
         "favourites (only the songs they hearted, when they say hearted or liked), most_played, unheard, shuffle_library, mood (query: the mood or genre in a few words, like \"chill\" or \"upbeat gym\" or \"jazz\"), " +
         "next, pause, resume, volume_up, volume_down, whats_this, who_sings, more_like (query, optional: \"slower\" or \"faster\"), less_like, thumbs_down, dj_on, dj_off, " +
+        "play_from (query: the song; add \"playlist\": the playlist's name; plays the song, then the rest of that playlist), " +
+        "add_to_playlist (query: the song, or \"this\" for the one playing; add \"playlist\": the name; add \"play\": true when they also want it played next), " +
         "situation (music for a place, time or activity of their own, like driving, the school run or sunday cleaning: query is car, night, morning, workout, chill or none; " +
         "add \"key\": the request in one to three words, reusing a phrase they have used before when it means the same; add \"vibe\": \"high\" or \"low\" when the words suggest an energy). " +
         "Use mood for any feeling, activity or genre. When they say them, him, her or this artist, use the artist the conversation is about. " +
@@ -217,6 +233,13 @@ public static partial class DjAskAi
             var key = o["key"] is JsonValue kv && kv.TryGetValue<string>(out var k) && k.Length <= 60 ? PhraseKeys.Of(k) : "";
             var vibe = o["vibe"] is JsonValue vv && vv.TryGetValue<string>(out var vb) && vb.ToLowerInvariant() is "high" or "low" ? vb.ToLowerInvariant() : null;
             return new(new(intent, sit, key.Length > 0 ? key : null, vibe), null);
+        }
+        if (intent is AskIntent.PlayFrom or AskIntent.AddToPlaylist)
+        {
+            var pl = o["playlist"] is JsonValue pv && pv.TryGetValue<string>(out var pn) && pn.Trim() is { Length: > 0 and <= 80 } pt ? pt : null;
+            if (pl is null || (intent == AskIntent.PlayFrom && query is not { Length: > 0 })) return none;
+            var play = o["play"] is JsonValue bv && bv.TryGetValue<bool>(out var bp) && bp;
+            return new(new(intent, query is { Length: > 0 } && query.ToLowerInvariant() is not ("this" or "it") ? query : null, Playlist: pl, AndPlay: play), null);
         }
         if (NeedsQuery.Contains(intent)) return query is { Length: > 0 } ? new(new(intent, query), null) : none;
         return new(new(intent, query is { Length: > 0 } ? query : null), null);
@@ -562,6 +585,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.Mood: return Mood(u, p.What ?? "", cur, recent);
             case AskIntent.Situation: return Situation(u, p, text, cur, recent);
             case AskIntent.Playlist: return Playlist(u, p.What ?? "");
+            case AskIntent.PlayFrom: return PlayFrom(u, p.What ?? "", p.Playlist ?? "", text);
+            case AskIntent.AddToPlaylist: return AddTo(u, p, cur);
             default: return await PlayAsync(u, p.What ?? "", cur, recent, ct);
         }
     }
@@ -648,6 +673,45 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         if (m.Decision == Decision.NotFound || m.Ranked[0].Item is not Playlist pl) return DjAskAnswer.Said($"I can't find a playlist called {name}.");
         var paths = PathsOf(u, pl);
         return paths.Count == 0 ? DjAskAnswer.Said($"Your {pl.Name} playlist has nothing I can play yet.") : new(DjAskDo.Play, $"Here's your {pl.Name} playlist.", paths, pl.Name);
+    }
+
+    Playlist? PlaylistFor(IDjAskUser u, string name)
+    {
+        var m = MatcherFor(u).Match(new VoiceQuery(null, null, null, name, null, null, null));
+        return m.Decision == Decision.NotFound ? null : m.Ranked[0].Item as Playlist;
+    }
+
+    /// <summary>A song in the library by its name (and artist, when said), or null.</summary>
+    Track? SongFor(IDjAskUser u, string what, IReadOnlyList<Track>? among = null)
+    {
+        var key = Matching.NormTitle(what);
+        if (among?.FirstOrDefault(t => Matching.NormTitle(t.Title) == key) is { } inList) return inList;
+        var m = MatcherFor(u).Match(VoiceParser.FromRaw("play " + what));
+        return m.Decision != Decision.NotFound && m.Ranked[0].Item is Track t && Playable(t) ? t : null;
+    }
+
+    /// <summary>F10: "play lovegame from my pop playlist": that song, then the rest of the playlist (shuffled when asked).</summary>
+    DjAskAnswer PlayFrom(IDjAskUser u, string what, string name, string text)
+    {
+        if (PlaylistFor(u, name) is not { } pl) return DjAskAnswer.Said($"I can't find a playlist called {name}.");
+        var paths = PathsOf(u, pl);
+        var first = SongFor(u, what, paths.Select(u.Find).OfType<Track>().ToList());
+        if (first is null) return DjAskAnswer.Said($"I can't find {what} to play.");
+        var rest = paths.Where(x => x != first.Path).ToList();
+        if (Regex.IsMatch(DjAskRules.Normalise(text), @"\bshuffle")) rest = rest.OrderBy(_ => Random.Shared.Next()).ToList();
+        return new(DjAskDo.Play, $"{T(first.Title)}, then the rest of {pl.Name}.", [first.Path, .. rest], pl.Name);
+    }
+
+    /// <summary>F10: "add rhythm of the night to my pop playlist (and play it next)": the add step, then Up next when asked. A new name makes the playlist.</summary>
+    DjAskAnswer AddTo(IDjAskUser u, AskParse p, Track? cur)
+    {
+        var song = p.What is { Length: > 0 } w ? SongFor(u, w) : cur;
+        if (song is null) return DjAskAnswer.Said(p.What is null ? "Nothing's playing right now." : $"I can't find {p.What} in your library.");
+        var name = PlaylistFor(u, p.Playlist ?? "")?.Name ?? Capital(p.Playlist ?? "");
+        if (name.Length == 0) return DjAskAnswer.Said(DidntCatch);
+        var add = DjAskStep.AddTo(name, [song.Path]);
+        if (!p.AndPlay) return new(DjAskDo.None, $"Added {T(song.Title)} to {name}.") { Steps = [add] };
+        return new(DjAskDo.UpNext, $"Added {T(song.Title)} to {name}, and it's up next.", [song.Path]) { Steps = [add, new(DjAskDo.UpNext, [song.Path])] };
     }
 
     static List<string> PathsOf(IDjAskUser u, Playlist p) =>

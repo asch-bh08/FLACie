@@ -298,7 +298,7 @@ public class DjCarDriveTests
         var (_, user) = DjWriter.Prompt(f, []);
         Assert.Contains("on shuffle", user);
         Assert.Contains("Pop", user);
-        Assert.Contains("their own playlist", user);
+        Assert.Contains("the listener's own playlist", user);
         Assert.Equal("Shuffling Pop Hits... starting with Firework, Katy Perry.",
             DjWriter.Check("Shuffling Pop Hits... starting with Firework, Katy Perry.", f with { QueueName = "Pop Hits" }, []));
         // a list name that is not given is not made up

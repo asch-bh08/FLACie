@@ -45,6 +45,11 @@ public static partial class DjWriter
         + "Never say the artist's name twice in one line; after a song by the same artist, leave the name out or say it once. "
         // the voice ran song names into the words around them (owner, 30 Oct): commas give it a breath either side
         + "Set a song title off with commas when words follow it, so the voice pauses around it (\"Here's Chandelier, from Sia, to lift things\"). "
+        // owner, 5 Nov: "next is Without Me from their playlist... like what?": the DJ talks to the listener, and the playlist is theirs to know about
+        + "Talk TO the listener, as \"you\" and \"your\": never call the listener \"they\", \"their\" or \"them\". "
+        + "Do not mention the playlist, album or queue a song comes from, unless the facts say the listener has just started it. "
+        // owner, 5 Nov: "every time it spoke it said 'on this Wednesday morning'"
+        + "Mention the time of day or the day only when the facts give words for it, and never in the same words as a recent line. "
         + "Do not start the way any of the recent lines start, and do not repeat their wording. Reply with the line only.";
 
     /// <summary>What each style adds to the character: the tone, and for Chill a shorter line.</summary>
@@ -80,19 +85,23 @@ public static partial class DjWriter
         if (album.Equals(TitleOf(n), StringComparison.OrdinalIgnoreCase)) album = "";
         var remaster = n.Title.Contains("remaster", StringComparison.OrdinalIgnoreCase) || n.Album.Contains("remaster", StringComparison.OrdinalIgnoreCase);
         var year = n.Year >= 1900 && n.Year <= nowUtc.Year && !remaster && !DjText.IsCompilation(n.Album, n.AlbumArtist) ? n.Year : 0;
-        var tod = req.LocalHour switch { >= 5 and <= 11 => "morning", >= 12 and <= 17 => "afternoon", >= 18 and <= 22 => "evening", null => "", _ => "late at night" };
-        var day = req.Weekday is { } wd and >= 0 and <= 7 ? ((DayOfWeek)(wd % 7)).ToString() : "";
+        // the time of day and the day only when the planner offered the time to this line (the first of a session, then about one in six), so it is not in
+        // every line (owner, 5 Nov: "every time it spoke it said 'on this Wednesday morning'")
+        var timed = line.TimePhrase is { Length: > 0 };
+        var tod = !timed ? "" : req.LocalHour switch { >= 5 and <= 11 => "morning", >= 12 and <= 17 => "afternoon", >= 18 and <= 22 => "evening", null => "", _ => "late at night" };
+        var day = timed && req.Weekday is { } wd and >= 0 and <= 7 ? ((DayOfWeek)(wd % 7)).ToString() : "";
         // where the song comes from: only a song the engine picked (it carries a reason) is the DJ's own choice. In their playlist or queue the next song
-        // is simply theirs, and a skip is not mentioned (owner, 28 Oct: "skipped that last one, playing this one" about the playlist's own next song)
+        // is simply theirs, and a skip is not mentioned (owner, 28 Oct: "skipped that last one, playing this one" about the playlist's own next song).
+        // Written about "the listener", never "they": the model said "from their playlist" back (owner, 5 Nov)
         var picked = req.Why is { Length: > 0 };
-        var source = picked ? "you picked it for them" : req.PlaylistId is { Length: > 0 } ? "their own playlist (they chose it and its order; you did not pick this song)"
-            : "their own queue (they chose it; you did not pick this song)";
+        var source = picked ? "you picked it for the listener" : req.PlaylistId is { Length: > 0 } ? "the listener's own playlist (the listener chose it and its order; you did not pick this song; do not mention the playlist)"
+            : "the listener's own queue (the listener chose it; you did not pick this song; do not mention the queue)";
         // (the reset is only ever planned for an engine pick; checked here too, so no other route can put skips into a playlist's prompt)
-        var mood = picked && line.Slot == DjSlot.Reset ? "they skipped several songs in a row and have now let one play: a change of direction"
-            : picked && (req.SkippedRecently || !req.PrevPlayedOut) ? "they have just skipped a song" : "settled in, letting songs play";
+        var mood = picked && line.Slot == DjSlot.Reset ? "the listener skipped several songs in a row and has now let one play: a change of direction"
+            : picked && (req.SkippedRecently || !req.PrevPlayedOut) ? "the listener has just skipped a song" : "settled in, letting songs play";
         var why = string.Join("; ", DjWhy.Parts(req.Why));
         // loved or new: only what the account's listening says (DjRequest.Bond), never guessed from the recommender's words
-        var find = req.Bond switch { DjBond.NewFind => "a new find for them, never played before", DjBond.Loved => "a song they love and play a lot", _ => "" };
+        var find = req.Bond switch { DjBond.NewFind => "a new find for the listener, never played before", DjBond.Loved => "a song the listener loves and plays a lot", _ => "" };
         var open = line.Slot == DjSlot.Open || (req.Prev is null && !req.QueueStart);
         // a queue that has just started from a playlist or album: the writer is told its name, and whether it is on shuffle
         var queue = req.QueueStart && DjText.Tidy(req.QueueName) is { Length: > 0 } qn && DjText.WordCount(qn) <= 8 && qn.Length <= 50 ? qn : "";
@@ -102,7 +111,7 @@ public static partial class DjWriter
         return new(TitleOf(n), artist, lead, g, album, year, TitleOf(p), ArtistOf(p).Written, open,
             tod, day, mood, why, find, line.Caption,
             DjText.Genre(n.Genre)?.Write ?? "", Clean(extra?.ReleaseType), first, Clean(extra?.Label), DjFeel.Of(extra?.Vibe, extra?.PrevVibe, picked),
-            DjPlanner.Colour(req.LocalHour, req.Weekday) ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style,
+            line.TimePhrase ?? "", open && firstName is { Length: > 0 } fn ? fn : "", style,
             intro ?? 0, DjTiming.TargetWords(intro), Source: source, SameArtistRun: sameRun, QueueName: queue, QueueShuffled: req.Shuffled);
     }
 
@@ -128,16 +137,17 @@ public static partial class DjWriter
         Put("Previous song", f.PrevTitle.Length > 0 && f.PrevArtist.Length > 0 && !f.SameArtistRun ? f.PrevTitle + " by " + f.PrevArtist : f.PrevTitle);
         if (f.SameArtistRun) Put("Same artist", "the previous song was by the same artist, so do not say the artist's name again: the title alone is enough, or say the name just once");
         Put("Moment", f.QueueName.Length > 0
-            ? $"they have just started playing {f.QueueName}{(f.QueueShuffled ? " on shuffle" : "")}, and this is its first song: say so in your own words, in the same breath as the song (for example \"{(f.QueueShuffled ? "Shuffling" : "Playing")} {f.QueueName}... starting with {f.Title}, {f.ArtistLead}\"), using only that name for the list"
+            ? $"the listener has just started playing {f.QueueName}{(f.QueueShuffled ? " on shuffle" : "")}, and this is its first song: say so in your own words, in the same breath as the song (for example \"{(f.QueueShuffled ? "Shuffling" : "Playing")} {f.QueueName}... starting with {f.Title}, {f.ArtistLead}\"), using only that name for the list"
             : f.Open ?"the start of a listening session: a short hello first" + (f.FirstName.Length > 0 ? ", by first name" : "") : "between songs, mid-session");
         Put("Listener's first name", f.FirstName);
         Put("Time of day", f.TimeOfDay);
         Put("Day", f.Day);
-        Put("Worth a word about the time", f.Colour);
+        Put("Worth a word about the time (in these words, or leave the time out)", f.Colour);
+        if (f.Colour.Length == 0 && !f.Open) Put("Time", "do not mention the time of day or the day of the week in this line");
         Put("Listener", f.Mood);
         Put("Why this song was picked", f.Why);
         Put("This song is", f.Find);
-        Put("They asked you for (you may keep it going, in your own words)", f.Request);
+        Put("The listener asked you for (you may keep it going, in your own words)", f.Request);
         Put("A plain version of the line (do better than this)", f.TemplateLine);
         if (f.TargetWords > 0)
             Put("Length", $"the song's intro before the singing is about {Math.Round(f.IntroMs / 1000.0).ToString(CultureInfo.InvariantCulture)} seconds, so keep the line to about {f.TargetWords} words");
@@ -157,6 +167,11 @@ public static partial class DjWriter
     [GeneratedRegex(@"https?:|www\.|@\w", RegexOptions.IgnoreCase)] private static partial Regex Link();
     [GeneratedRegex(@"[.!?]+(\s|$)")] private static partial Regex SentenceEnd();
     [GeneratedRegex(@"\p{N}+")] private static partial Regex Number();
+    /// <summary>The listener in the third person: "their playlist", "one they love", "for them".</summary>
+    [GeneratedRegex(@"\btheir\s+(own\s+)?(playlist|queue|list|mix|library|collection|taste|choice|picks?|favou?rites?|music|songs?|ears|day|morning|afternoon|evening|night)\b|\b(they|they've|they'd|they're|they'll)\s+(chose|choose|chosen|picked|asked|love|loved|like|liked|play|played|playing|want|wanted|requested|skipped|listen|listened|listening|enjoy|enjoyed|been)\b|\bfor them\b")]
+    private static partial Regex ThirdPerson();
+    [GeneratedRegex(@"\b(playlist|queue)\b")] private static partial Regex ListWord();
+    [GeneratedRegex(@"\b(morning|afternoon|evening|tonight|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b")] private static partial Regex TimeWord();
 
     /// <summary>Words a line may start with a capital mid-sentence without being a fact (days, greetings, "I").</summary>
     static readonly HashSet<string> Allowed = new(StringComparer.OrdinalIgnoreCase)
@@ -217,6 +232,17 @@ public static partial class DjWriter
             var names = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist }).ToLowerInvariant();
             if (OwnNever.Any(c => Word(low, c) && !Word(names, c))) return null;
         }
+        var own = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.QueueName }).ToLowerInvariant();
+        // the listener is "you", never "they" (owner, 5 Nov: "next is Without Me from their playlist... like what?"); and mid-queue the playlist is not
+        // mentioned at all: only the line that opens a queue names it
+        if (ThirdPerson().IsMatch(low) && !ThirdPerson().IsMatch(own)) return null;
+        if (f.QueueName.Length == 0 && ListWord().Match(low) is { Success: true } lw && !Word(own, lw.Value)) return null;
+        // the time of day only when the planner offered it to this line (the first of a session, then about one in six), and not in the words of a recent
+        // line (owner, 5 Nov: "every time it spoke it said 'on this Wednesday morning'")
+        var timeWords = TimeWord().Matches(low).Select(m => m.Value).Where(w => !Word(own, w)).ToHashSet();
+        if (timeWords.Count > 0 && f.Colour.Length == 0 && !f.Open) return null;
+        if (f.Colour.Length > 0 && low.Contains(f.Colour.ToLowerInvariant()) && recent.Any(r => r.Contains(f.Colour, StringComparison.OrdinalIgnoreCase))) return null;
+        if (timeWords.Count > 0 && recent.Any(r => TimeWord().Matches(r.ToLowerInvariant()).Any(m => timeWords.Contains(m.Value)))) return null;
         // every capitalised word mid-sentence and every number comes from the facts
         var known = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.Why, f.Day, f.TimeOfDay, f.TemplateLine,
             f.Year > 0 ? f.Year.ToString(CultureInfo.InvariantCulture) : "", f.FirstYear > 0 ? f.FirstYear.ToString(CultureInfo.InvariantCulture) : "",

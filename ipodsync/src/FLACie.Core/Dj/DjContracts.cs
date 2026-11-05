@@ -48,6 +48,9 @@ public sealed class DjSettings
     public bool Cue { get; set; } = true;
     /// <summary>Talk before the song: the song waits (silently) until the line has been said, then starts from the top, instead of the line going over its intro.</summary>
     public bool Before { get; set; }
+    /// <summary>Announce the first song: starting playback of any song (a tapped song, not only a playlist or album) gets a short intro for it (owner, 5 Nov:
+    /// "if I just click on a song I want the DJ to announce it, like it does after the first songs"). On by default.</summary>
+    public bool AnnounceFirst { get; set; } = true;
 
     /// <summary>Someone still on the old "Music under the DJ" default moves to the new one, once. True when it changed anything.</summary>
     public static bool MoveOldDuck(DjSettings s)
@@ -105,10 +108,12 @@ public sealed record DjSong(string Title, string Artist, string Album = "", stri
 /// [Bond]: loved or a new find, when the client knows it for certain (the server fills it from the account's listening when it is Unknown).
 /// [QueueStart]: [Next] is the first song of a queue that has just started from a playlist or album ([QueueName]; [Shuffled] when it starts on shuffle) and there is no
 /// previous song: the DJ may open it with "Shuffling Pop... starting with Firework, Katy Perry" (owner, 30 Oct). Said once per queue start, never on a shuffle toggle.
+/// [FirstSong]: [Next] has just been started by the listener (a tapped song, a new queue with no name): with <see cref="DjSettings.AnnounceFirst"/> on it gets a
+/// short intro of its own (owner, 5 Nov).
 /// </summary>
 public sealed record DjRequest(DjSurface Surface, DjSong Next, DjSong? Prev = null, bool PrevPlayedOut = true, bool SkippedRecently = false,
     string? PlaylistId = null, bool? QueueDj = null, int? LocalHour = null, int? Weekday = null, string? Why = null, DjBond Bond = DjBond.Unknown,
-    bool QueueStart = false, string? QueueName = null, bool Shuffled = false);
+    bool QueueStart = false, string? QueueName = null, bool Shuffled = false, bool FirstSong = false);
 
 /// <summary>What the DJ says before a song. [Text] is spoken (years in words), [Caption] is the written form for screens.
 /// [ClipUrl] is a server-relative MP3 (null when no clip can be made); [Backup] = say [Text] with the device's own voice instead.

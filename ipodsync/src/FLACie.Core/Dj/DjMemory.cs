@@ -27,6 +27,12 @@ public sealed class DjMemory
     /// <summary>Whether each of the last 5 song changes was a skip, oldest first.</summary>
     public List<bool> Skips { get; } = [];
 
+    /// <summary>Lines said since the last one that was offered the time of day (<see cref="DjPlanner.TimeEvery"/>), and the wording it was offered: the time
+    /// is said in the first line of a session and then about one line in six, never the same words twice running (owner, 5 Nov: "every time it spoke it said
+    /// 'on this Wednesday morning'").</summary>
+    public int SinceTime { get; set; } = Long;
+    public string? LastTimePhrase { get; set; }
+
     public void Add(Line l) { Lines.Add(l); if (Lines.Count > Keep) Lines.RemoveAt(0); }
 
     public void Skipped(bool skip) { Skips.Add(skip); if (Skips.Count > 5) Skips.RemoveAt(0); }

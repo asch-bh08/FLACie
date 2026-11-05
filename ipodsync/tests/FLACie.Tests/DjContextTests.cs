@@ -95,8 +95,8 @@ public class DjContextTests : IDisposable
         var (dj, h) = Make(contexts, _ => Task.FromResult(Model("Keeping the Car songs going, here's Smack That, Akon with Eminem.")));
         var cue = await dj.PrepareAsync(me, Req());
         var linePrompt = Assert.Single(Prompts(h));
-        Assert.Contains("They asked you for (you may keep it going, in your own words): Car songs", linePrompt);
-        Assert.Contains("They said: play my car songs playlist", linePrompt);
+        Assert.Contains("The listener asked you for (you may keep it going, in your own words): Car songs", linePrompt);
+        Assert.Contains("The listener said: play my car songs playlist", linePrompt);
         Assert.Contains("Listening on: the car", linePrompt);
         // the line may name the request (it is a fact now), and it is shown as written
         Assert.Equal("Keeping the Car songs going, here's Smack That, Akon with Eminem.", cue?.Caption);
@@ -105,7 +105,7 @@ public class DjContextTests : IDisposable
         await engine.AnswerAsync(u, "why did you pick this?", u.Library[0].Path, []);
         var askPrompt = model.Users[^1];
         Assert.Contains("Hey Ya! by Outkast", askPrompt);
-        Assert.Contains("They asked for: Car songs", askPrompt);
+        Assert.Contains("The listener asked for: Car songs", askPrompt);
         Assert.Contains("Keeping the Car songs going", askPrompt);
         Assert.Contains("Listening on: the car", askPrompt);
     }

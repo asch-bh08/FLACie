@@ -333,7 +333,7 @@ public class DjAskTests
         string? prompt = null;
         var e2 = new DjAskEngine(new FakeModel((p, _) => { prompt = p; return Task.FromResult<string?>("{\"answer\": \"Not sure.\"}"); }), e.Contexts);
         await e2.AnswerAsync(u, "what else have they done?", null, []);
-        Assert.Contains("They said: who are the prodigy?", prompt);
+        Assert.Contains("The listener said: who are the prodigy?", prompt);
         Assert.Contains("Talking about: The Prodigy", prompt);
     }
 
@@ -548,7 +548,7 @@ public class DjAskTests
         var u = Standard(); u.Top = [u.Library[2], u.Library[3], u.Library[0]];
         await new DjAskEngine(model).AnswerAsync(u, "something for the drive home", null, []);
         Assert.Contains("Their playlists: Pop, Running", seen);
-        Assert.Contains("Their top artists: Radiohead, Akon", seen);
+        Assert.Contains("The listener's top artists: Radiohead, Akon", seen);
     }
 
     [Fact] public void ThePromptOffersLovedAndAQuestion()

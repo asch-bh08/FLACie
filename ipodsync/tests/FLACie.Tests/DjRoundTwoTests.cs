@@ -33,7 +33,7 @@ public class DjRoundTwoTests : IDisposable
     public void A_song_from_their_playlist_is_theirs_and_the_skip_is_not_mentioned()
     {
         var pl = DjWriter.Prompt(DjWriter.FactsOf(Req() with { PlaylistId = "pl-1", PrevPlayedOut = false, SkippedRecently = true }, Template, now), []);
-        Assert.Contains("their own playlist", pl.User);
+        Assert.Contains("the listener's own playlist", pl.User);
         Assert.DoesNotContain("skipped", pl.User);
         var picked = DjWriter.Prompt(DjWriter.FactsOf(Req(why: "because you play Akon") with { PrevPlayedOut = false, SkippedRecently = true }, Template, now), []);
         Assert.Contains("you picked", picked.User);
@@ -122,7 +122,7 @@ public class DjRoundTwoTests : IDisposable
         var extra = new DjExtra("single", 2005, "", Big, Calm);
         var f = DjWriter.FactsOf(Req(bond: DjBond.Loved) with { Next = Smack with { Genre = "Hip Hop" } }, Template, now, extra);
         var (_, user) = DjWriter.Prompt(f, []);
-        foreach (var fact in new[] { "Released as: a single", "First released: 2005", "Genre: hip hop", "How it sounds: a livelier one", "This song is: a song they love",
+        foreach (var fact in new[] { "Released as: a single", "First released: 2005", "Genre: hip hop", "How it sounds: a livelier one", "This song is: a song the listener loves",
                      "Worth a word about the time: Friday night" })
             Assert.True(user.Contains(fact, StringComparison.OrdinalIgnoreCase), fact + " in " + user);
         Assert.DoesNotContain("Label", user);   // not known: never mentioned

@@ -30,4 +30,25 @@ public class SearchRankTests
         Assert.Null(SearchRankTop.Artist([Artist("Prodigy of Mobb Deep", 5)], "prodigy", []));
         Assert.Null(SearchRankTop.Artist([Artist("The Prodigy", 5)], "the", []));
     }
+
+    static Track S(string title, string album, int year, string id) => new($"/m/tp/{id}", title, "The Prodigy", album, "The Prodigy", 1, 1, 200000, year, null, 1, TrackSource.Jellyfin, JellyfinId: id);
+
+    [Fact]
+    public void The_artist_page_has_top_five_popular_albums_and_singles_newest_first()
+    {
+        var fat = new[] { "Smack My Bitch Up", "Breathe", "Diesel Power", "Funky Shit", "Serial Thrilla", "Mindfields" }.Select((t, i) => S(t, "The Fat of the Land", 1997, "f" + i)).ToList();
+        var jilted = new[] { "Voodoo People", "Poison", "No Good", "One Love" }.Select((t, i) => S(t, "Music for the Jilted Generation", 1994, "j" + i)).ToList();
+        var single = new[] { S("Firestarter", "Firestarter", 1996, "x1"), S("Firestarter (Instrumental)", "Firestarter", 1996, "x2") };
+        var ep = Enumerable.Range(0, 5).Select(i => S($"Track {i}", "Charly EP", 1991, "e" + i)).ToList();
+        var all = fat.Concat(jilted).Concat(single).Concat(ep).ToList();
+        var artist = new Group("The Prodigy", all, null);
+        var albums = all.GroupBy(t => t.Album).Select(g => new Group(g.Key, g.ToList(), null)).ToList();
+        var page = ArtistPage.Of(artist, albums, [new("j0", 50, 0, false), new("x1", 40, 0, false), new("f0", 30, 0, false)]);
+        Assert.Equal(["Voodoo People", "Firestarter", "Smack My Bitch Up"], page.Top.Take(3).Select(t => t.Title));
+        Assert.Equal(5, page.Top.Count);
+        Assert.Equal(10, page.Popular.Count);
+        Assert.DoesNotContain(page.Popular, t => page.Top.Contains(t));
+        Assert.Equal(["The Fat of the Land", "Music for the Jilted Generation"], page.Albums.Select(a => a.Name));
+        Assert.Equal(["Firestarter", "Charly EP"], page.Singles.Select(a => a.Name));
+    }
 }

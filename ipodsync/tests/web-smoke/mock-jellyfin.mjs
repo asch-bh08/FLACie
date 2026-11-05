@@ -73,6 +73,22 @@ const lab = labSpec.map((s, i) => ({
   MediaType: 'Audio',
 }));
 songs.push(...lab);
+// ---- search page (1r-search-artist.spec.ts): "prodigy" is The Prodigy (two albums, a single, an EP, 12 songs) far more than Prodigy (3 songs) ----
+const prodigy = [
+  ['The Prodigy', 'The Fat of the Land', 1997, ['Smack My Bitch Up', 'Breathe', 'Diesel Power', 'Funky Shit', 'Serial Thrilla']],
+  ['The Prodigy', 'Music for the Jilted Generation', 1994, ['Voodoo People', 'Poison', 'No Good (Start the Dance)', 'One Love']],
+  ['The Prodigy', 'Firestarter', 1996, ['Firestarter']],
+  ['The Prodigy', 'Charly EP', 1991, ['Charly', 'Your Love']],
+  ['Prodigy', 'H.N.I.C.', 2000, ['Keep It Thoro', 'Rock Dat Shit', 'Wanna Be Thugs']],
+];
+for (const [artist, album, year, titles] of prodigy) {
+  titles.forEach((t, i) => {
+    const n = songs.length + 1;
+    songs.push({ Id: `p${n}`, Name: t, Artists: [artist], AlbumArtist: artist, Album: album, AlbumId: `pal-${album.replace(/\W/g, '')}`, IndexNumber: i + 1, ParentIndexNumber: 1,
+      RunTimeTicks: (200 + i * 11) * 10_000_000, ProductionYear: year, Path: `/music/${artist}/${album}/${String(i + 1).padStart(2, '0')} ${t}.flac`, Genres: ['Electronic'],
+      DateCreated: new Date(Date.UTC(2024, 6, 1 + n % 28)).toISOString(), ImageTags: { Primary: 'x' }, MediaType: 'Audio' });
+  });
+}
 // like a real Jellyfin: every item names its album's picture (AlbumPrimaryImageTag) as well as its own, and says when it was last saved
 const saved0 = new Date(Date.UTC(2025, 5, 1)).toISOString();
 for (const x of songs) { x.AlbumPrimaryImageTag = 'at-' + x.AlbumId; x.DateLastSaved = saved0; }
@@ -98,7 +114,7 @@ let streamDelay = 0, firstByte = 0;
 let prefsDelay = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
-const withSources = (x) => (x.Id.startsWith('s') && x.Id !== 's1'
+const withSources = (x) => ((x.Id.startsWith('s') || x.Id.startsWith('p')) && x.Id !== 's1'
   ? { ...x, MediaSources: [{ Container: 'flac', Path: x.Path, Size: 20_000_000, Bitrate: 1_000_000, RunTimeTicks: x.RunTimeTicks, MediaStreams: [{ Type: 'Audio', Codec: 'flac', Channels: 2, BitRate: 1_000_000, SampleRate: 44100, BitDepth: 16 }] }] }
   : x);
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');

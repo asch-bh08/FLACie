@@ -105,7 +105,7 @@ public class DjConversationWebTests
         {
             Steps = [new(DjAskDo.Play, [toxic, roads], "Mix"), new(DjAskDo.UpNext, ["/p/Katy Perry/Firework"]), DjAskStep.AddTo("Pop", [roads]),
                 DjAskStep.RemoveFrom("Pop", [toxic]), DjAskStep.Create("Trip", [roads, toxic]), new(DjAskDo.RenamePlaylist, Title: "Road Trip", Playlist: "Trip"),
-                new(DjAskDo.Shuffle, Shuffle: true), new(DjAskDo.VolumeDown), new(DjAskDo.Next), new(DjAskDo.Pause), new(DjAskDo.Resume), DjAskStep.Question("Anything else?")],
+                new(DjAskDo.VolumeDown), new(DjAskDo.Next), new(DjAskDo.Pause), new(DjAskDo.Resume), new(DjAskDo.Shuffle, Shuffle: true), DjAskStep.Question("Anything else?")],
         };
         RetroHost.DjAsk = (_, _, _, _, _) => Task.FromResult(answer);
         await p.AskDjAsync("do it all");
@@ -113,7 +113,7 @@ public class DjConversationWebTests
         Assert.Equal(["Roads", "Toxic"], Assert.Single(s.Playlists, x => x.Name == "Road Trip").Entries.Select(e => e.Title));
         Assert.True(p.Shuffle);
         Assert.True(p.Volume < 1);
-        Assert.Equal("Firework", p.Current!.Title);   // Up next, then Next
+        Assert.Equal("Firework", p.Current!.Title);   // Up next, then Next (shuffle after it leaves the current song alone)
         Assert.True(DjConversation.AskedBack(answer));
     }
 }

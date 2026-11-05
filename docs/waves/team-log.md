@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F6.2 web search page)
+- Done: an artist search (ResultSections) = Top result + their top 5 songs beside it, then Popular, Albums, Singles & EPs (newest first), Playlists (made + own), Other artists (small chips). Song searches unchanged.
+- ArtistPage.Of in Core (tested); Playwright 1r-search-artist.spec.ts (3 green); mock-jellyfin.mjs gained The Prodigy (12) and Prodigy (3), ids "p..".
+- Local: please run the whole web-smoke suite once on frank's box (here Playwright 1.49 never sees the Blazor websocket event, so specs that wait for it time out; PW_CHROMIUM picks a local Chromium).
+- Also fixed a flaky step order in DjConversationWebTests.
+
 ## 2026-11-05 Cloud (cloud/round2: F13 + F15 web)
 - F13: the web shuffle buttons (player bar, Now Playing, iPod) use QueueShuffle: on shuffles only after the current song, off restores the queue order.
 - F15: "Announce the first song" switch is in the web DJ settings; off, a shuffled playlist start asks for no line. A plain Play stays quiet (owner rule pinned in PlayerDjTests).

@@ -54,6 +54,9 @@ private val artistSplit = Regex("""\s*(;|,|&|/|\s+x\s+|\s+(feat\.?|ft\.?|featuri
 private val nonAlnum = Regex("""[^\p{L}\p{N}]+""")
 
 /** Title with "(feat. X)" / "ft. X" dropped and punctuation folded, for matching one song across sources. */
+/** The song's own name for matching: "Song - Single Version", "Song (From X)" and "Song" are one; "Song (Remix)" is not (WebCatalog.baseTitle). */
+fun baseTitleKey(s: String): String = normTitle(WebCatalog.baseTitle(s))
+
 fun normTitle(s: String): String = s.replace(featParen, "").replace(featTail, "").lowercase().replace(nonAlnum, " ").trim()
 /** Just the lead artist: "Lady Gaga; Colby O'Donis", "Lady Gaga Feat. Colby O'Donis" and "Lady Gaga" all -> "lady gaga". */
 // "The Black Eyed Peas" and "Black Eyed Peas" are one artist (taggers disagree on the article)

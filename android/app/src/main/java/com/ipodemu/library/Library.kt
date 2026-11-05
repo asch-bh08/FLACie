@@ -441,12 +441,18 @@ class Library(ctx: Context, val art: ArtCache) {
         // matched by path took 3 s to open (owner, 1 Nov)
         val d = derive()
         val byTitle = looseIndex?.takeIf { it.first === d }?.second ?: d.songs.groupBy { normTitle(it.title) }.also { looseIndex = d to it }
-        return byTitle[nt].orEmpty().firstOrNull { t ->
-            normTitle(t.title) == nt && primaryArtist(t.artist).let { a -> a.isEmpty() || a == "unknown artist" || a == "unknown" || (pa.isNotEmpty() && (a.contains(pa) || pa.contains(a))) }
-        }
+        val sameArtist = { t: Track -> primaryArtist(t.artist).let { a -> a.isEmpty() || a == "unknown artist" || a == "unknown" || (pa.isNotEmpty() && (a.contains(pa) || pa.contains(a))) } }
+        byTitle[nt].orEmpty().firstOrNull { t -> normTitle(t.title) == nt && sameArtist(t) }?.let { return it }
+        // then the song's own name on both sides: Spotify's "More And More - Single Version" is the "More And More" downloaded for it (owner, 5 Nov:
+        // shown as missing in the playlist); a remix keeps its word
+        val bt = baseTitleKey(title)
+        if (bt.isEmpty()) return null
+        val byBase = baseIndex?.takeIf { it.first === d }?.second ?: d.songs.groupBy { baseTitleKey(it.title) }.also { baseIndex = d to it }
+        return byBase[bt].orEmpty().firstOrNull(sameArtist)
     }
 
     @Volatile private var looseIndex: Pair<Any, Map<String, List<Track>>>? = null
+    @Volatile private var baseIndex: Pair<Any, Map<String, List<Track>>>? = null
 
     /** Any track by file path (playlists and favourites store paths). */
     fun byPath(): Map<String, Track> = derive().byPath

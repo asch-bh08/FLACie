@@ -61,9 +61,11 @@ else
     /// <summary>Playing it: its missing songs are fetched in play order (F23.2).</summary>
     void Played() { if (web is not null) AppHost.WebPlaylists?.Interest(Session, web, FetchTrigger.Played); }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         if (savedFor != Id) { savedFor = Id; savedId = null; web = null; }
+        // a SoundCloud set is known by name until it is opened: its songs are read now (F25.3)
+        if (List() is not null && web is { Tracks.Count: 0 } && AppHost.WebPlaylists is { } w) web = await w.FillAsync(Session, web, CancellationToken.None);
         // opening a list from outside asks for its missing songs, once per visit
         if (List() is not null && web is not null && openedFor != Id) { openedFor = Id; AppHost.WebPlaylists?.Interest(Session, web, FetchTrigger.Opened); }
     }

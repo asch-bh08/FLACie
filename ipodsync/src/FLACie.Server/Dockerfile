@@ -18,6 +18,8 @@ LABEL org.opencontainers.image.source="https://github.com/asch-bh08/FLACie"
 LABEL org.opencontainers.image.description="FLACie Web: a self-hosted music player for Jellyfin or a NAS"
 WORKDIR /app
 COPY --from=build /app .
+# ffmpeg decodes MP3, M4A, AAC, OGG, Opus and WMA songs for the vibe pass and the DJ's intros (item 13; FLAC needs no decoding)
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 # sign-in keys and the cover cache live in /data: mount a volume there so restarts keep everyone signed in
 RUN mkdir -p /data
 ENV ASPNETCORE_URLS=http://+:8080 \
@@ -26,6 +28,7 @@ VOLUME /data
 EXPOSE 8080
 
 COPY FLACie.Server/entrypoint.sh /entrypoint.sh
-RUN sed -i 's/$//' /entrypoint.sh && chmod +x /entrypoint.sh
+RUN sed -i 's/
+$//' /entrypoint.sh && chmod +x /entrypoint.sh
 # starts as root only to fix /data ownership, then runs the app as an unprivileged user (see entrypoint.sh)
 ENTRYPOINT ["/entrypoint.sh"]

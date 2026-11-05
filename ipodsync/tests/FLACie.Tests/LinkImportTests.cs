@@ -63,7 +63,7 @@ public class LinkImportTests
         Assert.Null(r.Started);
         var (status, msg) = LinkImport.Describe(r.Error!);
         Assert.Equal(400, status);
-        Assert.Equal("That isn't a Spotify or Deezer playlist or album link. Copy it with Share > Copy link.", msg);
+        Assert.Equal(PlaylistLinks.Refusal, msg);   // F25: the list of what FLACie can read
     }
 
     [Fact]

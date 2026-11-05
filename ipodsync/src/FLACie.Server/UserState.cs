@@ -28,6 +28,8 @@ public sealed class ImportJob
 {
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string File { get; set; } = "";
+    /// <summary>Where it came from: spotify, deezer, apple, youtube, soundcloud, or null for a file (F25.2: its icon on the Import page).</summary>
+    public string? Source { get; set; }
     /// <summary>Playlists that already exist (same name, ignoring a quality tag such as "(FLAC)") are renamed to the file's name and made to hold exactly the file's songs.</summary>
     public bool Replace { get; set; }
     /// <summary>Replace mode has already merged the same-named playlists for this job.</summary>
@@ -38,6 +40,10 @@ public sealed class ImportJob
     public string? Note { get; set; }
     public List<ImportList> Lists { get; set; } = [];
     public int Total => Lists.Sum(l => l.Items.Count);
+    /// <summary>F25.2: finished (or stopped) more than a week ago: the Import page folds it under Older.</summary>
+    public bool IsOld(DateTime nowUtc) => State is "done" or "cancelled" && nowUtc - Created > TimeSpan.FromDays(7);
+    /// <summary>The songs added so far: in the library already, or downloaded.</summary>
+    public int Added => Lists.Sum(l => l.Items.Count(i => i.State is "owned" or "done"));
     public int Finished => Lists.Sum(l => l.Items.Count(i => i.State is not "pending"));
     public int Failed => Lists.Sum(l => l.Items.Count(i => i.State == "failed"));
 }

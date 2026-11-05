@@ -18,6 +18,8 @@
 @inject CoverFill Covers
 @inject LibraryCleanupRun Cleanup
 @inject WebSourceGate PlaylistSources
+@inject ArtistResolveService ArtistFixes
+@inject WebCatalog FixCatalog
 <PageTitle>Server admin · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1>Server <i>admin</i></h1><p class="sub">Only for whoever runs this server: what is playing, who is on, what the server is doing, and the server's settings</p></header>
@@ -165,6 +167,37 @@ else
                         break;
                 }
             </div>
+        }
+    </section>
+
+    @* F24: artist names fixed in Jellyfin: a dry-run list first; nothing is written until it is approved here; every change can be undone *@
+    <section class="admin-block" aria-label="Artist names" data-testid="artist-fixes">
+        @{ var pending = ArtistFixes.Pending; var applied = ArtistFixes.Done.Where(d => !d.Undone).ToList(); }
+        <div class="shelf-head"><div><h2>Artist names</h2><small>Songs tagged under the wrong artist ("Prodigy" for The Prodigy, "Eminem feat. Dido"), fixed in Jellyfin's own data so every app agrees. The music files are not changed.</small></div></div>
+        <div class="row-actions">
+            <button class="btn" disabled="@fixBusy" @onclick="PlanFixes">@(fixBusy ? "Checking…" : pending.Count > 0 ? "Check again" : "Check artist names")</button>
+            @if (pending.Count > 0) { <button class="btn primary" disabled="@fixBusy" @onclick="ApproveFixes">Approve and fix @pending.Count @(pending.Count == 1 ? "song" : "songs") in Jellyfin</button> }
+            @if (applied.Count > 0) { <button class="btn ghost" disabled="@fixBusy" @onclick="() => UndoFixes(null)">Undo all @applied.Count</button> }
+        </div>
+        @if (fixNote is not null) { <p class="hint" role="status">@fixNote</p> }
+        @if (pending.Count > 0)
+        {
+            <p class="hint">Dry run @(ArtistFixes.PlannedAt?.ToLocalTime().ToString("d MMM HH:mm")): nothing has been changed yet.</p>
+            <ul class="admin-list">
+                @foreach (var c in pending.Take(300)) { <li><b>@c.Title</b> <small>@c.Album</small> · @string.Join(", ", c.OldArtists) → <b>@string.Join(", ", c.NewArtists)</b> <small>(@c.Why)</small></li> }
+            </ul>
+        }
+        @if (applied.Count > 0)
+        {
+            <details><summary>@applied.Count fixed @(ArtistFixes.Approved ? "· new songs are checked after each library sync" : "")</summary>
+                <ul class="admin-list">
+                    @foreach (var d in applied.AsEnumerable().Reverse().Take(300))
+                    {
+                        var id = d.Change.ItemId;
+                        <li><b>@d.Change.Title</b> · @string.Join(", ", d.BackupArtists) → @string.Join(", ", d.Change.NewArtists) <small>@d.AtUtc.ToLocalTime().ToString("d MMM HH:mm")</small> <button class="btn ghost" @onclick="() => UndoFixes(id)">Undo</button></li>
+                    }
+                </ul>
+            </details>
         }
     </section>
 
@@ -320,6 +353,32 @@ else
 </div>
 
 @code {
+    // ---- F24: artist names ----
+    bool fixBusy; string? fixNote;
+    async Task PlanFixes()
+    {
+        fixBusy = true; fixNote = null; StateHasChanged();
+        try { var plan = await ArtistFixes.PlanAsync(Session.Library.Songs, (t, a, ct) => ArtistResolveCatalog.AskAsync(FixCatalog, t, a, ct), CancellationToken.None); fixNote = plan.Count == 0 ? "Every artist name looks right." : null; }
+        catch (Exception e) { fixNote = FriendlyError.Of(e); }
+        finally { fixBusy = false; }
+    }
+    async Task ApproveFixes()
+    {
+        if (Session.Jellyfin is not { } a) { fixNote = "Sign in with a Jellyfin administrator account to change Jellyfin's data."; return; }
+        fixBusy = true; StateHasChanged();
+        try { var n = await ArtistFixes.ApproveAsync(new JellyfinArtistWriter(JfStats, a), CancellationToken.None, Session.Id); fixNote = $"Fixed {n} songs in Jellyfin. Jellyfin's next library scan shows them everywhere."; }
+        catch (Exception e) { fixNote = FriendlyError.Of(e); }
+        finally { fixBusy = false; }
+    }
+    async Task UndoFixes(string? id)
+    {
+        if (Session.Jellyfin is not { } a) return;
+        fixBusy = true; StateHasChanged();
+        try { var n = await ArtistFixes.UndoAsync(new JellyfinArtistWriter(JfStats, a), id, CancellationToken.None); fixNote = $"Put back {n} songs as they were."; }
+        catch (Exception e) { fixNote = FriendlyError.Of(e); }
+        finally { fixBusy = false; }
+    }
+
     record Dev(string Id, string User, string Device, string Client, string Version, DateTime LastActivity, string? ItemId, string? Title, string? Artist, long PositionMs, long DurationMs, bool Paused, bool Controllable, System.Text.Json.Nodes.JsonObject? Raw = null)
     {
         public bool Playing => ItemId is not null;

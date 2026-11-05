@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import threading
 import unicodedata
+import urllib.parse
 
 API_KEY = open("/key").read().strip()
 ROOT = "/data"
@@ -128,6 +129,70 @@ def rank(cands, artist, title, dur, relaxed=False):
     return [c for _, c in scored[:3]]
 
 
+# F25: the hosts /playlist reads (anything else is refused), and how many songs it lists at most (same rules as PlaylistLinks in FLACie.Core)
+PLAYLIST_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "music.youtube.com", "youtu.be", "soundcloud.com", "www.soundcloud.com", "m.soundcloud.com"}
+PLAYLIST_MAX = 500
+SETS_MAX = 50
+
+
+def playlist_allowed(url):
+    try:
+        u = urllib.parse.urlparse(url)
+    except ValueError:
+        return False
+    return u.scheme == "https" and (u.hostname or "").lower() in PLAYLIST_HOSTS
+
+
+def read_playlist(url):
+    """F25.1 POST /playlist {"url"}: a YouTube / YouTube Music playlist (--flat-playlist gives titles) or a SoundCloud set (needs the full read: flat
+    gives no titles). Answers {name, tracks: [{title, artist, durationMs}]}, artist being the uploader; FLACie cleans YouTube titles itself."""
+    if not playlist_allowed(url):
+        raise ValueError("only YouTube and SoundCloud playlist links")
+    sc = "soundcloud.com" in (urllib.parse.urlparse(url).hostname or "")
+    cmd = ["yt-dlp", "--no-warnings", "-J", "--playlist-end", str(PLAYLIST_MAX)] + ([] if sc else ["--flat-playlist"]) + [url]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=200)
+    try:
+        j = json.loads(p.stdout or "{}")
+    except ValueError:
+        j = {}
+    tracks = []
+    for e in (j.get("entries") or [])[:PLAYLIST_MAX]:
+        if not e:
+            continue
+        title = (e.get("track") or e.get("title") or "").strip()
+        artist = (e.get("artist") or e.get("uploader") or e.get("channel") or "").strip()
+        if title:
+            tracks.append({"title": title[:200], "artist": artist[:200], "durationMs": int((e.get("duration") or 0) * 1000)})
+    if not tracks:
+        raise LookupError("no songs at that link")
+    return {"name": (j.get("title") or "")[:200], "tracks": tracks}
+
+
+def artist_sets(q):
+    """F25.3 POST /artist-sets {"q"}: the artist's own SoundCloud account (the uploader named exactly like the artist among the first five search
+    hits; none means no lists) and its sets (names and links only, cheap). Answers {account, sets: [{title, url}]}."""
+    q = (q or "").strip()[:100]
+    if not q:
+        raise ValueError("missing artist")
+    p = subprocess.run(["yt-dlp", "--no-warnings", "--flat-playlist", "--print", "%(uploader)s|%(uploader_url)s", f"scsearch5:{q}"], capture_output=True, text=True, timeout=60)
+    account = None
+    for line in p.stdout.splitlines():
+        name, _, url = line.partition("|")
+        if norm(name) == norm(q) and url.startswith("https://soundcloud.com/"):
+            account = url.rstrip("/")
+            break
+    if not account:
+        return {"account": None, "sets": []}
+    p = subprocess.run(["yt-dlp", "--no-warnings", "--flat-playlist", "-J", "--playlist-end", str(SETS_MAX), account + "/sets"], capture_output=True, text=True, timeout=60)
+    try:
+        j = json.loads(p.stdout or "{}")
+    except ValueError:
+        j = {}
+    sets = [{"title": (e.get("title") or "")[:200], "url": e.get("url") or ""} for e in (j.get("entries") or [])[:SETS_MAX]
+            if e and (e.get("url") or "").startswith("https://soundcloud.com/")]
+    return {"account": account, "sets": sets}
+
+
 def probe(rel):
     """ffprobe of a file under /data: what the Info panel shows for songs that were just downloaded."""
     full = resolve(rel)
@@ -215,6 +280,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._reply(404, {"error": str(e)})
             except Exception as e:
                 return self._reply(400, {"error": str(e)})
+        if self.path in ("/playlist", "/artist-sets"):
+            try:
+                body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+            except Exception as e:
+                return self._reply(400, {"error": str(e)})
+            with GATE:
+                try:
+                    return self._reply(200, read_playlist(str(body.get("url") or "")) if self.path == "/playlist" else artist_sets(str(body.get("q") or "")))
+                except ValueError as e:
+                    return self._reply(400, {"error": str(e)})
+                except LookupError as e:
+                    return self._reply(404, {"error": str(e)})
+                except Exception as e:
+                    return self._reply(502, {"error": str(e)})
         if self.path != "/ytdl":
             return self._reply(404, {"error": "not found"})
         try:

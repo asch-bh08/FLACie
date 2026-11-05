@@ -35,7 +35,8 @@ public sealed class VibeIndex
 
 /// <summary>
 /// Works out songs' vibes in the background, one at a time, while nothing is playing: the songs people played most recently first, so what they
-/// actually listen to gets recommendations that fit soonest. Only FLAC files (their frame sizes give the level envelope without decoding). Saved every
+/// actually listen to gets recommendations that fit soonest. Every common format: FLAC from its frame sizes, MP3, M4A, AAC, OGG, Opus and WMA decoded
+/// by ffmpeg (<see cref="AudioLevels"/>; item 13: about 3,800 songs had no vibe and no DJ intro when only FLAC was read). Saved every
 /// 200 songs and at the end of a pass; a pass every hour. Never part of a request, and not run inside the Windows app (it shares the owner's Jellyfin).
 /// The same pass works out each song's intro for the DJ (<see cref="DjIntro"/>): from its synced lyrics when there are some (Jellyfin's, else LRCLIB's, kept in
 /// data/lyrics like the lyrics screen's), else from the same level envelope.
@@ -68,7 +69,7 @@ public sealed class VibeFillService(SessionStore sessions, VibeIndex index, List
         var lastPlayed = new Dictionary<string, long>();
         foreach (var e in listens.Read(s)) lastPlayed[e.Path] = Math.Max(lastPlayed.GetValueOrDefault(e.Path), e.At);
         return s.Library.Songs
-            .Where(t => !index.Done(t) && !failed.Contains(t.Path) && MediaInfo.FromExtension(t.FilePath ?? t.Path) == "flac")
+            .Where(t => !index.Done(t) && !failed.Contains(t.Path) && AudioLevels.Readable(t))
             .OrderByDescending(t => lastPlayed.GetValueOrDefault(t.Path, long.MinValue))
             .ToList();
     }
@@ -86,7 +87,7 @@ public sealed class VibeFillService(SessionStore sessions, VibeIndex index, List
         foreach (var t in todo)
         {
             await activity.WaitIdleAsync(TimeSpan.FromSeconds(3), ct);
-            if (await MediaEndpoints.ReadWhole(s, t, jf, hf, ct) is { } bytes && WaveShape.FrameLevels(bytes) is ({ } levels, var step))
+            if (await MediaEndpoints.ReadWhole(s, t, jf, hf, ct) is { } bytes && await AudioLevels.OfAsync(bytes, MediaInfo.FromExtension(t.FilePath ?? t.Path), ct) is ({ } levels, var step))
             {
                 Lyrics? words = null;
                 try { if (lyrics is not null) words = await lyrics.GetAsync(t, s.Jellyfin, ct); }

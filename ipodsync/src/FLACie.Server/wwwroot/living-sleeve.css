@@ -420,3 +420,33 @@
 .sr-similar .artist-chip .cover, .sr-similar .artist-chip .cover-img { border-radius: 50%; }
 .sr-section button.card { text-align: left; color: inherit; font: inherit; cursor: pointer; background: none; border: 0; width: calc(100% + 16px); overflow: hidden; }   /* a button does not stretch to its grid cell as a link does */
 @media (max-width: 760px) { .sr-top { grid-template-columns: 1fr; gap: 16px; } }
+
+/* F25.2: the Import page in the new look: body font, wraps at every width, a paste box first, a real switch, compact past imports */
+.imp { max-width: 860px; min-width: 0; }
+.imp, .imp * { font-family: var(--font-body, inherit); }
+.imp-card { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 20px; margin: 0 0 18px; min-width: 0; overflow-wrap: anywhere; }
+.imp-title { margin: 0 0 6px; font-size: 1.15rem; }
+.imp-text { margin: 0 0 12px; color: var(--dim); line-height: 1.5; white-space: normal; overflow-wrap: anywhere; }
+.imp-link { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.imp-link input { flex: 1 1 220px; min-width: 0; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: inherit; font-size: 1rem; }
+.imp-mark { display: none; flex: none; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: .8rem; font-weight: 700; color: #fff; background: #555; }
+.imp-mark.on { display: inline-flex; }
+.imp-mark.on::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; opacity: .85; }
+.imp-mark.spotify { background: #1db954; color: #04130a; } .imp-mark.deezer { background: #a238ff; } .imp-mark.apple { background: #fa2d48; }
+.imp-mark.youtube { background: #ff0033; } .imp-mark.soundcloud { background: #ff5500; } .imp-mark.file { background: var(--surface-3); color: inherit; }
+.imp-switch { border-top: 1px solid var(--line); margin-top: 14px; }
+.imp-switch small { white-space: normal; }
+.imp-switch .switch { border: 1px solid var(--line); background: var(--surface-3); }
+.imp-switch input:checked + .switch { background: var(--accent); border-color: var(--accent); }
+.imp-switch .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px #0006; }
+.imp-switch input:checked + .switch::after { transform: translateX(18px); }
+.imp-drop { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: 12px; color: var(--dim); font-size: .9rem; }
+.imp-drop input[type=file] { max-width: 100%; }
+.imp-drop span { flex: 1 1 200px; min-width: 0; }
+.imp-jobs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.imp-job { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.imp-job-text { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.imp-job-text b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.imp-job-text small { color: var(--dim); }
+.imp-job-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.imp-old summary { cursor: pointer; font-weight: 700; }

@@ -4,63 +4,57 @@
 @inherits UserComponent
 @inject PlaylistLinkReader Links
 <PageTitle>Import playlists · FLACie</PageTitle>
-<div class="sp">
+@* F25.2 (owner, 5 Nov: "this page is ugly"): the new look. One paste box first (the service's mark shows as the link is recognised), a smaller file
+   drop second, Replace as a real switch, readable text that wraps at every width, and past imports listed compactly with the old ones folded away. *@
+<div class="sp imp">
 <header class="page-head"><h1>Import <i>playlists</i></h1></header>
 
 @* only for those the server lets fetch whole lists (DownloadPolicy.MayBulk); the page is not linked for anyone else, and ImportManager refuses them too *@
 @if (!Policy.MayBulk(Session))
 {
-    <section class="panel wide"><p>Importing playlist files isn't turned on for your account on this server. Ask the person who runs it.</p></section>
+    <section class="imp-card"><p>Importing playlists isn't turned on for your account on this server. Ask the person who runs it.</p></section>
 }
-else {
-<section class="panel wide">
-    <h2>Drop in a playlist or library file</h2>
-    <p class="hint">An iTunes <code>Library.xml</code>, an M3U playlist, a Spotify CSV, or a text file. In text, a line starting with <code>##</code> begins a playlist and every other line is <code>Artist - Title</code>. This server does the searching and downloading in the background, so it keeps going when you close this page and nothing is downloaded to this device. Songs already in your library are just added.</p>
-    <label class="switch-row"><span><b>Replace playlists with the same name</b><small>Existing playlists (a quality tag such as "(FLAC)" is ignored) are renamed to the file's name and made to hold exactly its songs</small></span><input type="checkbox" role="switch" checked="@replace" @onchange="e => replace = (bool)(e.Value ?? false)" /><i class="switch" aria-hidden="true"></i></label>
-    <div class="drop">
-        <InputFile OnChange="Upload" accept=".xml,.m3u,.m3u8,.csv,.txt,.text" aria-label="Choose a playlist file" />
-        @if (busy) { <span class="hint">Reading…</span> }
-    </div>
-    @* or a link from another service (owner, 1 Nov): read on this server, then imported like a file *@
-    <h2>Paste a Spotify or Deezer link</h2>
-    <p class="hint">A Spotify or Deezer playlist or album that anyone can open (Share, then Copy link). Spotify gives its first 100 songs.</p>
-    <form class="link-row" @onsubmit="FromLink" @onsubmit:preventDefault>
-        <input type="url" aria-label="Playlist link" placeholder="https://open.spotify.com/playlist/..." @bind="link" @bind:event="oninput" />
-        <button class="btn primary" type="submit" disabled="@(busy || string.IsNullOrWhiteSpace(link))">@(busy ? "Reading…" : "Import")</button>
-    </form>
-    @if (error is not null) { <p class="form-error" role="alert">@error</p> }
-    @if (!Session.Services.Any) { <p class="hint">Downloads aren't set up yet, so only songs you already have can be added. Set them up in the <a href="/dashboard#downloads">Server admin</a> (administrators).</p> }
-</section>
-}
-
-@foreach (var job in Jobs)
+else
 {
-    <section class="panel wide import" aria-label="@job.File">
-        <div class="import-head">
-            <div><h2>@job.File</h2><small class="hint">@job.Created.ToLocalTime().ToString("d MMM, HH:mm") · @StateText(job)</small></div>
-            <div class="row-actions">
-                @if (job.State is "running" or "waiting") { <button class="btn" @onclick="() => Imports.Cancel(Session, job.Id)">Stop</button> }
-                @if (job.Failed > 0 && job.State != "running") { <button class="btn" @onclick="() => Imports.Retry(Session, job.Id)">Retry @job.Failed missing</button> }
-            </div>
+    <section class="imp-card" aria-label="Paste a link">
+        <h2 class="imp-title">Paste a playlist link</h2>
+        <p class="imp-text">From Spotify, Apple Music, YouTube, SoundCloud or Deezer: any playlist or album anyone can open (Share, then Copy link). Songs you have are added at once; the rest are found and downloaded on this server in the background.</p>
+        <form class="imp-link" @onsubmit="FromLink" @onsubmit:preventDefault>
+            @{ var seen = PlaylistLinks.Recognise(link); }
+            <span class="imp-mark @(seen is null ? "" : "on " + Key(seen.Service))" data-testid="import-service" aria-live="polite">@(seen is null ? "" : Name(seen.Service))</span>
+            <input type="url" aria-label="Playlist link" placeholder="Paste a playlist link" @bind="link" @bind:event="oninput" />
+            <button class="btn primary" type="submit" disabled="@(busy || string.IsNullOrWhiteSpace(link))">@(busy ? "Reading…" : "Import")</button>
+        </form>
+        @if (error is not null) { <p class="form-error" role="alert">@error</p> }
+        <label class="switch-row imp-switch">
+            <span><b>Replace playlists with the same name</b><small>An existing playlist of that name (a tag like "(FLAC)" is ignored) is made to hold exactly the imported songs</small></span>
+            <input type="checkbox" role="switch" data-testid="import-replace" checked="@replace" @onchange="e => replace = (bool)(e.Value ?? false)" /><i class="switch" aria-hidden="true"></i>
+        </label>
+        <div class="imp-drop">
+            <InputFile OnChange="Upload" accept=".xml,.m3u,.m3u8,.csv,.txt,.text" aria-label="Choose a playlist file" />
+            <span><b>Or drop a file</b> · iTunes Library.xml, M3U, a Spotify CSV, or text with one "Artist - Title" a line (## starts a playlist)</span>
+            @if (busy) { <span class="hint">Reading…</span> }
         </div>
-        <div class="bar-meter" role="progressbar" aria-valuemin="0" aria-valuemax="@job.Total" aria-valuenow="@job.Finished"><i style="width:@(job.Total == 0 ? 0 : job.Finished * 100 / job.Total)%"></i></div>
-        @if (job.Note is { Length: > 0 }) { <p class="hint">@job.Note</p> }
-        @foreach (var l in job.Lists)
-        {
-            <details>
-                <summary><b>@l.Name</b> <span class="hint">@l.Items.Count(i => i.State is not "pending") of @l.Items.Count</span>@if (l.PlaylistId is not null) { <a class="open-pl" href="/playlist/@l.PlaylistId">Open</a> }</summary>
-                <ul class="import-items">
-                    @foreach (var i in l.Items.Where(i => i.State != "owned" || l.Items.Count < 40).Take(300))
-                    {
-                        <li class="@i.State"><span>@i.Artist@(i.Artist.Length > 0 ? " - " : "")@i.Title</span><small>@Label(i)</small></li>
-                    }
-                </ul>
-            </details>
-        }
+        @if (!Session.Services.Any) { <p class="imp-text">Downloads aren't set up yet, so only songs you already have are added. Set them up in the <a href="/dashboard#downloads">Server admin</a>.</p> }
     </section>
 }
-@if (Jobs.Count == 0) { <p class="hint">Nothing imported yet.</p> }
 
+@{ var recent = Jobs.Where(j => !Old(j)).ToList(); var old = Jobs.Where(Old).ToList(); }
+@if (Jobs.Count == 0) { <p class="imp-text">Nothing imported yet.</p> }
+@if (recent.Count > 0)
+{
+    <section class="imp-card" aria-label="Imports">
+        <h2 class="imp-title">Imports</h2>
+        <ul class="imp-jobs">@foreach (var job in recent) { @Row(job) }</ul>
+    </section>
+}
+@if (old.Count > 0)
+{
+    <details class="imp-card imp-old" data-testid="import-older">
+        <summary>Older <span class="hint">(@old.Count)</span></summary>
+        <ul class="imp-jobs">@foreach (var job in old) { @Row(job) }</ul>
+    </details>
+}
 </div>
 
 @code {
@@ -69,7 +63,28 @@ else {
     [Inject] UserStateStore States { get; set; } = default!;
     bool busy, replace; string? error;
     Action<UserSession>? onChange; Timer? tick;
-    List<ImportJob> Jobs => States.For(Session).Imports.ToList();
+    List<ImportJob> Jobs => States.For(Session).Imports.OrderByDescending(j => j.Created).ToList();
+
+    /// <summary>Finished more than a week ago: folded under Older.</summary>
+    static bool Old(ImportJob j) => j.IsOld(DateTime.UtcNow);
+
+    static string Key(PlaylistLinks.Service s) => s.ToString().ToLowerInvariant();
+    static string Name(PlaylistLinks.Service s) => s switch { PlaylistLinks.Service.Apple => "Apple Music", PlaylistLinks.Service.YouTube => "YouTube", _ => s.ToString() };
+    static string SourceName(string? s) => s switch { "spotify" => "Spotify", "deezer" => "Deezer", "apple" => "Apple Music", "youtube" => "YouTube", "soundcloud" => "SoundCloud", _ => "File" };
+
+    RenderFragment Row(ImportJob job) => @<li class="imp-job" data-testid="import-job">
+        <span class="imp-mark on @(job.Source ?? "file")" title="@SourceName(job.Source)">@SourceName(job.Source)</span>
+        <span class="imp-job-text">
+            <b>@job.File</b>
+            <small>@job.Added of @job.Total added · @job.Created.ToLocalTime().ToString("d MMM") · @StateText(job)</small>
+            @if (job.State == "running") { <span class="bar-meter" role="progressbar" aria-valuemin="0" aria-valuemax="@job.Total" aria-valuenow="@job.Finished"><i style="width:@(job.Total == 0 ? 0 : job.Finished * 100 / job.Total)%"></i></span> }
+        </span>
+        <span class="imp-job-actions">
+            @foreach (var l in job.Lists.Where(l => l.PlaylistId is not null).Take(1)) { <a class="btn ghost" href="/playlist/@l.PlaylistId">Open</a> }
+            @if (job.State is "running" or "waiting") { <button class="btn ghost" @onclick="() => Imports.Cancel(Session, job.Id)">Stop</button> }
+            @if (job.Failed > 0 && job.State != "running") { <button class="btn ghost" @onclick="() => Imports.Retry(Session, job.Id)">Retry @job.Failed</button> }
+        </span>
+    </li>;
 
     protected override async Task OnInitializedAsync()
     {
@@ -113,13 +128,11 @@ else {
 
     static string StateText(ImportJob j) => j.State switch
     {
-        "running" => $"{j.Finished} of {j.Total} done" + (j.Failed > 0 ? $", {j.Failed} not found" : ""),
+        "running" => j.Failed > 0 ? $"working, {j.Failed} not found" : "working",
         "waiting" => "waiting for free space",
-        "done" => $"finished: {j.Total - j.Failed} of {j.Total} added" + (j.Failed > 0 ? $", {j.Failed} not found" : ""),
+        "done" => j.Failed > 0 ? $"{j.Failed} not found" : "finished",
         _ => j.State,
     };
-
-    static string Label(ImportItem i) => i.State switch { "owned" => "already in your library", "done" => "downloaded", "requested" => "requested", "failed" => i.Message ?? "not found", _ => "waiting" };
 
     public override void Dispose() { if (onChange is not null) Imports.Changed -= onChange; tick?.Dispose(); base.Dispose(); }
 }

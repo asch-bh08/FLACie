@@ -5,6 +5,30 @@
 - filemove server.py redeployed (/purge; backup server.py.bak-20261105-pre-r2final); ytdl server.py was already current.
 - FLACIE_CLEANUP_ROOT=/media/Movies (the file mover's /data = Jellyfin's /media/Movies). Music share has 2.4 TB free, so the clean-up waits until under 100 GB.
 - healthz ok, web 0.2% CPU; two stale saved sign-ins fail at Jellyfin (401), the owner's loads fine.
+## 2026-11-05 Cloud (cloud/round3: F24.1 artist names fixed in Jellyfin; round 3 done; unit suite 1846/1846)
+- Done: ArtistResolve.Plan (per song: "X" -> "The X" by shared album/title or the catalog; "X of Y" -> X; "A feat./&/, B" -> A + B featured, album artist stays); ArtistResolveService: dry-run list in Server admin "Artist names", nothing written before Approve; each write keeps Jellyfin's values (read at write time) for Undo one/all; after approval new songs are fixed hourly with the approver's login.
+- Write = Jellyfin item update (GET the item, replace Artists/ArtistItems/AlbumArtist/AlbumArtists, POST /Items/{id}); music files untouched. Grouping in search/artists/made lists/DJ follows Jellyfin after its next scan.
+- web-smoke on .NET 9: 1-pages, 1z-import-page, 1r-search-artist, 1z-made-playlists, 1z-settings green (60).
+- Local: F24.2 phone twin (rules in ArtistResolve.cs); redeploy ytdl + filemove (F25); rebuild the web image (ffmpeg); owner reviews the Artist names list before approving.
+
+## 2026-11-05 Cloud (cloud/round3: item 13 vibe pass for every format)
+- Done: VibeFillService takes FLAC, MP3, M4A, AAC, OGG/OGA, Opus, WMA, WebM, MP4 (AudioLevels.Readable); non-FLAC songs are decoded by ffmpeg (temp file, mono 8 kHz, 90 s limit) into WaveShape.PcmLevels (0.1 s windows, dB between the 2nd and 98th percentiles), then the same vibe and DJ intro.
+- Server Dockerfile installs ffmpeg in the runtime image (FLACIE_FFMPEG overrides the path). Without ffmpeg a song is simply left for later.
+- Proof: VibeAllFormatsTests (fixtures quiet-then-loud.mp3/m4a/ogg/opus/wma made from the FLAC fixture). Local: rebuild the web image (ffmpeg adds ~80 MB).
+
+## 2026-11-05 Cloud (cloud/round3: F25.3 SoundCloud artists' own sets)
+- Done: an artist search asks flacie-ytdl /artist-sets (account named exactly like the artist, its sets; remembered 7 days, gate 1/s, 6 h rest); SoundCloudSets makes WebPlaylists (verified, names only, dups and owned albums dropped, remix/B-side sets their own lists beside a Spotify/Deezer best-of).
+- Songs are read (/playlist) only when a set is opened or played (IWebPlaylists.FillAsync; the list page fills it); then the F23 download policy applies.
+- Proof: PlaylistLinksTests (Prodigy sets fixture), SpotifyEmbedServiceTests (quiet search, songs only on open, 7-day memory).
+
+## 2026-11-05 Cloud (cloud/round3: F25.2 tidy Import page)
+- Done: Import.razor in the new look: paste box first with the service's mark as the link is recognised, a smaller file drop, Replace as a real switch, body font that wraps, past imports as compact rows (source mark, "N of M added", date), finished ones over 7 days folded under Older (ImportJob.IsOld / Added / Source).
+- Proof: web-smoke 1z-import-page.spec.ts (375 px and 1600 px: no sideways scroll, switch visible and works, marks; a file import row), ImportPageTests. Styles in living-sleeve.css (.imp-*; the app has no scoped-CSS bundle).
+
+## 2026-11-05 Cloud (cloud/round3: F25.1 any playlist link)
+- Done: PlaylistLinks recognises YouTube / YouTube Music (list=), SoundCloud sets, Apple Music playlists and albums; anything else gets PlaylistLinks.Refusal (the list of what it reads). YouTube titles cleaned ("Artist - Song (Official Video)").
+- AppleMusicPage reads the real page fixture (50 songs, "Solar Eclipse" by Drake). PlaylistLinkReader: Apple from its page; YouTube/SoundCloud via the file mover -> flacie-ytdl POST /playlist {url} (hosts checked, 500 max).
+- Local: redeploy tools/ytdl/server.py (/playlist, /artist-sets) and tools/filemove/server.py (forwards them; /health lists them).
 
 ## 2026-11-05 Local (night)
 - Merged cloud/round2 final (F21.1, F22, F23) into ui/living-sleeve; server tests 1802/1802 (CoverSourceTest already used 192.0.2.10; PlayerListenTests passed under full load here).

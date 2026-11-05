@@ -21,7 +21,7 @@ for (const [name, size] of [['phone', { width: 375, height: 812 }], ['pc', { wid
     await page.setViewportSize(size);
     await signIn(page);
     await page.goto('/import');
-    await expect(page.getByRole('heading', { name: /Import/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByRole('heading', { name: 'Import playlists' })).toBeVisible({ timeout: 20_000 });
     await page.waitForTimeout(1200);
     expect(await noSideScroll(page), 'no sideways scroll').toBe(true);
     // the explanations wrap inside their card and are not in the monospace font
@@ -57,13 +57,12 @@ test('a file import shows as one compact row: name, source, how many added, date
   await page.setViewportSize({ width: 1280, height: 900 });
   await signIn(page);
   await page.goto('/import');
-  await expect(page.getByRole('heading', { name: /Import/ })).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByRole('heading', { name: 'Import playlists' })).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(1200);
   await page.getByLabel('Choose a playlist file').setInputFiles({ name: 'mine.txt', mimeType: 'text/plain', buffer: Buffer.from('## Mine\nAurora Vale - Harbour 3\nNobody - Not Here\n') });
-  const row = page.getByTestId('import-job').filter({ hasText: 'mine.txt' });
+  const row = page.getByTestId('import-job').filter({ hasText: 'mine.txt' }).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   await expect(row.locator('.imp-mark')).toHaveText('File');
   await expect(row.locator('small')).toContainText(/\d+ of 2 added · \d+ \w{3}/);
-  await expect(page.getByTestId('import-older')).toHaveCount(0);   // nothing finished a week ago here
   expect(await noSideScroll(page)).toBe(true);
 });

@@ -92,7 +92,8 @@
         {
             var a = await Player.AskDjAsync(text);
             // said in the DJ's voice when it could be; otherwise the answer is shown
-            if (a is { Say.Length: > 0, Clip: null, DeviceVoice: false }) Toast.Show(a.Say);
+            // shown as words whenever there is no voice clip (the device's own voice may be silent or missing), the clip's words show in the DJ bar
+            if (a is { Say.Length: > 0, Clip: null }) Toast.Show(a.Say);
             if (a is not null) { asked = DjConversation.AskedBack(a); how = DjConversation.After(a, ++turn); }
             if (goodbye) how = DjTurn.End;
         }

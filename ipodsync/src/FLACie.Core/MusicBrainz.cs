@@ -102,7 +102,8 @@ public sealed class MusicBrainzGate(TimeSpan? minInterval = null, Func<DateTime>
 public sealed class MusicBrainzClient(HttpClient http, string userAgent, string? cacheDir = null, MusicBrainzGate? gate = null, Func<DateTime>? now = null)
 {
     public const string DefaultContact = "https://github.com/asch-bh08/FLACie";
-    public static string UserAgentFor(string version, string? contact = null) => $"FLACie/{version} ( {(string.IsNullOrWhiteSpace(contact) ? DefaultContact : contact.Trim())} )";
+    // the version is one token ("1.0 b106" has a space, which a User-Agent product version must not)
+    public static string UserAgentFor(string version, string? contact = null) => $"FLACie/{System.Text.RegularExpressions.Regex.Replace(version.Trim(), @"\s+", "-")} ( {(string.IsNullOrWhiteSpace(contact) ? DefaultContact : contact.Trim())} )";
 
     readonly MusicBrainzGate gate = gate ?? new MusicBrainzGate();
     readonly Func<DateTime> clock = now ?? (() => DateTime.UtcNow);

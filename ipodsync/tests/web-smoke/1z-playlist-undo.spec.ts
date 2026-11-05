@@ -32,7 +32,7 @@ test('removing from a playlist can be undone', async ({ page }) => {
     await expect(page.locator('.toast')).toContainText('Added');
   }
   await page.goto(listUrl);
-  const titles = () => page.locator('.tracks .track-title').allInnerTexts().then((a) => a.map((x) => x.trim()));
+  const titles = () => page.locator('.pl-main > ol.tracks .track-title').allInnerTexts().then((a) => a.map((x) => x.trim()));
   await expect.poll(titles, { timeout: 20_000 }).toEqual(['Lab 1', 'Lab 2', 'Lab 3']);
   await page.getByRole('button', { name: 'More for Lab 2' }).click();
   await page.getByRole('menuitem', { name: 'Remove from playlist' }).click();

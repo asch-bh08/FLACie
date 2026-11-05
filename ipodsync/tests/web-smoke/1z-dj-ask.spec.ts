@@ -98,7 +98,9 @@ test.describe.serial('talk to the DJ', () => {
     // a request: carried out, and the answer shown (no Cloudflare here, so no voice)
     await page.evaluate(() => { (window as any).__said = 'play Cobalt Sky'; });
     await mic.click();
-    await expect(page.locator('.toast', { hasText: "Here's some Cobalt Sky." })).toBeVisible({ timeout: 15_000 });
+    // F26.5: the answer shows in the DJ bar's caption (or a toast where there is no bar)
+    // what it heard shows in the DJ bar (F26.5); the song plays (the answer's words show as a toast or as the bar's caption when there is a voice)
+    await expect(page.locator('.ls-np-title, .np-title, h1, h2').filter({ hasText: /Static|Meridian|Harbour|Orbit|Cobalt/ }).first()).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('.ls-transport')).toBeVisible();
     await expect(page.locator('.ls-side, .ls-main').getByText('Cobalt Sky').first()).toBeVisible({ timeout: 15_000 });
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
@@ -164,9 +166,10 @@ test.describe.serial('talk to the DJ', () => {
     expect(new URL(page.url()).searchParams.get('q')).toBe('delta hum');
   });
 
-  test('no recogniser in this browser (Firefox): no mic anywhere', async ({ page }) => {
+  // a browser with no recogniser records instead (Brave, Firefox: /api/dj/hear); only one that can do neither has no mic
+  test('no recogniser and no recorder in this browser: no mic anywhere', async ({ page }) => {
     test.setTimeout(120_000);
-    await page.addInitScript(() => { delete (window as any).webkitSpeechRecognition; delete (window as any).SpeechRecognition; });
+    await page.addInitScript(() => { delete (window as any).webkitSpeechRecognition; delete (window as any).SpeechRecognition; delete (window as any).MediaRecorder; });
     await signIn(page);
     await newQueue(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();

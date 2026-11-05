@@ -183,10 +183,10 @@ test.describe('signed in', () => {
   test('/api/import/link: junk, a wrong body and a non-link are 400 JSON with the page\'s words; nothing is fetched', async () => {
     const post = (data: string) => web.post('/api/import/link', { headers: { ...TOKEN, 'content-type': 'application/json' }, data });
     for (const body of ['{bad', 'null', '[1]']) expect((await post(body)).status(), body).toBe(400);
-    for (const body of ['{}', '{"url":""}', '{"url":"hello"}', '{"url":5}', '{"url":"https://music.apple.com/gb/playlist/x/pl.1"}']) {
+    for (const body of ['{}', '{"url":""}', '{"url":"hello"}', '{"url":5}', '{"url":"https://example.com/playlist/x"}']) {
       const r = await post(body);
       expect(r.status(), body).toBe(400);
-      expect((await r.json()).error, body).toBe("That isn't a Spotify or Deezer playlist or album link. Copy it with Share > Copy link.");
+      expect((await r.json()).error, body).toMatch(/can.t read that link/);
     }
   });
 

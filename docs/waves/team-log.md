@@ -1,5 +1,15 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/covers-search: + F18.1, F1 admin; full suite 1695 green)
+- Done: F18.1 LyricsNetease (after LRCLIB when it has no synced lyrics; same artist, length within 8 s); Server admin shows the cover pass (Covers section).
+- Still waiting: F6.2 web search layout needs the approved search mock-up (none in the repo yet).
+
+## 2026-11-05 Cloud (cloud/covers-search: F13 core, F1 server, F6.1 done; full suite 1691 green)
+- Done: QueueShuffle.On/Off (Core, for the phone twin); ArtistGuess.FromPath/FromFolder, used by JellyfinClient.ToTrack when no artist; SearchRankTop.Artist (wired in ResultSections.razor).
+- F1: /art answers a made SVG cover (GeneratedCover) instead of 404 when every source fails; CoverFill + CoverFillService (daily, FLACIE_COVER_FILL_PACE_MS) saves catalog covers, stops on quota.
+- Half done: fill progress not shown in Server admin yet (CoverFill.Last holds it); chain steps between Jellyfin and the made cover are the existing ones; F6.2 web layout waits for the search mock-up.
+- Note: I edited ResultSections.razor and Program.cs (one line each area) - please check in the merge.
+
 ## 2026-11-05 Cloud (cloud/dj-server: F7 done; full suite 1714 green)
 - Done: RemixMatch (Core/YtdlMatch.cs), SourceRank + SoundCloud.Best (Core/SoundCloud.cs); tools/ytdl/server.py: remix-aware rank, "source": "soundcloud" (scsearch, -f download/bestaudio).
 - SoundCloud entrant races beside YouTube only with FLACIE_SOUNDCLOUD=on (an old yt-dlp service ignores "source"); files go to "Artist - Title (SoundCloud).ext"; lossy goes on the upgrade list as before.

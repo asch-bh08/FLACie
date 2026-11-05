@@ -255,6 +255,8 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         var id = o["Id"]!.GetValue<string>();
         string Str(string k) => o[k]?.GetValue<string>() ?? "";
         var artist = (o["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? Str("AlbumArtist");
+        // F1: a file with no artist tag takes it from its file or folder names (Eminem/Singles/Eminem_Lose_Yourself.mp3.mp3)
+        if (artist.Trim().Length == 0) artist = ArtistGuess.FromPath(Str("Path")) ?? "";
         var albumId = Str("AlbumId");
         // A song's cover is its OWN picture (the item's Primary image and its tag) when it has one. The album's picture (AlbumId + AlbumPrimaryImageTag) is only
         // the fallback for a song without one: on a real Jellyfin AlbumId is not reliable (songs of many different albums were seen sharing one AlbumId, and so one

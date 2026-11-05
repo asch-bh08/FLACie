@@ -67,6 +67,11 @@ builder.Services.AddSingleton(new CoverStore(Path.Combine(dataDir, "art"))
 });
 builder.Services.AddSingleton<CacheService>();
 builder.Services.AddHostedService<CacheJanitor>();
+// F1.3: every song's catalog cover fetched and saved once, one lookup every FLACIE_COVER_FILL_PACE_MS (default 1.5 s)
+builder.Services.AddSingleton(sp => new CoverFill(sp.GetRequiredService<CoverStore>(),
+    (a, al, t, ct) => MediaEndpoints.CatalogCover(sp.GetRequiredService<IHttpClientFactory>().CreateClient("media"), a, al, t, ct),
+    TimeSpan.FromMilliseconds(builder.Configuration.GetValue("FLACIE_COVER_FILL_PACE_MS", 1500))));
+builder.Services.AddHostedService<CoverFillService>();
 builder.Services.AddSingleton<UserStateStore>();
 builder.Services.AddSingleton<StorageGuard>();
 builder.Services.AddSingleton<ActivityLog>();

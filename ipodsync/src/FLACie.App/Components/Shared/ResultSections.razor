@@ -34,10 +34,11 @@
     var artists = artistsAll.Where(g => g.Tracks.Any(X.Allows)).ToList();
     var plays = FindPlaylists(words);
     var genres = FindGenres(words);
-    // the top result (only for a search): an artist named exactly like it, else an album named so, else the best song (accents and punctuation do not count)
+    // the top result (only for a search): an artist named like it (with or without "The"), else an album named so, else the best song (accents and punctuation do not count)
     var best = songsAll.Where(X.Allows).FirstOrDefault();
     var songIsExact = ranked && best is not null && Same(best.Title, q);
-    var topArtist = ranked && !fuzzy ? artists.FirstOrDefault(g => Same(g.Name, q)) : null;
+    // F6: "prodigy" means The Prodigy (played, 171 songs) over Prodigy (15)
+    var topArtist = ranked && !fuzzy ? FLACie.Core.SearchRankTop.Artist(artists, q, Session.PlayStats) : null;
     var heroArtist = topArtist is not null && !songIsExact;
     var topAlbum = ranked && !fuzzy ? albums.FirstOrDefault(g => Same(g.Name, q)) : null;
     var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;

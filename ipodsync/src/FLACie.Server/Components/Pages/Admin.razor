@@ -15,6 +15,7 @@
 @inject FLACie.Server.Dj.CloudflareVoice DjVoice
 @inject FLACie.Server.Dj.DjService Dj
 @inject FLACie.Server.Dj.DjPronounceCheck DjNames
+@inject CoverFill Covers
 <PageTitle>Server admin · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1>Server <i>admin</i></h1><p class="sub">Only for whoever runs this server: what is playing, who is on, what the server is doing, and the server's settings</p></header>
@@ -163,6 +164,13 @@ else
                 }
             </div>
         }
+    </section>
+
+    @* F1.3: the background cover pass *@
+    <section class="admin-block" aria-label="Covers">
+        @{ var cf = Covers.Last; }
+        <div class="shelf-head"><div><h2>Covers</h2><small>@(cf.Total == 0 ? "The cover pass has not run yet (it starts ten minutes after the server, then daily)" : $"{cf.Done} of {cf.Total} songs checked · {cf.Saved} saved · {cf.NoCover} with no catalog cover (a made cover shows)")</small></div></div>
+        @if (cf.Stopped is { } coverStop) { <p class="hint">@coverStop</p> }
     </section>
 
     <section class="admin-block" aria-label="Activity">

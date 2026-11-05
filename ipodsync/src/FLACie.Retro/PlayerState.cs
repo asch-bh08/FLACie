@@ -342,7 +342,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await Play(list, Random.Shared.Next(list.Count), context, contextId, listenContext);
         // shuffling a named playlist: the DJ says so over its first song (owner, 30 Oct: it never said anything). Only here, at the start of a queue: shuffle
         // toggled later (ToggleShuffle) is not a new queue. "Shuffle Songs" (no list) and the Retro car's stations say nothing.
-        if (Interceptor is null && contextId is { Length: > 0 } && context is { Length: > 0 } && Current is { } first && dj is { } d && session is { } s && DjOn)
+        // F15: only with the person's "Announce the first song" switch on (DJ settings)
+        if (Interceptor is null && contextId is { Length: > 0 } && context is { Length: > 0 } && Current is { } first && dj is { } d && session is { } s && DjOn && d.Settings(s).FirstSong)
             _ = DjQueueStartAsync(d, s, first, context, djGen);
     }
 
@@ -492,7 +493,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     }
     public void AddLast(Track t) { if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; } Queue.Add(t); order.Add(Queue.Count - 1); DjAhead(); Changed?.Invoke(); }
 
-    public void ToggleShuffle() { Shuffle = !Shuffle; Reorder(keepCurrentFirst: true); DjAhead(); Changed?.Invoke(); }
+    /// <summary>F13: on keeps everything up to the current song where it is and shuffles the rest; off puts the queue's own order back (QueueShuffle,
+    /// as on the phone). "Shuffle all" stays as it is.</summary>
+    public void ToggleShuffle()
+    {
+        Shuffle = !Shuffle;
+        var pos = order.IndexOf(Index);
+        if (Shuffle) order = order.Count == Queue.Count && pos >= 0 ? QueueShuffle.On(order.Count, pos, Random.Shared).Select(i => order[i]).ToList() : QueueShuffle.On(Queue.Count, Index, Random.Shared);
+        else order = QueueShuffle.Off(order, pos).Order;
+        DjAhead(); Changed?.Invoke();
+    }
     public void CycleRepeat() { Repeat = (Repeat + 1) % 3; DjAhead(); Changed?.Invoke(); }
 
     /// <summary>Play order: the queue as is, or shuffled with the current song first.</summary>

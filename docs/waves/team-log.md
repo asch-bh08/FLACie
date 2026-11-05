@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F13 + F15 web)
+- F13: the web shuffle buttons (player bar, Now Playing, iPod) use QueueShuffle: on shuffles only after the current song, off restores the queue order.
+- F15: "Announce the first song" switch is in the web DJ settings; off, a shuffled playlist start asks for no line. A plain Play stays quiet (owner rule pinned in PlayerDjTests).
+
 ## 2026-11-05 Cloud (cloud/round2: F12 end to end on the web)
 - Done: DjConversationWebTests drive the real PlayerState + UserSession: remove asks, "no" keeps, "yes" removes; "make a backroads playlist" then "call it Country Roads"; "not that one" across turns; every step kind runs.
 - DjConversation.AskedBack(answer) / After(answer, turn): an answer with an Ask step listens again with the long window (DjMic uses it). Local: same rule in the phone's DjConversation.kt.

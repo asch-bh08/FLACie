@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F19 mini player)
+- Done: flacie-pip.js + mini-player.css: cover colours, loudness seek bar with times, shuffle/repeat/heart/DJ/mic (they press the bar's own data-pip buttons and mirror their state), "Next:" line, the sung line (PlayerBar sends synced lyrics while it is open), one bar with the cover left when wide.
+- Proof: web-smoke mini-player.spec.ts (2 green), 1r-search-artist + 1z-made-playlists green too. Tip: web-smoke needs a .NET 9 runtime for the published app (on .NET 10 blazor.web.js is missing), which is why the websocket waits failed for me before.
+
 ## 2026-11-05 Cloud (cloud/round2: F6.2 web search page)
 - Done: an artist search (ResultSections) = Top result + their top 5 songs beside it, then Popular, Albums, Singles & EPs (newest first), Playlists (made + own), Other artists (small chips). Song searches unchanged.
 - ArtistPage.Of in Core (tested); Playwright 1r-search-artist.spec.ts (3 green); mock-jellyfin.mjs gained The Prodigy (12) and Prodigy (3), ids "p..".

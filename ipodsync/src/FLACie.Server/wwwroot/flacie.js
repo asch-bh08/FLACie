@@ -585,7 +585,7 @@ window.flacie = (() => {
   // Chrome and Edge open a real little page (Document Picture-in-Picture) with buttons; other browsers get a video picture-in-picture of the cover that
   // carries the play / previous / next buttons of Media Session. The sound keeps playing from this tab either way.
   const pip = (() => {
-    let cur = { title: "", artist: "", art: "" }, win = null, el = null, vidWin = null, canvas = null, vid = null, img = null, lastDraw = 0;
+    let cur = { title: "", artist: "", art: "" }, win = null, el = null, vidWin = null, canvas = null, vid = null, img = null, lastDraw = 0, lyrics = null, css = null;
     const ICON = {
       prev: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>',
       next: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>',
@@ -601,12 +601,7 @@ window.flacie = (() => {
     const supportedDoc = () => "documentPictureInPicture" in window;
     const supportedVid = () => !!document.pictureInPictureEnabled;
     function paint() {
-      if (win && el) {
-        el.img.src = cur.art || ""; el.img.style.visibility = cur.art ? "visible" : "hidden";
-        el.title.textContent = cur.title; el.artist.textContent = cur.artist;
-        el.play.innerHTML = audio.paused ? ICON.play : ICON.pause; el.play.setAttribute("aria-label", audio.paused ? "Play" : "Pause");
-        if (isFinite(audio.duration)) { el.seek.max = audio.duration; el.seek.value = audio.currentTime; }
-      }
+      if (win && el) window.flaciePip.paint(el, audio, cur);
       if (vidWin) draw();
     }
     function draw() {
@@ -619,17 +614,12 @@ window.flacie = (() => {
       c.fillStyle = "#c4c4d2"; c.font = "22px system-ui,sans-serif"; c.fillText((cur.artist || "").slice(0, 44), 24, W - 28);
       if (isFinite(audio.duration) && audio.duration > 0) { c.fillStyle = "#ffffff30"; c.fillRect(0, W - 6, W, 6); c.fillStyle = "#ff4f7b"; c.fillRect(0, W - 6, W * audio.currentTime / audio.duration, 6); }
     }
+    // F19: the window's content and styles live in flacie-pip.js and mini-player.css
     async function openDoc() {
-      const w = await window.documentPictureInPicture.requestWindow({ width: 340, height: 440 });
-      const d = w.document;
-      const st = d.createElement("style"); st.textContent = CSS; d.head.append(st);
-      d.title = "FLACie";
-      d.body.innerHTML = '<div class="art"><img alt=""></div><div class="t"><b></b><span></span></div><input type="range" min="0" max="1" step="1" value="0" aria-label="Seek"><div class="c"><button class="prev" aria-label="Previous"></button><button class="p play"></button><button class="next" aria-label="Next"></button></div>';
-      el = { img: d.querySelector("img"), title: d.querySelector(".t b"), artist: d.querySelector(".t span"), seek: d.querySelector("input"), play: d.querySelector(".play") };
-      d.querySelector(".prev").innerHTML = ICON.prev; d.querySelector(".next").innerHTML = ICON.next;
-      d.querySelector(".prev").onclick = () => send("OnPrev"); d.querySelector(".next").onclick = () => send("OnNext");
-      el.play.onclick = () => { if (audio.paused) audio.play().catch(() => { }); else audio.pause(); };
-      el.seek.oninput = () => { audio.currentTime = +el.seek.value; };
+      if (css === null) css = await fetch("/mini-player.css", { credentials: "same-origin" }).then(r => r.ok ? r.text() : CSS).catch(() => CSS);
+      const w = await window.documentPictureInPicture.requestWindow({ width: 340, height: 520 });
+      el = window.flaciePip.build(w, audio, css, () => send("OnPrev"), () => send("OnNext"));
+      window.flaciePip.setLyrics(el, lyrics);
       win = w; w.addEventListener("pagehide", () => { win = null; el = null; });
       paint();
     }
@@ -643,7 +633,8 @@ window.flacie = (() => {
     return {
       supported: () => supportedDoc() || supportedVid(),
       active: () => !!(win || vidWin),
-      meta(title, artist, art) { cur = { title, artist, art }; setArt(art); paint(); },
+      meta(title, artist, art) { cur = { title, artist, art }; lyrics = null; if (el) window.flaciePip.setLyrics(el, null); setArt(art); paint(); },
+      lyrics(lines) { lyrics = lines; if (el) window.flaciePip.setLyrics(el, lines); paint(); },
       async toggle() {
         if (win) { win.close(); return false; }
         if (vidWin) { try { await document.exitPictureInPicture(); } catch { } return false; }
@@ -695,6 +686,8 @@ window.flacie = (() => {
     pipSupported() { return pip.supported(); },
     pipActive() { return pip.active(); },
     pipToggle() { return pip.toggle(); },
+    // the current song's synced lyrics for the mini player ([{t: ms, text}]), sent by the player bar while the mini player is open
+    pipLyrics(lines) { pip.lyrics(lines); },
     load(ref, url, title, artist, album, art, autoplay, dur, startAt, nextUrl) {
       dotnet = ref;
       pip.meta(title, artist, art);

@@ -13,8 +13,9 @@ account in claude.ai/code on this GitHub repo; no frank, no phone, no emulator).
 - **Cloud**, branch `cloud/dj-server` from `ui/living-sleeve`: server-side work that needs no device:
   F9 (the step format in FLACie.Core and the web runner), F10, F11, F12 (server part), F15 (server part), F16, F7.
   Then, on branch `cloud/covers-search` from `ui/living-sleeve`: the server parts of F1 (ArtistGuess, cover chain, generated cover, fill pass)
-  and F6 (SearchRank on the server, the web search page), and F13's FLACie.Core part (QueueShuffle). Spend usage on progress, not volume: the most useful unblocked work first, small commits, no repeated runs or re-reads.
-- **Local**: F2-F5, the phone parts of F1/F6/F9/F12/F13/F15, F8, F14, F17, merging, releases and deploys.
+  and F6 (SearchRank on the server, the web search page), and F13's FLACie.Core part (QueueShuffle).
+  Then F18.1 (NetEase lyrics source). Spend usage on progress, not volume: the most useful unblocked work first, small commits, no repeated runs or re-reads.
+- **Local**: F2-F5, the phone parts of F1/F6/F9/F12/F13/F15, F8, F14, F17, F18.2 (lyrics alignment on frank), merging, releases and deploys.
 - Never edit a file the other side's specs own. If you must, write it in the log as a request instead.
 - Local merges `cloud/dj-server` after reading its log entry and diff, then runs every test.
 

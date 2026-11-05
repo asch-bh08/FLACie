@@ -2,6 +2,7 @@ package com.ipodemu.playback
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -46,5 +47,23 @@ class DjCaptionsTest {
         // an older server that sends neither: both on
         val old = DjSettings.parse("""{"enabled":true,"duck":30}""")
         assertTrue(old.captions); assertTrue(old.cue); assertEquals(30, old.duck)
+    }
+
+    @Test fun `a phrase shows for the clip position it belongs to, not for when the text arrived`() {
+        val line = "Coming up, a song that is older than most of us. It is Blue Monday by New Order, and it still sounds like tomorrow."
+        val plan = DjCaptions.plan(line, 8_000)
+        assertTrue(plan.size >= 2)
+        // text that arrived long before the audio plays shows nothing until the clip is at the phrase
+        assertEquals(plan[0].text, DjCaptions.at(plan, 0)?.text)
+        assertEquals(plan[1].text, DjCaptions.at(plan, plan[1].atMs.toLong())?.text)
+        assertEquals(plan[0].text, DjCaptions.at(plan, plan[1].atMs - 1L)?.text)
+        // a seek or a stall moves the caption with the audio, and after the end (and the linger) it is gone
+        assertEquals(plan.last().text, DjCaptions.at(plan, 7_999)?.text)
+        assertNull(DjCaptions.at(plan, plan.last().untilMs.toLong()))
+        assertNull(DjCaptions.at(emptyList(), 100))
+    }
+
+    @Test fun `the clip is looked at often enough for a phrase to be within 150 ms of its audio`() {
+        assertTrue(DjCaptions.POLL_MS <= 100)
     }
 }

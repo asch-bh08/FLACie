@@ -159,13 +159,32 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         true
     } catch (_: Exception) { false }
 
-    /** Shows the line's words in time with it (from when it is heard), phrase by phrase. */
+    /** The clip's phrases and the one showing; the clip's own playback position picks the phrase ([captionTick]), so a caption is up with its audio. */
+    private var captionPlan: List<DjCaptions.Phrase> = emptyList()
+    private var captionShown: String? = null
+    private var captionLine: DjLine? = null
+    private val captionTick = object : Runnable {
+        override fun run() {
+            val l = captionLine ?: return
+            if (line !== l) return
+            val text = DjCaptions.at(captionPlan, exo?.currentPosition ?: 0L)?.text
+            if (text != captionShown) { captionShown = text; onCaption(text) }
+            handler.postDelayed(this, DjCaptions.POLL_MS)
+        }
+    }
+
+    /** Shows the line's words with its audio: a clip by its playback position, the phone's voice (which has no position) phrase by phrase from when it starts. */
     private fun captions(l: DjLine) {
         clearCaptions(false)
         if (!captionsOn) return
         val words = l.cue.caption.ifBlank { l.cue.text }
         val len = exo?.duration?.takeIf { !l.phoneVoice && it != C.TIME_UNSET && it > 0 }?.toInt() ?: DjTiming.estimateMs(l.cue.text)
         val plan = DjCaptions.plan(words, len)
+        if (!l.phoneVoice && exo != null) {
+            captionPlan = plan; captionLine = l; captionShown = null
+            captionTick.run()
+            return
+        }
         for (p in plan) {
             val show = Runnable { if (line === l) onCaption(p.text) }
             captionSteps.add(show); handler.postDelayed(show, p.atMs.toLong())
@@ -176,6 +195,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     private fun clearCaptions(hide: Boolean) {
         for (r in captionSteps) handler.removeCallbacks(r)
         captionSteps.clear()
+        handler.removeCallbacks(captionTick); captionLine = null; captionPlan = emptyList(); captionShown = null
         if (hide) onCaption(null)
     }
 

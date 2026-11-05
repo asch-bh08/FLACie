@@ -28,7 +28,7 @@ public static class DjJson
         return new JsonObject
         {
             ["enabled"] = s.Enabled, ["chatty"] = ChattyName(s.Chatty), ["phone"] = s.Phone, ["auto"] = s.Auto, ["web"] = s.Web, ["windows"] = s.Windows,
-            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["style"] = StyleName(s.Style), ["playlists"] = lists,
+            ["backup"] = s.Backup, ["talkAfterSkips"] = s.TalkAfterSkips, ["firstSong"] = s.FirstSong, ["style"] = StyleName(s.Style), ["playlists"] = lists,
             ["deviceVoice"] = s.DeviceVoice, ["volume"] = DjRules.Clamp(s.Volume), ["duck"] = DjRules.Clamp(s.Duck), ["songs"] = songs, ["voiceReady"] = voiceReady,
             ["captions"] = s.Captions, ["cue"] = s.Cue, ["before"] = s.Before,
         };
@@ -100,7 +100,7 @@ public static class DjJson
         s.Captions = B("captions", s.Captions); s.Cue = B("cue", s.Cue); s.Before = B("before", s.Before);
         if (songs is not null) s.Songs = songs;
         if (song is { } sg) DjRules.SetSong(s, sg.Title, sg.Artist, sg.Choice);
-        s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup); s.TalkAfterSkips = B("talkAfterSkips", s.TalkAfterSkips);
+        s.Enabled = B("enabled", s.Enabled); s.Phone = B("phone", s.Phone); s.Auto = B("auto", s.Auto); s.Web = B("web", s.Web); s.Windows = B("windows", s.Windows); s.Backup = B("backup", s.Backup); s.TalkAfterSkips = B("talkAfterSkips", s.TalkAfterSkips); s.FirstSong = B("firstSong", s.FirstSong);
         if (chatty is { } ch) s.Chatty = ch;
         if (style is { } sy) s.Style = sy;
         if (all is not null) s.Playlists = all;
@@ -207,7 +207,7 @@ public static class DjJson
         var p = new JsonObject();
         void B(string k, bool a, bool b) { if (a != b) p[k] = b; }
         B("enabled", was.Enabled, now.Enabled); B("phone", was.Phone, now.Phone); B("auto", was.Auto, now.Auto); B("web", was.Web, now.Web);
-        B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips);
+        B("windows", was.Windows, now.Windows); B("backup", was.Backup, now.Backup); B("talkAfterSkips", was.TalkAfterSkips, now.TalkAfterSkips); B("firstSong", was.FirstSong, now.FirstSong);
         if (was.Chatty != now.Chatty) p["chatty"] = ChattyName(now.Chatty);
         if (was.Style != now.Style) p["style"] = StyleName(now.Style);
         B("deviceVoice", was.DeviceVoice, now.DeviceVoice); B("captions", was.Captions, now.Captions); B("cue", was.Cue, now.Cue); B("before", was.Before, now.Before);

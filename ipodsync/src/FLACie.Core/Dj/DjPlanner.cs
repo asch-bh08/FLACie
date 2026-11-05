@@ -41,6 +41,8 @@ public static class DjPlanner
     {
         if (!DjRules.EffectiveOn(settings, req.Surface, req.PlaylistId, req.QueueDj)) return null;
         say ??= DjPronounce.Default;
+        // F15: the first-song setting off makes the queue start a song like any other
+        if (!settings.FirstSong && req.QueueStart) req = req with { QueueStart = false };
         // a session starts with the first song, or after 30 minutes without a question
         // (a queue that has just started has no song before it, but it is not a new session by that: the hello is for the first thing heard in half an hour)
         var open = (req.Prev is null && !req.QueueStart) || mem.LastRequest is not { } last || nowUtc - last >= SessionGap;

@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (deploy)
+- Owner OK'd: round 2 final web deployed (ui/living-sleeve e4c391a3; rollbacks flacie-web/flacie-ytdl:rollback-20261105-pre-r2final, compose .bak-20261105-pre-r2final).
+- filemove server.py redeployed (/purge; backup server.py.bak-20261105-pre-r2final); ytdl server.py was already current.
+- FLACIE_CLEANUP_ROOT=/media/Movies (the file mover's /data = Jellyfin's /media/Movies). Music share has 2.4 TB free, so the clean-up waits until under 100 GB.
+- healthz ok, web 0.2% CPU; two stale saved sign-ins fail at Jellyfin (401), the owner's loads fine.
+
 ## 2026-11-05 Local (night)
 - Merged cloud/round2 final (F21.1, F22, F23) into ui/living-sleeve; server tests 1802/1802 (CoverSourceTest already used 192.0.2.10; PlayerListenTests passed under full load here).
 - F23 checked on the real sites: 13/14 Spotify ids fine, Rock Classics had a 23rd letter (500) - fixed + test that ids are 22 letters. Real embed page saved as TestAudio/embed/todays-top-hits-real.html (layout matches the reader). Deezer best-of now needs the exact artist name (real answers hold "100% Kay The Prodigy", "100% Prodigy" and fans' lists).

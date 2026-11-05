@@ -34,7 +34,15 @@
     }
 
     // another player of this account that is on a song, while this browser is not playing one itself
-    ConnectSession? Remote(Live l) => Player.Playing ? null : l.Connect.Sessions.Where(s => !s.IsSelf && s.Controllable && s.ItemId is not null).OrderBy(s => s.Paused).FirstOrDefault(s => !s.Paused);
+    // the strip stays, paused, with its Play button until the player stops or another takes over (owner, 5 Nov)
+    string? shown;
+    ConnectSession? Remote(Live l)
+    {
+        if (Player.Playing) { shown = null; return null; }
+        var r = RemoteBar.Pick(l.Connect.Sessions, shown);
+        shown = r?.Id;
+        return r;
+    }
 
     // the other player reports every few seconds; between reports the position is carried forward at normal speed
     static long Pos(Live l, ConnectSession s) => Math.Min(s.DurationMs, s.PositionMs + (s.Paused ? 0 : (long)(DateTime.UtcNow - l.Connect.SessionsAsOf).TotalMilliseconds));

@@ -49,6 +49,8 @@ public interface IWebPlaylists
     /// <summary>Someone showed interest (opened it, played from it at [from], searched its artist, or it was shown as a popular list): its missing songs
     /// are queued for download by <see cref="PlaylistFetchPolicy"/>.</summary>
     void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0);
+    /// <summary>The list with its songs: a list found by name only (a SoundCloud set) has them read now, once (F25.3).</summary>
+    Task<WebPlaylist> FillAsync(UserSession s, WebPlaylist list, CancellationToken ct);
 }
 
 public static class AppHost

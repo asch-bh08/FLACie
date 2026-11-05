@@ -94,4 +94,37 @@ public class PlaylistLinksTests
         Assert.False(PlaylistLinks.YtdlAllowed("http://soundcloud.com/a/sets/b"));
         Assert.False(PlaylistLinks.YtdlAllowed("file:///etc/passwd"));
     }
+
+    // ---- F25.3: an artist's own SoundCloud sets (the yt-dlp answers as Local saw them on frank, 5 Nov) ----
+
+    const string ProdigySets = """
+        {"account": "https://soundcloud.com/the-prodigy", "sets": [
+          {"title": "The Fat Of The Land 25th Anniversary - Remixes", "url": "https://soundcloud.com/the-prodigy/sets/the-fat-of-the-land-25th"},
+          {"title": "Experience: Expanded (Remixes & B-sides)", "url": "https://soundcloud.com/the-prodigy/sets/experience-expanded"},
+          {"title": "PAY CLOSE ATTENTION: XL Recordings", "url": "https://soundcloud.com/the-prodigy/sets/pay-close-attention"},
+          {"title": "The Fat of the Land", "url": "https://soundcloud.com/the-prodigy/sets/the-fat-of-the-land-6"},
+          {"title": "Invaders Must Die", "url": "https://soundcloud.com/the-prodigy/sets/invaders-must-die"},
+          {"title": "Invaders Must Die", "url": "https://soundcloud.com/the-prodigy/sets/invaders-must-die-2"},
+          {"title": "Not a set", "url": "https://evil.example/the-prodigy/sets/x"}
+        ]}
+        """;
+
+    [Fact]
+    public void An_artists_sets_are_found_duplicates_and_owned_albums_dropped_remix_sets_kept_beside_a_best_of()
+    {
+        Assert.True(SoundCloudSets.IsArtistsOwn("The Prodigy", "The Prodigy"));
+        Assert.False(SoundCloudSets.IsArtistsOwn("Prodigy", "The Prodigy"));
+        Assert.False(SoundCloudSets.IsArtistsOwn("The Prodigy Fan Remixes", "The Prodigy"));
+        var sets = SoundCloudSets.FromAnswer(ProdigySets, "The Prodigy", ["The Fat of the Land (Remastered)"]);
+        Assert.Equal(["The Fat Of The Land 25th Anniversary - Remixes", "Experience: Expanded (Remixes & B-sides)", "PAY CLOSE ATTENTION: XL Recordings", "Invaders Must Die"], sets.Select(l => l.Name));
+        Assert.All(sets, l => { Assert.Equal("soundcloud", l.Source); Assert.True(l.Verified); Assert.Empty(l.Tracks); });   // songs read only when opened
+        Assert.Equal("the-prodigy/sets/the-fat-of-the-land-25th", sets[0].Id);
+        Assert.Empty(SoundCloudSets.FromAnswer("""{"account": null, "sets": []}""", "Prodigy", []));
+        // with Spotify's best-of, the remix sets still show beside it; the plain album sets give way
+        var spotify = new WebPlaylist("spotify", "37i9dQZF1DZ06evO1QVBQ2", "This Is The Prodigy", WebPlaylistKind.Artist, "The Prodigy", [new("Firestarter", "The Prodigy")]);
+        var shown = WebPlaylistPick.ForAll([spotify, .. sets], "the prodigy", PlaylistQueryKind.Artist, DateTime.UtcNow).Select(l => l.Name).ToList();
+        Assert.Equal("This Is The Prodigy", shown[0]);
+        Assert.Contains("The Fat Of The Land 25th Anniversary - Remixes", shown);
+        Assert.DoesNotContain("Invaders Must Die", shown);
+    }
 }

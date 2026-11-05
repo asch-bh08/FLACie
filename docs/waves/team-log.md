@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round3: F25.3 SoundCloud artists' own sets)
+- Done: an artist search asks flacie-ytdl /artist-sets (account named exactly like the artist, its sets; remembered 7 days, gate 1/s, 6 h rest); SoundCloudSets makes WebPlaylists (verified, names only, dups and owned albums dropped, remix/B-side sets their own lists beside a Spotify/Deezer best-of).
+- Songs are read (/playlist) only when a set is opened or played (IWebPlaylists.FillAsync; the list page fills it); then the F23 download policy applies.
+- Proof: PlaylistLinksTests (Prodigy sets fixture), SpotifyEmbedServiceTests (quiet search, songs only on open, 7-day memory).
+
 ## 2026-11-05 Cloud (cloud/round3: F25.2 tidy Import page)
 - Done: Import.razor in the new look: paste box first with the service's mark as the link is recognised, a smaller file drop, Replace as a real switch, body font that wraps, past imports as compact rows (source mark, "N of M added", date), finished ones over 7 days folded under Older (ImportJob.IsOld / Added / Source).
 - Proof: web-smoke 1z-import-page.spec.ts (375 px and 1600 px: no sideways scroll, switch visible and works, marks; a file import row), ImportPageTests. Styles in living-sleeve.css (.imp-*; the app has no scoped-CSS bundle).

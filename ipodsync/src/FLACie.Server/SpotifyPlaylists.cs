@@ -51,6 +51,12 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     public void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0)
     {
         if (!downloads.Ready(s)) return;
+        // a SoundCloud set is known by name only until someone opens or plays it: its songs are read first (F25.3)
+        if (list.Tracks.Count == 0)
+        {
+            if (trigger is FetchTrigger.Opened or FetchTrigger.Played) _ = Task.Run(async () => { var full = await FillAsync(s, list, CancellationToken.None); if (full.Tracks.Count > 0) Interest(s, full, trigger, from); });
+            return;
+        }
         var key = $"{s.Id}|{list.Source}:{list.Id}|{trigger}|{from}";
         lock (queued)
         {
@@ -62,6 +68,55 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         var lib = Lib(s);
         foreach (var t in PlaylistFetchPolicy.Plan(trigger, list.Tracks, t => lib.Find(t.Title, t.Artist) is not null, freeBytes(s), from))
             downloads.Song(s, new CatalogSong(t.Artist, t.Title, "", null, t.DurationMs, 0, 0));
+    }
+
+    /// <summary>F25.3: the sets of the artist's own SoundCloud account, by name (flacie-ytdl /artist-sets), remembered 7 days.</summary>
+    public static readonly TimeSpan AccountKept = TimeSpan.FromDays(7);
+    readonly Dictionary<string, (DateTime At, List<WebPlaylist> Sets)> soundcloud = [];
+
+    async Task<List<WebPlaylist>> SoundCloudSetsAsync(UserSession s, string artist, Library lib, CancellationToken ct)
+    {
+        var key = Matching.PrimaryArtist(artist);
+        lock (soundcloud) if (soundcloud.TryGetValue(key, out var known) && now() - known.At < AccountKept) return known.Sets.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        if (s.Services.FileMoverUrl.Length == 0 || !gate.TryTake("soundcloud")) return [];
+        try
+        {
+            var answer = await MoverAsync(s, "/artist-sets", new System.Text.Json.Nodes.JsonObject { ["q"] = artist }, ct);
+            if (answer is null) { gate.Failed("soundcloud"); return []; }
+            var albums = lib.Albums.Where(a => a.Tracks.Any(t => Matching.PrimaryArtist(t.Artist) == key)).Select(a => a.Name);
+            var sets = SoundCloudSets.FromAnswer(answer, artist, albums);
+            foreach (var l in sets) if (store.Use(l.Source, l.Id) is null) store.Put(l);
+            lock (soundcloud) soundcloud[key] = (now(), sets);
+            store.Save();
+            return sets.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("soundcloud"); return []; }
+    }
+
+    public async Task<WebPlaylist> FillAsync(UserSession s, WebPlaylist list, CancellationToken ct)
+    {
+        if (list.Tracks.Count > 0 || list.Source != "soundcloud" || s.Services.FileMoverUrl.Length == 0) return list;
+        if (store.Use(list.Source, list.Id) is { Tracks.Count: > 0 } have) return have;
+        if (!gate.TryTake("soundcloud")) { await Task.Delay(WebSourceGate.Gap, ct); if (!gate.TryTake("soundcloud")) return list; }
+        try
+        {
+            var answer = await MoverAsync(s, "/playlist", new System.Text.Json.Nodes.JsonObject { ["url"] = "https://soundcloud.com/" + list.Id }, ct);
+            if (answer is null || PlaylistLinks.FromYtdl(answer, PlaylistLinks.Service.SoundCloud) is not { } read) return list;
+            var full = list with { Tracks = read.Tracks.Select(t => new WebTrack(SpotifyEmbed.Clean(t.Title), SpotifyEmbed.Clean(t.Artist))).Take(WebPlaylist.MaxTracks).ToList() };
+            store.Put(full); store.Save();
+            return full;
+        }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("soundcloud"); return list; }
+    }
+
+    /// <summary>flacie-ytdl through the person's file mover (POST [path] with its key); null on a refusal or an error answer.</summary>
+    async Task<string?> MoverAsync(UserSession s, string path, System.Text.Json.Nodes.JsonObject body, CancellationToken ct)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, s.Services.FileMoverUrl.TrimEnd('/') + path)
+        { Content = new StringContent(body.ToJsonString(), System.Text.Encoding.UTF8, "application/json") };
+        req.Headers.TryAddWithoutValidation("X-Api-Key", s.Services.FileMoverKey);
+        using var res = await http.SendAsync(req, ct);
+        return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync(ct) : null;
     }
 
     async Task<(List<WebPlaylist> Found, PlaylistQueryKind Kind)> GatherAsync(UserSession s, string query, CancellationToken ct)
@@ -79,7 +134,12 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             if (await SpotifyAsync(f.Id, f.Kind, f.Subject, ct) is { } l) found.Add(l);
         }
         // an artist's best-of from Deezer's editors
-        if (kind == PlaylistQueryKind.Artist && SearchRankTop.Artist(lib.Artists, query, s.PlayStats) is { } artist && await DeezerArtistAsync(artist.Name, ct) is { } d) found.Add(d);
+        if (kind == PlaylistQueryKind.Artist && SearchRankTop.Artist(lib.Artists, query, s.PlayStats) is { } artist)
+        {
+            if (await DeezerArtistAsync(artist.Name, ct) is { } d) found.Add(d);
+            // F25.3: the artist's own SoundCloud sets, quietly (names only; songs read when one is opened)
+            found.AddRange(await SoundCloudSetsAsync(s, artist.Name, lib, ct));
+        }
         return (found, kind);
     }
 

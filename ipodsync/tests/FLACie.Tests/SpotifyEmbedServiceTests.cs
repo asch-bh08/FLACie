@@ -10,18 +10,22 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
 {
     static readonly DateTime T0 = new(2026, 11, 5, 12, 0, 0, DateTimeKind.Utc);
     readonly string dir = Path.Combine(Path.GetTempPath(), "spotsvc-" + Guid.NewGuid().ToString("N"));
+    DateTime clock = T0;
     public void Dispose() { try { Directory.Delete(dir, true); } catch (IOException) { } }
 
     sealed class Web(bool spotifyUp) : HttpMessageHandler
     {
-        public List<string> Hosts = [];
+        public List<string> Hosts = []; readonly List<string> urls = [];
+        public int Asked(string url) => urls.Count(u => u == url);
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
         {
-            Hosts.Add(r.RequestUri!.Host);
+            Hosts.Add(r.RequestUri!.Host); urls.Add(r.RequestUri.ToString());
             var u = r.RequestUri.ToString();
             (HttpStatusCode, string) a = u.Contains("open.spotify.com/embed/playlist/")
                 ? spotifyUp ? (HttpStatusCode.OK, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAudio", "embed", "this-is-the-prodigy.html")).Replace("This Is The Prodigy", "All Out 90s")) : (HttpStatusCode.TooManyRequests, "")
                 : u.Contains("api.deezer.com/search/playlist") ? (HttpStatusCode.OK, """{"data": [{"id": 9001, "title": "100% The Prodigy", "user": {"name": "Deezer Electro Editor"}}]}""")
+                : u == "http://mover.test/artist-sets" ? (HttpStatusCode.OK, """{"account": "https://soundcloud.com/the-prodigy", "sets": [{"title": "Experience: Expanded (Remixes & B-sides)", "url": "https://soundcloud.com/the-prodigy/sets/experience-expanded"}]}""")
+                : u == "http://mover.test/playlist" ? (HttpStatusCode.OK, """{"name": "Experience: Expanded", "tracks": [{"title": "Charly", "artist": "The Prodigy"}, {"title": "Your Love", "artist": "The Prodigy"}]}""")
                 : u.Contains("api.deezer.com/playlist/9001/tracks") ? (HttpStatusCode.OK, """{"data": [{"title": "Firestarter", "duration": 280, "artist": {"name": "The Prodigy"}}, {"title": "Breathe", "duration": 335, "artist": {"name": "The Prodigy"}}, {"title": "Omen", "duration": 216, "artist": {"name": "The Prodigy"}}]}""")
                 : (HttpStatusCode.NotFound, "");
             return Task.FromResult(new HttpResponseMessage(a.Item1) { Content = new StringContent(a.Item2) });
@@ -50,9 +54,9 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
     (SpotifyPlaylists Svc, Web Web, Dl Dl, UserSession Me, WebSourceGate Gate) Rig(bool spotifyUp, long free = 2_000_000_000_000)
     {
         var lib = new Library([.. Enumerable.Range(0, 10).Select(i => T($"Song {i}", "The Prodigy", 1997)), T("Firestarter", "The Prodigy", 1996)]);
-        var web = new Web(spotifyUp); var dl = new Dl(); var t = T0; var gate = new WebSourceGate(() => t);
+        var web = new Web(spotifyUp); var dl = new Dl(); clock = T0; var gate = new WebSourceGate(() => clock);
         var own = new List<MadePlaylist> { new("made:artist:prodigy", "Best of The Prodigy", "", null, lib.Songs.Take(8).Select(x => x.Path).ToList()), new("made:decade:1990", "1990s", "", null, lib.Songs.Select(x => x.Path).ToList()) };
-        var svc = new SpotifyPlaylists(new HttpClient(web), new WebPlaylistStore(Path.Combine(dir, "l.json"), () => t), gate, dl, _ => free, _ => own, () => t, _ => lib);
+        var svc = new SpotifyPlaylists(new HttpClient(web), new WebPlaylistStore(Path.Combine(dir, "l.json"), () => clock), gate, dl, _ => free, _ => own, () => clock, _ => lib);
         return (svc, web, dl, new UserSession("jellyfin", new JellyfinAccount("http://jf.test", "u1", "tester", "tok"), null) { Id = "u1" }, gate);
     }
 
@@ -101,5 +105,23 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
         var shown = await svc.ForSearchAsync(me, "90s", default);
         Assert.NotEmpty(shown);
         Assert.Empty(dl.Asked);
+    }
+
+    [Fact]
+    public async Task An_artist_search_finds_their_own_soundcloud_sets_quietly_and_reads_songs_only_when_one_is_opened()
+    {
+        var (svc, web, dl, me, _) = Rig(spotifyUp: true);
+        me.Profile["services"] = System.Text.Json.Nodes.JsonNode.Parse("""{"filemover": {"url": "http://mover.test", "key": "k"}}""");
+        var shown = await svc.ForSearchAsync(me, "prodigy", default);
+        var set = Assert.Single(shown, l => l.Source == "soundcloud");
+        Assert.Equal("Experience: Expanded (Remixes & B-sides)", set.Name);
+        Assert.Equal(0, web.Asked("http://mover.test/playlist"));                   // names only while searching
+        clock = clock.AddSeconds(2);                                                // (one request a second to SoundCloud)
+        var full = await svc.FillAsync(me, set, default);
+        Assert.Equal(["Charly", "Your Love"], full.Tracks.Select(t => t.Title));
+        Assert.Equal(1, web.Asked("http://mover.test/playlist"));
+        Assert.Equal(1, web.Asked("http://mover.test/artist-sets"));
+        await svc.ForSearchAsync(me, "prodigy", default);
+        Assert.Equal(1, web.Asked("http://mover.test/artist-sets"));               // the account and its sets are remembered for 7 days
     }
 }

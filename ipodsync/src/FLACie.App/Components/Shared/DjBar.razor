@@ -1,0 +1,44 @@
+@inherits UserComponent
+@implements IDisposable
+@* F26.5 (owner, 5 Nov: "add what it's doing / thinking and change the subtitle location to where the current downloads are, in a little own bar above
+   the now playing bar"): one small bar just above the player. The DJ's side shows Listening… (with the mic's level), what it heard, what it is doing
+   (Thinking…, Finding your favourites…, Downloading…), then its words in time with its voice (the captions live here now); the downloads line joins it.
+   It is gone when the DJ is quiet and nothing downloads. *@
+<div class="dj-bar" data-testid="dj-bar">
+    @if (Player.DjState != DjBarState.None || Player.DjCaption is not null)
+    {
+        <div class="dj-bar-dj @(Player.DjState == DjBarState.None ? "words" : "state")" aria-live="polite" data-testid="dj-bar-dj" data-state="@Player.DjState.ToString().ToLowerInvariant()">
+            <Icon Name="@(Player.DjState == DjBarState.Listening ? "mic" : "dj")" Size="16" />
+            @switch (Player.DjState)
+            {
+                case DjBarState.Listening:
+                    <span class="dj-bar-text">Listening…</span>
+                    <span class="dj-meter" @ref="meterEl" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+                    break;
+                case DjBarState.Thinking:
+                case DjBarState.Downloading:
+                    @if (Player.DjHeard is { Length: > 0 } heard) { <span class="dj-bar-heard" data-testid="dj-bar-heard">Heard: “@heard”</span> }
+                    <span class="dj-bar-text" data-testid="dj-bar-doing">@Player.DjDoing</span>
+                    break;
+                default:
+                    <span class="dj-bar-caption" data-testid="dj-bar-caption">@Player.DjCaption</span>
+                    break;
+            }
+        </div>
+    }
+    <DownloadActivity />
+</div>
+@code {
+    ElementReference meterEl; bool metering;
+    [Inject] IJSRuntime BarJs { get; set; } = default!;
+    Action? onChanged;
+    protected override void OnInitialized() { onChanged = () => _ = InvokeAsync(StateHasChanged); Player.Changed += onChanged; }
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        // the mic's level moves the meter while it listens (read every frame in the page, nothing over the wire)
+        var listening = Player.DjState == DjBarState.Listening;
+        if (listening && !metering) { metering = true; try { await BarJs.InvokeVoidAsync("flacie.djBarMeter", meterEl); } catch (Exception) { } }
+        else if (!listening) metering = false;
+    }
+    public override void Dispose() { if (onChanged is not null) Player.Changed -= onChanged; base.Dispose(); }
+}

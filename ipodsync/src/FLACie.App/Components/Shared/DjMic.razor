@@ -54,6 +54,7 @@
     {
         try { listening = await MicJs.InvokeAsync<bool>("flacie.micStart", me, waitMs, DjConversation.EndOfSpeechMs); }
         catch (Exception) { listening = false; }
+        if (listening && !OnHeard.HasDelegate) Player.SetDjState(DjBarState.Listening);
         if (!listening) await EndAsync(DjTurn.End);
         StateHasChanged();
     }
@@ -63,6 +64,7 @@
     {
         if (!conversing) return;
         conversing = false;
+        if (Player.DjState is DjBarState.Listening or DjBarState.Thinking) Player.SetDjState(DjBarState.None);
         var resume = DjConversation.ResumeAtEnd(pausedByMic, how);
         pausedByMic = false;
         if (resume && !Player.Playing) { try { await Player.ResumeAsync(); } catch (Exception) { } }
@@ -70,7 +72,7 @@
     }
 
     // the recogniser stopped with nothing heard: silence ends the conversation
-    [JSInvokable] public Task Ended() => InvokeAsync(async () => { listening = false; if (!busy) await EndAsync(DjTurn.End); StateHasChanged(); });
+    [JSInvokable] public Task Ended() => InvokeAsync(async () => { listening = false; if (Player.DjState == DjBarState.Listening) Player.SetDjState(DjBarState.None); if (!busy) await EndAsync(DjTurn.End); StateHasChanged(); });
 
     [JSInvokable] public Task Heard(string text) => InvokeAsync(async () =>
     {
@@ -82,6 +84,8 @@
         if (goodbye && turn == 0 && OnHeard.HasDelegate) { await EndAsync(DjTurn.End); return; }
         if (OnHeard.HasDelegate && RetroHost.DjIsRequest?.Invoke(text) != true) { await EndAsync(DjTurn.End); await OnHeard.InvokeAsync(text); return; }
         busy = true; StateHasChanged();
+        // F26.5: the bar above the player shows what it heard and what it is doing
+        Player.SetDjState(DjBarState.Thinking, heard: text, doing: DjBarWords.Doing(text));
         var how = DjTurn.End;
         var asked = false;
         try
@@ -93,7 +97,7 @@
             if (goodbye) how = DjTurn.End;
         }
         catch (Exception) { Toast.Show("Sorry, I couldn't reach the DJ."); }
-        finally { busy = false; StateHasChanged(); }
+        finally { busy = false; if (Player.DjState == DjBarState.Thinking) Player.SetDjState(DjBarState.None); StateHasChanged(); }
         if (how != DjTurn.ListenAgain || !conversing) { await EndAsync(how); return; }
         // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it
         for (var i = 0; i < 100 && conversing; i++)

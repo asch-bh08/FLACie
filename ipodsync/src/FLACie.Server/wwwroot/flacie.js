@@ -500,6 +500,7 @@ window.flacie = (() => {
     return { stop() { mo.disconnect(); ro.disconnect(); if (frame) cancelAnimationFrame(frame); } };
   };
   let npRef = null, npPushed = false;
+  let micLevelNow = null;   // F26.5: the mic's loudness while the recorder listens (null with the browser's recogniser, which gives none)
   let micRec = null;   // the speech recogniser while the mic listens (micStart), or the recorder standing in for it (micRecord)
   const micCanRecord = () => !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   // The mic without the browser's recogniser: records from the press until the person has been quiet for quietMs (or presses again), then frank's
@@ -517,6 +518,7 @@ window.flacie = (() => {
       if (micRec === me) micRec = null;
     };
     const finish = (send) => {
+      micLevelNow = null;
       if (finished) return; finished = true;
       if (!send || !spoke) cancelled = true;
       try { rec && rec.state !== "inactive" ? rec.stop() : done(); } catch { done(); }
@@ -554,6 +556,7 @@ window.flacie = (() => {
         an.getFloatTimeDomainData(buf);
         let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
         const now = performance.now(), rms = Math.sqrt(sum / buf.length);
+        micLevelNow = rms;   // F26.5: the DJ bar's meter
         if (now - t0 < 300) { floor = (floor * samples + rms) / ++samples; return; }
         if (!spoke) floor = floor * 0.95 + Math.min(rms, floor * 1.5 + 0.002) * 0.05;   // follows a room that changes, never a voice
         if (rms > Math.max(0.02, floor * 2.5)) { spoke = true; lastLoud = now; }
@@ -1557,6 +1560,22 @@ window.flacie = (() => {
     // waitMs: how long to wait for the person to begin (0: the browser's own wait, for the first press); quietMs: how long after the last word means their turn is over
     // (DjConversation.ListenWindowMs / EndOfSpeechMs). Nobody speaks within waitMs: it lets go quietly (Ended). The words so far go back once quietMs passes with nothing new,
     // or when the browser ends the session itself.
+    // F26.5: the DJ bar's level meter while the mic listens: the recorder's loudness when there is one, else a gentle wobble that says "listening"
+    micLevel() { return micLevelNow; },
+    djBarMeter(el) {
+      if (!el || el._meter) return; el._meter = true;
+      const bars = [...el.querySelectorAll('i')];
+      const step = (t) => {
+        if (!el.isConnected) return;
+        const lvl = micLevelNow;
+        bars.forEach((b, i) => {
+          const v = lvl === null ? 0.35 + 0.25 * Math.sin(t / 180 + i * 1.3) : Math.min(1, lvl * 9 * (0.6 + 0.4 * Math.sin(t / 90 + i)));
+          b.style.transform = `scaleY(${Math.max(0.15, v).toFixed(2)})`;
+        });
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    },
     micStart(ref, waitMs, quietMs) {
       const R = window.SpeechRecognition || window.webkitSpeechRecognition;
       // Brave's recogniser never works (its service is off): straight to recording, or the first words were lost while it failed (owner, 5 Nov)

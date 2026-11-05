@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round4: F26.5 the DJ bar above the player)
+- Done: DjBar (MainLayout, in place of DownloadActivity, which joins it): Listening… with the mic's level (recorder's loudness, a wobble with the browser recogniser), Heard: "…" + what it does (DjBarWords: Finding your favourites…, Looking for X…, Making your playlist…, Thinking…), Downloading X…, then the DJ's words timed by its voice.
+- Captions moved from the player bar into it (the full-screen cover's caption stays); spoken answers are captioned too (PlayerState.DjAnswerAsync -> OnDjSpeaking). State: PlayerState.DjState/DjHeard/DjDoing (DjBarState).
+- Proof: DjBarTests, web-smoke 1z-dj-bar.spec.ts (stand-in recogniser and voice), 1q-dj/mini-player/1i green. Local: phone and car are yours (spec).
+
 ## 2026-11-05 Cloud (cloud/round4: F26.4 the DJ's real favourites)
 - Done: DjFavourites.Pick counts max(FLACie's real plays, Jellyfin's play count: IDjAskUser.JellyfinPlays from s.PlayStats); hearted and 2+ plays first, then 1 play; fill to 15 with hits: Deezer popularity (15 looked up first), then songs on several of their albums, then newest; songs skipped more than played are left out.
 - The DJ says what it did ("You've played 3 of their songs a lot; then their biggest hits.").

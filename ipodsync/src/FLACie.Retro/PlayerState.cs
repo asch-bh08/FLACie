@@ -1045,7 +1045,10 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (a.Say.Length == 0) return;
         try
         {
-            if (dj is { } d) { var st = d.Settings(s); await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck)); }
+            var captions = false;
+            if (dj is { } d) { var st = d.Settings(s); captions = st.Captions; await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck)); }
+            // F26.5: the answer's words show in the DJ bar when its voice is heard (F17's timing: OnDjSpeaking)
+            if (captions && (a.Clip is { Length: > 0 } || a.DeviceVoice)) djCaptionDue = (a.Say, DjTiming.EstimateMs(a.Say));
             if (a.Clip is { Length: > 0 } url) { await audio.DjPlayAsync(url, a.Say, false, 0, 0); djActive = true; return; }
             if (a.DeviceVoice) { await audio.DjSayAsync(a.Say); djActive = true; return; }
         }
@@ -1055,16 +1058,34 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>A song fetched for a request: played as soon as it lands (looked for every 5 s, for 10 minutes at most).</summary>
     async Task WaitForDownloadAsync(UserSession s, DjAskWait w)
     {
-        for (var i = 0; i < 120; i++)
+        SetDjState(DjBarState.Downloading, doing: $"Downloading {w.Title}…");
+        try
         {
-            await Task.Delay(5000);
-            if (RetroHost.DjLanded?.Invoke(s, w.Artist, w.Title) is { } path && s.FindByPath(path) is { } t)
+            for (var i = 0; i < 120; i++)
             {
-                await Play([t], 0, t.Title);
-                DjAskSaid?.Invoke($"Here it is: {t.Title}, by {t.Artist}.");
-                return;
+                await Task.Delay(5000);
+                if (RetroHost.DjLanded?.Invoke(s, w.Artist, w.Title) is { } path && s.FindByPath(path) is { } t)
+                {
+                    await Play([t], 0, t.Title);
+                    DjAskSaid?.Invoke($"Here it is: {t.Title}, by {t.Artist}.");
+                    return;
+                }
             }
         }
+        finally { if (DjState == DjBarState.Downloading) SetDjState(DjBarState.None); }
+    }
+
+    // ---- F26.5: what the DJ is doing, for the bar above the player: listening, what it heard, thinking, finding, downloading ----
+    public DjBarState DjState { get; private set; }
+    /// <summary>The words the DJ heard last (shown while it thinks), and what it is doing in words ("Finding your favourites…").</summary>
+    public string? DjHeard { get; private set; }
+    public string? DjDoing { get; private set; }
+    public void SetDjState(DjBarState state, string? heard = null, string? doing = null)
+    {
+        DjState = state;
+        if (state == DjBarState.None) { DjHeard = null; DjDoing = null; }
+        else { if (heard is not null) DjHeard = heard; DjDoing = doing; }
+        Changed?.Invoke();
     }
 
     /// <summary>Puts [tracks] after the song playing; with [replace], instead of what was coming up.</summary>
@@ -1133,3 +1154,6 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         return ValueTask.CompletedTask;
     }
 }
+
+/// <summary>F26.5: what the DJ is doing, for the bar above the player.</summary>
+public enum DjBarState { None, Listening, Thinking, Downloading }

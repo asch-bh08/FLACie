@@ -1,11 +1,12 @@
 namespace FLACie.Core;
 
 /// <summary>What the player does about something said to the DJ (docs/dj-ask-report.md). The server works it out; the players only carry it out.</summary>
-public enum DjAskDo { None, Play, UpNext, Next, Pause, Resume, VolumeUp, VolumeDown, DjOn, DjOff, AddToPlaylist, RemoveFromPlaylist, CreatePlaylist, Ask, Shuffle }
+public enum DjAskDo { None, Play, UpNext, Next, Pause, Resume, VolumeUp, VolumeDown, DjOn, DjOff, AddToPlaylist, RemoveFromPlaylist, CreatePlaylist, Ask, Shuffle, RenamePlaylist }
 
 /// <summary>
 /// One step of an answer (F9). [Paths] are the songs it is about; [Playlist] the playlist's name for the playlist steps; [Say] the question for
-/// <see cref="DjAskDo.Ask"/> (the player says it and opens the mic again); [Shuffle] turns shuffle on or off for <see cref="DjAskDo.Shuffle"/>.
+/// <see cref="DjAskDo.Ask"/> (the player says it and opens the mic again); [Shuffle] turns shuffle on or off for <see cref="DjAskDo.Shuffle"/>;
+/// <see cref="DjAskDo.RenamePlaylist"/> renames [Playlist] to [Title].
 /// </summary>
 public sealed record DjAskStep(DjAskDo Do, IReadOnlyList<string>? Paths = null, string? Title = null, bool Shuffle = false, bool Replace = false,
     string? Playlist = null, string? Say = null)
@@ -53,6 +54,7 @@ public interface IDjAskPlayer
     /// <summary>Says [question] and opens the mic again for the answer.</summary>
     Task AskAsync(string question) => Task.CompletedTask;
     Task ShuffleAsync(bool on) => Task.CompletedTask;
+    Task RenamePlaylistAsync(string playlist, string name) => Task.CompletedTask;
 }
 
 public static class DjAskRunner
@@ -79,6 +81,7 @@ public static class DjAskRunner
             case DjAskDo.CreatePlaylist when a.Playlist is { Length: > 0 } pl: await p.CreatePlaylistAsync(pl, a.Paths ?? []); return true;
             case DjAskDo.Ask when a.Say is { Length: > 0 } q: await p.AskAsync(q); return true;
             case DjAskDo.Shuffle: await p.ShuffleAsync(a.Shuffle); return true;
+            case DjAskDo.RenamePlaylist when a.Playlist is { Length: > 0 } pl && a.Title is { Length: > 0 } name: await p.RenamePlaylistAsync(pl, name); return true;
             case DjAskDo.Next: await p.NextAsync(); return true;
             case DjAskDo.Pause: await p.PauseAsync(); return true;
             case DjAskDo.Resume: await p.ResumeAsync(); return true;

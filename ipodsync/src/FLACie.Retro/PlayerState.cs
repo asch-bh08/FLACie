@@ -1085,6 +1085,11 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         public Task CreatePlaylistAsync(string name, IReadOnlyList<string> paths) { s.ReplacePlaylistTracks(s.PlaylistNamed(name).Id, Tracks(paths)); return Task.CompletedTask; }
         public Task AskAsync(string question) { p.DjAskAgain?.Invoke(question); return Task.CompletedTask; }
         public Task ShuffleAsync(bool on) { if (p.Shuffle != on) p.ToggleShuffle(); return Task.CompletedTask; }
+        public Task RenamePlaylistAsync(string playlist, string name)
+        {
+            if (s.Playlists.FirstOrDefault(x => x.Name.Equals(playlist, StringComparison.OrdinalIgnoreCase)) is { } pl) s.RenamePlaylist(pl.Id, name);
+            return Task.CompletedTask;
+        }
     }
 
     /// <summary>Stops the music and closes the player: the queue is emptied and the bar goes away. It is what the X on the bar does.</summary>

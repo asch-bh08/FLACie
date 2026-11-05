@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F23.2 policy, F23.3 own Best of, F23.4 clean-up)
+- Done: PlaylistFetchPolicy (opened/played all missing in play order, This Is top half first, popular 2, nothing automatic under 100 GB); MadePlaylists Best of: one version, no instrumentals, half the artist's songs (10-50).
+- F23.4: LibraryCleanup plan + LibraryCleanupRun/Service (every 6 h, only under 100 GB free) moves via /retire to .flacie-replaced; new file mover route /purge empties it after 30 days; Server admin "Clean-up" lists the moves.
+- Local: redeploy tools/filemove/server.py (adds /purge) and set FLACIE_CLEANUP_ROOT to Jellyfin's path of the music folder the file mover serves (else only FLACie-filed files are cleaned).
+- Next: F23 server wiring (fetch Spotify/Deezer lists, search rows, Playlists filter, downloads as you go).
+
 ## 2026-11-05 Cloud (cloud/round2: F23.1 core)
 - Done: SpotifyEmbed.Parse (embed __NEXT_DATA__, first 100, text only, 200-char cap, only open.spotify.com ids), WebPlaylistStore (one file, max 2,000, 30-day drop, daily re-read), WebSourceGate (1/s, 6 h rest, switches), WebPlaylistPick (one per purpose Spotify>Deezer>SoundCloud>own, SoundCloud bar, row sizes, Playlists + genre filter).
 - Local: open.spotify.com is blocked from this sandbox, so the fixture (tests/FLACie.Tests/TestAudio/embed) follows the known page shape; please save one real embed page there and check SpotifyEmbedTests still parse it.

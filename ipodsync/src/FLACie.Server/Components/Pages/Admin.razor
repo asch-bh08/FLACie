@@ -16,6 +16,7 @@
 @inject FLACie.Server.Dj.DjService Dj
 @inject FLACie.Server.Dj.DjPronounceCheck DjNames
 @inject CoverFill Covers
+@inject LibraryCleanupRun Cleanup
 <PageTitle>Server admin · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1>Server <i>admin</i></h1><p class="sub">Only for whoever runs this server: what is playing, who is on, what the server is doing, and the server's settings</p></header>
@@ -163,6 +164,18 @@ else
                         break;
                 }
             </div>
+        }
+    </section>
+
+    @* F23.4: what the clean-up moved to the holding folder (emptied after 30 days, so a wrong move can be undone from there) *@
+    <section class="admin-block" aria-label="Clean-up">
+        @{ var moved = Cleanup.Moved.AsEnumerable().Reverse().Take(50).ToList(); }
+        <div class="shelf-head"><div><h2>Clean-up</h2><small>@(moved.Count == 0 ? "Nothing moved. It runs when the music disk has under 100 GB free" : $"{Cleanup.Moved.Count} files moved to .flacie-replaced in the music folder, kept there for 30 days")</small></div></div>
+        @if (moved.Count > 0)
+        {
+            <ul class="admin-list">
+                @foreach (var m in moved) { <li><b>@m.Title</b> · @m.Artist <small>@(m.Why switch { CleanupReason.Duplicate => "exact duplicate", CleanupReason.WorseCopy => "a better copy is kept", _ => "would not play" }) · @m.File · @m.AtUtc.ToString("d MMM HH:mm")</small></li> }
+            </ul>
         }
     </section>
 

@@ -72,6 +72,12 @@ builder.Services.AddSingleton(sp => new CoverFill(sp.GetRequiredService<CoverSto
     (a, al, t, ct) => MediaEndpoints.CatalogCover(sp.GetRequiredService<IHttpClientFactory>().CreateClient("media"), a, al, t, ct),
     TimeSpan.FromMilliseconds(builder.Configuration.GetValue("FLACIE_COVER_FILL_PACE_MS", 1500))));
 builder.Services.AddHostedService<CoverFillService>();
+// F23.4: under 100 GB free on the music disk, duplicates, worse copies and undecodable files go to the holding folder (emptied after 30 days).
+// FLACIE_CLEANUP_ROOT: Jellyfin's path for the music folder the file mover serves (without it only files FLACie filed itself are cleaned)
+builder.Services.AddSingleton(sp => new LibraryCleanupRun(s => sp.GetRequiredService<StorageGuard>().Space(s),
+    s => new FileMoverClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("downloads"), s.Services.FileMoverUrl, s.Services.FileMoverKey),
+    builder.Configuration["FLACIE_CLEANUP_ROOT"], Path.Combine(dataDir, "cleanup.json"), () => DateTime.UtcNow));
+builder.Services.AddHostedService<LibraryCleanupService>();
 builder.Services.AddSingleton<UserStateStore>();
 builder.Services.AddSingleton<StorageGuard>();
 builder.Services.AddSingleton<ActivityLog>();

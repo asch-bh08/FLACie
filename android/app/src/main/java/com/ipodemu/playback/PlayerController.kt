@@ -109,7 +109,17 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     @OptIn(UnstableApi::class)
     private val bandwidth = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(ctx).build()
     @OptIn(UnstableApi::class)
-    private val upstream = DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs)).setTransferListener(bandwidth)
+    private val upstream = DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs)).setTransferListener(object : androidx.media3.datasource.TransferListener {
+        override fun onTransferInitializing(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = bandwidth.onTransferInitializing(source, dataSpec, isNetwork)
+        override fun onTransferStart(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = bandwidth.onTransferStart(source, dataSpec, isNetwork)
+        override fun onBytesTransferred(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean, bytesTransferred: Int) {
+            if (isNetwork) measuredBytes.addAndGet(bytesTransferred.toLong())
+            bandwidth.onBytesTransferred(source, dataSpec, isNetwork, bytesTransferred)
+        }
+        override fun onTransferEnd(source: androidx.media3.datasource.DataSource, dataSpec: androidx.media3.datasource.DataSpec, isNetwork: Boolean) = bandwidth.onTransferEnd(source, dataSpec, isNetwork)
+    })
+    /** Bytes streamed so far: until there are enough, the meter's figure is a guess, not the line ([StreamQuality.MIN_MEASURED_BYTES]). */
+    private val measuredBytes = java.util.concurrent.atomic.AtomicLong()
     @OptIn(UnstableApi::class)
     // the cache is written in 512 KB pieces (not the default 5 MB), so the seek bar's frame-size shape (WaveAnalyzer) can follow the download closely
     private val cacheSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx)).setUpstreamDataSourceFactory(upstream)
@@ -1346,7 +1356,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** The version the next songs stream in when Streaming quality is Automatic (see [StreamQuality]); looked at only as one song changes to the next. */
     private var autoPick = StreamQuality.Pick.FLAC
     private fun reviewQuality() {
-        val p = StreamQuality.pick(bandwidth.bitrateEstimate, autoPick)
+        val p = StreamQuality.pick(bandwidth.bitrateEstimate, autoPick, measuredBytes.get())
         if (p == autoPick) return
         autoPick = p
         Diag.add("quality", "line ${bandwidth.bitrateEstimate / 1000} kbps: the next songs are ${if (p == StreamQuality.Pick.OPUS) "Opus 128k" else "full quality"}")

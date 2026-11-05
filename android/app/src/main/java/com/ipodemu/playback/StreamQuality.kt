@@ -13,9 +13,12 @@ object StreamQuality {
     /** The bitrate of the small version. */
     const val OPUS_BPS = 128_000
 
-    /** The version to use from the measurement [bps] (bits per second; 0 or less: nothing measured), given the one in use. */
-    fun pick(bps: Long, current: Pick): Pick = when {
-        bps <= 0 -> current
+    /** Fewer bytes than this downloaded and the meter is still guessing (its start value is an average for the country, which can read as a weak line). */
+    const val MIN_MEASURED_BYTES = 2L * 1024 * 1024
+
+    /** The version to use from the measurement [bps] (bits per second; 0 or less: nothing measured), given the one in use. Not before [MIN_MEASURED_BYTES] were [measuredBytes]. */
+    fun pick(bps: Long, current: Pick, measuredBytes: Long = Long.MAX_VALUE): Pick = when {
+        bps <= 0 || measuredBytes < MIN_MEASURED_BYTES -> current
         bps < LOW_BPS -> Pick.OPUS
         bps > HIGH_BPS -> Pick.FLAC
         else -> current

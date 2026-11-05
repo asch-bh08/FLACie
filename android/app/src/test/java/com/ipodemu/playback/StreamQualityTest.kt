@@ -25,6 +25,14 @@ class StreamQualityTest {
         for (bps in listOf(1_500_000L, 2_500_000L, 4_000_000L)) { assertEquals(opus, StreamQuality.pick(bps, opus)); assertEquals(flac, StreamQuality.pick(bps, flac)) }
     }
 
+    @Test fun a_guess_before_enough_bytes_is_not_the_line() {
+        // a fresh install: the meter's start value can read weak, but little has been downloaded -- no switch to Opus (the b106 smoke failure)
+        assertEquals(flac, StreamQuality.pick(300_000, flac, 0))
+        assertEquals(flac, StreamQuality.pick(300_000, flac, StreamQuality.MIN_MEASURED_BYTES - 1))
+        assertEquals(opus, StreamQuality.pick(300_000, flac, StreamQuality.MIN_MEASURED_BYTES))
+        assertEquals(opus, StreamQuality.pick(40_000_000, opus, 1024))
+    }
+
     @Test fun nothing_measured_keeps_the_current_choice() {
         assertEquals(opus, StreamQuality.pick(0, opus)); assertEquals(flac, StreamQuality.pick(-1, flac))
     }

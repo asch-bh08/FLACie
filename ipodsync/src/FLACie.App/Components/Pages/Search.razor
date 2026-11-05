@@ -42,29 +42,30 @@
 else
 {
     <ExploreBar Compact="true" Changed="OnFilters" />
-    @* F23: the Playlists filter: every playlist that matches (Spotify's, Deezer's, SoundCloud's, our own), best first, and a genre to narrow them *@
-    <div class="sr-kinds lists-filter" role="group" aria-label="Playlists filter">
-        <button class="chip @(listsAll ? "on" : "")" aria-pressed="@(listsAll ? "true" : "false")" @onclick="ToggleLists">Playlists</button>
+    @* F23: the Playlists filter: every playlist that matches (Spotify's, Deezer's, SoundCloud's, our own), best first, and a genre to narrow them.
+       Its chip sits in the All / Songs / Albums / Artists row (ResultSections' ExtraKinds); the genres open under it *@
+    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest">
+        <ExtraKinds><button class="chip @(listsAll ? "on" : "")" aria-pressed="@(listsAll ? "true" : "false")" @onclick="ToggleLists">Playlists</button></ExtraKinds>
+        <UnderKinds>
         @if (listsAll)
         {
-            @foreach (var g in Genres())
-            {
-                var genre = g;
-                <button class="chip @(listGenre == genre ? "on" : "")" aria-pressed="@(listGenre == genre ? "true" : "false")" @onclick="() => PickGenre(genre)">@genre</button>
-            }
-        }
-    </div>
-    @if (listsAll)
-    {
-        <section class="sr-section" aria-label="All playlists">
-            <h2 class="section"><i>Playlists</i>@(listGenre is null ? "" : " · " + listGenre)</h2>
-            @if (filterLists.Count == 0) { <p class="status">No playlists for this yet.</p> }
-            <div class="grid">
-                @foreach (var m in filterLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+            <div class="sr-kinds lists-filter" role="group" aria-label="Playlists by genre">
+                @foreach (var g in Genres())
+                {
+                    var genre = g;
+                    <button class="chip @(listGenre == genre ? "on" : "")" aria-pressed="@(listGenre == genre ? "true" : "false")" @onclick="() => PickGenre(genre)">@genre</button>
+                }
             </div>
-        </section>
-    }
-    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
+            <section class="sr-section" aria-label="All playlists">
+                <h2 class="section"><i>Playlists</i>@(listGenre is null ? "" : " · " + listGenre)</h2>
+                @if (filterLists.Count == 0) { <p class="status">No playlists for this yet.</p> }
+                <div class="grid">
+                    @foreach (var m in filterLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+                </div>
+            </section>
+        }
+        </UnderKinds>
+    </ResultSections>
     @if (webPaused) { <p class="hint" role="status">Online results are paused for a moment: that was a lot of searches in one minute. Your library's results are still here.</p> }
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {

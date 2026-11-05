@@ -51,4 +51,17 @@ public class SearchRankTests
         Assert.Equal(["The Fat of the Land", "Music for the Jilted Generation"], page.Albums.Select(a => a.Name));
         Assert.Equal(["Firestarter", "Charly EP"], page.Singles.Select(a => a.Name));
     }
+
+    [Fact]
+    public void Unplayed_songs_lead_with_the_ones_on_several_albums_and_no_album_fills_the_top()   // owner, 5 Nov: the top was all No Tourists
+    {
+        var tourists = new[] { "Need Some1", "Light Up the Sky", "We Live Forever", "No Tourists", "Fight Fire with Fire", "Timebomb Zone" }.Select((t, i) => S(t, "No Tourists", 2018, "n" + i)).ToList();
+        var fat = new[] { S("Breathe", "The Fat of the Land", 1997, "f1"), S("Firestarter", "The Fat of the Land", 1997, "f2"), S("Narayan", "The Fat of the Land", 1997, "f3") };
+        var law = new[] { S("Breathe", "Their Law: The Singles", 2005, "l1"), S("Firestarter", "Their Law: The Singles", 2005, "l2"), S("Omen", "Their Law: The Singles", 2005, "l3") };
+        var all = tourists.Concat(fat).Concat(law).ToList();
+        var page = ArtistPage.Of(new Group("The Prodigy", all, null), all.GroupBy(t => t.Album).Select(g => new Group(g.Key, g.ToList(), null)), []);
+        Assert.Equal(["Breathe", "Firestarter"], page.Top.Take(2).Select(t => t.Title).Order());   // on two albums each: the hits
+        Assert.True(page.Top.Count(t => t.Album == "No Tourists") <= 2);
+        Assert.Equal(page.Top.Concat(page.Popular).Count(), page.Top.Concat(page.Popular).Select(t => t.Title).Distinct().Count());   // each song once
+    }
 }

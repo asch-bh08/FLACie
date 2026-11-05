@@ -64,7 +64,9 @@
 .top-brand .logo-mark { display: none; }
 .wordmark { font-family: var(--serif); font-weight: 400; font-size: 30px; letter-spacing: -.01em; }
 .wordmark i { font-style: italic; background: none; -webkit-text-fill-color: currentColor; color: var(--accent-text); transition: color 1.2s; }
-.top-search { border-radius: 23px; background: color-mix(in srgb, var(--bg) 94%, transparent); box-shadow: 0 6px 20px #00000059; }
+.top-search { border-radius: 23px; background: var(--surface); box-shadow: 0 6px 20px #00000059; }
+/* once the page scrolls under it, the floating box sits on a band (the page showed round it and looked like it overlapped) */
+body.scrolled .topbar { background: color-mix(in srgb, var(--bg) 97%, transparent); -webkit-backdrop-filter: blur(16px) saturate(1.2); backdrop-filter: blur(16px) saturate(1.2); border-bottom: 1px solid #f4efe60f; transition: background-color .2s; }
 .avatar { background: var(--tone, #24525a); color: var(--tonefg, #e7f3f0); }
 .rail { border-right: 1px solid #f4efe60f; }
 .home-hero { margin-top: calc(-28px - var(--top)); padding-top: calc(var(--top) + 24px); min-height: calc(clamp(220px, 34vh, 340px) + var(--top)); }
@@ -161,3 +163,6 @@ section.set[hidden] { display: none !important; }
 .sr-kinds { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
 .sr-kinds .chip { min-height: 40px; padding: 0 16px; }
 .sr-kinds .chip.on { background: var(--ink, #f4efe6); color: #1a120c; border-color: transparent; }
+
+/* Search's Filters (ExploreBar Compact): a plain button above the results, not a floating panel round one button (owner, 5 Nov: "ugly") */
+.x-bar.compact { position: static; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; margin: 0 0 10px; animation: none; }

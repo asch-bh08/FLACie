@@ -35,9 +35,11 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     public async Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct)
     {
         var (found, kind) = await GatherAsync(s, query, ct);
-        var shown = WebPlaylistPick.ForAll(found, query, kind, now());
-        // what showed interest: the artist's best-of (an artist search), and popular lists shown (their first 2 songs, so they start at once)
-        foreach (var l in shown.Where(l => l.Source != "own"))
+        var artist = kind == PlaylistQueryKind.Artist ? SearchRankTop.Artist(Lib(s).Artists, query, s.PlayStats)?.Name : null;
+        var shown = WebPlaylistPick.ForAll(found, query, kind, now(), artist);
+        // what showed interest: the artist's best-of (an artist search), and popular lists shown (their first 2 songs, so they start at once). A list
+        // shown only because it holds the artist's songs (All Out 90s for The Prodigy) waits until it is opened or played
+        foreach (var l in shown.Where(l => l.Source != "own" && WebPlaylistPick.Relevance(l, query) > 0))
             Interest(s, l, kind == PlaylistQueryKind.Artist && l.Kind == WebPlaylistKind.Artist ? FetchTrigger.ArtistSearch : FetchTrigger.Popular);
         return shown;
     }
@@ -75,12 +77,32 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         foreach (var f in Fixed)
         {
             var probe = new WebPlaylist("spotify", f.Id, f.Name, f.Kind, f.Subject, []);
-            if (WebPlaylistPick.Relevance(probe, query) <= 0) continue;
-            if (await SpotifyAsync(f.Id, f.Kind, f.Subject, ct) is { } l) found.Add(l);
+            if (WebPlaylistPick.Relevance(probe, query) > 0) { if (await SpotifyAsync(f.Id, f.Kind, f.Subject, ct) is { } l) found.Add(l); }
+            // an artist search also looks inside the ones already read (WarmFixed reads them once a day) for that artist's songs
+            else if (kind == PlaylistQueryKind.Artist && store.All.FirstOrDefault(l => l.Source == "spotify" && l.Id == f.Id) is { } known) found.Add(known);
         }
+        WarmFixed();
         // an artist's best-of from Deezer's editors
         if (kind == PlaylistQueryKind.Artist && SearchRankTop.Artist(lib.Artists, query, s.PlayStats) is { } artist && await DeezerArtistAsync(artist.Name, ct) is { } d) found.Add(d);
         return (found, kind);
+    }
+
+    DateTime warmedAt = DateTime.MinValue;
+
+    /// <summary>Reads Spotify's fixed lists in the background, at most once in 20 hours and one a second (14 pages a day), so an artist search can look
+    /// inside them without waiting.</summary>
+    void WarmFixed()
+    {
+        lock (queued) { if (now() - warmedAt < TimeSpan.FromHours(20)) return; warmedAt = now(); }
+        _ = Task.Run(async () =>
+        {
+            foreach (var f in Fixed)
+            {
+                if (!store.NeedsFetch("spotify", f.Id)) continue;
+                await Task.Delay(WebSourceGate.Gap + TimeSpan.FromMilliseconds(100));
+                try { await SpotifyAsync(f.Id, f.Kind, f.Subject, CancellationToken.None); } catch (Exception) { }
+            }
+        });
     }
 
     static WebPlaylist Own(MadePlaylist m, Library lib)

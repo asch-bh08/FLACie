@@ -13,7 +13,7 @@ public enum PlaylistQueryKind { Playlists, Artist, Song }
 public static class WebPlaylistPick
 {
     public static readonly string[] SourceOrder = ["spotify", "deezer", "soundcloud", "own"];
-    public const int FullRow = 12, ArtistRow = 4, SongRow = 1, MinLikes = 1000;
+    public const int FullRow = 12, ArtistRow = 8, SongRow = 1, MinLikes = 1000;
     /// <summary>A list shows only with a relevance this share of the best one's or more.</summary>
     public const double Near = 0.6;
 
@@ -65,10 +65,24 @@ public static class WebPlaylistPick
         return share + (subject ? 0.5 : 0);
     }
 
-    /// <summary>The All view: as many lists as the search is about, each near the best one's relevance, one per purpose, strongest first.</summary>
-    public static List<WebPlaylist> ForAll(IEnumerable<WebPlaylist> found, string query, PlaylistQueryKind kind, DateTime nowUtc)
+    /// <summary>
+    /// For an artist search, a list that holds their songs (All Out 90s with Firestarter, our own Electronic mix): 0.95 for one song, up to 1.2 for six
+    /// or more, so it shows beside the best-of (which scores 1.5 on its name). The artist is matched exactly, "The" included: The Prodigy is not
+    /// Prodigy of Mobb Deep. A featuring credit after the name still counts.
+    /// </summary>
+    public static double Holds(WebPlaylist l, string artist)
     {
-        var scored = Candidates(found, nowUtc).Select(l => (l, r: Relevance(l, query))).Where(x => x.r > 0).ToList();
+        var name = Matching.SearchWords(artist);
+        if (name.Count == 0) return 0;
+        var n = l.Tracks.Count(t => Matching.SearchWords(t.Artist) is var w && w.Count >= name.Count && w.Take(name.Count).SequenceEqual(name)
+            && (w.Count == name.Count || w[name.Count] is "feat" or "ft" or "featuring" or "with" or "x" or "and"));
+        return n == 0 ? 0 : 0.9 + 0.05 * Math.Min(n, 6);
+    }
+
+    /// <summary>The All view ([artist]: the artist an artist search found, for <see cref="Holds"/>): as many lists as the search is about, each near the best one's relevance, one per purpose, strongest first.</summary>
+    public static List<WebPlaylist> ForAll(IEnumerable<WebPlaylist> found, string query, PlaylistQueryKind kind, DateTime nowUtc, string? artist = null)
+    {
+        var scored = Candidates(found, nowUtc).Select(l => (l, r: kind == PlaylistQueryKind.Artist ? Math.Max(Relevance(l, query), Holds(l, artist ?? query)) : Relevance(l, query))).Where(x => x.r > 0).ToList();
         if (scored.Count == 0) return [];
         var best = scored.Max(x => x.r);
         var take = kind switch { PlaylistQueryKind.Playlists => FullRow, PlaylistQueryKind.Artist => ArtistRow, _ => SongRow };

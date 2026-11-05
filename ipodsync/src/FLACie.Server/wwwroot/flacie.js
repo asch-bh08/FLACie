@@ -570,6 +570,8 @@ window.flacie = (() => {
   // the filter bar on Explore slides away while scrolling down and comes back as soon as you scroll up
   let lastY = 0;
   window.addEventListener("scroll", () => {
+    // the floating search box gets a band behind it once the page moves under it (the mood chips showed round it, owner 5 Nov)
+    document.body.classList.toggle("scrolled", window.scrollY > 8);
     const y = window.scrollY, d = y - lastY, b = document.querySelector(".x-bar");
     if (!b) { lastY = y; return; }
     if (Math.abs(d) < 8) return;

@@ -44,8 +44,8 @@
     var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;
     var heroSong = ranked && !heroArtist && !heroAlbum ? best : null;
     var shown = showAll || only == "songs" ? songs.Count : Math.Min(songs.Count, SongRows);
-    // F6.2: a search for an artist is laid out like their page: the Top result with their top 5 songs beside it, then Popular, Albums, Singles & EPs,
-    // Playlists (Best of, Radio, decades, genres, their own) and other artists with similar names. A search for a song keeps the song-first layout.
+    // F6.2: a search for an artist is laid out like their page: the Top result with their top 5 songs beside it, then Playlists, Popular, Albums, Singles & EPs
+    // (Playlists: Best of, Radio, decades, genres, their own) and other artists with similar names. A search for a song keeps the song-first layout.
     var artistPage = heroArtist && topArtist is not null && only == ""
         ? FLACie.Core.ArtistPage.Of(topArtist with { Tracks = topArtist.Tracks.Where(X.Allows).ToList() }, Lib.Albums.Where(g => g.Tracks.Any(X.Allows)), Session.PlayStats) : null;
     var context = Context + (ranked ? ": " + q : "");
@@ -61,7 +61,7 @@
         }
     </p>
 }
-@if (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1)
+@if (ExtraKinds is not null || (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1))
 {
     @* narrow the results to one kind *@
     <div class="sr-kinds" role="group" aria-label="Show only">
@@ -71,8 +71,10 @@
             var kind = k;
             <button class="chip @(only == kind ? "on" : "")" aria-pressed="@(only == kind ? "true" : "false")" @onclick="() => only = kind">@label</button>
         }
+        @ExtraKinds
     </div>
 }
+@UnderKinds
 @if (artistPage is not null && topArtist is not null)
 {
     var ta = topArtist;
@@ -94,6 +96,21 @@
             <TrackList Tracks="artistPage.Top.ToList()" PlayContext="@ta.Name" Single="true" ThumbSize="40" />
         </div>
     </section>
+    @* the playlists straight under the Top result, before the albums (owner, 5 Nov: they were too far down) *@
+    @if (Made.Count + plays.Count > 0)
+    {
+        <section aria-label="Playlists" class="sr-section">
+            <h2 class="section"><i>Playlists</i></h2>
+            <div class="row-scroll">
+                @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+                @foreach (var p in plays)
+                {
+                    var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                }
+            </div>
+        </section>
+    }
     @if (artistPage.Popular.Count > 0)
     {
         <section aria-label="Popular" class="sr-section">
@@ -117,20 +134,6 @@
                 {
                     var gy = g.Tracks.Max(t => t.Year);
                     <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@(gy > 0 ? gy.ToString() : "")@(gy > 0 ? " · " : "")@(FLACie.Core.ArtistPage.IsSingle(g) ? (g.Tracks.Count == 1 ? "Single" : "EP") : "Album")</span></a>
-                }
-            </div>
-        </section>
-    }
-    @if (Made.Count + plays.Count > 0)
-    {
-        <section aria-label="Playlists" class="sr-section">
-            <h2 class="section"><i>Playlists</i></h2>
-            <div class="row-scroll">
-                @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
-                @foreach (var p in plays)
-                {
-                    var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
                 }
             </div>
         </section>
@@ -292,6 +295,10 @@ else
     [Parameter] public int SongRows { get; set; } = 8;
     /// <summary>Ready-made playlists for the query (Best of, Radio, decades, genres): with the playlists for an artist, else in a row of their own at the top.</summary>
     [Parameter] public IReadOnlyList<MadePlaylist> Made { get; set; } = [];
+    /// <summary>More chips at the end of the All / Songs / Albums / Artists row (Search's Playlists filter), so they sit on one line.</summary>
+    [Parameter] public RenderFragment? ExtraKinds { get; set; }
+    /// <summary>Shown right under that row (the Playlists filter's genres and its lists, when it is on).</summary>
+    [Parameter] public RenderFragment? UnderKinds { get; set; }
     [Parameter] public bool ShowEmpty { get; set; } = true;
     /// <summary>The "Did you mean ...?" link was pressed: the page puts the corrected text in its own search box.</summary>
     [Parameter] public EventCallback<string> OnQuery { get; set; }

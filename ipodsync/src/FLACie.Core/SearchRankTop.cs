@@ -35,8 +35,16 @@ public sealed record ArtistPage(IReadOnlyList<Track> Top, IReadOnlyList<Track> P
     {
         var byId = new Dictionary<string, int>();
         foreach (var p in plays) byId[p.Id] = p.Plays;
-        var songs = artist.Tracks.OrderByDescending(t => t.JellyfinId is { } id ? byId.GetValueOrDefault(id) : 0).ThenByDescending(t => t.Year).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)
-            .DistinctBy(t => Matching.MatchKey(t)).ToList();
+        // a song on several of their albums (the album and a best-of) is one of their hits: after real plays it comes first, before the newest year,
+        // which alone filled the top with the newest album (owner, 5 Nov: all No Tourists)
+        var copies = artist.Tracks.GroupBy(Matching.MatchKey).ToDictionary(g => g.Key, g => g.Select(t => t.Album).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        var ranked = artist.Tracks.OrderByDescending(t => t.JellyfinId is { } id ? byId.GetValueOrDefault(id) : 0).ThenByDescending(t => copies[Matching.MatchKey(t)])
+            .ThenByDescending(t => t.Year).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase).DistinctBy(t => Matching.MatchKey(t)).ToList();
+        // no album gives more than 2 songs before every album has had its turn: the rest follow in the same order
+        var perAlbum = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var spread = new List<Track>(); var later = new List<Track>();
+        foreach (var t in ranked) ((perAlbum[t.Album] = perAlbum.GetValueOrDefault(t.Album) + 1) <= 2 ? spread : later).Add(t);
+        var songs = spread.Concat(later).ToList();
         var paths = artist.Tracks.Select(t => t.Path).ToHashSet();
         var theirs = albums.Where(g => g.Name.Length > 0 && g.Tracks.Any(t => paths.Contains(t.Path)))
             .OrderByDescending(g => g.Tracks.Max(t => t.Year)).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();

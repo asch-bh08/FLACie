@@ -117,6 +117,28 @@ public sealed class SpotifyEmbedTests : IDisposable
     }
 
     [Fact]
+    public void An_artist_search_also_shows_the_lists_with_their_songs_in_them()   // owner, 5 Nov: "only 2 playlists... where's the 90s mix"
+    {
+        static WebPlaylist With(string source, string id, string name, WebPlaylistKind kind, string subject, params (string Title, string Artist)[] songs) =>
+            new(source, id, name, kind, subject, songs.Select(s => new WebTrack(s.Title, s.Artist)).ToList(), 0, 0, 0, Now.AddDays(-100), false);
+        var found = new[]
+        {
+            With("deezer", "d1", "100% The Prodigy", WebPlaylistKind.Artist, "The Prodigy", ("Firestarter", "The Prodigy")),
+            With("own", "r1", "The Prodigy Radio", WebPlaylistKind.Other, "The Prodigy Radio", ("Breathe", "The Prodigy")),
+            With("spotify", "s6", "All Out 90s", WebPlaylistKind.Decade, "1990s", ("Firestarter", "The Prodigy"), ("Wonderwall", "Oasis"), ("Breathe", "The Prodigy feat. Maxim")),
+            With("own", "o9", "Electronic", WebPlaylistKind.Genre, "Electronic", ("Omen", "The Prodigy"), ("Around the World", "Daft Punk")),
+            With("spotify", "s5", "Rock Classics", WebPlaylistKind.Genre, "Rock", ("Wonderwall", "Oasis")),
+            With("own", "o5", "Prodigy of Mobb Deep mix", WebPlaylistKind.Other, "x", ("Keep It Thoro", "Prodigy")),
+        };
+        var shown = WebPlaylistPick.ForAll(found, "the prodigy", PlaylistQueryKind.Artist, Now).Select(l => l.Id).ToList();
+        Assert.Equal("d1", shown[0]);                                  // their own best-of first
+        Assert.Contains("s6", shown); Assert.Contains("o9", shown);    // lists that hold their songs, the one with more of them first
+        Assert.True(shown.IndexOf("s6") < shown.IndexOf("o9"));
+        Assert.DoesNotContain("s5", shown);                            // nothing of theirs
+        Assert.True(WebPlaylistPick.ArtistRow >= 8);
+    }
+
+    [Fact]
     public void Without_spotify_it_falls_back_to_deezer_then_our_own_never_empty()
     {
         var noSpotify = Found.Where(l => l.Source != "spotify").ToList();

@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round4: F26.4 the DJ's real favourites)
+- Done: DjFavourites.Pick counts max(FLACie's real plays, Jellyfin's play count: IDjAskUser.JellyfinPlays from s.PlayStats); hearted and 2+ plays first, then 1 play; fill to 15 with hits: Deezer popularity (15 looked up first), then songs on several of their albums, then newest; songs skipped more than played are left out.
+- The DJ says what it did ("You've played 3 of their songs a lot; then their biggest hits.").
+- Proof: DjFavouritesTests (Jellyfin counts, hits not the alphabet, skipped out, the line).
+
 ## 2026-11-05 Cloud (cloud/round4: F26.3 filters that filter)
 - Done: the kind chips (All, Songs, Albums, Artists, Playlists) are one choice (radio group in ResultSections); Playlists shows only playlists (every matching list + the person's own; "More music" hidden), Albums only albums.
 - Genre and decade come from the Filters panel and narrow the Playlists view (ForFilter decade added; without outside lists our own are narrowed by name); the genre chips under Playlists are gone; "Genre"/"Other"/"Unknown"... are never offered as genres (ExploreState.NoGenre).

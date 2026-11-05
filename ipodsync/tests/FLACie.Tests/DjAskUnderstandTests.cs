@@ -27,6 +27,8 @@ public class DjAskUnderstandTests
         public Dictionary<string, int> Pop = [];
         public IReadOnlyList<Track> MostPlayed(int take) => Top.Take(take).ToList();
         public int Popularity(Track t) => Pop.GetValueOrDefault(t.Path);
+        public Dictionary<string, int> JfPlays = [];
+        public int JellyfinPlays(Track t) => JfPlays.GetValueOrDefault(t.Path);
         public bool Heard(Track t) => false;
         public IReadOnlyList<Track> RecommendNext(IReadOnlyList<string> session, int n) => [];
         public Vibe? VibeOf(Track t) => null;

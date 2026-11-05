@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## Cloud · F26.6 imports show every song (cloud/round4)
+- An imported playlist lists every song of its import in order. Missing songs are greyed in their place, can't be played, and show Waiting, Searching, Downloading 40 %, Requested, or Couldn't find it with Retry. When a song lands it becomes a normal row in that place.
+- New /imports/{id}/downloads lists only that import's songs, with source, quality, progress and the reason for a failure. It is linked from the playlist page and from the Import row ("Downloads").
+- AppHost.Imports (IImports) is set on the server only (ServerImports); the phone app shows nothing new. Tests: ImportRowsTests, ServerImportsTests, smoke 1z-import-playlist.
+
 ## 2026-11-05 Cloud (cloud/round4: F26.5 the DJ bar above the player)
 - Done: DjBar (MainLayout, in place of DownloadActivity, which joins it): Listening… with the mic's level (recorder's loudness, a wobble with the browser recogniser), Heard: "…" + what it does (DjBarWords: Finding your favourites…, Looking for X…, Making your playlist…, Thinking…), Downloading X…, then the DJ's words timed by its voice.
 - Captions moved from the player bar into it (the full-screen cover's caption stays); spoken answers are captioned too (PlayerState.DjAnswerAsync -> OnDjSpeaking). State: PlayerState.DjState/DjHeard/DjDoing (DjBarState).

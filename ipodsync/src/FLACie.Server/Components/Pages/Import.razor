@@ -81,6 +81,7 @@ else
         </span>
         <span class="imp-job-actions">
             @foreach (var l in job.Lists.Where(l => l.PlaylistId is not null).Take(1)) { <a class="btn ghost" href="/playlist/@l.PlaylistId">Open</a> }
+            <a class="btn ghost" href="/imports/@job.Id/downloads" data-testid="imp-downloads">Downloads</a>
             @if (job.State is "running" or "waiting") { <button class="btn ghost" @onclick="() => Imports.Cancel(Session, job.Id)">Stop</button> }
             @if (job.Failed > 0 && job.State != "running") { <button class="btn ghost" @onclick="() => Imports.Retry(Session, job.Id)">Retry @job.Failed</button> }
         </span>

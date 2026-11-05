@@ -56,8 +56,22 @@ public interface IWebPlaylists
     IReadOnlyList<(WebPlaylist List, IReadOnlyList<string> Songs)> ListsWithArtist(string artist);
 }
 
+/// <summary>F26.6: one song of an import, as the import knows it (State: pending, owned, done, requested, failed; Message: why it failed).</summary>
+public sealed record ImportSong(string Artist, string Title, string Album, string State, string? Message);
+
+/// <summary>F26.6: the import behind a playlist (the server's import jobs), so its page lists every song with its live download state.</summary>
+public interface IImports
+{
+    /// <summary>The import that made playlist [playlistId] (its job id, its list's name and songs in order), or null.</summary>
+    (string JobId, string Name, IReadOnlyList<ImportSong> Songs)? ForPlaylist(UserSession s, string playlistId);
+    /// <summary>An import job's songs and the playlist it made, for its downloads view.</summary>
+    (string Name, string? PlaylistId, IReadOnlyList<ImportSong> Songs)? ForJob(UserSession s, string jobId);
+}
+
 public static class AppHost
 {
+    /// <summary>F26.6: the server's imports (null on the phone app and in tests).</summary>
+    public static IImports? Imports { get; set; }
     /// <summary>F23: outside playlists (the server sets it; null on the phone app and in tests, where only FLACie's own lists show).</summary>
     public static IWebPlaylists? WebPlaylists { get; set; }
     /// <summary>True on the server: downloads, import, Connect, Jams, the dashboard and the charts are offered. The phone app shows only what it can do itself.</summary>

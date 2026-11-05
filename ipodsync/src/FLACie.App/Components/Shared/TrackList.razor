@@ -4,6 +4,7 @@
     @for (var i = 0; i < Tracks.Count; i++)
     {
         var idx = i; var t = Tracks[i];
+        @if (Waiting is { Count: > 0 }) { foreach (var w in Waiting.Where(w => w.Before == idx)) { @WaitingRow(w) } }
         if (gone.Contains(t.Path)) continue;
         var now = Player.Current?.Path == t.Path;
         var fmt = QuickFormats.Of(t);
@@ -61,6 +62,7 @@
             }
         </li>
     }
+    @if (Waiting is { Count: > 0 }) { foreach (var w in Waiting.Where(w => w.Before >= Tracks.Count)) { @WaitingRow(w) } }
 </ol>
 @if (selecting)
 {
@@ -81,6 +83,14 @@
 }
 @code {
     [Parameter] public IReadOnlyList<Track> Tracks { get; set; } = [];
+    /// <summary>F26.6: songs of an import not in the library yet, greyed in their place with their live state; they can't be played.</summary>
+    [Parameter] public IReadOnlyList<WaitingSong>? Waiting { get; set; }
+    [Parameter] public Action<WaitingSong>? OnRetry { get; set; }
+    RenderFragment WaitingRow(WaitingSong w) => @<li class="track pending @(w.Failed ? "failed" : "")" data-testid="pending-song" aria-disabled="true">
+        <span class="track-main"><Cover Size="@ThumbSize" /><span class="track-text"><span class="track-title">@w.Title</span><span class="track-sub">@w.Artist</span>
+            <span class="pending-state" data-testid="pending-state">@w.Status@if (w.Percent is { } pc) {<span class="pending-bar" aria-hidden="true"><i style="width:@(pc)%"></i></span>}</span></span></span>
+        @if (w.Failed && OnRetry is not null) { <button class="btn" @onclick="() => OnRetry(w)">Retry</button> }
+    </li>;
     [Parameter] public bool Numbered { get; set; }
     /// <summary>Side of the small cover in a row, in pixels.</summary>
     [Parameter] public int ThumbSize { get; set; } = 44;

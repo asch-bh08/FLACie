@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (round 3 deploy)
+- Merged cloud/round3 (server tests 1852/1852) + Local fixes: quiet playlist downloads, LRCLIB-exact lyrics before Jellyfin's .lrc, web mic records + /api/dj/hear (Whisper) when the browser can't recognise (Brave), search layout (playlists under Top result, up to 8, lists holding the artist's songs, 2 per album in top songs), solid band behind the floating search box.
+- Cloud's Dockerfile had the entrypoint sed's raw CR turned into a line break (build failed): now writes  as text. Cloud: never put raw control characters in files.
+- Deployed web + ytdl + filemove (rollbacks *:rollback-20261105-pre-r3, server.py.bak-20261105-pre-r3). ffmpeg in the image, CPU 0.5%.
+- F24.2 (phone twin) skipped: once the owner approves Artist names, Jellyfin itself is fixed and the phone reads it. Owner reviews Server admin > Artist names first.
+
 ## 2026-11-05 Local (deploy)
 - Owner OK'd: round 2 final web deployed (ui/living-sleeve e4c391a3; rollbacks flacie-web/flacie-ytdl:rollback-20261105-pre-r2final, compose .bak-20261105-pre-r2final).
 - filemove server.py redeployed (/purge; backup server.py.bak-20261105-pre-r2final); ytdl server.py was already current.

@@ -196,11 +196,35 @@ public static class DjAskEndpoints
             return Results.Text(DjAskService.Json(a, u.Find).ToJsonString(), "application/json");
         }).DisableAntiforgery();
 
-        app.MapGet("/api/dj/ask/landed", async (HttpContext ctx, string? artist, string? title, SessionStore store, JellyfinClient jf, DjAskService ask) =>
+        // the web mic when the browser cannot recognise speech itself (Brave): the page sends its recording, Cloudflare's Whisper writes down what was said
+        app.MapPost("/api/dj/hear", async (HttpContext ctx, SessionStore store, JellyfinClient jf, CloudflareVoice voice) =>
+        {
+            if (await ApiEndpoints.CallerAsync(ctx, store, jf) is null) return Results.Unauthorized();
+            var seconds = double.TryParse(ctx.Request.Headers["X-Seconds"], System.Globalization.CultureInfo.InvariantCulture, out var sec) ? sec : DjHear.MaxSeconds + 1;
+            if (DjHear.Refuse(ctx.Request.ContentLength, seconds) is { } why) return Results.Json(new { error = why }, statusCode: 413);
+            using var ms = new MemoryStream();
+            await ctx.Request.Body.CopyToAsync(ms, ctx.RequestAborted);
+            if (ms.Length > DjHear.MaxBytes) return Results.Json(new { error = "That recording is too big." }, statusCode: 413);
+            var text = await voice.TranscribeAsync(ms.ToArray(), ctx.RequestAborted, seconds);
+            return text is null ? Results.Json(new { error = "The DJ couldn't hear that just now." }, statusCode: 503) : Results.Json(new { text });
+        }).DisableAntiforgery();
+
+        app.MapGet("/api/dj/ask/landed",async (HttpContext ctx, string? artist, string? title, SessionStore store, JellyfinClient jf, DjAskService ask) =>
         {
             if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (string.IsNullOrWhiteSpace(artist) || string.IsNullOrWhiteSpace(title)) return Results.BadRequest(new { error = "Send artist and title." });
             return Results.Json(new { path = ask.Landed(s, artist, title) });
         });
     }
+}
+
+/// <summary>What the web mic's recordings (/api/dj/hear) may be: a spoken request, not a song.</summary>
+public static class DjHear
+{
+    public const int MaxBytes = 2 * 1024 * 1024;
+    public const double MaxSeconds = 20;
+
+    /// <summary>Why a recording of [bytes] lasting [seconds] is turned away, or null when it is fine.</summary>
+    public static string? Refuse(long? bytes, double seconds) =>
+        bytes is not > 0 ? "Nothing was recorded." : bytes > MaxBytes ? "That recording is too big." : seconds > MaxSeconds ? "That recording is too long." : null;
 }

@@ -206,6 +206,9 @@ public sealed partial class CloudflareVoice
     /// <summary>Whisper's price for a clip, its length guessed from the MP3's size (Aura sends about 6 kB a second), a second at least.</summary>
     public static double EstimateHearNeurons(int mp3Bytes) => Math.Max(1.0, mp3Bytes / 6000.0) / 60.0 * HearNeuronsPerMinute;
 
+    /// <summary>Whisper's price for a clip of [seconds] (the web mic's recordings, whose size says little about their length), a second at least.</summary>
+    public static double EstimateHearNeuronsFor(double seconds) => Math.Max(1.0, seconds) / 60.0 * HearNeuronsPerMinute;
+
     /// <summary>The most the pronunciation check may use today.</summary>
     public double CheckCap => Cap * CheckShare;
 
@@ -223,11 +226,11 @@ public sealed partial class CloudflareVoice
     }
 
     /// <summary>What Whisper hears in [mp3], or null (not set up, over the cap, Cloudflare said no). Its neurons count into today's use. Never throws.</summary>
-    public async Task<string?> TranscribeAsync(byte[] mp3, CancellationToken ct = default)
+    public async Task<string?> TranscribeAsync(byte[] mp3, CancellationToken ct = default, double? seconds = null)
     {
         var c = Current; var token = Unprotect(c.Token);
         if (!AccountShape().IsMatch(c.AccountId) || token.Length == 0 || mp3.Length == 0) return null;
-        var cost = EstimateHearNeurons(mp3.Length);
+        var cost = seconds is { } s ? EstimateHearNeuronsFor(s) : EstimateHearNeurons(mp3.Length);
         if (!Reserve(cost)) return null;
         var heard = false;
         try

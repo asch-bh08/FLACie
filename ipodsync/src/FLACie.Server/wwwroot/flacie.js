@@ -500,7 +500,65 @@ window.flacie = (() => {
     return { stop() { mo.disconnect(); ro.disconnect(); if (frame) cancelAnimationFrame(frame); } };
   };
   let npRef = null, npPushed = false;
-  let micRec = null;   // the speech recogniser while the mic listens (micStart)
+  let micRec = null;   // the speech recogniser while the mic listens (micStart), or the recorder standing in for it (micRecord)
+  const micCanRecord = () => !!(window.MediaRecorder && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  // The mic without the browser's recogniser: records from the press until the person has been quiet for quietMs (or presses again), then frank's
+  // /api/dj/hear writes down what was said (Cloudflare's Whisper) and the words go to the page like the recogniser's. Nobody speaks within waitMs
+  // (8 s on a first press): it lets go quietly. Never more than 15 s. The recording is sent once and not kept.
+  const micRecord = (ref, waitMs, quietMs) => {
+    if (!micCanRecord()) return false;
+    if (micRec) { try { micRec.abort(); } catch { } }
+    let stream = null, rec = null, ctx = null, poll = 0, cancelled = false, finished = false, spoke = false, lastLoud = 0, t0 = 0;
+    const chunks = [];
+    const release = () => {
+      clearInterval(poll);
+      try { stream && stream.getTracks().forEach(t => t.stop()); } catch { }
+      try { ctx && ctx.close(); } catch { }
+      if (micRec === me) micRec = null;
+    };
+    const finish = (send) => {
+      if (finished) return; finished = true;
+      if (!send || !spoke) cancelled = true;
+      try { rec && rec.state !== "inactive" ? rec.stop() : done(); } catch { done(); }
+    };
+    const done = async () => {
+      release();
+      if (cancelled || !chunks.length) { ref.invokeMethodAsync("Ended").catch(() => { }); return; }
+      const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+      try {
+        const r = await fetch("/api/dj/hear", { method: "POST", credentials: "same-origin", body: blob,
+          headers: { "Content-Type": blob.type, "X-Seconds": ((performance.now() - t0) / 1000).toFixed(1) } });
+        const j = r.ok ? await r.json() : null;
+        if (j && j.text && j.text.trim()) { ref.invokeMethodAsync("Heard", j.text.trim()).catch(() => { }); return; }
+      } catch { }
+      ref.invokeMethodAsync("Ended").catch(() => { });
+    };
+    const me = { stop: () => finish(true), abort: () => finish(false) };
+    micRec = me;
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }).then(s => {
+      stream = s;
+      if (finished) { release(); return; }
+      rec = new MediaRecorder(s);
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = done;
+      // loudness, to know when the person starts and stops talking
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC(); const an = ctx.createAnalyser(); an.fftSize = 1024; ctx.createMediaStreamSource(s).connect(an);
+      const buf = new Float32Array(an.fftSize);
+      t0 = performance.now(); lastLoud = t0;
+      rec.start(250);
+      poll = setInterval(() => {
+        an.getFloatTimeDomainData(buf);
+        let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+        const now = performance.now();
+        if (Math.sqrt(sum / buf.length) > 0.03) { spoke = true; lastLoud = now; }
+        if (!spoke && now - t0 > (waitMs > 0 ? waitMs : 8000)) finish(false);
+        else if (spoke && now - lastLoud > (quietMs > 0 ? quietMs : 1200)) finish(true);
+        else if (now - t0 > 15000) finish(true);
+      }, 100);
+    }).catch(() => { finished = true; release(); ref.invokeMethodAsync("Ended").catch(() => { }); });
+    return true;
+  };
   const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   // Back onto a "#now-playing" entry (after following a link out of the full-screen player) brings the player back instead of landing on the bare page
   let barRef = null;
@@ -1488,13 +1546,14 @@ window.flacie = (() => {
     },
     // ---- "talk to the DJ" (DjMic.razor): the browser's own speech recogniser, listening only from a press until the person stops talking (or presses again).
     // Only the words it recognised go back to the page; no sound is kept or sent to FLACie. ----
-    micAvailable() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition); },
+    micAvailable() { return !!(window.SpeechRecognition || window.webkitSpeechRecognition) || micCanRecord(); },
     // waitMs: how long to wait for the person to begin (0: the browser's own wait, for the first press); quietMs: how long after the last word means their turn is over
     // (DjConversation.ListenWindowMs / EndOfSpeechMs). Nobody speaks within waitMs: it lets go quietly (Ended). The words so far go back once quietMs passes with nothing new,
     // or when the browser ends the session itself.
     micStart(ref, waitMs, quietMs) {
       const R = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (!R) return false;
+      let recorderOnly = false; try { recorderOnly = localStorage.getItem("flacie.micRecord") === "1"; } catch { }
+      if (!R || recorderOnly) return micRecord(ref, waitMs, quietMs);
       if (micRec) { try { micRec.abort(); } catch { } }
       const rec = new R(); micRec = rec;
       rec.lang = navigator.language || "en-GB"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
@@ -1519,8 +1578,20 @@ window.flacie = (() => {
       };
       rec.onspeechstart = () => clearTimeout(waitT);
       const end = () => { clear(); if (micRec === rec) micRec = null; if (text.trim()) deliver(); else if (!said) ref.invokeMethodAsync("Ended").catch(() => { }); };
-      rec.onend = end; rec.onerror = end;
-      try { rec.start(); } catch { micRec = null; return false; }
+      // Brave has the recogniser but turns off the service behind it: "network" at once, and the mic seemed to stop by itself (owner, 5 Nov).
+      // Then this browser records instead, now and from now on.
+      let broken = false;
+      rec.onerror = (e) => {
+        if (!said && !text && (e.error === "network" || e.error === "service-not-allowed" || e.error === "language-not-supported") && micCanRecord()) {
+          broken = true; clear(); if (micRec === rec) micRec = null;
+          try { localStorage.setItem("flacie.micRecord", "1"); } catch { }
+          micRecord(ref, waitMs, quietMs);
+          return;
+        }
+        end();
+      };
+      rec.onend = () => { if (!broken) end(); };
+      try { rec.start(); } catch { micRec = null; return micRecord(ref, waitMs, quietMs); }
       return true;
     },
     micStop() { if (micRec) { try { micRec.stop(); } catch { } } },

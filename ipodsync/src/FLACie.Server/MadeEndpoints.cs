@@ -13,7 +13,10 @@ public static class MadeEndpoints
     public static void MapMade(this WebApplication app)
     {
         app.MapGet("/api/made", async (HttpContext ctx, string? q, SessionStore store, JellyfinClient jf, ListenLogStore log) =>
-            MadeApi.Search(Lists(await ApiEndpoints.CallerAsync(ctx, store, jf), log), q ?? ""));
+        {
+            var s = await ApiEndpoints.CallerAsync(ctx, store, jf);
+            return MadeApi.Search(s, Lists(s, log), q ?? "");
+        });
 
         app.MapGet("/api/made/{id}", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, ListenLogStore log) =>
         {
@@ -38,9 +41,17 @@ public static class MadeEndpoints
 /// <summary>The bodies of /api/made, kept apart from the web plumbing. [lists] is null when nobody is signed in.</summary>
 public static class MadeApi
 {
-    public static IResult Search(IReadOnlyList<MadePlaylist>? lists, string q) =>
-        lists is null ? Results.Unauthorized()
-            : Results.Ok(new { lists = MadePlaylists.Search(lists, q).Select(m => new { id = m.Id, name = m.Name, subtitle = m.Subtitle, count = m.Paths.Count, artKey = m.ArtKey }) });
+    /// <summary>[first] is the list's first song, so the phone can show the cover it has for it (the phone's picture keys are its own).</summary>
+    public static IResult Search(UserSession? s, IReadOnlyList<MadePlaylist>? lists, string q) =>
+        s is null || lists is null ? Results.Unauthorized()
+            : Results.Ok(new { lists = MadePlaylists.Search(lists, q).Select(m => new
+            {
+                id = m.Id, name = m.Name, subtitle = m.Subtitle, count = m.Paths.Count, artKey = m.ArtKey,
+                first = m.Paths.Count > 0 && s.Library.ByPath(m.Paths[0]) is { } t ? Song(t) : null,
+            }) });
+
+    // the song shape /api/recommend uses
+    static object Song(Track t) => new { path = t.Path, title = t.Title, artist = t.Artist, album = t.Album, durationMs = t.DurationMs };
 
     public static IResult One(UserSession? s, IReadOnlyList<MadePlaylist>? lists, string id)
     {
@@ -49,7 +60,7 @@ public static class MadeApi
         return Results.Ok(new
         {
             id = m.Id, name = m.Name, subtitle = m.Subtitle, count = m.Paths.Count, artKey = m.ArtKey,
-            tracks = m.Paths.Select(s.Library.ByPath).OfType<Track>().Select(t => new { path = t.Path, title = t.Title, artist = t.Artist, album = t.Album, durationMs = t.DurationMs }),
+            tracks = m.Paths.Select(s.Library.ByPath).OfType<Track>().Select(Song),
         });
     }
 

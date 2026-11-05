@@ -23,7 +23,7 @@ public class MadeApiTests
 
     [Fact] public void NobodySignedInIs401()
     {
-        Assert.Equal(401, Status(MadeApi.Search(null, "rock")));
+        Assert.Equal(401, Status(MadeApi.Search(null, null, "rock")));
         Assert.Equal(401, Status(MadeApi.One(null, null, "made:genre:rock")));
         Assert.Equal(401, Status(MadeApi.Save(null, null, "made:genre:rock", out var saved)));
         Assert.False(saved);
@@ -32,13 +32,14 @@ public class MadeApiTests
     [Fact] public void SearchListsTheMatches()
     {
         var s = Person();
-        var lists = Body(MadeApi.Search(MadePlaylists.For(s, null, Now), "2010s")).GetProperty("lists").EnumerateArray().ToList();
+        var lists = Body(MadeApi.Search(s, MadePlaylists.For(s, null, Now), "2010s")).GetProperty("lists").EnumerateArray().ToList();
         var d = Assert.Single(lists);
         Assert.Equal("made:decade:2010", d.GetProperty("id").GetString());
         Assert.Equal("2010s", d.GetProperty("name").GetString());
         Assert.Equal(20, d.GetProperty("count").GetInt32());
         Assert.StartsWith("art", d.GetProperty("artKey").GetString());
         Assert.Equal("20 songs · made for you", d.GetProperty("subtitle").GetString());
+        Assert.StartsWith("jf:", d.GetProperty("first").GetProperty("path").GetString());
     }
 
     [Fact] public void OneListCarriesItsSongs()

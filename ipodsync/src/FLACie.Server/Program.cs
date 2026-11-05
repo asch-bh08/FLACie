@@ -72,6 +72,18 @@ builder.Services.AddSingleton(sp => new CoverFill(sp.GetRequiredService<CoverSto
     (a, al, t, ct) => MediaEndpoints.CatalogCover(sp.GetRequiredService<IHttpClientFactory>().CreateClient("media"), a, al, t, ct),
     TimeSpan.FromMilliseconds(builder.Configuration.GetValue("FLACIE_COVER_FILL_PACE_MS", 1500))));
 builder.Services.AddHostedService<CoverFillService>();
+// F23.4: under 100 GB free on the music disk, duplicates, worse copies and undecodable files go to the holding folder (emptied after 30 days).
+// FLACIE_CLEANUP_ROOT: Jellyfin's path for the music folder the file mover serves (without it only files FLACie filed itself are cleaned)
+builder.Services.AddSingleton(sp => new LibraryCleanupRun(s => sp.GetRequiredService<StorageGuard>().Space(s),
+    s => new FileMoverClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("downloads"), s.Services.FileMoverUrl, s.Services.FileMoverKey),
+    builder.Configuration["FLACIE_CLEANUP_ROOT"], Path.Combine(dataDir, "cleanup.json"), () => DateTime.UtcNow));
+builder.Services.AddHostedService<LibraryCleanupService>();
+// F23: outside playlists for Search (Spotify's embed pages, Deezer's editors, FLACie's own), downloaded as interest shows
+builder.Services.AddSingleton(new WebPlaylistStore(Path.Combine(dataDir, "web-playlists.json"), () => DateTime.UtcNow));
+builder.Services.AddSingleton(new WebSourceGate(() => DateTime.UtcNow) { File = Path.Combine(dataDir, "web-sources.json") });
+builder.Services.AddSingleton(sp => new SpotifyPlaylists(sp.GetRequiredService<IHttpClientFactory>().CreateClient("catalog"), sp.GetRequiredService<WebPlaylistStore>(),
+    sp.GetRequiredService<WebSourceGate>(), sp.GetRequiredService<DownloadManager>(), s => sp.GetRequiredService<StorageGuard>().Space(s)?.Free,
+    s => MadePlaylists.Cached(s, () => AppHost.ListenLog(s), DateTime.UtcNow), () => DateTime.UtcNow));
 builder.Services.AddSingleton<UserStateStore>();
 builder.Services.AddSingleton<StorageGuard>();
 builder.Services.AddSingleton<ActivityLog>();
@@ -189,6 +201,8 @@ var app = builder.Build();
     var vibes = app.Services.GetRequiredService<VibeIndex>();
     AppHost.ListenLog = s => listens.Exists(s) ? listens.Read(s) : null;
     AppHost.Vibe = vibes.Of;
+    // FLACIE_WEB_PLAYLISTS=off: only FLACie's own lists (the web-smoke tests set it, so they never reach Spotify or Deezer)
+    if (!string.Equals(app.Configuration["FLACIE_WEB_PLAYLISTS"], "off", StringComparison.OrdinalIgnoreCase)) AppHost.WebPlaylists = app.Services.GetRequiredService<SpotifyPlaylists>();
     var related = app.Services.GetRequiredService<RelatedCache>();
     // what the person does in the web player goes into their listening log, started from what they have played and liked so far (as /api/listen does)
     // the web player's DJ asks that fail go into the server log (the listener only hears no line)

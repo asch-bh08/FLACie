@@ -1,5 +1,6 @@
 import http.server
 import json
+import time
 import mimetypes
 import os
 import re
@@ -18,7 +19,7 @@ ROOT = os.path.realpath(os.environ.get("FILEMOVE_ROOT", "/data"))
 REPLACED = ".flacie-replaced"
 # what this file mover can do, for GET /health: FLACie Web's upgrade worker only swaps files when "retire" is listed (an older file mover without it
 # would leave two copies of a song in the library)
-ROUTES = ["move", "fetch", "probe", "ytdl", "file", "retire"]
+ROUTES = ["move", "fetch", "probe", "ytdl", "file", "retire", "purge"]
 MAX_FETCH = 700 * 1024 * 1024
 YTDL_BASE = "http://172.17.0.1:8091"
 
@@ -72,6 +73,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/retire":
             self._retire()
             return
+        if self.path == "/purge":
+            self._purge()
+            return
         if self.path != "/move":
             self._reply(404, {"error": "not found"})
             return
@@ -103,6 +107,29 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self._reply(e.code, {"error": "yt-dlp service error"})
         except Exception as e:
             self._reply(502, {"error": "yt-dlp service unavailable: " + str(e)})
+
+    def _purge(self):
+        """POST /purge {"days": 30}: empties the holding folder (.flacie-replaced) of files moved there over that many days ago (F23.4: a clean-up
+        that moved the wrong file can be undone for a month). Nothing outside the holding folder is ever touched."""
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            days = max(1, int((json.loads(self.rfile.read(length) or b"{}")).get("days") or 30))
+        except Exception as e:
+            self._reply(400, {"error": str(e)})
+            return
+        held = os.path.join(ROOT, REPLACED)
+        cutoff = time.time() - days * 86400
+        removed = 0
+        for dirpath, _, files in os.walk(held):
+            for f in files:
+                p = os.path.join(dirpath, f)
+                try:
+                    if os.path.realpath(p).startswith(os.path.realpath(held) + os.sep) and os.path.getmtime(p) < cutoff:
+                        os.remove(p)
+                        removed += 1
+                except OSError:
+                    pass
+        self._reply(200, {"ok": True, "removed": removed})
 
     def _retire(self):
         """POST /retire {"path": "Artist/Artist - Title.m4a"}: moves a file of the music folder into .flacie-replaced/ (same subfolders), for a song

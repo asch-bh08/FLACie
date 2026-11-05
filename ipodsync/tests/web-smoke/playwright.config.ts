@@ -37,6 +37,8 @@ export default defineConfig({
         // pinned too, so a value left in the shell can not send the server's own requests to another Jellyfin (global-setup.ts also checks the mock's /__mock marker)
         FLACIE_JELLYFIN_INTERNAL_URL: `http://127.0.0.1:${MOCK}`,
         FLACIE_DATA: '.data-smoke',
+        // F23: no outside playlists (Spotify, Deezer) in the tests: only FLACie's own lists
+        FLACIE_WEB_PLAYLISTS: 'off',
         // a fresh install has downloads off; the specs that look at download buttons, tags and imports need them on. 1z-downloads-switch.spec.ts has a
         // block for a server started with FLACIE_DOWNLOADS=off (run it on its own ports, as that spec's header says)
         FLACIE_DOWNLOADS: process.env.FLACIE_DOWNLOADS || 'on',

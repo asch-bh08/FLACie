@@ -19,6 +19,8 @@ public interface IFileMover
     Task<bool> RetireAsync(string path, CancellationToken ct = default);
     /// <summary>Null when the file mover could not be asked or could not read the file; <see cref="ProbeFacts.Gone"/> when the file is not there.</summary>
     Task<ProbeFacts?> ProbeAsync(string path, CancellationToken ct = default);
+    /// <summary>F23.4: empties the holding folder of files moved there over [days] ago; false when it could not.</summary>
+    Task<bool> PurgeHeldAsync(int days, CancellationToken ct = default) => Task.FromResult(false);
 }
 
 /// <summary>The real file mover (ipodsync/tools/filemove/server.py), at the address and key in the person's download services.</summary>
@@ -64,6 +66,18 @@ public sealed class FileMoverClient(HttpClient http, string url, string key) : I
         try
         {
             using var req = Req(HttpMethod.Post, "/retire", new JsonObject { ["path"] = path });
+            using var res = await http.SendAsync(req, ct);
+            return res.IsSuccessStatusCode;
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (Exception) { return false; }
+    }
+
+    public async Task<bool> PurgeHeldAsync(int days, CancellationToken ct = default)
+    {
+        try
+        {
+            using var req = Req(HttpMethod.Post, "/purge", new JsonObject { ["days"] = days });
             using var res = await http.SendAsync(req, ct);
             return res.IsSuccessStatusCode;
         }

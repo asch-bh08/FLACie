@@ -37,8 +37,24 @@ public interface IPlayerClients
 }
 
 /// <summary>Small hooks into the host and what it offers.</summary>
+/// <summary>F23: playlists from outside (Spotify, Deezer, SoundCloud) and FLACie's own, for Search, and their songs downloaded as interest shows.</summary>
+public interface IWebPlaylists
+{
+    /// <summary>The All view's lists for a search (fetched as needed, politely), best first.</summary>
+    Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct);
+    /// <summary>The Playlists filter: every list that matches, best first; [genre] narrows them.</summary>
+    Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct);
+    /// <summary>A list shown before (kept for 30 days since it was last used), or null.</summary>
+    WebPlaylist? Find(string source, string id);
+    /// <summary>Someone showed interest (opened it, played from it at [from], searched its artist, or it was shown as a popular list): its missing songs
+    /// are queued for download by <see cref="PlaylistFetchPolicy"/>.</summary>
+    void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0);
+}
+
 public static class AppHost
 {
+    /// <summary>F23: outside playlists (the server sets it; null on the phone app and in tests, where only FLACie's own lists show).</summary>
+    public static IWebPlaylists? WebPlaylists { get; set; }
     /// <summary>True on the server: downloads, import, Connect, Jams, the dashboard and the charts are offered. The phone app shows only what it can do itself.</summary>
     public static bool Server { get; set; } = true;
     /// <summary>The Connect device picker in the player bar (the server's, which knows Alexa); none when null.</summary>

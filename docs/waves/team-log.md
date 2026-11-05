@@ -8,6 +8,34 @@
 - Merged cloud/round2 + all phone work; b106 web deployed (SoundCloud on, rollback flacie-web:rollback-20261105-pre-b106). APK held: smoke 21/23 (40-skip burst, pause state 7), being fixed.
 - Found and fixed a KeepAlive ping-pong in Connect.cs (311,539 msgs/min; web 150%->1% CPU, Jellyfin settles). Census line stays in the log for now.
 - New spec F24 (artist names fixed in Jellyfin after an approved dry-run list) is Cloud item 14.
+## 2026-11-05 Cloud FINAL (cloud/round2): round 2 items 1-12 done
+- Unit suite 1794/1796: NoRealServerInTestsTests fails on android CoverSourceTest.kt:14,32 (names the owner's server; Local's file from the merge); PlayerListenTests "Songs just fetched for Autoplay..." fails only under full-suite load (passes alone), as PlayerDjLiveTests did once.
+- web-smoke on real .NET 9: every spec I touched or could affect is green (1c-api, 1g-burst, 1h-queue, 1m-ipod, 1n-search-typing, 1q-dj, 1r-retro-scenes, 1r-search-artist, 1z-made-playlists, 1z-song-start, mini-player); the rest of the 659 were not rerun after the fixes.
+- Local: fix CoverSourceTest.kt host; redeploy tools/filemove (purge) and tools/ytdl; set FLACIE_CLEANUP_ROOT and FLACIE_SOUNDCLOUD=on on frank; save a real Spotify embed page as the fixture; mirror DjConversation.AskedBack on the phone.
+
+## 2026-11-05 Cloud (cloud/round2: F23 wired into server and web)
+- Done: SpotifyPlaylists (IWebPlaylists): Spotify editorial lists by fixed id (embed page), Deezer "100% <artist>" best-ofs, our own made lists as fallback; Search's "Playlists for you" row comes from it, a Playlists filter with genre chips, /made/web:<source>:<id> pages that queue missing songs (opened / played); artist and popular lists queue by the policy.
+- Server admin: Playlist sources switches (Spotify, Deezer, SoundCloud; a failed source shows when it rests until). FLACIE_WEB_PLAYLISTS=off = own lists only (web-smoke sets it).
+- Not done: SoundCloud playlist reading (the rules are in WebPlaylistPick; yt-dlp has no playlist search) and Spotify This Is lists (findable only with a Spotify account) - Deezer's 100% lists stand in.
+
+## 2026-11-05 Cloud (cloud/round2: F23.2 policy, F23.3 own Best of, F23.4 clean-up)
+- Done: PlaylistFetchPolicy (opened/played all missing in play order, This Is top half first, popular 2, nothing automatic under 100 GB); MadePlaylists Best of: one version, no instrumentals, half the artist's songs (10-50).
+- F23.4: LibraryCleanup plan + LibraryCleanupRun/Service (every 6 h, only under 100 GB free) moves via /retire to .flacie-replaced; new file mover route /purge empties it after 30 days; Server admin "Clean-up" lists the moves.
+- Local: redeploy tools/filemove/server.py (adds /purge) and set FLACIE_CLEANUP_ROOT to Jellyfin's path of the music folder the file mover serves (else only FLACie-filed files are cleaned).
+- Next: F23 server wiring (fetch Spotify/Deezer lists, search rows, Playlists filter, downloads as you go).
+
+## 2026-11-05 Cloud (cloud/round2: F23.1 core)
+- Done: SpotifyEmbed.Parse (embed __NEXT_DATA__, first 100, text only, 200-char cap, only open.spotify.com ids), WebPlaylistStore (one file, max 2,000, 30-day drop, daily re-read), WebSourceGate (1/s, 6 h rest, switches), WebPlaylistPick (one per purpose Spotify>Deezer>SoundCloud>own, SoundCloud bar, row sizes, Playlists + genre filter).
+- Local: open.spotify.com is blocked from this sandbox, so the fixture (tests/FLACie.Tests/TestAudio/embed) follows the known page shape; please save one real embed page there and check SpotifyEmbedTests still parse it.
+- Next: F23.2 download policy, F23.3 own Best of, server wiring, F23.4 clean-up.
+
+## 2026-11-05 Cloud (cloud/round2: F22 DJ favourites)
+- Done: "play my favourite prodigy songs" / "my favourite 90s songs" / "...songs by X" (rule + model action favourites_of): DjFavourites ranks by F21 real plays (PlayCounts.Scores), hearted and repeats first, early skips last, filled to 15 by popularity; scope = artist, album, genre or decade. "play my favourites" stays the Loved list.
+
+## 2026-11-05 Cloud (cloud/round2: PNG made cover, smoke fixes, F21.1)
+- Done: /art/{key}?fmt=png = made cover as PNG (240 px, 1000 px with s=full; CoverPng, own encoder) 46590a1; F21.1 PlayCounts (same rules as PlayCounts.kt) + web Home: Frequently played first, Listen again (every played song) after Daily Mix, as on the phone.
+- web-smoke fixed on .NET 9: 1c-api (made cover only for song keys), mock Prodigy songs stream and sort after Harbour, 1h-queue reads the list without Recommended songs (failed on ui/living-sleeve too), 1m-ipod counts only letters inside a clipped line.
+- Tip: web-smoke keeps the server's data in .pub-smoke/.data-smoke; delete it when the mock's songs change. Merged ui/living-sleeve (F21.2, F22/F23 specs). Next: F22, F23.
 
 ## 2026-11-05 Cloud PROGRESS (cloud/round2): all 8 round 2 items done; PNG made cover in progress
 - Done: F11 337b2af, F1 chain b9b52cf, F12 6528b38, F13+F15 web 39f3f63, F6.2 1d100ec, F19 64d3e25, F4.2 d7d9293, F17 web c5ca927; fix: made cover only for song keys (1c-api) after them.

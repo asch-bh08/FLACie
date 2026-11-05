@@ -9,7 +9,7 @@ using FLACie.Server.Alexa;
 namespace FLACie.Server.Dj;
 
 /// <summary>What a request to the DJ is about. The names (snake case) are also what the text model may answer with.</summary>
-public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation, PlayFrom, AddToPlaylist, OtherOne, RemoveFromPlaylist, CreatePlaylist }
+public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, ShuffleLibrary, Mood, Next, Pause, Resume, VolumeUp, VolumeDown, WhatsThis, WhoSings, MoreLike, LessLike, ThumbsDown, DjOn, DjOff, Situation, PlayFrom, AddToPlaylist, OtherOne, RemoveFromPlaylist, CreatePlaylist, FavouritesOf }
 
 /// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words, the
 /// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
@@ -82,6 +82,8 @@ public static partial class DjAskRules
     [GeneratedRegex(@"^(?:play|put on) (.+?) (?:from|off|out of|in) (?:my (.+?)(?: playlist)?|the (.+?) playlist)(?: (?:and )?(?:then )?(?:the rest|the rest of it|the rest of (?:it|them|the playlist)|keep going|carry on))?$")] private static partial Regex PlayFromRx();
     // "play rhythm of the night (and) add it to my pop playlist", "add rhythm of the night to pop and play it next", "add this to my pop playlist"
     [GeneratedRegex(@"^(play|put on) (.+?) (?:and )?(?:then )?add (?:it|that|this) to (?:my |the )?(.+?)(?: playlist)?$")] private static partial Regex PlayAddRx();
+    // F22: "play my favourite prodigy songs", "my favourite 90s songs", "my favorite fat of the land tracks"
+    [GeneratedRegex(@"^(?:play |put on |shuffle |give me )?(?:some of )?my (?:favourite|favorite|fave|fav)s? (.+?)(?: songs| tracks| tunes| music| ones)?$")] private static partial Regex FavouritesOfRx();
     // F11: "not that one", "the other one", "the corona one"
     [GeneratedRegex(@"^(?:no )?(?:not that one|not that|wrong one|the other one|the other version|other one|(?:play )?the (.+?) (?:one|version))$")] private static partial Regex OtherRx();
     // F12: "remove this from the playlist", "take toxic off my pop playlist"; "make a backroads playlist", "make me a playlist called backroads"
@@ -114,6 +116,8 @@ public static partial class DjAskRules
     {
         var s = Normalise(Uncensor(text));
         if (s.Length == 0 || s.Length > 200) return null;
+        if (FavouritesOfRx().Match(s) is { Success: true } fo && fo.Groups[1].Value.Trim() is var fw && fw.Length > 0 && fw is not ("songs" or "tracks" or "tunes" or "music" or "ones" or "song"))
+            return new(AskIntent.FavouritesOf, System.Text.RegularExpressions.Regex.Replace(fw, @"^(?:(?:songs|tracks|tunes|music) )?(?:by |from )", ""));
         if (OtherRx().Match(s) is { Success: true } oo) return new(AskIntent.OtherOne, oo.Groups[1].Success && oo.Groups[1].Value != "other" ? oo.Groups[1].Value.Trim() : null);
         if (RemoveRx().Match(s) is { Success: true } rm)
         {
@@ -200,6 +204,7 @@ public static partial class DjAskAi
         "next, pause, resume, volume_up, volume_down, whats_this, who_sings, more_like (query, optional: \"slower\" or \"faster\"), less_like, thumbs_down, dj_on, dj_off, " +
         "play_from (query: the song; add \"playlist\": the playlist's name; plays the song, then the rest of that playlist), " +
         "add_to_playlist (query: the song, or \"this\" for the one playing; add \"playlist\": the name; add \"play\": true when they also want it played next), " +
+        "favourites_of (query: the artist, album, genre or decade they want their favourites of, like \"the prodigy\" or \"90s\"), " +
         "remove_from_playlist (query: the song, or \"this\"; add \"playlist\": the name when said), create_playlist (query: the new playlist's name, like \"backroads\"), " +
         "situation (music for a place, time or activity of their own, like driving, the school run or sunday cleaning: query is car, night, morning, workout, chill or none; " +
         "add \"key\": the request in one to three words, reusing a phrase they have used before when it means the same; add \"vibe\": \"high\" or \"low\" when the words suggest an energy). " +
@@ -212,7 +217,7 @@ public static partial class DjAskAi
 
     static string NameOf(AskIntent i) => Regex.Replace(i.ToString(), "(?<=[a-z])([A-Z])", "_$1").ToLowerInvariant();
     static readonly Dictionary<string, AskIntent> Names = Enum.GetValues<AskIntent>().ToDictionary(NameOf);
-    static readonly HashSet<AskIntent> NeedsQuery = [AskIntent.Play, AskIntent.Playlist, AskIntent.Mood, AskIntent.CreatePlaylist];
+    static readonly HashSet<AskIntent> NeedsQuery = [AskIntent.Play, AskIntent.Playlist, AskIntent.Mood, AskIntent.CreatePlaylist, AskIntent.FavouritesOf];
 
     /// <summary>A question rather than a command: it is given the longer time.</summary>
     public static bool LooksLikeQuestion(string text)
@@ -611,6 +616,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.PlayFrom: return PlayFrom(u, p.What ?? "", p.Playlist ?? "", text);
             case AskIntent.AddToPlaylist: return AddTo(u, p, cur);
             case AskIntent.RemoveFromPlaylist: return RemoveFrom(u, p, cur);
+            case AskIntent.FavouritesOf: return await FavouritesOfAsync(u, p.What ?? "", ct);
             case AskIntent.CreatePlaylist: return await MakePlaylistAsync(u, p.What ?? "", cur, recent, ct, text);
             case AskIntent.OtherOne:
             {
@@ -742,6 +748,26 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         var add = DjAskStep.AddTo(name, [song.Path]);
         if (!p.AndPlay) return new(DjAskDo.None, $"Added {T(song.Title)} to {name}.") { Steps = [add] };
         return new(DjAskDo.UpNext, $"Added {T(song.Title)} to {name}, and it's up next.", [song.Path]) { Steps = [add, new(DjAskDo.UpNext, [song.Path])] };
+    }
+
+    /// <summary>F22: "play my favourite prodigy songs": their real favourites among an artist's, an album's, a genre's or a decade's songs (DjFavourites).</summary>
+    async Task<DjAskAnswer> FavouritesOfAsync(IDjAskUser u, string what, CancellationToken ct)
+    {
+        if (!u.Ready) return DjAskAnswer.Said("I'm still loading your library. Try again in a moment.");
+        static string Key(string s) { var n = Matching.NormTitle(s); return n.StartsWith("the ") ? n[4..] : n; }
+        var songs = u.Songs.Where(Playable).ToList();
+        List<Track> scope; string name;
+        if (DjFavourites.Decade(what) is { } y) { scope = songs.Where(t => t.Year >= y && t.Year <= y + 9).ToList(); name = $"{y % 100:00}s"; }
+        else if (songs.Where(t => Key(Matching.PrimaryArtist(t.Artist)) == Key(what) || Key(t.AlbumArtist) == Key(what)).ToList() is { Count: > 0 } byArtist)
+        { scope = byArtist; name = byArtist.GroupBy(t => t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist).OrderByDescending(g => g.Count()).First().Key; }
+        else if (songs.Where(t => Key(t.Album) == Key(what)).ToList() is { Count: > 0 } byAlbum) { scope = byAlbum; name = byAlbum[0].Album; }
+        else if (songs.Where(t => t.Genre.Equals(what, StringComparison.OrdinalIgnoreCase) || (what is "hip hop" or "hip-hop" or "rap" && t.Genre.Contains("hip", StringComparison.OrdinalIgnoreCase))).ToList() is { Count: > 0 } byGenre)
+        { scope = byGenre; name = Capital(what); }
+        else return DjAskAnswer.Said($"I can't find {what} in your library.");
+        // how well known each is, for filling up with their most popular songs (a few looked up; the rest as already known)
+        await u.LookUpPopularityAsync(scope.Where(t => u.Popularity(t) == 0).Take(8).ToList(), ct);
+        var ranked = DjFavourites.Rank(u, scope, now());
+        return new(DjAskDo.Play, $"Your favourite {name} songs.", ranked.Select(t => t.Path).ToList(), $"Your favourite {name}");
     }
 
     /// <summary>F12: "remove this from the playlist" asks first; the removal is done on a yes within a minute.</summary>

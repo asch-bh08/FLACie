@@ -11,7 +11,7 @@ class CoverSourceTest {
     private val sent = ArrayList<Pair<String, Map<String, String>>>()
     private var answer: GateResponse? = GateResponse(200, byteArrayOf(1, 2, 3), mapOf("content-type" to "image/jpeg"))
     private var clock = 1_000L
-    private var url = "http://frank:8080/"
+    private var url = "http://192.0.2.10:8080/"
     private fun web() = WebCovers({ url }, { mapOf("X-Emby-Token" to "t") }, { u, h -> sent += u to h; answer }, { clock })
 
     @Test fun aCatalogKeyIsAskedFromTheWebWithTheRulesMark() {
@@ -29,7 +29,7 @@ class CoverSourceTest {
     @Test fun withTheWebConnectedTheCoverComesFromItsArtRouteSignedLikeOtherWebCalls() {
         val r = web().fetch("itABC", null, false, null)
         assertNotNull(r); assertEquals(3, r!!.body.size)
-        assertTrue(sent.single().first.startsWith("http://frank:8080/art/itABC~r2"))
+        assertTrue(sent.single().first.startsWith("http://192.0.2.10:8080/art/itABC~r2"))
         assertEquals("t", sent.single().second["X-Emby-Token"])
     }
 

@@ -35,7 +35,7 @@ public class PlayerDjLiveTests : IDisposable
         }
     }
 
-    sealed class NoPlanner : IAutoplayPlanner
+    internal sealed class NoPlanner : IAutoplayPlanner
     {
         public Task<List<CatalogSong>> RelatedAsync(Track seed, CancellationToken ct = default) => Task.FromResult(new List<CatalogSong>());
         public IReadOnlyList<CatalogSong> Fetching(UserSession s, IEnumerable<CatalogSong> suggested) => [];

@@ -34,4 +34,12 @@ public class CoverChainTests
         Assert.Equal(("Eminem", "Lose Yourself"), GeneratedCover.Names(key));
         Assert.Equal(("", ""), GeneratedCover.Names("jfabc~tag"));
     }
+
+    [Fact]
+    public void Only_a_songs_cover_key_gets_a_made_cover()
+    {
+        Assert.True(GeneratedCover.ForKey(Art.LookupKey("Eminem", "", "Lose Yourself")!));
+        Assert.True(GeneratedCover.ForKey("jfabc~t"));
+        Assert.False(GeneratedCover.ForKey("ex" + Convert.ToBase64String("http://169.254.169.254/x"u8.ToArray())));
+    }
 }

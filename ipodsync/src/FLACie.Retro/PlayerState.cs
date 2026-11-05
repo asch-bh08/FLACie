@@ -342,7 +342,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await Play(list, Random.Shared.Next(list.Count), context, contextId, listenContext);
         // shuffling a named playlist: the DJ says so over its first song (owner, 30 Oct: it never said anything). Only here, at the start of a queue: shuffle
         // toggled later (ToggleShuffle) is not a new queue. "Shuffle Songs" (no list) and the Retro car's stations say nothing.
-        if (Interceptor is null && contextId is { Length: > 0 } && context is { Length: > 0 } && Current is { } first && dj is { } d && session is { } s && DjOn)
+        // F15: only with the person's "Announce the first song" switch on (DJ settings)
+        if (Interceptor is null && contextId is { Length: > 0 } && context is { Length: > 0 } && Current is { } first && dj is { } d && session is { } s && DjOn && d.Settings(s).FirstSong)
             _ = DjQueueStartAsync(d, s, first, context, djGen);
     }
 
@@ -492,7 +493,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     }
     public void AddLast(Track t) { if (Current is null) { _ = PlayFromAsync([t], 0, 0, false); return; } Queue.Add(t); order.Add(Queue.Count - 1); DjAhead(); Changed?.Invoke(); }
 
-    public void ToggleShuffle() { Shuffle = !Shuffle; Reorder(keepCurrentFirst: true); DjAhead(); Changed?.Invoke(); }
+    /// <summary>F13: on keeps everything up to the current song where it is and shuffles the rest; off puts the queue's own order back (QueueShuffle,
+    /// as on the phone). "Shuffle all" stays as it is.</summary>
+    public void ToggleShuffle()
+    {
+        Shuffle = !Shuffle;
+        var pos = order.IndexOf(Index);
+        if (Shuffle) order = order.Count == Queue.Count && pos >= 0 ? QueueShuffle.On(order.Count, pos, Random.Shared).Select(i => order[i]).ToList() : QueueShuffle.On(Queue.Count, Index, Random.Shared);
+        else order = QueueShuffle.Off(order, pos).Order;
+        DjAhead(); Changed?.Invoke();
+    }
     public void CycleRepeat() { Repeat = (Repeat + 1) % 3; DjAhead(); Changed?.Invoke(); }
 
     /// <summary>Play order: the queue as is, or shuffled with the current song first.</summary>
@@ -874,15 +884,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         try
         {
-            bool captions = false, cueSound = false;
+            var captions = false;
             if (dj is { } d && session is { } s && (cue.ClipUrl is { Length: > 0 } || cue.Backup))
             {
                 var st = d.Settings(s);
-                captions = st.Captions; cueSound = st.Cue;
+                captions = st.Captions;
                 await audio.DjLevelsAsync(DjRules.Clamp(st.Volume), DjRules.Clamp(st.Duck));
                 await audio.DjCueAsync(st.Cue);
             }
             var words = cue.Caption.Length > 0 ? cue.Caption : cue.Text;
+            djCaptionDue = null;
             if (cue.ClipUrl is { Length: > 0 } url)
             {
                 // timed to the song's intro when the server knows it: the clip's own length when the page has it, else a guess from its words
@@ -895,12 +906,13 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 // a line that comes once the song is under way (after a skip) talks over it: the song is not silenced and started again
                 plan = DjTiming.Started(plan, PositionMs);
                 await audio.DjPlayAsync(url, cue.Text, cue.Backup, plan.ClipAtMs, plan.SongDelayMs); djActive = true;
-                if (captions) _ = DjCaptionsAsync(words, plan.ClipAtMs + (cueSound ? DjCaptions.CueLeadMs : 0), length);
+                // F17: the caption shows when the voice is really heard (the page says so: OnDjSpeaking), not when the clip was asked for
+                if (captions) djCaptionDue = (words, length);
             }
             else if (cue.Backup && cue.Text.Length > 0)
             {
                 await audio.DjSayAsync(cue.Text); djActive = true;
-                if (captions) _ = DjCaptionsAsync(words, 0, DjTiming.EstimateMs(cue.Text));
+                if (captions) djCaptionDue = (words, DjTiming.EstimateMs(cue.Text));
             }
         }
         catch (Exception) { }
@@ -957,6 +969,16 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>How the captions wait for their next phrase (a test makes it step by hand).</summary>
     public Func<int, CancellationToken, Task> DjWait { get; set; } = (ms, ct) => Task.Delay(ms, ct);
     CancellationTokenSource? djCaptionCts;
+    /// <summary>The line waiting for its voice to be heard, and how long the voice is (F17).</summary>
+    (string Words, int ClipMs)? djCaptionDue;
+
+    /// <summary>The page: the DJ's voice has just started playing (the clip's first sound, after the cue; or the device's voice starting to speak).</summary>
+    [JSInvokable] public void OnDjSpeaking()
+    {
+        if (djCaptionDue is not { } due) return;
+        djCaptionDue = null;
+        _ = DjCaptionsAsync(due.Words, 0, due.ClipMs);
+    }
 
     /// <summary>Shows [text] in time with the clip: from [startInMs] (the clip's own start), phrase by phrase (<see cref="DjCaptions.Plan"/>), gone a moment
     /// after the clip's [clipMs]. A skip, a pause or a seek (<see cref="DjStopAsync"/>) takes it away at once.</summary>
@@ -985,6 +1007,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     void DjCaptionOff()
     {
+        djCaptionDue = null;
         djCaptionCts?.Cancel(); djCaptionCts = null;
         if (DjCaption is null) return;
         DjCaption = null; Changed?.Invoke();
@@ -1006,8 +1029,6 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public bool CanAskDj => RetroHost.DjAsk is not null && session is not null;
     /// <summary>A line that comes later (a song asked for has landed and is playing): the page shows it as a toast.</summary>
     public event Action<string>? DjAskSaid;
-    /// <summary>The DJ asked something back (an Ask step): the mic opens again for the answer.</summary>
-    public event Action<string>? DjAskAgain;
 
     public async Task<DjAskAnswer?> AskDjAsync(string text, CancellationToken ct = default)
     {
@@ -1083,7 +1104,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             return Task.CompletedTask;
         }
         public Task CreatePlaylistAsync(string name, IReadOnlyList<string> paths) { s.ReplacePlaylistTracks(s.PlaylistNamed(name).Id, Tracks(paths)); return Task.CompletedTask; }
-        public Task AskAsync(string question) { p.DjAskAgain?.Invoke(question); return Task.CompletedTask; }
+        // the question is the answer's own line (said by DjAnswerAsync); the mic's conversation loop opens again for the reply (DjConversation.AskedBack)
+        public Task AskAsync(string question) => Task.CompletedTask;
         public Task ShuffleAsync(bool on) { if (p.Shuffle != on) p.ToggleShuffle(); return Task.CompletedTask; }
         public Task RenamePlaylistAsync(string playlist, string name)
         {

@@ -16,7 +16,8 @@ public sealed class SongHeadCache(int maxEntries, long maxBytes, TimeSpan keep, 
     readonly object gate = new();
     long seq;
 
-    public SongHeadCache() : this(6, 8L << 20, TimeSpan.FromMinutes(10)) { }
+    // six songs' first 30 s at most (F4.2: up to 8 MB each)
+    public SongHeadCache() : this(6, 48L << 20, TimeSpan.FromMinutes(10)) { }
 
     public void Put(string owner, string path, byte[] bytes, long total, string contentType)
     {

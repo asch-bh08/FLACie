@@ -42,21 +42,7 @@
 else
 {
     <ExploreBar Compact="true" Changed="OnFilters" />
-    @* ready-made playlists for what was typed ("2010s", "rock", an artist), above the library's results, like Spotify's (owner, 2 Nov) *@
-    var made = Made();
-    @if (made.Count > 0)
-    {
-        <section class="made-row" aria-label="Playlists for you">
-            <h2 class="section">Playlists for you</h2>
-            <div class="row-scroll">
-                @foreach (var m in made)
-                {
-                    <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a>
-                }
-            </div>
-        </section>
-    }
-    <ResultSections Query="@q" Rev="@X.Version" Context="Search" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
+    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@Made()" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
     @if (webPaused) { <p class="hint" role="status">Online results are paused for a moment: that was a lot of searches in one minute. Your library's results are still here.</p> }
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {

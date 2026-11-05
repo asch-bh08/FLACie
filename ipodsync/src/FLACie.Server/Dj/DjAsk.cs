@@ -333,6 +333,8 @@ public interface IDjAskUser
     void NotePhrase(PhraseAsk p) { }
     /// <summary>How well known the song is (higher is better; 0 when unknown), for picking between versions (F11).</summary>
     int Popularity(Track t) => 0;
+    /// <summary>Finds out how well known these songs are, before <see cref="Popularity"/> is asked about them.</summary>
+    Task LookUpPopularityAsync(IReadOnlyList<Track> songs, CancellationToken ct) => Task.CompletedTask;
     /// <summary>More that FLACie holds for certain about a song (how often it was played, what the MusicBrainz cache says), as "key: value" lines; "" when nothing.</summary>
     string About(Track t) => "";
 }
@@ -789,7 +791,9 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             {
                 case Track t0 when Playable(t0):
                     // F11: several versions match: own plays, popularity, then the title said; the rest kept for "not that one"
-                    var ranked = query.Artist is { Length: > 0 } ? [t0] : DjPick.Rank(u, DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0), query.Title ?? what);
+                    var versions = DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0).DistinctBy(x => x.Path).ToList();
+                    if (query.Artist is not { Length: > 0 } && versions.Count > 1) await u.LookUpPopularityAsync(versions, ct);
+                    var ranked = query.Artist is { Length: > 0 } ? [t0] : DjPick.Rank(u, versions, query.Title ?? what);
                     var song = ranked[0];
                     Pick.Keep(u.Account, ranked.Skip(1).ToList());
                     var others = u.Songs.Where(x => x.Path != song.Path && Playable(x) && Matching.PrimaryArtist(x.Artist) == Matching.PrimaryArtist(song.Artist)).OrderBy(_ => Random.Shared.Next()).Take(25).Select(x => x.Path);

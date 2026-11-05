@@ -176,4 +176,16 @@ public class CacheTests
         Assert.Equal(mi.HiRes, idx.Get(t)!.HiRes);
         Assert.True(idx.Get(t)!.HiRes);
     }
+
+    [Fact]
+    public void The_next_song_is_read_ahead_for_its_first_30_seconds()
+    {
+        static Track T(long size, long ms) => new("/m/x.flac", "X", "A", "B", "A", 1, 1, ms, 2000, null, 0, TrackSource.Jellyfin, Size: size);
+        Assert.Equal(3_000_000, MediaEndpoints.PrefetchBytesFor(T(24_000_000, 240_000)));      // 1000 kbps FLAC: 30 s is 3 MB
+        Assert.Equal(MediaEndpoints.PrefetchBytes, MediaEndpoints.PrefetchBytesFor(T(4_000_000, 240_000)));   // a small MP3: at least 1 MB
+        Assert.Equal(MediaEndpoints.MaxAheadBytes, MediaEndpoints.PrefetchBytesFor(T(400_000_000, 240_000))); // Hi-Res: at most 8 MB
+        Assert.Equal(MediaEndpoints.UnknownAheadBytes, MediaEndpoints.PrefetchBytesFor(T(0, 0)));
+        Assert.Equal("bytes=0-2999999", MediaEndpoints.PrefetchRange("bytes=0-", 3_000_000));
+        Assert.Equal("bytes=0-1000", MediaEndpoints.PrefetchRange("bytes=0-1000", 3_000_000));
+    }
 }

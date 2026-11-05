@@ -265,7 +265,7 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         var art = onCompilation && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
                 : o["ImageTags"]?["Primary"] is JsonValue pt ? "jf" + id + "~" + pt.ToString()
                 : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
-                : Art.LookupKey(artist, Str("Album"), Str("Name"));
+                : Art.LookupKey(artist, Str("Album"), Str("Name"), ChainFallbacks(o));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);
         return new Track($"{server}/Audio/{id}/stream?static=true", Str("Name"), artist, Str("Album"), Str("AlbumArtist").Length > 0 ? Str("AlbumArtist") : artist,
             o["IndexNumber"]?.GetValue<int>() ?? 0, o["ParentIndexNumber"]?.GetValue<int>() ?? 0, (o["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000,
@@ -276,6 +276,18 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
 
     /// <summary>The cover key of a Jellyfin item record (what another device is playing, a session's NowPlayingItem): the album's picture with its image tag (the same key
     /// the library uses, so it is already on disk), else the item's own, always with the tag (a key without one could never be told from a changed picture).</summary>
+    /// <summary>F1: for a song without a picture of its own, the pictures to try after the catalog: its folder's (folder.jpg, as Jellyfin has it), then
+    /// its artist's photo. "|" between them, as <see cref="Art.LookupKey(string, string, string, string?)"/> carries them; null when there are none.</summary>
+    public static string? ChainFallbacks(JsonNode o)
+    {
+        static string S(JsonNode? n) => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : "";
+        var list = new List<string>();
+        if (S(o["ParentPrimaryImageItemId"]) is { Length: > 0 } pid && S(o["ParentPrimaryImageTag"]) is { Length: > 0 } ptag) list.Add("jf" + pid + "~" + ptag);
+        else if (S(o["ParentId"]) is { Length: > 0 } folder) list.Add("jd" + folder);
+        if ((o["ArtistItems"] as JsonArray)?.FirstOrDefault() is { } ai && S(ai["Id"]) is { Length: > 0 } aid) list.Add("ja" + aid);
+        return list.Count == 0 ? null : string.Join('|', list);
+    }
+
     public static string? ItemArtKey(JsonNode? item)
     {
         if (item is null) return null;

@@ -409,3 +409,14 @@
 .ls-art .np-dj-caption.on { opacity: 1; }
 .ls-art .np-dj-caption:empty { visibility: hidden; }
 @media (prefers-reduced-motion: reduce) { .ls-art .np-dj-caption { transition: none; } }
+
+/* F6.2: a search for an artist: the Top result on the left, their top 5 songs beside it (no big empty card), then the rows */
+.sr-top { display: grid; grid-template-columns: minmax(240px, 2fr) minmax(0, 3fr); gap: 24px; align-items: stretch; }
+.sr-top-main, .sr-top-songs { display: flex; flex-direction: column; min-width: 0; }
+.sr-top-main .sr-hero { flex: 1; justify-content: flex-end; }
+.sr-top-songs .track-list, .sr-top-songs ol, .sr-top-songs ul { margin: 0; }
+.sr-similar .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.sr-similar .artist-chip { display: inline-flex; align-items: center; gap: 8px; padding: 4px 12px 4px 4px; font-size: .9rem; }
+.sr-similar .artist-chip .cover, .sr-similar .artist-chip .cover-img { border-radius: 50%; }
+.sr-section button.card { text-align: left; color: inherit; font: inherit; cursor: pointer; background: none; border: 0; width: calc(100% + 16px); overflow: hidden; }   /* a button does not stretch to its grid cell as a link does */
+@media (max-width: 760px) { .sr-top { grid-template-columns: 1fr; gap: 16px; } }

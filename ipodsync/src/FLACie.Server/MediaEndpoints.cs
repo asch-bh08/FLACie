@@ -46,8 +46,8 @@ public static class MediaEndpoints
             if (!early && !quiet) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
             async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true, bool keepHead = false)
             {
-                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString()) : ctx.Request.Headers.Range.ToString());
-                else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange(""));
+                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString(), PrefetchBytesFor(t)) : ctx.Request.Headers.Range.ToString());
+                else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange("", PrefetchBytesFor(t)));
                 // the browser gave up (a skip, a closed tab): RequestAborted cancels the call to Jellyfin too, so it stops reading the file at once. Not for the early
                 // read of the next song: the browser's hidden player often stops reading once it has enough, and the start must still be kept (its own 30 s limit)
                 using var own = keepHead ? new CancellationTokenSource(TimeSpan.FromSeconds(30)) : null;
@@ -138,7 +138,7 @@ public static class MediaEndpoints
                 try { size = await Task.Run(() => NasClient.Size(n, rel)); } catch (FileNotFoundException) { return Results.NotFound(); }
                 var (satisfiable, partial, from, to) = ByteRanges.Resolve(ctx.Request.Headers.Range.ToString(), size);
                 if (!satisfiable) { ctx.Response.Headers.ContentRange = $"bytes */{size}"; return Results.StatusCode(416); }
-                if (early && from == 0 && to - from + 1 > PrefetchBytes) { to = PrefetchBytes - 1; partial = true; }
+                if (early && from == 0 && to - from + 1 > PrefetchBytesFor(t)) { to = PrefetchBytesFor(t) - 1; partial = true; }
                 ctx.Response.StatusCode = partial ? 206 : 200;
                 ctx.Response.ContentType = Mime.GetValueOrDefault(Path.GetExtension(rel).TrimStart('.'), "application/octet-stream");
                 ctx.Response.ContentLength = to - from + 1;
@@ -226,18 +226,24 @@ public static class MediaEndpoints
         // small size (240 px WebP, quality 80, a request Jellyfin's own image cache can answer); only the Now Playing cover asks for the original (?s=full).
         var log = app.Logger;
         var covers = app.Services.GetRequiredService<CoverStore>();
+        var artistCatalog = app.Services.GetService<WebCatalog>();
+        Task<(string? Url, bool Unasked)> ArtistPicture(string artist, CancellationToken c) => artistCatalog?.ArtistPictureAsync(artist, c) ?? Task.FromResult<(string?, bool)>((null, false));
         app.MapGet("/art/{key}", async (HttpContext ctx, string key, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
             key = FLACie.Core.CoverOverrides.Unversioned(key);   // a catalog cover's address carries the lookup rules ("~r2"): the key itself does not
             // a catalog key may carry a Jellyfin picture for when the catalog has nothing (a hoodtrap remix in no catalog shows its folder's picture; owner, 5 Nov).
             // The lookup and the saved cover use the key without it.
-            var fallback = Art.LookupFallback(key);
-            if (fallback is not null) key = Art.LookupBase(key);
+            // F1: the chain (catalog, folder picture, artist photo) is planned from the key with its fallbacks; it is saved under the key without them
+            var chain = CoverChain.Plan(key);
+            string? fallback = chain.Count > 0 ? null : Art.LookupFallback(key);
+            if (Art.LookupFallbacks(key).Length > 0) key = Art.LookupBase(key);
             IResult Missing(bool transient)
             {
                 var (status, cache) = CoverAnswers.Missing(transient);
                 ctx.Response.Headers.CacheControl = cache;
+                // a made cover only for a key that names a song's cover (a catalog, Jellyfin or NAS key); any other address that came to nothing is a 404
+                if (!transient && fallback is null && !GeneratedCover.ForKey(key)) return Results.NotFound();
                 switch (GeneratedCover.Answer(transient, fallback is not null))
                 {
                     case CoverMiss.Fallback: return Results.Redirect("/art/" + Uri.EscapeDataString(fallback!) + "?v=3");
@@ -245,6 +251,8 @@ public static class MediaEndpoints
                         // F1: every source failed: a cover made from the artist and title, never a blank or a 404
                         ctx.Response.Headers.CacheControl = GeneratedCover.CacheControl;
                         var (ga, gt) = GeneratedCover.Names(key);
+                        // the phone asks ?fmt=png (it cannot draw SVG): the same cover as a PNG, at the row size or the player's (?s=full)
+                        if (ctx.Request.Query["fmt"] == "png") return Results.File(CoverPng.Make(ga, gt, ctx.Request.Query["s"] == "full" ? GeneratedCover.FullPx : GeneratedCover.RowPx), "image/png");
                         return Results.Text(GeneratedCover.Svg(ga, gt), "image/svg+xml");
                     default: return Results.StatusCode(status);
                 }
@@ -299,10 +307,43 @@ public static class MediaEndpoints
                         using var res = await http.GetAsync(full ? external : Art.SmallExternal(external), ct);
                         if (res.IsSuccessStatusCode) bytes = await res.Content.ReadAsByteArrayAsync(ct);
                     }
-                    else if (Art.ParseLookupKey(key) is var (la, lb, lt))
+                    else if (chain.Count > 0)
                     {
-                        await catalogSlots.WaitAsync(ct);
-                        try { (bytes, transient) = await OnlineCover(http, la, lb, lt, ct); } finally { catalogSlots.Release(); }
+                        // F1: the catalog, the folder's picture, the artist's photo on Jellyfin, then the catalog's photo of the artist
+                        async Task<(byte[]?, bool)> JfImage(string id, string? tag, CancellationToken c)
+                        {
+                            if (s.Jellyfin is not { } acc) return (null, false);
+                            using var req = jf.Authorized(acc, jf.ImageUrl(acc, id, full ? 0 : 240, tag, webp: !full));
+                            using var res = await http.SendAsync(req, c);
+                            if (res.IsSuccessStatusCode) return (await res.Content.ReadAsByteArrayAsync(c), false);
+                            return (null, (int)res.StatusCode >= 500 || res.StatusCode == System.Net.HttpStatusCode.TooManyRequests);
+                        }
+                        async Task<(byte[]?, bool)> Step(CoverStep st, CancellationToken c)
+                        {
+                            switch (st.Kind)
+                            {
+                                case CoverStep.Kinds.Catalog:
+                                    await catalogSlots.WaitAsync(c);
+                                    try { return await OnlineCover(http, st.Value, st.Album, st.Title, c); } finally { catalogSlots.Release(); }
+                                case CoverStep.Kinds.JellyfinPicture:
+                                    var pid = st.Value[2..]; string? ptag = null;
+                                    if (pid.IndexOf('~') is var px and > 0) { ptag = pid[(px + 1)..]; pid = pid[..px]; }
+                                    return await JfImage(pid, ptag, c);
+                                case CoverStep.Kinds.JellyfinArtist:
+                                    return await JfImage(st.Value, null, c);
+                                default:
+                                    await catalogSlots.WaitAsync(c);
+                                    try
+                                    {
+                                        var (url, unasked) = await ArtistPicture(st.Value, c);
+                                        if (url is null) return (null, unasked);
+                                        using var res = await http.GetAsync(url, c);
+                                        return res.IsSuccessStatusCode ? (await res.Content.ReadAsByteArrayAsync(c), false) : (null, true);
+                                    }
+                                    finally { catalogSlots.Release(); }
+                            }
+                        }
+                        (bytes, _, transient) = await CoverChain.RunAsync(chain, Step, ct);
                     }
                     else if (key.StartsWith("nf") && s.Nas is { } n)
                     {
@@ -346,19 +387,26 @@ public static class MediaEndpoints
 
     /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>
     public const int PrefetchBytes = 1 << 20;
+    /// <summary>F4.2: how much of the next song is read ahead: its first <see cref="AheadSeconds"/> (from its size and length), at least
+    /// <see cref="PrefetchBytes"/> and at most <see cref="MaxAheadBytes"/>; 4 MB (about 30 s of CD-quality FLAC) when its size is not known.</summary>
+    public const int AheadSeconds = 30, MaxAheadBytes = 8 << 20, UnknownAheadBytes = 4 << 20;
+    public static int PrefetchBytesFor(Track t) =>
+        t.Size > 0 && t.DurationMs > 0 ? (int)Math.Clamp(t.Size * (AheadSeconds * 1000L) / t.DurationMs, PrefetchBytes, MaxAheadBytes) : UnknownAheadBytes;
 
     /// <summary>A song's full size from Jellyfin's answer: the total of a 206's Content-Range, or a 200's length.</summary>
     static long? TotalOf(HttpResponseMessage res) =>
         res.Content.Headers.ContentRange?.Length ?? ((int)res.StatusCode == 200 ? res.Content.Headers.ContentLength : null);
 
-    /// <summary>The Range an early read of the next song is held to: the first <see cref="PrefetchBytes"/> (an open-ended or larger request from the start is cut to it).</summary>
-    public static string PrefetchRange(string asked)
+    /// <summary>The Range an early read of the next song is held to: its first [bytes] (an open-ended or larger request from the start is cut to it).</summary>
+    public static string PrefetchRange(string asked) => PrefetchRange(asked, PrefetchBytes);
+
+    public static string PrefetchRange(string asked, int bytes)
     {
-        var cap = "bytes=0-" + (PrefetchBytes - 1);
+        var cap = "bytes=0-" + (bytes - 1);
         if (asked.Length == 0) return cap;
         var m = System.Text.RegularExpressions.Regex.Match(asked.Trim(), @"^bytes=0-(\d*)$");
         if (!m.Success) return asked;   // a read from elsewhere in the file (a seek of the prefetch element) is left as it is
-        return m.Groups[1].Value.Length > 0 && long.TryParse(m.Groups[1].Value, out var to) && to < PrefetchBytes - 1 ? asked : cap;
+        return m.Groups[1].Value.Length > 0 && long.TryParse(m.Groups[1].Value, out var to) && to < bytes - 1 ? asked : cap;
     }
 
     /// <summary>The saved cover with a validator (ETag and Last-Modified), so a browser that asks again is answered 304 without a body.</summary>

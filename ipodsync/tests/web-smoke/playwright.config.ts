@@ -17,7 +17,8 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: process.env.CI ? [['github'], ['list']] : 'list',
-  use: { baseURL: `http://127.0.0.1:${WEB}`, trace: 'retain-on-failure', screenshot: 'only-on-failure' },
+  // PW_CHROMIUM: a Chromium already on the machine (a cloud session's /opt/pw-browsers/chromium) instead of the one 'playwright install' fetches
+  use: { baseURL: `http://127.0.0.1:${WEB}`, trace: 'retain-on-failure', screenshot: 'only-on-failure', ...(process.env.PW_CHROMIUM ? { launchOptions: { executablePath: process.env.PW_CHROMIUM } } : {}) },
   webServer: [
     {
       command: 'node mock-jellyfin.mjs',

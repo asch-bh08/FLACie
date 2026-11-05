@@ -18,7 +18,8 @@ public sealed class CoverFill(CoverStore covers, Func<string, string, string, Ca
 
     public async Task<Progress> RunAsync(IEnumerable<Track> songs, CancellationToken ct)
     {
-        var keys = songs.Select(t => t.ArtKey).OfType<string>().Where(k => Art.ParseLookupKey(k) is not null).Distinct().ToList();
+        // saved under the key without its fallbacks, as /art saves them
+        var keys = songs.Select(t => t.ArtKey).OfType<string>().Where(k => Art.ParseLookupKey(k) is not null).Select(Art.LookupBase).Distinct().ToList();
         int done = 0, saved = 0, none = 0;
         Last = new(keys.Count, 0, 0, 0, null);
         foreach (var key in keys)

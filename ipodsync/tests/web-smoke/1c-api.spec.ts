@@ -269,6 +269,20 @@ test.describe('/art', () => {
     }
   });
 
+  test('a song with no picture anywhere gets the made cover: SVG for the web, PNG for the phone at the row size and the full size', async () => {
+    const svg = await web.get('/art/jfnocover1~t1');
+    expect(svg.status()).toBe(200);
+    expect(svg.headers()['content-type']).toContain('image/svg+xml');
+    for (const [q, side] of [['?fmt=png', 240], ['?fmt=png&s=full', 1000]] as const) {
+      const r = await web.get('/art/jfnocover2~t1' + q);
+      expect(r.status(), q).toBe(200);
+      expect(r.headers()['content-type'], q).toBe('image/png');
+      const b = await r.body();
+      expect(b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), q).toBe(true);
+      expect([b.readUInt32BE(16), b.readUInt32BE(20)], q).toEqual([side, side]);   // IHDR width and height
+    }
+  });
+
   test('an external cover address outside the public cover hosts is never fetched', async () => {
     const key = 'ex' + Buffer.from('http://169.254.169.254/latest/meta-data').toString('base64url');
     const r = await web.get('/art/' + key);

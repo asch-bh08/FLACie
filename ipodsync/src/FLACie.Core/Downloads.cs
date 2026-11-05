@@ -588,7 +588,11 @@ public static class Art
     {
         if (artist.Length == 0 || (album.Length == 0 && title.Length == 0)) return null;
         var raw = $"{artist}\n{album}\n{title}"; if (raw.Length > 150) raw = raw[..150];
-        if (fallback is { Length: < 120 } f && f.StartsWith("jf", StringComparison.Ordinal) && f.IndexOf('~') > 2 && raw.Split('\n').Length == 3) raw += "\n" + f;
+        // the fallbacks: Jellyfin pictures ("jf<item>~<tag>"; "jd<folder>", a folder's picture without a tag), then a Jellyfin artist's photo ("ja<artist>"),
+        // "|" between them (F1). An untagged "jf" key is never carried (it could be a picture that was vetted out).
+        static bool Ok(string x) => x.Length > 2 && !x.Contains('\n') && (x.StartsWith("jf", StringComparison.Ordinal) ? x.IndexOf('~') > 2 : x.StartsWith("jd", StringComparison.Ordinal) || x.StartsWith("ja", StringComparison.Ordinal));
+        if (fallback is { Length: < 200 } f && raw.Split('\n').Length == 3 && f.Split('|').All(Ok))
+            raw += "\n" + f;
         return "it" + Convert.ToBase64String(Encoding.UTF8.GetBytes(raw)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
@@ -600,7 +604,10 @@ public static class Art
     }
 
     /// <summary>The Jellyfin picture a lookup key carries for when the catalog has nothing, or null.</summary>
-    public static string? LookupFallback(string key) => LookupParts(key) is { Length: >= 4 } p && p[3].StartsWith("jf", StringComparison.Ordinal) ? p[3] : null;
+    public static string? LookupFallback(string key) => LookupFallbacks(key).FirstOrDefault(f => f.StartsWith("jf", StringComparison.Ordinal) && f.IndexOf('~') > 2);
+
+    /// <summary>Every fallback a lookup key carries, in order (F1: the folder's picture, then the artist's photo).</summary>
+    public static string[] LookupFallbacks(string key) => LookupParts(key) is { Length: >= 4 } p ? p[3].Split('|', StringSplitOptions.RemoveEmptyEntries) : [];
 
     /// <summary>The lookup key without its fallback picture: what the catalog is asked by and the cover is saved under.</summary>
     public static string LookupBase(string key) =>

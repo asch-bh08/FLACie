@@ -22,3 +22,27 @@ public static class SearchRankTop
     /// <summary>The name without a leading "the" ("" when that is all there is).</summary>
     static string Key(string s) { var w = Words(s); return w.StartsWith("the ") ? w[4..] : w == "the" ? "" : w; }
 }
+
+/// <summary>
+/// F6.2: what the search page shows for an artist: their top 5 songs beside the Top result, then Popular (the next most played), Albums and Singles &amp; EPs
+/// (each newest first). Songs are ranked by plays (Jellyfin's), then the newest; a release of three songs or fewer, or one named EP or Single, is a single.
+/// </summary>
+public sealed record ArtistPage(IReadOnlyList<Track> Top, IReadOnlyList<Track> Popular, IReadOnlyList<Group> Albums, IReadOnlyList<Group> Singles)
+{
+    public const int TopCount = 5, PopularCount = 10;
+
+    public static ArtistPage Of(Group artist, IEnumerable<Group> albums, IReadOnlyList<JfPlay> plays)
+    {
+        var byId = new Dictionary<string, int>();
+        foreach (var p in plays) byId[p.Id] = p.Plays;
+        var songs = artist.Tracks.OrderByDescending(t => t.JellyfinId is { } id ? byId.GetValueOrDefault(id) : 0).ThenByDescending(t => t.Year).ThenBy(t => t.Title, StringComparer.OrdinalIgnoreCase)
+            .DistinctBy(t => Matching.MatchKey(t)).ToList();
+        var paths = artist.Tracks.Select(t => t.Path).ToHashSet();
+        var theirs = albums.Where(g => g.Name.Length > 0 && g.Tracks.Any(t => paths.Contains(t.Path)))
+            .OrderByDescending(g => g.Tracks.Max(t => t.Year)).ThenBy(g => g.Name, StringComparer.OrdinalIgnoreCase).ToList();
+        return new(songs.Take(TopCount).ToList(), songs.Skip(TopCount).Take(PopularCount).ToList(), theirs.Where(g => !IsSingle(g)).ToList(), theirs.Where(IsSingle).ToList());
+    }
+
+    public static bool IsSingle(Group album) =>
+        album.Tracks.Count <= 3 || System.Text.RegularExpressions.Regex.IsMatch(album.Name, @"[(\[\s-](?:ep|single)[)\]]?\s*$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+}

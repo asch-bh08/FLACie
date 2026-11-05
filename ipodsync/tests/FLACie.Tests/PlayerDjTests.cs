@@ -526,4 +526,18 @@ public class PlayerDjTests
         await Task.Delay(30);
         Assert.DoesNotContain(dj.Asked, r => r.QueueStart);
     }
+
+    [Fact]
+    public async Task With_the_first_song_switch_off_a_shuffled_playlist_starts_without_the_line()
+    {
+        var (p, _, dj) = Player();
+        dj.S.FirstSong = false;
+        await p.ShuffleAll(Songs(4), "Pop", "pl-pop");
+        await Task.Delay(30);
+        Assert.DoesNotContain(dj.Asked, r => r.QueueStart);
+        dj.S.FirstSong = true;
+        await p.ShuffleAll(Songs(4), "Pop", "pl-pop");
+        await Task.Delay(50);
+        Assert.Single(dj.Asked, r => r.QueueStart);
+    }
 }

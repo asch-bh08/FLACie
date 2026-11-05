@@ -104,7 +104,7 @@ test.describe.serial('beta 52 load', () => {
     await request.get(`${MOCK}/__reset`);
     await playLab(page);
     await expect.poll(() => page.evaluate(() => (window as any).__flaciePrefetches || 0), { timeout: 20_000 }).toBeGreaterThanOrEqual(1);
-    await expect.poll(async () => (await counts(request)).streamCapped, { timeout: 20_000, message: 'the early read reached Jellyfin as a 1 MiB Range' }).toBeGreaterThanOrEqual(1);
+    await expect.poll(async () => (await counts(request)).streamCapped, { timeout: 20_000, message: 'the early read reached Jellyfin as a bounded Range (its first 30 s)' }).toBeGreaterThanOrEqual(1);
   });
 
   test('Settings shows how big the cache is and has a Clear cache button', async ({ page }) => {

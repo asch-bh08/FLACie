@@ -2,7 +2,8 @@
 @if (Player.Current is { } t)
 {
     @if (open) { <NowPlaying OnClose="() => open = false" /> }
-    <section class="player" aria-label="Player" @ref="barEl">
+    @* data-pip-*: what the mini player (flacie-pip.js) shows beside the song: the next song and the seek bar's loudness shape *@
+    <section class="player" aria-label="Player" @ref="barEl" data-pip-path="@t.Path" data-pip-next="@NextLine()">
         <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
         <div class="bar" @onclick="() => open = true">
             <button class="bar-song" @key="t.Path" @onclick="() => open = true" aria-label="Open Now Playing">
@@ -11,11 +12,11 @@
             </button>
             <div class="bar-controls">
                 <div class="buttons" @onclick:stopPropagation="true">
-                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" /></button>
+                    <button class="icon-btn @(Player.Shuffle ? "on" : "")" data-pip="shuffle" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" /></button>
                     <button class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
                     <button class="play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="22" /></button>
                     <button class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
-                    <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" /></button>
+                    <button class="icon-btn @(Player.Repeat > 0 ? "on" : "")" data-pip="repeat" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" /></button>
                 </div>
                 <div class="seek" @onclick:stopPropagation="true">
                     <span>@Time(Player.Position)</span>
@@ -29,10 +30,10 @@
                 @if (Player.Dj is not null)
                 {
                     var djOn = Player.DjOn;
-                    <button class="icon-btn bar-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="20" /></button>
+                    <button class="icon-btn bar-dj @(djOn ? "on" : "")" data-pip="dj" @onclick="Player.ToggleDjAsync" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="20" /></button>
                 }
                 <DjMic Class="icon-btn" Size="20" />
-                <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+                <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" data-pip="heart" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
                 @if (AppHost.DevicePicker is { } picker) { <DynamicComponent Type="picker" /> }
                 <a class="icon-btn retro-link" href="/retro" aria-label="Retro" title="Retro: music players, a car stereo, a hi-fi and more, playing this song" data-testid="bar-retro"><Icon Name="retro" /></a>
                 @if (pipOk) { <button class="icon-btn @(pipOn ? "on" : "")" @onclick="TogglePip" aria-label="Mini player (picture in picture)" title="Mini player: keeps the cover and controls on top when you switch tabs"><Icon Name="pip" /></button> }
@@ -71,7 +72,26 @@
         }
         catch (Exception) { }
     }
-    async Task TogglePip() { try { pipOn = await PageJs.InvokeAsync<bool>("flacie.pipToggle"); } catch (Exception) { pipOn = false; } }
+    async Task TogglePip() { try { pipOn = await PageJs.InvokeAsync<bool>("flacie.pipToggle"); } catch (Exception) { pipOn = false; } lyricsFor = null; if (pipOn && Player.Current is { } c) await SendLyrics(c); }
+
+    /// <summary>The mini player's "Next:" line: the song after this one (Up next, else Autoplay's), "Title · Artist".</summary>
+    string NextLine() => Player.UpNext(1).Select(u => u.Track).Concat(Player.AutoplayNext).FirstOrDefault() is { } n ? $"{n.Title} · {n.Artist}" : "";
+
+    // the line being sung, in the mini player: the song's synced lyrics are sent once per song while it is open
+    [Inject] LyricsService LyricsSvc { get; set; } = default!;
+    string? lyricsFor, pipCheckedFor;
+    async Task SendLyrics(Track t)
+    {
+        if (lyricsFor == t.Path) return;
+        lyricsFor = t.Path;
+        try
+        {
+            var l = await LyricsSvc.GetAsync(t, Session.Jellyfin);
+            var lines = l is { Synced: true } ? l.Lines.Where(x => x.TimeMs >= 0).Select(x => new { t = x.TimeMs, text = x.Text }).ToArray() : [];
+            if (lyricsFor == t.Path) await PageJs.InvokeVoidAsync("flacie.pipLyrics", (object)lines);
+        }
+        catch (Exception) { }
+    }
     [Inject] IPlayerClients Registry { get; set; } = default!;
     [Inject] IJSRuntime PageJs { get; set; } = default!;
     sealed record ClientInfo(string Ip, string Ua, string Browser, string Os, string Screen, string Language);
@@ -129,6 +149,8 @@
             var coverUrl = Art.KeyFor(cur) is { } art ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(art)!) : null;
             if (coverUrl != accentFor) { accentFor = coverUrl; try { await PageJs.InvokeVoidAsync("flacie.npAccent", barEl, coverUrl); await PageJs.InvokeVoidAsync("flacie.appAccent", coverUrl); } catch (Exception) { } }
             if (chipFor != cur.Path) _ = LoadChip(cur);
+            // the mini player may also have been opened by the browser itself (switching tabs while music plays)
+            if (lyricsFor != cur.Path && pipCheckedFor != cur.Path) { pipCheckedFor = cur.Path; try { if (await PageJs.InvokeAsync<bool>("flacie.pipActive")) await SendLyrics(cur); } catch (Exception) { } }
         }
         if (!volumeLoaded)
         {

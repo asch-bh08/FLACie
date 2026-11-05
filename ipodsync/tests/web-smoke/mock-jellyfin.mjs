@@ -73,6 +73,22 @@ const lab = labSpec.map((s, i) => ({
   MediaType: 'Audio',
 }));
 songs.push(...lab);
+// ---- search page (1r-search-artist.spec.ts): "prodigy" is The Prodigy (two albums, a single, an EP, 12 songs) far more than Prodigy (3 songs) ----
+const prodigy = [   // (titles that sort after "Harbour", so the iPod lists keep their order: 1m-ipod.spec.ts)
+  ['The Prodigy', 'The Fat of the Land', 1997, ['Smack My Bitch Up', 'Mindfields', 'Serial Thrilla', 'Narayan', 'Spitfire']],
+  ['The Prodigy', 'Music for the Jilted Generation', 1994, ['Voodoo People', 'Poison', 'No Good (Start the Dance)', 'One Love']],
+  ['The Prodigy', 'Out of Space', 1992, ['Out of Space']],
+  ['The Prodigy', 'What Evil Lurks EP', 1991, ['What Evil Lurks', 'We Are the Ruffest']],
+  ['Prodigy', 'H.N.I.C.', 2000, ['Keep It Thoro', 'Rock Dat Shit', 'Wanna Be Thugs']],
+];
+for (const [artist, album, year, titles] of prodigy) {
+  titles.forEach((t, i) => {
+    const n = songs.length + 1;
+    songs.push({ Id: `p${n}`, Name: t, Artists: [artist], AlbumArtist: artist, Album: album, AlbumId: `pal-${album.replace(/\W/g, '')}`, IndexNumber: i + 1, ParentIndexNumber: 1,
+      RunTimeTicks: (200 + i * 11) * 10_000_000, ProductionYear: year, Path: `/music/${artist}/${album}/${String(i + 1).padStart(2, '0')} ${t}.flac`, Genres: ['Electronic'],
+      DateCreated: new Date(Date.UTC(2024, 6, 1 + n % 28)).toISOString(), ImageTags: { Primary: 'x' }, MediaType: 'Audio' });
+  });
+}
 // like a real Jellyfin: every item names its album's picture (AlbumPrimaryImageTag) as well as its own, and says when it was last saved
 const saved0 = new Date(Date.UTC(2025, 5, 1)).toISOString();
 for (const x of songs) { x.AlbumPrimaryImageTag = 'at-' + x.AlbumId; x.DateLastSaved = saved0; }
@@ -98,7 +114,7 @@ let streamDelay = 0, firstByte = 0;
 let prefsDelay = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
-const withSources = (x) => (x.Id.startsWith('s') && x.Id !== 's1'
+const withSources = (x) => ((x.Id.startsWith('s') || x.Id.startsWith('p')) && x.Id !== 's1'
   ? { ...x, MediaSources: [{ Container: 'flac', Path: x.Path, Size: 20_000_000, Bitrate: 1_000_000, RunTimeTicks: x.RunTimeTicks, MediaStreams: [{ Type: 'Audio', Codec: 'flac', Channels: 2, BitRate: 1_000_000, SampleRate: 44100, BitDepth: 16 }] }] }
   : x);
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
@@ -179,12 +195,13 @@ http
     // any other song's own item, as Jellyfin answers it: with its streams (CD-quality FLAC, as in the library listing)
     const songM = /^\/Users\/u1\/Items\/(s\d+)$/.exec(p);
     if (songM && songs.some((x) => x.Id === songM[1])) return json(res, 200, withSources(songs.find((x) => x.Id === songM[1])));
-    if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d))\/stream/.test(p)) {
+    if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d)|p\d+)\/stream/.test(p)) {
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
       if (firstByte > 0) await new Promise((r) => setTimeout(r, firstByte));
       res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
-      if (mm && mm[2] === '1048575') counts.streamCapped++;   // the server's early read of the next song asks for the first megabyte only
+      // the server's early read of the next song asks for its start only: the first 30 s, 1 to 8 MiB (F4.2)
+      if (mm && mm[1] === '0' && mm[2] !== '' && +mm[2] >= 1048575 && +mm[2] < 8 * 1048576) counts.streamCapped++;
       res.on('close', () => { if (!res.writableFinished) counts.streamAborted++; });
       const body = wav.subarray(from, to + 1);
       if (streamDelay > 0) {
@@ -220,6 +237,8 @@ http
       return res.end(alacFile.subarray(from, to + 1));
     }
     if (/^\/Items\/[^/]+\/Images\//.test(p)) {
+      // an item with no picture at all (1c-api.spec.ts: the made cover, as SVG and as PNG)
+      if (p.split('/')[2].startsWith('nocover')) { res.writeHead(404); return res.end(); }
       const key = `${p.split('/')[2]}|${q.get('tag') || ''}|w=${q.get('maxWidth') || 'full'} q=${q.get('quality') || ''} ${q.get('format') || ''}`;
       if (images.has(key)) counts.imageRepeats++;
       images.set(key, (images.get(key) || 0) + 1);

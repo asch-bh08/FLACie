@@ -115,11 +115,24 @@ public sealed class Connect : IDisposable
             catch (OperationCanceledException) { }
             catch (Exception) { }
             if (wasConnected) Interlocked.Decrement(ref open);
+            keepAlive?.Dispose(); keepAlive = null;
             SetConnected(false); ws = null;
             // a Jellyfin that is down is not asked every 5 seconds for ever: 5 s, 10 s, 20 s ... up to a minute, and back to 5 s after a connection that worked
             failures = wasConnected ? 0 : Math.Min(failures + 1, 4);
             try { await Task.Delay(TimeSpan.FromSeconds(Math.Min(60, 5 * Math.Pow(2, Math.Max(0, failures - 1)))), ct); } catch (OperationCanceledException) { }
         }
+    }
+
+    Timer? keepAlive;
+
+    /// <summary>How often to send Jellyfin a KeepAlive: half the interval its ForceKeepAlive gives (30 s when none), at least every 5 s; null for any other
+    /// message, Jellyfin's own KeepAlive included (answering those made an endless ping-pong; owner, 5 Nov).</summary>
+    public static TimeSpan? KeepAliveEvery(string type, JsonNode? data)
+    {
+        if (type != "ForceKeepAlive") return null;
+        var seconds = 30;
+        try { if (data is JsonValue v && v.TryGetValue<int>(out var n) && n > 0) seconds = n; } catch { }
+        return TimeSpan.FromSeconds(Math.Max(5, seconds / 2));
     }
 
     async Task OnMessage(string text, ClientWebSocket sock)
@@ -131,8 +144,13 @@ public sealed class Connect : IDisposable
         {
             switch (type)
             {
-                case "ForceKeepAlive": case "KeepAlive":
-                    try { await sock.SendAsync(Encoding.UTF8.GetBytes("""{"MessageType":"KeepAlive"}"""), WebSocketMessageType.Text, true, CancellationToken.None); } catch { }
+                case "ForceKeepAlive":
+                    // send our own KeepAlive on a timer; Jellyfin's KeepAlive (its answer to ours) is never answered back
+                    if (KeepAliveEvery(type, data) is { } every)
+                    {
+                        keepAlive?.Dispose();
+                        keepAlive = new Timer(_ => { try { _ = sock.SendAsync(Encoding.UTF8.GetBytes("""{"MessageType":"KeepAlive"}"""), WebSocketMessageType.Text, true, CancellationToken.None); } catch { } }, null, TimeSpan.Zero, every);
+                    }
                     break;
                 case "Playstate": await OnPlaystate(data); break;
                 case "Play": await OnPlay(data); break;

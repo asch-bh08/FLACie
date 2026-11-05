@@ -1006,6 +1006,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public bool CanAskDj => RetroHost.DjAsk is not null && session is not null;
     /// <summary>A line that comes later (a song asked for has landed and is playing): the page shows it as a toast.</summary>
     public event Action<string>? DjAskSaid;
+    /// <summary>The DJ asked something back (an Ask step): the mic opens again for the answer.</summary>
+    public event Action<string>? DjAskAgain;
 
     public async Task<DjAskAnswer?> AskDjAsync(string text, CancellationToken ct = default)
     {
@@ -1068,6 +1070,21 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         public Task ResumeAsync() => p.ResumeAsync();
         public Task NudgeVolumeAsync(double delta) => p.SetVolumeAsync(p.Volume + delta);
         public async Task SetDjAsync(bool on) { if (p.dj is null) return; p.QueueDj = on; await p.DjRefreshAsync(); p.Changed?.Invoke(); }
+        public Task AddToPlaylistAsync(string playlist, IReadOnlyList<string> paths)
+        {
+            var id = s.PlaylistNamed(playlist).Id;
+            foreach (var t in Tracks(paths)) s.AddToPlaylist(id, t);
+            return Task.CompletedTask;
+        }
+        public Task RemoveFromPlaylistAsync(string playlist, IReadOnlyList<string> paths)
+        {
+            if (s.Playlists.FirstOrDefault(x => x.Name.Equals(playlist, StringComparison.OrdinalIgnoreCase)) is { } pl)
+                foreach (var t in Tracks(paths)) s.RemoveFromPlaylist(pl.Id, t);
+            return Task.CompletedTask;
+        }
+        public Task CreatePlaylistAsync(string name, IReadOnlyList<string> paths) { s.ReplacePlaylistTracks(s.PlaylistNamed(name).Id, Tracks(paths)); return Task.CompletedTask; }
+        public Task AskAsync(string question) { p.DjAskAgain?.Invoke(question); return Task.CompletedTask; }
+        public Task ShuffleAsync(bool on) { if (p.Shuffle != on) p.ToggleShuffle(); return Task.CompletedTask; }
     }
 
     /// <summary>Stops the music and closes the player: the queue is emptied and the bar goes away. It is what the X on the bar does.</summary>

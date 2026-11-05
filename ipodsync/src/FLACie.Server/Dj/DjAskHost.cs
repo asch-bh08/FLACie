@@ -114,10 +114,30 @@ public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips
     public static JsonObject Json(DjAskAnswer a, Func<string, Track?> find)
     {
         var o = Json(a);
-        if (a.Paths is { } p)
-            o["songs"] = new JsonArray(p.Select(x => find(x) is { } t
-                ? (JsonNode)new JsonObject { ["path"] = x, ["file"] = t.FilePath ?? "", ["title"] = t.Title, ["artist"] = t.Artist }
-                : new JsonObject { ["path"] = x }).ToArray());
+        if (a.Paths is { } p) o["songs"] = Songs(p, find);
+        if (a.Steps is { } steps)
+        {
+            var arr = o["steps"]!.AsArray();
+            for (var i = 0; i < steps.Count; i++) if (steps[i].Paths is { } sp) arr[i]!["songs"] = Songs(sp, find);
+        }
+        return o;
+    }
+
+    static JsonArray Songs(IReadOnlyList<string> paths, Func<string, Track?> find) =>
+        new(paths.Select(x => find(x) is { } t
+            ? (JsonNode)new JsonObject { ["path"] = x, ["file"] = t.FilePath ?? "", ["title"] = t.Title, ["artist"] = t.Artist }
+            : new JsonObject { ["path"] = x }).ToArray());
+
+    /// <summary>One step as JSON: {do, paths?, title?, shuffle?, replace?, playlist?, say?}.</summary>
+    public static JsonObject Json(DjAskStep s)
+    {
+        var o = new JsonObject { ["do"] = s.Do.ToString().ToLowerInvariant() };
+        if (s.Paths is { } p) o["paths"] = new JsonArray(p.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+        if (s.Title is { } t) o["title"] = t;
+        if (s.Shuffle) o["shuffle"] = true;
+        if (s.Replace) o["replace"] = true;
+        if (s.Playlist is { } pl) o["playlist"] = pl;
+        if (s.Say is { } q) o["say"] = q;
         return o;
     }
 
@@ -129,6 +149,7 @@ public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips
         if (a.Shuffle) o["shuffle"] = true;
         if (a.Replace) o["replace"] = true;
         if (a.Wait is { } w) o["wait"] = new JsonObject { ["artist"] = w.Artist, ["title"] = w.Title };
+        if (a.Steps is { } steps) o["steps"] = new JsonArray(steps.Select(x => (JsonNode)Json(x)).ToArray());
         return o;
     }
 }

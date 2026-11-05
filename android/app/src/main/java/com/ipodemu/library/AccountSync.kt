@@ -154,6 +154,25 @@ class AccountSync(private val app: App) {
 
     private object BackgroundWork : kotlin.coroutines.AbstractCoroutineContextElement(Key) { object Key : kotlin.coroutines.CoroutineContext.Key<BackgroundWork> }
 
+    private val watch = PlaylistWatch()
+    @Volatile private var watching = false
+    /**
+     * Asks FLACie Web whether the account's playlists changed since the last look, and syncs when they did (owner, 5 Nov: "I added Lovegame to pop on the web and
+     * it's not on mobile; should be instant"). The app calls this about every ten seconds while it is on screen, and when it comes back to it.
+     */
+    fun checkWebPlaylists() {
+        if (!prefs.signedIn || watching) return
+        watching = true
+        scope.launch {
+            try {
+                val web = FlacieWebClient(prefs)
+                if (!web.available) return@launch
+                val rev = web.playlistsRev()
+                if (watch.changed(rev)) { lock.withLock { syncNow() }; watch.taken(rev) }
+            } catch (_: Exception) { } finally { watching = false }
+        }
+    }
+
     private var pushJob: Job? = null
     /** Debounced push after a local change (playlist edit, favourite, a service connected). */
     fun schedulePush() {

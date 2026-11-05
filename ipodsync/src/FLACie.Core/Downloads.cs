@@ -572,12 +572,33 @@ public static class Art
     /// <summary>The cover to show for a song: its own, or (when a download left none) one looked up in the public catalog by artist, album and title.</summary>
     public static string? KeyFor(Track t) => t.ArtKey ?? LookupKey(t.Artist, t.Album, t.Title);
 
-    public static string? LookupKey(string artist, string album, string title)
+    public static string? LookupKey(string artist, string album, string title) => LookupKey(artist, album, title, null);
+
+    /// <summary>A catalog lookup key that also carries a Jellyfin picture ([fallback], "jf" + id + "~" + tag) to show only when the catalog has nothing: songs that are
+    /// in no catalog (TikTok "hoodtrap" remixes in a playlist folder) then show their folder's picture instead of none (owner, 5 Nov). Only a tagged Jellyfin key is
+    /// carried (a picture that cannot change under it). The catalog is asked, and the cover saved, by the key without it (<see cref="LookupBase"/>), so covers
+    /// already found keep their files.</summary>
+    public static string? LookupKey(string artist, string album, string title, string? fallback)
     {
         if (artist.Length == 0 || (album.Length == 0 && title.Length == 0)) return null;
         var raw = $"{artist}\n{album}\n{title}"; if (raw.Length > 150) raw = raw[..150];
+        if (fallback is { Length: < 120 } f && f.StartsWith("jf", StringComparison.Ordinal) && f.IndexOf('~') > 2 && raw.Split('\n').Length == 3) raw += "\n" + f;
         return "it" + Convert.ToBase64String(Encoding.UTF8.GetBytes(raw)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
+
+    static string[]? LookupParts(string key)
+    {
+        if (!key.StartsWith("it")) return null;
+        var b = key[2..].Replace('-', '+').Replace('_', '/'); b = b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
+        try { var p = Encoding.UTF8.GetString(Convert.FromBase64String(b)).Split('\n'); return p.Length >= 3 ? p : null; } catch (Exception) { return null; }
+    }
+
+    /// <summary>The Jellyfin picture a lookup key carries for when the catalog has nothing, or null.</summary>
+    public static string? LookupFallback(string key) => LookupParts(key) is { Length: >= 4 } p && p[3].StartsWith("jf", StringComparison.Ordinal) ? p[3] : null;
+
+    /// <summary>The lookup key without its fallback picture: what the catalog is asked by and the cover is saved under.</summary>
+    public static string LookupBase(string key) =>
+        LookupParts(key) is { Length: >= 4 } p ? "it" + Convert.ToBase64String(Encoding.UTF8.GetBytes($"{p[0]}\n{p[1]}\n{p[2]}")).Replace('+', '-').Replace('/', '_').TrimEnd('=') : key;
 
     static readonly System.Text.RegularExpressions.Regex CompilationName = new(@"\b(now that'?s what i call|now \d+|various|ministry of sound|hits?|anthems?|summer|party|workout|karaoke|tribute|mix)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
     /// <summary>A song filed on a compilation ("Now That's What I Call Music 84", "Various Artists"): its embedded cover is the compilation's, not the song's own album.</summary>
@@ -585,12 +606,7 @@ public static class Art
         albumArtist.Contains("various", StringComparison.OrdinalIgnoreCase)
         || (album.Length > 0 && CompilationName.IsMatch(album) && albumArtist.Length > 0 && Matching.PrimaryArtist(albumArtist) != Matching.PrimaryArtist(artist));
 
-    public static (string Artist, string Album, string Title)? ParseLookupKey(string key)
-    {
-        if (!key.StartsWith("it")) return null;
-        var b = key[2..].Replace('-', '+').Replace('_', '/'); b = b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
-        try { var p = Encoding.UTF8.GetString(Convert.FromBase64String(b)).Split('\n'); return p.Length >= 3 ? (p[0], p[1], p[2]) : null; } catch (Exception) { return null; }
-    }
+    public static (string Artist, string Album, string Title)? ParseLookupKey(string key) => LookupParts(key) is { } p ? (p[0], p[1], p[2]) : null;
 
     static readonly System.Text.RegularExpressions.Regex SizedPath = new(@"/(\d{3,4})x(\d{3,4})(bb|-)", System.Text.RegularExpressions.RegexOptions.Compiled);
     /// <summary>The same catalogue cover at 250 px (Deezer's and iTunes' addresses name the size): what a list row or a card shows, a twentieth of the bytes of the

@@ -38,24 +38,55 @@ object CoverLookup {
         val parts = String(Base64.decode(key.removePrefix("it"), Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)).split('\n')
         if (parts.size < 3) return null
         val (artist, album, title) = parts
-        // Deezer first (generous rate limit); iTunes allows ~20 lookups a minute, which a screen of NAS songs used up
-        val url = (if (album.isNotBlank()) deezer("search/album", "$artist ${searchable(album)}", artist) else null)
-            ?: (if (title.isNotBlank()) deezer("search", "$artist $title", artist, preferAlbum = title) else null)
+        // Deezer first (generous rate limit); iTunes allows ~20 lookups a minute, which a screen of NAS songs used up. Deezer's quota answer ends the lookup
+        // with CatalogBusy (the caller asks again soon) instead of falling through to iTunes and its tighter limit (owner, 5 Nov)
+        val url = (if (album.isNotBlank()) deezer("search/album", "$artist ${searchable(album)}", artist, album, title) else null)
+            ?: (if (title.isNotBlank()) deezer("search", "$artist $title", artist, "", title) else null)
             ?: (if (album.isNotBlank()) albumArt(artist, album) else null) ?: song(artist, title)?.artUrl ?: return null
         return bytes(url)
     }
 
-    /** The first Deezer result by this artist: an album's cover, or a song's album cover. */
-    private fun deezer(endpoint: String, q: String, artist: String, preferAlbum: String? = null): String? {
-        val body = bytes("https://api.deezer.com/$endpoint?q=${URLEncoder.encode(q, "UTF-8")}&limit=10") ?: return null
-        val arr = try { JSONObject(String(body)).optJSONArray("data") } catch (_: Exception) { null } ?: return null
+    /** Deezer is over its quota (a 200 with {"error": ...}): "ask again in a moment", not "no cover" (owner, 5 Nov). */
+    class CatalogBusy : Exception("catalog busy")
+
+    private fun deezer(endpoint: String, q: String, artist: String, album: String, title: String): String? {
+        val body = bytes("https://api.deezer.com/$endpoint?q=${URLEncoder.encode(q, "UTF-8")}&limit=25") ?: return null
+        return pickDeezer(String(body), endpoint, artist, album, title)
+    }
+
+    private val compilation = Regex("""\b(now|hits?|best of|greatest|various|top \d+|mix|party|summer|workout|anthems?|ministry|essentials?|chart|collection|playlist|radio|karaoke|tribute)\b""", RegexOption.IGNORE_CASE)
+    private fun normTitle(s: String) = s.lowercase().replace(Regex("""\s*[(\[](feat|ft|with)[^)\]]*[)\]]"""), "").replace(Regex("""\s+(feat|ft)\.?\s.*$"""), "").replace(Regex("[^a-z0-9]"), "")
+
+    /**
+     * The cover of the best Deezer result for a song, scored as the server does (MediaEndpoints.OnlineAlbumUncached): by this artist, and the album itself
+     * (an album search) or the song's title (a song search). A song's own release before a compilation it is also on (Careless Whisper showed Wham!'s The
+     * Final; owner, 2 Nov). A result matching neither album nor title is another release by the artist: no cover is better than a wrong one (the album search
+     * for "Now That's What I Call Music! #1's" used to give any Nickelback album). Throws [CatalogBusy] on Deezer's quota answer.
+     */
+    internal fun pickDeezer(body: String, endpoint: String, artist: String, album: String, title: String): String? {
+        val json = try { JSONObject(body) } catch (_: Exception) { return null }
+        if (json.has("error")) throw CatalogBusy()
+        val arr = json.optJSONArray("data") ?: return null
         val a = norm(artist)
         val byArtist = (0 until arr.length()).map { arr.getJSONObject(it) }.filter { o ->
             val n = norm(o.optJSONObject("artist")?.optString("name").orEmpty()); n.isNotEmpty() && (n.contains(a) || a.contains(n))
         }
-        // a song's own release (its single, named after it) before a compilation it is also on: George Michael's Careless Whisper came up first on Wham!'s
-        // The Final and showed a Wham! cover (owner, 2 Nov)
-        val hit = preferAlbum?.let { p -> byArtist.firstOrNull { pickSingle(it.optJSONObject("album")?.optString("title").orEmpty(), p) } } ?: byArtist.firstOrNull() ?: return null
+        val song = endpoint == "search"
+        val wantAlbum = norm(searchable(album))
+        fun albumTitle(o: JSONObject) = if (song) o.optJSONObject("album")?.optString("title").orEmpty() else o.optString("title")
+        fun score(o: JSONObject): Int {
+            val al = albumTitle(o); var s = 0
+            if (wantAlbum.isNotEmpty() && norm(searchable(al)) == wantAlbum) s += 100
+            if (compilation.containsMatchIn(al) && !compilation.containsMatchIn(album)) s -= 50
+            if (song && normTitle(o.optString("title")).let { it.isNotEmpty() && it == normTitle(title) }) s += 10
+            if (song && album.isBlank() && pickSingle(al, title)) s += 20
+            return s
+        }
+        // a plain title match on a compilation scores 10 - 50, but when it is all the catalog has the song's cover is still that song's (server: same rule
+        // for an album-less lookup, as the title matched)
+        val hit = byArtist.filter { score(it) >= 10 }.maxByOrNull { score(it) }
+            ?: (if (song) byArtist.firstOrNull { normTitle(it.optString("title")).let { t -> t.isNotEmpty() && t == normTitle(title) } } else null)
+            ?: return null
         return (hit.optString("cover_big").ifBlank { hit.optJSONObject("album")?.optString("cover_big").orEmpty() }).ifBlank { null }
     }
 

@@ -583,6 +583,32 @@ public sealed class UserSession
         }
     }
 
+    /// <summary>
+    /// A short stamp of the playlists as they are now (names, edit times, songs, the deleted ones): it differs after any playlist change, so the phone asks this cheap
+    /// question every few seconds and fetches the playlists only when it has changed (owner, 5 Nov: a song added on the web did not show on the phone).
+    /// </summary>
+    public string PlaylistsRevision
+    {
+        get
+        {
+            string text;
+            lock (listLock)
+            {
+                var sb = new System.Text.StringBuilder();
+                foreach (var o in (Profile["playlists"] as JsonArray ?? []).OfType<JsonObject>())
+                {
+                    sb.Append(S(o, "id")).Append('|').Append(S(o, "n")).Append('|').Append(o["m"]?.GetValue<long>() ?? 0).Append('|');
+                    foreach (var t in (o["tracks"] as JsonArray ?? []).OfType<JsonObject>()) sb.Append(S(t, "p")).Append(',');
+                    sb.Append(';');
+                }
+                foreach (var d in Profile["deleted"] as JsonArray ?? []) sb.Append('-').Append(d?.ToString());
+                foreach (var h in Profile["hidden"] as JsonArray ?? []) sb.Append('~').Append(h?.ToString());
+                text = sb.ToString();
+            }
+            return Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(System.Text.Encoding.UTF8.GetBytes(text)))[..12].ToLowerInvariant();
+        }
+    }
+
     public Playlist CreatePlaylist(string name)
     {
         var o = new JsonObject { ["id"] = Guid.NewGuid().ToString("N"), ["n"] = name, ["m"] = Now(), ["jf"] = null, ["tracks"] = new JsonArray() };

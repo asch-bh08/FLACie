@@ -193,6 +193,14 @@ public static class ApiEndpoints
             return Results.Json(new { songs = s.Library.Songs.Count, albums = s.Library.Albums.Count, artists = s.Library.Artists.Count, playlists = s.Playlists.Count, favourites = s.Favorites.Count, admin = AdminAccess.Is(s, app.Configuration) });
         });
 
+        // GET -> { rev }: a stamp of this account's playlists, cheap enough for the phone to ask every ten seconds; it fetches them only when the stamp changed (owner, 5 Nov)
+        app.MapGet("/api/playlists/rev", async (HttpContext ctx, SessionStore store, JellyfinClient jf) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            ctx.Response.Headers.CacheControl = "no-store";
+            return Results.Json(new { rev = s.PlaylistsRevision });
+        });
+
         // "music played" from the phone for songs that do not go through Jellyfin (the NAS, the file mover): the server cannot see those streams, so the app says
         // when one starts, that it is still playing (about every ten seconds) and when it stops. Jellyfin songs are never reported: Jellyfin announces them itself.
         app.MapPost("/api/played", async (HttpContext ctx, SessionStore store, JellyfinClient jf, PlayTracker plays, Notifier notify, PlayedReport r) =>

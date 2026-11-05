@@ -146,6 +146,7 @@ class MainActivity : ComponentActivity() {
         applyBrightness()
         super.onResume()
         refreshPermissions()
+        idleHandler.removeCallbacks(playlistPoll); idleHandler.post(playlistPoll)
         // the app can sit in the background for days: back on screen, a sync over 10 minutes old (or one that failed) is done again
         (application as? com.ipodemu.App)?.let { if (System.currentTimeMillis() - it.prefs.accountSyncedAt > 600_000L) it.account.sync(background = true) }
         ipodView?.updateHinge()
@@ -260,7 +261,11 @@ class MainActivity : ComponentActivity() {
     override fun onGenericMotionEvent(event: MotionEvent): Boolean =
         (wheelMode && ipodView?.onHat(event) == true) || super.onGenericMotionEvent(event)
 
-    override fun onPause() { idleHandler.removeCallbacks(idleCheck); super.onPause() }
+    // FLACie Web playlist changes reach the open app within about ten seconds (owner, 5 Nov)
+    private val playlistPoll = object : Runnable {
+        override fun run() { app.account.checkWebPlaylists(); idleHandler.postDelayed(this, 10_000L) }
+    }
+    override fun onPause() { idleHandler.removeCallbacks(idleCheck); idleHandler.removeCallbacks(playlistPoll); super.onPause() }
 
     override fun onDestroy() {
         if (app.ui.permissions === permissionActions) app.ui.permissions = null

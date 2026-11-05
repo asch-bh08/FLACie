@@ -23,6 +23,9 @@ public static class MediaEndpoints
         _ = Directory.CreateDirectory(Path.Combine(dataDir, "art"));
         // a page of album tiles asks for dozens of covers at once; a NAS answers a few at a time reliably
         var nasSlots = new SemaphoreSlim(4);
+        // catalog covers wait for their own slots, not the NAS's four: a page of catalog covers queued behind four at a time and ran out of time (owner, 5 Nov:
+        // covers "take ages to load", many stayed blank)
+        var catalogSlots = new SemaphoreSlim(8);
 
         // pre=1 marks the page's early read of the NEXT song (a second audio element, so a skip starts at once): background work that does not count as a play, is
         // never ahead of a song someone waits for, waits out a slow Jellyfin, and asks only for the start of the file (a small Range), never the whole song.
@@ -227,6 +230,17 @@ public static class MediaEndpoints
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
             key = FLACie.Core.CoverOverrides.Unversioned(key);   // a catalog cover's address carries the lookup rules ("~r2"): the key itself does not
+            // a catalog key may carry a Jellyfin picture for when the catalog has nothing (a hoodtrap remix in no catalog shows its folder's picture; owner, 5 Nov).
+            // The lookup and the saved cover use the key without it.
+            var fallback = Art.LookupFallback(key);
+            if (fallback is not null) key = Art.LookupBase(key);
+            IResult Missing(bool transient)
+            {
+                var (status, cache) = CoverAnswers.Missing(transient);
+                ctx.Response.Headers.CacheControl = cache;
+                if (!transient && fallback is not null) return Results.Redirect("/art/" + Uri.EscapeDataString(fallback) + "?v=3");
+                return status == 404 ? Results.NotFound() : Results.StatusCode(status);
+            }
             // a cover a person chose (a new key every time, so it is kept for good)
             if (key.StartsWith("ov") && app.Services.GetRequiredService<CoverOverrides>().Find(key) is { } chosen)
             {
@@ -248,7 +262,7 @@ public static class MediaEndpoints
             if (covers.Find(key, variant) is { } have && !(isJf && !tagged && File.GetLastWriteTimeUtc(have) < DateTime.UtcNow.AddDays(-3))) { ctx.Response.Headers.CacheControl = Kept; return Cover(have); }
             ctx.Response.Headers.CacheControl = Briefly;
             // a cover that was just looked for and not found is not looked for again at once (a page of tiles would ask again and again)
-            if (artMisses.TryGetValue(flightKey, out var missedAt) && DateTime.UtcNow - missedAt < TimeSpan.FromMinutes(3)) return Results.NotFound();
+            if (artMisses.TryGet(flightKey, out _)) return Missing(false);
             var s = store.For(ctx.User);
             // one lookup per cover however many tiles ask at once (single flight): a tile that is scrolled away leaves the others their cover, and when EVERY tile that
             // wanted it is gone (the browser aborted its requests) the lookup is cancelled: still queued at the gate, it never reaches Jellyfin; already sent, it stops.
@@ -279,8 +293,8 @@ public static class MediaEndpoints
                     }
                     else if (Art.ParseLookupKey(key) is var (la, lb, lt))
                     {
-                        await nasSlots.WaitAsync(ct);
-                        try { bytes = await OnlineCover(http, la, lb, lt, ct); } finally { nasSlots.Release(); }
+                        await catalogSlots.WaitAsync(ct);
+                        try { (bytes, transient) = await OnlineCover(http, la, lb, lt, ct); } finally { catalogSlots.Release(); }
                     }
                     else if (key.StartsWith("nf") && s.Nas is { } n)
                     {
@@ -290,21 +304,25 @@ public static class MediaEndpoints
                             await nasSlots.WaitAsync(ct);
                             try { bytes = await Task.Run(() => { try { return NasClient.FolderCover(n, parts[0]) ?? NasClient.EmbeddedCover(n, parts[0]); } catch (Exception e) { log.LogDebug(e, "NAS cover failed"); return null; } }, ct); }
                             finally { nasSlots.Release(); }
-                            bytes ??= await OnlineCover(http, parts[1], parts[2], parts[3], ct);
+                            if (bytes is null)
+                            {
+                                await catalogSlots.WaitAsync(ct);
+                                try { (bytes, transient) = await OnlineCover(http, parts[1], parts[2], parts[3], ct); } finally { catalogSlots.Release(); }
+                            }
                         }
                     }
                 }
                 catch (OperationCanceledException) when (flight.IsCancellationRequested) { throw; }   // nobody wants it any more
                 catch (OperationCanceledException) { log.LogDebug("cover lookup timed out for {Key}", key); transient = true; }
                 catch (JellyfinUnavailableException) { transient = true; }   // the gate's breaker is open: Jellyfin has been failing
-                catch (HttpRequestException) { }
+                catch (HttpRequestException) { transient = true; }   // a connection that failed says nothing about whether the cover exists
                 catch (FormatException) { }   // a key that is not valid base64 is just a cover that does not exist
                 if (bytes is null)
                 {
                     // a cover Jellyfin could not give right now (a 5xx, a timeout, an open breaker) is not remembered as missing: the next view asks again
+                    // nor is a catalog lookup that was cut short (owner, 5 Nov): only a real "nothing" is remembered, for an hour
                     if (transient) return new CoverResult(null, true);
-                    if (artMisses.Count > 2000) artMisses.Clear();
-                    artMisses[flightKey] = DateTime.UtcNow;
+                    artMisses.Set(flightKey, true, CoverAnswers.MissKept);
                     return new CoverResult(null, false);
                 }
                 return new CoverResult(await covers.SaveAsync(key, variant, bytes, type), false);
@@ -312,7 +330,7 @@ public static class MediaEndpoints
             CoverResult got;
             try { got = await coverFlights.RunAsync(flightKey, Fetch, ctx.RequestAborted); }
             catch (OperationCanceledException) when (ctx.RequestAborted.IsCancellationRequested) { return Results.Empty; }
-            if (got.File is not { } saved) return got.Transient ? Results.StatusCode(503) : Results.NotFound();
+            if (got.File is not { } saved) return Missing(got.Transient);
             ctx.Response.Headers.CacheControl = Kept;
             return Cover(saved);
         }).RequireAuthorization().RateLimited("art");
@@ -349,7 +367,7 @@ public static class MediaEndpoints
 
     static readonly SingleFlight<CoverResult> coverFlights = new();
 
-    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, DateTime> artMisses = new();
+    static readonly TimedLru<string, bool> artMisses = new(4000);
 
     static string Pad(string b) => b.PadRight(b.Length + (4 - b.Length % 4) % 4, '=');
 
@@ -385,34 +403,48 @@ public static class MediaEndpoints
         return null;
     }
 
-    static async Task<byte[]?> OnlineCover(HttpClient http, string artist, string album, string title, CancellationToken ct)
+    /// <summary>A catalog cover's picture, and whether it could not be had right now (<c>Transient</c>: then it is not a cover that does not exist).</summary>
+    static async Task<(byte[]? Bytes, bool Transient)> OnlineCover(HttpClient http, string artist, string album, string title, CancellationToken ct)
     {
-        var hit = await OnlineAlbum(http, artist, album, title, ct);
-        if (hit?.Cover is not { Length: > 0 } url) return null;
-        try
-        {
-            using var res = await HttpRetry.SendAsync(http, () => new HttpRequestMessage(HttpMethod.Get, url), RetryPolicy.Quick, ct);
-            return res.IsSuccessStatusCode ? await res.Content.ReadAsByteArrayAsync(ct) : null;
-        }
-        catch { return null; }
+        var got = await CatalogCover(http, artist, album, title, ct);
+        return (got.Bytes, got.Answer == CatalogAnswer.Unasked);
     }
 
-    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (string Album, string Cover)?> albumCache = new();
+    /// <summary>A catalog cover by artist, album and title: the picture (Found), a real "the catalog has nothing" (Nothing), or Unasked when the catalog could not
+    /// be asked or the lookup was cut short, including a found cover whose picture would not download (owner, 5 Nov: those were remembered as "no cover").</summary>
+    public static async Task<(byte[]? Bytes, CatalogAnswer Answer)> CatalogCover(HttpClient http, string artist, string album, string title, CancellationToken ct, RetryPolicy? retry = null)
+    {
+        var (hit, unasked) = await OnlineAlbumAsk(http, artist, album, title, ct, retry ?? RetryPolicy.Quick);
+        if (hit?.Cover is not { Length: > 0 } url) return (null, unasked ? CatalogAnswer.Unasked : CatalogAnswer.Nothing);
+        try
+        {
+            using var res = await HttpRetry.SendAsync(http, () => new HttpRequestMessage(HttpMethod.Get, url), retry ?? RetryPolicy.Quick, ct);
+            if (res.IsSuccessStatusCode) return (await res.Content.ReadAsByteArrayAsync(ct), CatalogAnswer.Found);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested) { }
+        return (null, CatalogAnswer.Unasked);
+    }
+
+    /// <summary>Catalog answers by song: a found album (its cover's address) is kept a day, so a cover seen again is not searched for again; a real "nothing" an hour
+    /// (owner, 5 Nov: it used to be kept until the server restarted); one that could not be asked is not kept at all.</summary>
+    static readonly TimedLru<string, (string Album, string Cover)?> albumCache = new(4000);
 
     /// <summary>How long one catalog question may take: the "media" client has no time limit of its own (it carries audio), and a caller may pass none.</summary>
     static readonly TimeSpan OnlineAsk = TimeSpan.FromSeconds(12);
 
     /// <summary>The song's own album in the public catalog (title and cover), for songs whose file carries a compilation or a wrong album. A catalog that
     /// hiccups is asked again (HttpRetry); one that could not be asked at all is not remembered as "no such album", so the next view asks again.</summary>
-    public static async Task<(string Album, string Cover)?> OnlineAlbum(HttpClient http, string artist, string album, string title, CancellationToken ct, RetryPolicy? retry = null)
+    public static async Task<(string Album, string Cover)?> OnlineAlbum(HttpClient http, string artist, string album, string title, CancellationToken ct, RetryPolicy? retry = null) =>
+        (await OnlineAlbumAsk(http, artist, album, title, ct, retry ?? RetryPolicy.Quick)).Found;
+
+    static async Task<((string Album, string Cover)? Found, bool Unasked)> OnlineAlbumAsk(HttpClient http, string artist, string album, string title, CancellationToken ct, RetryPolicy retry)
     {
         var ck = Matching.MatchKey(title, artist) + "|" + Matching.AlbumNorm(album);
-        if (albumCache.TryGetValue(ck, out var cached)) return cached;
-        var (found, unasked) = await OnlineAlbumUncached(http, artist, album, title, ct, retry ?? RetryPolicy.Quick);
-        if (unasked) return found;
-        if (albumCache.Count > 5000) albumCache.Clear();
-        albumCache[ck] = found;
-        return found;
+        if (albumCache.TryGet(ck, out var cached)) return (cached, false);
+        var (found, unasked) = await OnlineAlbumUncached(http, artist, album, title, ct, retry);
+        if (found is null && unasked) return (null, true);
+        albumCache.Set(ck, found, found is null ? CoverAnswers.MissKept : TimeSpan.FromDays(1));
+        return (found, false);
     }
 
     /// <summary>The album, and whether a catalog question could not be answered at all (then a "none" is not to be remembered).</summary>
@@ -454,7 +486,7 @@ public static class MediaEndpoints
             }
             // not a page that was read and had nothing: Deezer could not be asked (down, timed out, still busy after asking again, or the caller gave up)
             catch (Exception e) when (e is HttpRequestException or OperationCanceledException or IOException) { unasked = true; }
-            catch { }
+            catch { unasked = true; }   // a page that could not be read (half a body) is not "nothing there" either (owner, 5 Nov)
         }
         return (null, unasked);
     }

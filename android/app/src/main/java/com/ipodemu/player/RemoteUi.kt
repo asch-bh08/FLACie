@@ -47,11 +47,26 @@ import kotlinx.coroutines.delay
  * a seek bar, the transport, "Play here" (takes the queue over, same second) and the list of devices.
  */
 
-/** The device whose bar to show: one that is playing (a paused one is only offered inside the full-screen remote). */
+/**
+ * Which other device's bar to show. One that is playing; when none is, the one the bar was last showing, if it is still on a song: paused from this bar, it
+ * stays with its Play button until that device stops or another takes over (owner, 5 Nov: pausing made the bar vanish, so it could not be resumed).
+ * [others] are (id, paused) of the other controllable devices on a song; [sticky] is the id shown last.
+ */
+internal object RemoteBarRule {
+    fun pick(others: List<Pair<String, Boolean>>, sticky: String?): String? =
+        others.firstOrNull { !it.second }?.first ?: sticky?.takeIf { id -> others.any { it.first == id } }
+}
+
+/** The device whose bar to show (see [RemoteBarRule]); a paused one that was not just playing is only offered inside the full-screen remote. */
 fun JellyfinConnect.remoteNow(includePaused: Boolean = false): JellyfinConnect.Session? {
     val others = sessions.filter { !it.isSelf && it.controllable && it.itemId != null }
-    return others.firstOrNull { !it.paused } ?: if (includePaused) others.firstOrNull() else null
+    // this phone is playing itself: the bar steps aside and forgets the device
+    if (sessions.any { it.isSelf && !it.paused && it.itemId != null }) remoteSticky = null
+    val id = RemoteBarRule.pick(others.map { it.id to it.paused }, remoteSticky)
+    remoteSticky = id
+    return others.firstOrNull { it.id == id } ?: if (includePaused) others.firstOrNull() else null
 }
+@Volatile private var remoteSticky: String? = null
 
 /** Where the song is on the other device right now: its last reported spot plus the time since (while it plays). */
 internal fun JellyfinConnect.Session.estimatedMs(now: Long): Long =

@@ -1398,12 +1398,13 @@ window.flacie = (() => {
       djAudio = a; a.volume = clipVol();
       djChain(a);
       const mine = () => tok === djTok;
-      let started = false, over = false, songAt = 0, dueAt = 0, holding = false;   // songAt / dueAt: when the song began to play / the clip was due (performance.now())
+      let started = false, over = false, songAt = 0, dueAt = 0, holding = false, heldSrc = "";   // songAt / dueAt: when the song began to play / the clip was due (performance.now())
       const letGo = () => {
         if (!holding) return;
         holding = false; if (djLetGo === letGo) djLetGo = null;
         // back to the start of a song that only played silently (a held back one has gone on for up to the whole line)
-        if (!audio.paused && audio.currentTime * 1000 < songDelay + 3000) { selfSeek = true; audio.currentTime = 0; }
+        // (only the song that was held back: if the player has moved on it is left alone; owner, 5 Nov, a bounce to the song before)
+        if (heldSrc && audio.src === heldSrc && !audio.paused && audio.currentTime * 1000 < songDelay + 3000) { selfSeek = true; audio.currentTime = 0; }
         duckTo(started && !over ? djDuck : 1, 300);
       };
       const done = () => { if (!mine() || over) return; over = true; djAudio = null; letGo(); duckTo(1, upMs); };
@@ -1433,7 +1434,7 @@ window.flacie = (() => {
         if (!mine() || songAt) return;
         songAt = performance.now();
         if (songDelay > 0) {
-          holding = true; djLetGo = letGo; duckTo(0, 0);
+          holding = true; heldSrc = audio.src; djLetGo = letGo; duckTo(0, 0);
           setTimeout(() => { if (mine()) letGo(); }, songDelay);
         }
         // a clip still loading 1.5 s in (a weak signal) is read by the device's voice when Backup voice allows it, else waited for until 4 s in; the DJ

@@ -32,9 +32,11 @@ import java.util.Locale
  */
 @OptIn(UnstableApi::class)
 class DjPlayer(private val ctx: Context, private val source: DataSource.Factory, private val prefs: Prefs, private val onLevel: (Float) -> Unit,
-               private val onRestart: (heldMs: Long) -> Unit = {}, private val settings: () -> DjSettings = { DjSettings() },
+               private val onRestart: (heldMs: Long, path: String?) -> Unit = { _, _ -> }, private val settings: () -> DjSettings = { DjSettings() },
                /** The DJ's words to show now (Captions), or null: Now Playing and the mini bar draw them. */
-               private val onCaption: (String?) -> Unit = {}) {
+               private val onCaption: (String?) -> Unit = {},
+               /** The path of the song playing now: noted when a song is held back, so its restart goes to that song only (owner, 5 Nov). */
+               private val songPath: () -> String? = { null }) {
     private val handler = Handler(Looper.getMainLooper())
     private var exo: ExoPlayer? = null
     /** The clip loaded in [exo], ready to play; [wanted] = the clip of the cue for the next song (loaded once nothing is being said). */
@@ -58,9 +60,11 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         }
     }
     /** The hold is over: the song starts again from its beginning, quietly under the end of the line. */
-    private val letGo = Runnable { if (holding) { holding = false; onRestart(heldMs); kick() } }
+    private val letGo = Runnable { if (holding) { holding = false; onRestart(heldMs, heldPath); kick() } }
     /** How long the song is held back under the line being said (0: it is not). */
     private var heldMs = 0L
+    /** The song held back (its path), so only that one is restarted. */
+    private var heldPath: String? = null
     /** The line waits for its clip to be ready to play ([begin] once it is); with when it was asked for, how far into the song that was, and its timing. */
     private var waitingForClip = false
     private var sayAt = 0L
@@ -238,7 +242,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         waitingForClip = false
         val into = sayIntoSong + (SystemClock.uptimeMillis() - sayAt)
         val plan = DjTiming.started(sayPlan, into)
-        heldMs = plan.songDelayMs.toLong()
+        heldMs = plan.songDelayMs.toLong(); heldPath = songPath()
         if (plan.clipAtMs > into) handler.postDelayed(startClip, plan.clipAtMs - into) else startClip.run()
         if (plan.songDelayMs > 0) { holding = true; kick(); handler.postDelayed(letGo, plan.songDelayMs.toLong()) }
     }

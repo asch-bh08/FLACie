@@ -29,8 +29,11 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
         Lyrics? result;
         if (File.Exists(file) && File.ReadAllText(file) is var cached)
         {
+            var nl = cached.IndexOf('\n'); var head = nl < 0 ? cached : cached[..nl];
             if (cached.StartsWith("#none")) result = DateTime.UtcNow - File.GetLastWriteTimeUtc(file) > MissFor ? await Fetch(t, account, file, ct) : null;
-            else { var nl = cached.IndexOf('\n'); result = Parse(cached[(nl + 1)..], cached[..nl]); }
+            // saved before LRCLIB's exact match came first: Jellyfin's file is looked at again once (the new order marks what it saves with "\t2")
+            else if (head.TrimEnd('\r') == "Jellyfin") result = await Fetch(t, account, file, ct) ?? Parse(cached[(nl + 1)..], "Jellyfin");
+            else result = Parse(cached[(nl + 1)..], head.Split('\t')[0].TrimEnd('\r'));
         }
         else
         {
@@ -48,18 +51,20 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
     public RetryPolicy Retry { get; init; } = RetryPolicy.Quick;
 
     /// <summary>One song's lookup: whether some question to LRCLIB got no real answer (then "none found" is not to be believed).</summary>
-    sealed class Ask { public bool Unanswered; }
+    sealed class Ask { public bool Unanswered; public System.Runtime.CompilerServices.StrongBox<Lyrics?>? Exact; }
 
     async Task<Lyrics?> Fetch(Track t, JellyfinAccount? account, string file, CancellationToken ct, Ask? ask = null)
     {
         ask ??= new Ask();
-        var l = await FromJellyfin(t, account, ct) ?? await FromLrclib(t, ct, ask);
+        // LRCLIB's synced lyrics for this exact length first: Jellyfin's own .lrc files can be off (Lovegame's ran 0.5-1.5 s late with a line 10 s
+        // early, owner 5 Nov); Jellyfin's next, then LRCLIB's looser search
+        var l = await FromLrclibExact(t, ct, ask) is { Synced: true } exact ? exact : await FromJellyfin(t, account, ct) ?? await FromLrclib(t, ct, ask);
         // F18.1: no synced lyrics yet: NetEase's, when it has them for the same recording
         if (l is not { Synced: true } && await FromNetease(t, ct, ask) is { } ne) l = ne;
         if (l is null && ask.Unanswered) return null;
         try
         {
-            File.WriteAllText(file, l is null ? "#none" : l.Source + "\n" + string.Join("\n", l.Lines.Select(x => l.Synced ? $"[{Stamp(x.TimeMs)}]{x.Text}" : x.Text)));
+            File.WriteAllText(file, l is null ? "#none" : l.Source + "\t2\n" + string.Join("\n", l.Lines.Select(x => l.Synced ? $"[{Stamp(x.TimeMs)}]{x.Text}" : x.Text)));
         }
         catch (IOException) { }
         return l;
@@ -77,14 +82,30 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
         catch (Exception) { return null; }
     }
 
+    /// <summary>LRCLIB's lyrics for this artist, title, album and length (LRCLIB only answers when the length is within 2 s); asked once per lookup.</summary>
+    async Task<Lyrics?> FromLrclibExact(Track t, CancellationToken ct, Ask ask)
+    {
+        if (ask.Exact is { } done) return done.Value;
+        var title = t.Title.Trim(); var artist = t.Artist.Trim();
+        Lyrics? found = null;
+        if (title.Length > 0)
+        {
+            static string Enc(string s) => Uri.EscapeDataString(s);
+            var lead = LeadArtist(artist) is { Length: > 0 } l ? l : artist;
+            var url = $"{Lrclib}/get?track_name={Enc(title)}&artist_name={Enc(lead)}" + (t.Album.Length > 0 ? $"&album_name={Enc(t.Album)}" : "") + (t.DurationMs > 0 ? $"&duration={t.DurationMs / 1000}" : "");
+            if (await Http(url, ct, ask) is { } b && ParseJson(b) is { } hit) found = FromJson(hit);
+        }
+        ask.Exact = new(found);
+        return found;
+    }
+
     async Task<Lyrics?> FromLrclib(Track t, CancellationToken ct, Ask ask)
     {
         var title = t.Title.Trim(); var artist = t.Artist.Trim();
         if (title.Length == 0) return null;
         static string Enc(string s) => Uri.EscapeDataString(s);
         var lead = LeadArtist(artist) is { Length: > 0 } l ? l : artist;
-        var exact = $"{Lrclib}/get?track_name={Enc(title)}&artist_name={Enc(lead)}" + (t.Album.Length > 0 ? $"&album_name={Enc(t.Album)}" : "") + (t.DurationMs > 0 ? $"&duration={t.DurationMs / 1000}" : "");
-        if (await Http(exact, ct, ask) is { } b && ParseJson(b) is { } hit) return FromJson(hit);
+        if (await FromLrclibExact(t, ct, ask) is { } hit) return hit;
         // no exact match (another album/edition, or length off): search, and take the closest-length hit that has lyrics
         if (await Http($"{Lrclib}/search?track_name={Enc(StripFeat(title))}&artist_name={Enc(lead)}", ct, ask) is not { } q || ParseJson(q) is not JsonArray arr) return null;
         var hits = arr.OfType<JsonObject>().Where(h => Has(h, "syncedLyrics") || Has(h, "plainLyrics")).ToList();

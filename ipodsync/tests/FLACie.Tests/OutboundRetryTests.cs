@@ -97,6 +97,34 @@ public class OutboundRetryTests : IDisposable
         Assert.Equal(asked, none.Calls);
     }
 
+    // Lovegame on the owner's Jellyfin had a .lrc running 0.5-1.5 s late with one line 10 s early; LRCLIB's copy for that exact length was right (5 Nov)
+    static readonly Track JfSong = Song with { Path = "http://192.0.2.10:8096/Audio/0123456789abcdef0123456789abcdef/universal", Source = TrackSource.Jellyfin, JellyfinId = "0123456789abcdef0123456789abcdef" };
+    static readonly JellyfinAccount Jf = new("http://192.0.2.10:8096", "u1", "ash", "T");
+    const string JfLrc = """{"Lyrics":[{"Start":50300000,"Text":"Look at the stars"}]}""";
+
+    [Fact]
+    public async Task LRCLIBs_exact_match_for_the_songs_length_wins_over_jellyfins_own_file()
+    {
+        var h = new Script((r, n) => r.RequestUri!.AbsolutePath.EndsWith("/Lyrics") ? Json(JfLrc) : r.RequestUri.AbsolutePath.EndsWith("/api/get") ? Json(Lrc) : Status(HttpStatusCode.NotFound));
+        var l = await new LyricsService(new HttpClient(h), new JellyfinClient(new HttpClient(h), "dev"), dir) { Retry = NoWait }.GetAsync(JfSong, Jf);
+        Assert.Equal(("LRCLIB", 1000L), (l!.Source, l.Lines[0].TimeMs));
+    }
+
+    [Fact]
+    public async Task Jellyfins_file_is_used_when_LRCLIB_has_no_exact_match_and_old_jellyfin_answers_are_looked_at_again()
+    {
+        var lrclibUp = false;
+        var h = new Script((r, n) => r.RequestUri!.AbsolutePath.EndsWith("/Lyrics") ? Json(JfLrc) : lrclibUp && r.RequestUri.AbsolutePath.EndsWith("/api/get") ? Json(Lrc) : r.RequestUri.AbsolutePath.EndsWith("/search") ? Json("[]") : Status(HttpStatusCode.NotFound));
+        var l = await new LyricsService(new HttpClient(h), new JellyfinClient(new HttpClient(h), "dev"), dir) { Retry = NoWait }.GetAsync(JfSong, Jf);
+        Assert.Equal(("Jellyfin", 5030L), (l!.Source, l.Lines[0].TimeMs));
+        // a song saved under the old order (a bare "Jellyfin" first line) is asked again once; one saved under the new order is not
+        var file = Directory.GetFiles(dir, "*.lrc").Single();
+        File.WriteAllText(file, "Jellyfin\n[00:05.03]Look at the stars");
+        lrclibUp = true;
+        var again = await new LyricsService(new HttpClient(h), new JellyfinClient(new HttpClient(h), "dev"), dir) { Retry = NoWait }.GetAsync(JfSong, Jf);
+        Assert.Equal("LRCLIB", again!.Source);
+    }
+
     sealed class Factory(HttpMessageHandler h) : IHttpClientFactory { public HttpClient CreateClient(string name) => new(h, false); }
     sealed class NoLog : ILogger<Notifier> { public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null; public bool IsEnabled(LogLevel l) => false; public void Log<TState>(LogLevel l, EventId id, TState s, Exception? e, Func<TState, Exception?, string> f) { } }
 

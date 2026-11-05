@@ -22,7 +22,7 @@ public class DjWriterTests : IDisposable
     static readonly DjSong Prev = new("Hey Ya!", "Outkast", "Speakerboxxx/The Love Below", "Outkast", 2003, "Hip-Hop", 235_000, "/m/heyya.flac");
     static readonly DjSong Smack = new("Smack That", "Akon, Eminem", "Konvicted", "Akon", 2006, "Hip-Hop", 212_000, "/m/smack.flac");
     static DjRequest Req(string? why = null) => new(DjSurface.Web, Smack, Prev, LocalHour: 20, Weekday: 5, Why: why);
-    static readonly DjLine Template = new(DjSlot.Intro, "intro1", "Next, Smack That by Akon with Em-in-em.", "Next, Smack That by Akon with Eminem.");
+    static readonly DjLine Template = new(DjSlot.Intro, "intro1", "Next, Smack That by Akon with Em-in-em.", "Next, Smack That by Akon with Eminem.", TimePhrase: "this evening");
 
     /// <summary>The model's answers, as Cloudflare sends them; the clips are MP3s.</summary>
     static HttpResponseMessage Model(string line, int pin = 400, int pout = 30) =>
@@ -59,7 +59,7 @@ public class DjWriterTests : IDisposable
         var open = DjWriter.FactsOf(new DjRequest(DjSurface.Web, Smack, null, PrevPlayedOut: false), Template with { Slot = DjSlot.Open }, now);
         var (_, u2) = DjWriter.Prompt(open, []);
         // (a song they queued themselves: the skip is not the DJ's to remark on, see DjRoundTwoTests)
-        Assert.Contains("start of a listening session", u2); Assert.DoesNotContain("just skipped", u2); Assert.Contains("their own queue", u2); Assert.DoesNotContain("Previous song", u2);
+        Assert.Contains("start of a listening session", u2); Assert.DoesNotContain("just skipped", u2); Assert.Contains("the listener's own queue", u2); Assert.DoesNotContain("Previous song", u2);
     }
 
     [Fact]

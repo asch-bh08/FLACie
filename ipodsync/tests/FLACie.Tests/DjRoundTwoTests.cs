@@ -25,7 +25,7 @@ public class DjRoundTwoTests : IDisposable
     static readonly DjSong Prev = new("Hey Ya!", "Outkast", "Speakerboxxx/The Love Below", "Outkast", 2003, "Hip-Hop", 235_000, "/m/heyya.flac");
     static readonly DjSong Smack = new("Smack That", "Akon, Eminem", "Konvicted", "Akon", 2006, "Hip-Hop", 212_000, "/m/smack.flac");
     static DjRequest Req(int hour = 20, DjBond bond = DjBond.Unknown, string? why = null) => new(DjSurface.Web, Smack, Prev, LocalHour: hour, Weekday: 5, Why: why, Bond: bond);
-    static readonly DjLine Template = new(DjSlot.Intro, "intro1", "Next, Smack That by Akon with Em-in-em.", "Next, Smack That by Akon with Eminem.");
+    static readonly DjLine Template = new(DjSlot.Intro, "intro1", "Next, Smack That by Akon with Em-in-em.", "Next, Smack That by Akon with Eminem.", TimePhrase: "this evening");
 
     // owner, 28 Oct: after a skip in their playlist the DJ said "skipped that last one, playing this one" as if it had chosen the song; the writer is now
     // told where the song comes from, and only an engine pick may be spoken of as the DJ's choice or a reaction to skips
@@ -123,7 +123,7 @@ public class DjRoundTwoTests : IDisposable
         var f = DjWriter.FactsOf(Req(bond: DjBond.Loved) with { Next = Smack with { Genre = "Hip Hop" } }, Template, now, extra);
         var (_, user) = DjWriter.Prompt(f, []);
         foreach (var fact in new[] { "Released as: a single", "First released: 2005", "Genre: hip hop", "How it sounds: a livelier one", "This song is: a song the listener loves",
-                     "Worth a word about the time: Friday night" })
+                     "Worth a word about the time (in these words, or leave the time out): this evening" })
             Assert.True(user.Contains(fact, StringComparison.OrdinalIgnoreCase), fact + " in " + user);
         Assert.DoesNotContain("Label", user);   // not known: never mentioned
         Assert.Contains("a new find", DjWriter.Prompt(DjWriter.FactsOf(Req(bond: DjBond.NewFind), Template, now), []).User);

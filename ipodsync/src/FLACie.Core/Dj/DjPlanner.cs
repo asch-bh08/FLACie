@@ -17,7 +17,7 @@ public sealed record DjLine(DjSlot Slot, string TemplateId, string Text, string 
 /// Decides whether the DJ speaks before a song and writes the line (Appendix A.4 of docs/research/ai-dj-free.md). Pure: the clock, the randomness and the memory are
 /// passed in, so the same inputs give the same answer. Call <see cref="Plan"/> once per song change: it moves the memory on.
 /// </summary>
-public static partial class DjPlanner
+public static class DjPlanner
 {
     public const int MaxWords = 18;
     public static readonly TimeSpan SessionGap = TimeSpan.FromMinutes(30);
@@ -43,8 +43,7 @@ public static partial class DjPlanner
         say ??= DjPronounce.Default;
         // a session starts with the first song, or after 30 minutes without a question
         // (a queue that has just started has no song before it, but it is not a new session by that: the hello is for the first thing heard in half an hour)
-        // (nor is a song the listener has just tapped: a hello on every tap would be odd)
-        var open = (req.Prev is null && !req.QueueStart && !req.FirstSong) ||mem.LastRequest is not { } last || nowUtc - last >= SessionGap;
+        var open = (req.Prev is null && !req.QueueStart) || mem.LastRequest is not { } last || nowUtc - last >= SessionGap;
         mem.LastRequest = nowUtc;
         if (open) mem.NewSession();
 
@@ -52,7 +51,7 @@ public static partial class DjPlanner
         var skip = req.SkippedRecently || !req.PrevPlayedOut;
         // "Let's try something different": the first full play after 3 or more skips in the last 5
         var reset = !skip && mem.Skips.Count > 0 && mem.Skips[^1] && mem.Skips.Count(x => x) >= 3;
-        if (!req.QueueStart && !req.FirstSong) mem.Skipped(skip);
+        if (!req.QueueStart) mem.Skipped(skip);
         var song = ++mem.Songs;
         var heard = f.ArtistKey.Length > 0 && mem.Artists.TryGetValue(f.ArtistKey, out var h) ? h : null;
         if (f.PrevArtistKey.Length > 0 && !mem.Artists.ContainsKey(f.PrevArtistKey)) mem.Artists[f.PrevArtistKey] = new(nowUtc, song - 1, f.PrevTitleWritten);
@@ -67,18 +66,12 @@ public static partial class DjPlanner
         // a queue that has just started from a playlist or album: "Shuffling Pop... starting with Firework, Katy Perry", once per start (owner, 30 Oct: it never said
         // anything when shuffle was first pressed). It follows the person's choice for the song, stays out of a clip of a song and of spoken word, and keeps to the
         // hello's chance (half the time on Rare); it counts as a line, so the song after it passes in silence
-        // a song the listener has just started (a tapped song): introduced when "Announce the first song" is on, whatever the chattiness (owner, 5 Nov);
-        // it follows the song's own choice and stays out of a short clip and spoken word, like a queue's start. The same switch covers a queue's start.
-        var line = req.FirstSong && !req.QueueStart
-            ? (!settings.AnnounceFirst || choice == false || (choice is null && QuietQueue(req, f)) || (!f.HasTitle && !f.HasArtist) ? null
-                : Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName))
-            : req.QueueStart && !settings.AnnounceFirst ? null
-            : req.QueueStart && f.Queue.Length > 0 && f.HasTitle && f.HasArtist
+        var line = req.QueueStart && f.Queue.Length > 0 && f.HasTitle && f.HasArtist
             ? (choice == false || (choice is null && QuietQueue(req, f)) ? null
                 : choice == true || rng.NextDouble() < OpenChance(settings.Chatty) ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null)
             : choice == false ? null
             : choice == true ? (f.HasTitle || f.HasArtist ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null)
-            : settings.Chatty == DjChatty.Every ? (QuietEvery(req, f) ? null : Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName))
+            : settings.Chatty == DjChatty.Every ? (QuietEvery(settings, req, f) ? null : Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName))
             : Quiet(settings, req, f) ? null
             : (open ? rng.NextDouble() < OpenChance(settings.Chatty) : mem.SilentRun >= ForcedSilence(settings.Chatty) && rng.NextDouble() < Chance(settings.Chatty, settings.Style))
                 ? Write(req, mem, f, open, reset, heard, song, nowUtc, rng, say, settings.Style, firstName) : null;
@@ -98,11 +91,10 @@ public static partial class DjPlanner
     /// <summary>Silent at a queue's start: a song under a minute, spoken word.</summary>
     static bool QuietQueue(DjRequest req, Facts f) => req.Next.DurationMs is > 0 and < 60_000 || DjText.IsSpokenWord(req.Next.Genre);
 
-    /// <summary>Silent on "Every song": a song under a minute, spoken word, or nothing to name. The next track of an album gets its line too, and so does a song
-    /// let play after a skip: "Every song" means every song that is let play (owner, 5 Nov); a skipped song never gets its line anyway (the player says a
-    /// line only on a song it reaches by itself, or after a skip with "Talk after skips" on).</summary>
-    static bool QuietEvery(DjRequest req, Facts f) =>
-        req.Next.DurationMs is > 0 and < 60_000 || DjText.IsSpokenWord(req.Next.Genre) || (!f.HasTitle && !f.HasArtist);
+    /// <summary>Silent on "Every song": a song under a minute, skipping going on with "Talk after skips" off, spoken word, or nothing to name. (The next track
+    /// of an album gets its line too.)</summary>
+    static bool QuietEvery(DjSettings settings, DjRequest req, Facts f) =>
+        req.Next.DurationMs is > 0 and < 60_000 || (req.SkippedRecently && !settings.TalkAfterSkips) || DjText.IsSpokenWord(req.Next.Genre) || (!f.HasTitle && !f.HasArtist);
 
     /// <summary>The next song is the next track of the same album (same album and album artist, the following track on the same disc, or track 1 of the next disc).</summary>
     public static bool NextInAlbum(DjSong? prev, DjSong next)
@@ -160,13 +152,13 @@ public static partial class DjPlanner
         foreach (var slot in order)
         {
             // the style's own wording first; once those were all said lately, the Classic ones of the slot
-            var ts = DjTemplates.Of(slot, style).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f) && Fits(t, req)).ToList();
-            if (ts.Count == 0 && style != DjStyle.Classic) ts = DjTemplates.Of(slot, DjStyle.Classic).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f) && Fits(t, req)).ToList();
+            var ts = DjTemplates.Of(slot, style).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
+            if (ts.Count == 0 && style != DjStyle.Classic) ts = DjTemplates.Of(slot, DjStyle.Classic).Where(t => !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
             // right after a song by the same artist the line leaves the name out ("Now Eminem, Without Me by Eminem" said it twice; owner, 30 Oct); only when every
             // such wording was said lately does the artist get a mention again, once
             if (f.NoArtist && slot != DjSlot.SameArtist)
             {
-                var quiet = DjTemplates.All.Where(t => t.Slot == slot && t.Need.HasFlag(DjNeed.NoArtist) && !recentIds.Contains(t.Id) && Met(t.Need, f) && Fits(t, req)).ToList();
+                var quiet = DjTemplates.All.Where(t => t.Slot == slot && t.Need.HasFlag(DjNeed.NoArtist) && !recentIds.Contains(t.Id) && Met(t.Need, f)).ToList();
                 if (quiet.Count > 0) ts = quiet;
             }
             for (var i = ts.Count - 1; i > 0; i--) { var j = rng.Next(i + 1); (ts[i], ts[j]) = (ts[j], ts[i]); }
@@ -188,29 +180,8 @@ public static partial class DjPlanner
                 }
             }
         }
-        // every wording it could use was said in the last 12 lines (a long run of one artist on "Every song"): the intro said least lately comes again rather
-        // than nothing (owner, 5 Nov: "Every song" must speak before every song)
-        if (f.HasTitle && f.HasArtist && !req.QueueStart)
-        {
-            var again = DjTemplates.All.Where(t => t.Slot == DjSlot.Intro && t.Style is null or DjStyle.Classic &&Met(t.Need, f) && Fits(t, req)
-                    && (!f.NoArtist || t.Need.HasFlag(DjNeed.NoArtist)))
-                .OrderBy(t => mem.Lines.FindLastIndex(l => l.TemplateId == t.Id)).ToList();
-            foreach (var t in again)
-            {
-                var text = DjTemplates.Render(t.Text, sp); var caption = DjTemplates.Render(t.Text, wr);
-                if (text is null || caption is null) continue;
-                if (greet is { } g) { text = g.Say + " " + text; caption = g.Write + " " + caption; }
-                if (DjText.WordCount(text) > MaxWords) continue;
-                var (parts, pooled) = Pooled(DjSlot.Intro, f, greet, firstName is not null, style, song);
-                return new DjLine(DjSlot.Intro, t.Id, text, caption, parts, pooled);
-            }
-        }
         return null;
     }
-
-    /// <summary>A song the listener has just started is never "next": that wording is for a song after another (owner, 5 Nov).</summary>
-    static bool Fits(DjTemplate t, DjRequest req) => !(req.FirstSong && NextWord().IsMatch(t.Text));
-    [GeneratedRegex(@"(?i)\bnext\b")] private static partial Regex NextWord();
 
     /// <summary>The same moment as a pooled line: the hello (kept for this person when it has their name) and an opener at the start of a session, "That was..."
     /// with the previous song's name for a segue or a bridge, else an intro phrase; then the song's name. [n] varies the phrase from line to line without

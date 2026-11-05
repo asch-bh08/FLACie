@@ -548,7 +548,7 @@ public class DjAskTests
         var u = Standard(); u.Top = [u.Library[2], u.Library[3], u.Library[0]];
         await new DjAskEngine(model).AnswerAsync(u, "something for the drive home", null, []);
         Assert.Contains("Their playlists: Pop, Running", seen);
-        Assert.Contains("The listener's top artists: Radiohead, Akon", seen);
+        Assert.Contains("Their top artists: Radiohead, Akon", seen);
     }
 
     [Fact] public void ThePromptOffersLovedAndAQuestion()

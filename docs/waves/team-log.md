@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud FINAL (cloud/round2): round 2 items 1-12 done
+- Unit suite 1794/1796: NoRealServerInTestsTests fails on android CoverSourceTest.kt:14,32 (names the owner's server; Local's file from the merge); PlayerListenTests "Songs just fetched for Autoplay..." fails only under full-suite load (passes alone), as PlayerDjLiveTests did once.
+- web-smoke on real .NET 9: every spec I touched or could affect is green (1c-api, 1g-burst, 1h-queue, 1m-ipod, 1n-search-typing, 1q-dj, 1r-retro-scenes, 1r-search-artist, 1z-made-playlists, 1z-song-start, mini-player); the rest of the 659 were not rerun after the fixes.
+- Local: fix CoverSourceTest.kt host; redeploy tools/filemove (purge) and tools/ytdl; set FLACIE_CLEANUP_ROOT and FLACIE_SOUNDCLOUD=on on frank; save a real Spotify embed page as the fixture; mirror DjConversation.AskedBack on the phone.
+
 ## 2026-11-05 Cloud (cloud/round2: F23 wired into server and web)
 - Done: SpotifyPlaylists (IWebPlaylists): Spotify editorial lists by fixed id (embed page), Deezer "100% <artist>" best-ofs, our own made lists as fallback; Search's "Playlists for you" row comes from it, a Playlists filter with genre chips, /made/web:<source>:<id> pages that queue missing songs (opened / played); artist and popular lists queue by the policy.
 - Server admin: Playlist sources switches (Spotify, Deezer, SoundCloud; a failed source shows when it rests until). FLACIE_WEB_PLAYLISTS=off = own lists only (web-smoke sets it).

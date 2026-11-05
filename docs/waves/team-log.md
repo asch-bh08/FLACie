@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round3: F24.1 artist names fixed in Jellyfin; round 3 done; unit suite 1846/1846)
+- Done: ArtistResolve.Plan (per song: "X" -> "The X" by shared album/title or the catalog; "X of Y" -> X; "A feat./&/, B" -> A + B featured, album artist stays); ArtistResolveService: dry-run list in Server admin "Artist names", nothing written before Approve; each write keeps Jellyfin's values (read at write time) for Undo one/all; after approval new songs are fixed hourly with the approver's login.
+- Write = Jellyfin item update (GET the item, replace Artists/ArtistItems/AlbumArtist/AlbumArtists, POST /Items/{id}); music files untouched. Grouping in search/artists/made lists/DJ follows Jellyfin after its next scan.
+- web-smoke on .NET 9: 1-pages, 1z-import-page, 1r-search-artist, 1z-made-playlists, 1z-settings green (60).
+- Local: F24.2 phone twin (rules in ArtistResolve.cs); redeploy ytdl + filemove (F25); rebuild the web image (ffmpeg); owner reviews the Artist names list before approving.
+
 ## 2026-11-05 Cloud (cloud/round3: item 13 vibe pass for every format)
 - Done: VibeFillService takes FLAC, MP3, M4A, AAC, OGG/OGA, Opus, WMA, WebM, MP4 (AudioLevels.Readable); non-FLAC songs are decoded by ffmpeg (temp file, mono 8 kHz, 90 s limit) into WaveShape.PcmLevels (0.1 s windows, dB between the 2nd and 98th percentiles), then the same vibe and DJ intro.
 - Server Dockerfile installs ffmpeg in the runtime image (FLACIE_FFMPEG overrides the path). Without ffmpeg a song is simply left for later.

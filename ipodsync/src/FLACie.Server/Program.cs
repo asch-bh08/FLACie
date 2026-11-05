@@ -78,6 +78,9 @@ builder.Services.AddSingleton(sp => new LibraryCleanupRun(s => sp.GetRequiredSer
     s => new FileMoverClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("downloads"), s.Services.FileMoverUrl, s.Services.FileMoverKey),
     builder.Configuration["FLACIE_CLEANUP_ROOT"], Path.Combine(dataDir, "cleanup.json"), () => DateTime.UtcNow));
 builder.Services.AddHostedService<LibraryCleanupService>();
+// F24: artist names fixed in Jellyfin from a dry-run list the owner approves in Server admin (backed up, undoable)
+builder.Services.AddSingleton(new ArtistResolveService(Path.Combine(dataDir, "artist-fixes.json"), () => DateTime.UtcNow));
+builder.Services.AddHostedService<ArtistResolveSyncService>();
 // F23: outside playlists for Search (Spotify's embed pages, Deezer's editors, FLACie's own), downloaded as interest shows
 builder.Services.AddSingleton(new WebPlaylistStore(Path.Combine(dataDir, "web-playlists.json"), () => DateTime.UtcNow));
 builder.Services.AddSingleton(new WebSourceGate(() => DateTime.UtcNow) { File = Path.Combine(dataDir, "web-sources.json") });

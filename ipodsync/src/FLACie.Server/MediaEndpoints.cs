@@ -46,8 +46,8 @@ public static class MediaEndpoints
             if (!early && !quiet) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
             async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true, bool keepHead = false)
             {
-                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString()) : ctx.Request.Headers.Range.ToString());
-                else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange(""));
+                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString(), PrefetchBytesFor(t)) : ctx.Request.Headers.Range.ToString());
+                else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange("", PrefetchBytesFor(t)));
                 // the browser gave up (a skip, a closed tab): RequestAborted cancels the call to Jellyfin too, so it stops reading the file at once. Not for the early
                 // read of the next song: the browser's hidden player often stops reading once it has enough, and the start must still be kept (its own 30 s limit)
                 using var own = keepHead ? new CancellationTokenSource(TimeSpan.FromSeconds(30)) : null;
@@ -138,7 +138,7 @@ public static class MediaEndpoints
                 try { size = await Task.Run(() => NasClient.Size(n, rel)); } catch (FileNotFoundException) { return Results.NotFound(); }
                 var (satisfiable, partial, from, to) = ByteRanges.Resolve(ctx.Request.Headers.Range.ToString(), size);
                 if (!satisfiable) { ctx.Response.Headers.ContentRange = $"bytes */{size}"; return Results.StatusCode(416); }
-                if (early && from == 0 && to - from + 1 > PrefetchBytes) { to = PrefetchBytes - 1; partial = true; }
+                if (early && from == 0 && to - from + 1 > PrefetchBytesFor(t)) { to = PrefetchBytesFor(t) - 1; partial = true; }
                 ctx.Response.StatusCode = partial ? 206 : 200;
                 ctx.Response.ContentType = Mime.GetValueOrDefault(Path.GetExtension(rel).TrimStart('.'), "application/octet-stream");
                 ctx.Response.ContentLength = to - from + 1;
@@ -383,19 +383,26 @@ public static class MediaEndpoints
 
     /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>
     public const int PrefetchBytes = 1 << 20;
+    /// <summary>F4.2: how much of the next song is read ahead: its first <see cref="AheadSeconds"/> (from its size and length), at least
+    /// <see cref="PrefetchBytes"/> and at most <see cref="MaxAheadBytes"/>; 4 MB (about 30 s of CD-quality FLAC) when its size is not known.</summary>
+    public const int AheadSeconds = 30, MaxAheadBytes = 8 << 20, UnknownAheadBytes = 4 << 20;
+    public static int PrefetchBytesFor(Track t) =>
+        t.Size > 0 && t.DurationMs > 0 ? (int)Math.Clamp(t.Size * (AheadSeconds * 1000L) / t.DurationMs, PrefetchBytes, MaxAheadBytes) : UnknownAheadBytes;
 
     /// <summary>A song's full size from Jellyfin's answer: the total of a 206's Content-Range, or a 200's length.</summary>
     static long? TotalOf(HttpResponseMessage res) =>
         res.Content.Headers.ContentRange?.Length ?? ((int)res.StatusCode == 200 ? res.Content.Headers.ContentLength : null);
 
-    /// <summary>The Range an early read of the next song is held to: the first <see cref="PrefetchBytes"/> (an open-ended or larger request from the start is cut to it).</summary>
-    public static string PrefetchRange(string asked)
+    /// <summary>The Range an early read of the next song is held to: its first [bytes] (an open-ended or larger request from the start is cut to it).</summary>
+    public static string PrefetchRange(string asked) => PrefetchRange(asked, PrefetchBytes);
+
+    public static string PrefetchRange(string asked, int bytes)
     {
-        var cap = "bytes=0-" + (PrefetchBytes - 1);
+        var cap = "bytes=0-" + (bytes - 1);
         if (asked.Length == 0) return cap;
         var m = System.Text.RegularExpressions.Regex.Match(asked.Trim(), @"^bytes=0-(\d*)$");
         if (!m.Success) return asked;   // a read from elsewhere in the file (a seek of the prefetch element) is left as it is
-        return m.Groups[1].Value.Length > 0 && long.TryParse(m.Groups[1].Value, out var to) && to < PrefetchBytes - 1 ? asked : cap;
+        return m.Groups[1].Value.Length > 0 && long.TryParse(m.Groups[1].Value, out var to) && to < bytes - 1 ? asked : cap;
     }
 
     /// <summary>The saved cover with a validator (ETag and Last-Modified), so a browser that asks again is answered 304 without a body.</summary>

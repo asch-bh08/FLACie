@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F4.2 web preload)
+- Done: the page's early read of the next song now covers its first 30 s (size x 30 s / length, 1-8 MiB; 4 MiB when unknown), kept by the server (SongHeadCache, 48 MiB for six songs), dropped when the queue moves on.
+- Proof: CacheTests (sizes, ranges), web-smoke 1z-song-start + 1g-burst green (the mock counts any bounded early read now).
+
 ## 2026-11-05 Cloud (cloud/round2: F19 mini player)
 - Done: flacie-pip.js + mini-player.css: cover colours, loudness seek bar with times, shuffle/repeat/heart/DJ/mic (they press the bar's own data-pip buttons and mirror their state), "Next:" line, the sung line (PlayerBar sends synced lyrics while it is open), one bar with the cover left when wide.
 - Proof: web-smoke mini-player.spec.ts (2 green), 1r-search-artist + 1z-made-playlists green too. Tip: web-smoke needs a .NET 9 runtime for the published app (on .NET 10 blazor.web.js is missing), which is why the websocket waits failed for me before.

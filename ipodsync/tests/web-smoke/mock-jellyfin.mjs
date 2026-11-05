@@ -200,7 +200,8 @@ http
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
       if (firstByte > 0) await new Promise((r) => setTimeout(r, firstByte));
       res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
-      if (mm && mm[2] === '1048575') counts.streamCapped++;   // the server's early read of the next song asks for the first megabyte only
+      // the server's early read of the next song asks for its start only: the first 30 s, 1 to 8 MiB (F4.2)
+      if (mm && mm[1] === '0' && mm[2] !== '' && +mm[2] >= 1048575 && +mm[2] < 8 * 1048576) counts.streamCapped++;
       res.on('close', () => { if (!res.writableFinished) counts.streamAborted++; });
       const body = wav.subarray(from, to + 1);
       if (streamDelay > 0) {

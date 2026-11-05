@@ -15,16 +15,20 @@ object PlaySource {
         LOCAL,
         /** Jellyfin's conversion (HLS). */
         HLS,
+        /** Jellyfin's Opus 128k conversion, picked between songs when the measured line is weak ([StreamQuality]). */
+        OPUS,
         /** The original file from the server (or the NAS, or the phone's own music). */
         STREAM,
     }
 
-    fun choose(ownAlac: Boolean, local: Boolean, needsTranscode: Boolean, dataSaverPinned: Boolean, hlsPossible: Boolean): From = when {
+    /** [weakOpus]: the line is weak and Streaming quality is Automatic ([StreamQuality.opusNow]); [opusPossible]: Jellyfin can make the Opus copy. A copy on the phone is never converted. */
+    fun choose(ownAlac: Boolean, local: Boolean, needsTranscode: Boolean, dataSaverPinned: Boolean, hlsPossible: Boolean, weakOpus: Boolean = false, opusPossible: Boolean = false): From = when {
         ownAlac -> From.OWN_ALAC
         // a copy on the phone is no use when the phone can't decode it
         needsTranscode && hlsPossible -> From.HLS
         local -> From.LOCAL
         dataSaverPinned && hlsPossible -> From.HLS
+        weakOpus && opusPossible -> From.OPUS
         else -> From.STREAM
     }
 

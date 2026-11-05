@@ -669,6 +669,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             } else item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
+                    // shuffles what is queued after the song playing; off puts the queue back in order (Shuffle All starts a new shuffled queue)
+                    GlossPill(if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, icon = Glyph.SHUFFLE, height = 32.dp, primary = snap.shuffle)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                     GlossPill("Offline music", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 32.dp)

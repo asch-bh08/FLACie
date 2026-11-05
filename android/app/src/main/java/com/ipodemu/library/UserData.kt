@@ -20,6 +20,7 @@ class UserPlaylist(val id: String, var name: String, val paths: MutableList<Stri
 /** Favourites, hand-made playlists and play history. Persisted as JSON; [rev] lets Compose observe changes. */
 class UserData(dir: File) {
     constructor(ctx: Context) : this(ctx.filesDir)
+    companion object { const val PLAY_LOG_MAX = 3000 }
     private val file = File(dir, "userdata.json")
     val favorites = LinkedHashSet<String>()
     /** When each favourite was made (ms), and the favourites taken away with when: other devices follow by the latest change (FavoriteSync). */
@@ -33,6 +34,8 @@ class UserData(dir: File) {
     val downloads = ArrayList<DownloadEntry>()
     /** How many times each track has been started; feeds the recommendations. */
     val plays = HashMap<String, Int>()
+    /** Every finished play with how much was heard (newest last, the last [PLAY_LOG_MAX] kept): Home's "Frequently played" counts real plays from it. */
+    val playLog = ArrayList<PlayRecord>()
     /** Title + artist for paths that came from another device's playlists/favourites, so they can be matched to this
      * device's copy of the same song (see Library.resolve). */
     val meta = HashMap<String, Pair<String, String>>()
@@ -110,6 +113,12 @@ class UserData(dir: File) {
         plays[path] = (plays[path] ?: 0) + 1
         recents.remove(path); recents.add(0, path); recentAt[path] = System.currentTimeMillis()
         while (recents.size > 120) recents.removeAt(recents.lastIndex)
+        changed(sync = false)
+    }
+
+    /** A play is over: [heard] and [length] in seconds, for PlayCounts. */
+    fun recordHeard(key: String, heard: Double, length: Double, at: Long = System.currentTimeMillis()) {
+        synchronized(playLog) { playLog.add(PlayRecord(key, heard, length, at)); if (playLog.size > PLAY_LOG_MAX) playLog.subList(0, playLog.size - PLAY_LOG_MAX).clear() }
         changed(sync = false)
     }
 
@@ -274,7 +283,7 @@ class UserData(dir: File) {
      * next person's sign-in merged it into their own account.
      */
     fun clearPersonal() {
-        favorites.clear(); favAt.clear(); favGone.clear(); playlists.clear(); recents.clear(); recentAt.clear(); downloads.clear(); plays.clear(); meta.clear()
+        favorites.clear(); favAt.clear(); favGone.clear(); playlists.clear(); recents.clear(); recentAt.clear(); downloads.clear(); plays.clear(); synchronized(playLog) { playLog.clear() }; meta.clear()
         deletedPlaylists.clear(); deletedPlaylistJf.clear(); ratings.load(null)
         favStates.values.forEach { it.value = false }
         changed(sync = false)
@@ -304,6 +313,7 @@ class UserData(dir: File) {
             o.optJSONObject("favat")?.let { m -> m.keys().forEach { k -> favAt[k] = m.optLong(k) } }
             o.optJSONArray("favgone")?.let { a -> for (i in 0 until a.length()) a.optJSONObject(i)?.let { g -> favGone.add(FavoriteSync.Fav(g.optString("p"), g.optString("t"), g.optString("a"), g.optLong("w"))) } }
             o.optJSONObject("plays")?.let { p -> p.keys().forEach { k -> plays[k] = p.optInt(k) } }
+            o.optJSONArray("playlog")?.let { a -> for (i in 0 until a.length()) a.optJSONArray(i)?.let { r -> playLog.add(PlayRecord(r.optString(0), r.optDouble(1), r.optDouble(2), r.optLong(3))) } }
             o.optJSONArray("recent")?.let { a -> for (i in 0 until a.length()) recents.add(a.getString(i)) }
             o.optJSONObject("recentat")?.let { m -> m.keys().forEach { k -> recentAt[k] = m.optLong(k) } }
             o.optJSONArray("dl")?.let { a -> for (i in 0 until a.length()) a.getJSONObject(i).let { d -> downloads.add(DownloadEntry(d.optString("a"), d.optString("t"), d.optString("al"), d.optString("p"), d.optLong("w"), d.optString("s"))) } }
@@ -342,6 +352,7 @@ class UserData(dir: File) {
                     o.put("recentat", JSONObject().also { m -> recentAt.toMap().forEach { (k, v) -> m.put(k, v) } })
                     o.put("dl", JSONArray().also { a -> downloads.toList().forEach { d -> a.put(JSONObject().put("a", d.artist).put("t", d.title).put("al", d.album).put("p", d.path).put("w", d.time).put("s", d.source)) } })
                     o.put("plays", JSONObject().also { p -> plays.toMap().forEach { (k, v) -> p.put(k, v) } })
+                    o.put("playlog", JSONArray().also { a -> synchronized(playLog) { playLog.toList() }.forEach { r -> a.put(JSONArray().put(r.key).put(r.heard).put(r.length).put(r.at)) } })
                     o.put("lists", JSONArray().also { a -> playlists.forEach { a.put(JSONObject().put("id", it.id).put("n", it.name).put("p", JSONArray(it.paths.toList())).put("m", it.mtime).put("jf", it.jfId ?: "")) } })
                     o.put("meta", JSONObject().also { m -> meta.toMap().forEach { (k, v) -> m.put(k, JSONArray().put(v.first).put(v.second)) } })
                     o.put("deleted", JSONArray(deletedPlaylists.toList()))

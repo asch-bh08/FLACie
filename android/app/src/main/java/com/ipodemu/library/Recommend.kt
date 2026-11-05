@@ -160,7 +160,10 @@ object HomeShelves {
             for (p in jf) byJf[p.id]?.let { jfWeight.merge(it.matchKey, Math.log(1.0 + p.plays.coerceAtLeast(0)) * 1.5 + (if (p.favourite) 3.0 else 0.0), Double::plus) } }
         fun taste(t: Track): Int { val k = t.matchKey; return (plays[k] ?: 0) * 2 + (jfWeight[k] ?: 0.0).toInt() + (if (k in favKeys) 3 else 0) + (if (k in listKeys) 1 else 0) }
 
-        if (listen.isNotEmpty()) out.add(HomeShelf("listen-again", "Listen again", "Your recent plays", listen))
+        // Frequently played leads Home; Listen again (every song played, as before) sits lower, after Quick picks and the Daily Mix
+        val byKey = HashMap<String, Track>(); songs.forEach { byKey.putIfAbsent(it.matchKey, it) }
+        val frequent = PlayCounts.rank(synchronized(ud.playLog) { ud.playLog.toList() }, nowMs).mapNotNull { byKey[it] }.take(20)
+        if (frequent.isNotEmpty()) out.add(HomeShelf("frequently-played", "Frequently played", "Songs you keep coming back to", frequent))
         val again = listen.take(8).map { it.matchKey }.toHashSet()
         val picks = QuickPicks.pick(songs, ud, jf, hits, s, nowMs, again)
         if (picks.isNotEmpty()) out.add(HomeShelf("quick-picks", "Quick picks", "Songs to start with, based on what you play", picks))
@@ -173,6 +176,8 @@ object HomeShelves {
             val now = mixes[(s % mixes.size).toInt()]
             out.add(HomeShelf("daily-mix", "Daily Mix: ${now.first}", now.second + " · new every hour", spread(now.third.seeded(s).sortedByDescending { if (taste(it) > 0) 1 else 0 }, 3, 30)))
         }
+
+        if (listen.isNotEmpty()) out.add(HomeShelf("listen-again", "Listen again", "Your recent plays", listen))
 
         // "Similar to": the artist you favour most, then songs of the same genre by other artists
         val topArtist = songs.filter { taste(it) > 0 }.groupBy { primaryArtist(it.artist) }.filterKeys { it.isNotEmpty() }.maxByOrNull { e -> e.value.sumOf { taste(it) } }

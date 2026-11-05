@@ -1,5 +1,8 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F22 DJ favourites)
+- Done: "play my favourite prodigy songs" / "my favourite 90s songs" / "...songs by X" (rule + model action favourites_of): DjFavourites ranks by F21 real plays (PlayCounts.Scores), hearted and repeats first, early skips last, filled to 15 by popularity; scope = artist, album, genre or decade. "play my favourites" stays the Loved list.
+
 ## 2026-11-05 Cloud (cloud/round2: PNG made cover, smoke fixes, F21.1)
 - Done: /art/{key}?fmt=png = made cover as PNG (240 px, 1000 px with s=full; CoverPng, own encoder) 46590a1; F21.1 PlayCounts (same rules as PlayCounts.kt) + web Home: Frequently played first, Listen again (every played song) after Daily Mix, as on the phone.
 - web-smoke fixed on .NET 9: 1c-api (made cover only for song keys), mock Prodigy songs stream and sort after Harbour, 1h-queue reads the list without Recommended songs (failed on ui/living-sleeve too), 1m-ipod counts only letters inside a clipped line.

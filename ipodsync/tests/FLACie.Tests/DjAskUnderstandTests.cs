@@ -19,7 +19,10 @@ public class DjAskUnderstandTests
         public IReadOnlyList<Playlist> Playlists => Lists;
         public Track? Find(string path) => Library.FirstOrDefault(t => t.Path == path);
         public Track? FindSong(string artist, string title) => Library.FirstOrDefault(s => Matching.MatchKey(s) == Matching.MatchKey(title, artist));
-        public IReadOnlyList<Track> Favourites => [];
+        public List<Track> Hearts = [];
+        public IReadOnlyList<Track> Favourites => Hearts;
+        public List<ListenEvent> Log = [];
+        public IReadOnlyList<ListenEvent> Listens => Log;
         public List<Track> Top = [];
         public Dictionary<string, int> Pop = [];
         public IReadOnlyList<Track> MostPlayed(int take) => Top.Take(take).ToList();

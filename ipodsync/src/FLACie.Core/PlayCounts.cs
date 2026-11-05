@@ -13,6 +13,25 @@ public static class PlayCounts
     public static bool IsReal(double heard, double length) => heard >= 240 || (length > 0 && heard >= length * 0.6);
     public static bool IsSkip(double heard, double length) => !IsReal(heard, length) && heard < 30;
 
+    /// <summary>One song's listening: the weighted score (real plays up, skips down), its real plays and its skips.</summary>
+    public sealed record Stat(double Score, int Real, int Skips);
+
+    /// <summary>Every song's <see cref="Stat"/> by match key.</summary>
+    public static Dictionary<string, Stat> Scores(IEnumerable<ListenEvent> events, long nowMs)
+    {
+        var d = new Dictionary<string, Stat>();
+        foreach (var e in events)
+        {
+            if (e.Kind != ListenKind.Play) continue;
+            var key = Matching.MatchKey(e.Title, e.Artist);
+            var w = Math.Pow(0.5, Math.Max(0, nowMs - e.At) / HalfLifeMs);
+            var s = d.GetValueOrDefault(key) ?? new(0, 0, 0);
+            if (IsReal(e.Heard, e.Length)) d[key] = s with { Score = s.Score + w, Real = s.Real + 1 };
+            else if (IsSkip(e.Heard, e.Length)) d[key] = s with { Score = s.Score - w, Skips = s.Skips + 1 };
+        }
+        return d;
+    }
+
     /// <summary>The plays of the listening log, ranked: each song's newest play (for its path, title and artist), most listened first.</summary>
     public static List<ListenEvent> Rank(IEnumerable<ListenEvent> events, long nowMs)
     {

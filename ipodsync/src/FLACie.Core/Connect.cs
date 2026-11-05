@@ -34,7 +34,18 @@ public sealed class Connect : IDisposable
     /// <summary>Every WebSocket message (MessageType, Data); Jams read SyncPlay from here.</summary>
     public event Action<string, JsonNode?>? Message;
 
-    public Connect(JellyfinClient jf, UserSession user) { this.jf = jf; this.user = user; }
+    public Connect(JellyfinClient jf, UserSession user) { this.jf = jf; this.user = user; Interlocked.Increment(ref alive); }
+
+    // once a minute in the server log: how many links to Jellyfin are open and what came down them (FLACie Web and Jellyfin used 1.5 cores
+    // each with nothing playing; owner, 5 Nov). Remove once that is found.
+    static int alive, open;
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, int> seen = new();
+    static readonly Timer census = new(_ =>
+    {
+        var counts = string.Join(", ", seen.Select(kv => $"{kv.Key} {kv.Value}").OrderBy(x => x, StringComparer.Ordinal));
+        seen.Clear();
+        Console.WriteLine($"connect census: {Volatile.Read(ref alive)} alive, {Volatile.Read(ref open)} open; last minute: {(counts.Length > 0 ? counts : "nothing")}");
+    }, null, 60_000, 60_000);
 
     public bool Available => user.Jellyfin is not null;
     public JellyfinClient Client => jf;
@@ -64,7 +75,8 @@ public sealed class Connect : IDisposable
     }
 
     public void Stop() { cts?.Cancel(); cts = null; ticker?.Dispose(); ticker = null; try { ws?.Abort(); } catch { } SetConnected(false); Sessions = []; reportedItem = null; }
-    public void Dispose() => Stop();
+    public void Dispose() { if (!disposed) { disposed = true; Interlocked.Decrement(ref alive); } Stop(); }
+    bool disposed;
 
     void SetConnected(bool c) { if (Connected == c) return; Connected = c; Changed?.Invoke(); }
 
@@ -87,6 +99,7 @@ public sealed class Connect : IDisposable
                     ["SupportedCommands"] = new JsonArray("SetVolume", "Mute", "Unmute", "DisplayMessage", "PlayState", "Play", "PlayNext", "PlayMediaSource"),
                     ["SupportsMediaControl"] = true, ["SupportsPersistentIdentifier"] = true,
                 });
+                Interlocked.Increment(ref open);
                 reportedItem = null; SetConnected(true); wasConnected = true; Report(false); _ = LoadSessionsAsync();
                 var buf = new byte[16 * 1024];
                 while (sock.State == WebSocketState.Open && !ct.IsCancellationRequested)
@@ -101,6 +114,7 @@ public sealed class Connect : IDisposable
             }
             catch (OperationCanceledException) { }
             catch (Exception) { }
+            if (wasConnected) Interlocked.Decrement(ref open);
             SetConnected(false); ws = null;
             // a Jellyfin that is down is not asked every 5 seconds for ever: 5 s, 10 s, 20 s ... up to a minute, and back to 5 s after a connection that worked
             failures = wasConnected ? 0 : Math.Min(failures + 1, 4);
@@ -112,6 +126,7 @@ public sealed class Connect : IDisposable
     {
         JsonNode? m; try { m = JsonNode.Parse(text); } catch { return; }
         var type = m?["MessageType"]?.GetValue<string>() ?? ""; var data = m?["Data"];
+        seen.AddOrUpdate(type, 1, (_, n) => n + 1); _ = census;
         try
         {
             switch (type)
@@ -227,6 +242,7 @@ public sealed class Connect : IDisposable
     public async Task LoadSessionsAsync()
     {
         if (!Available) return;
+        seen.AddOrUpdate("(sessions read)", 1, (_, n) => n + 1);
         JsonArray? arr;
         try { arr = await jf.GetAsync(Account, $"/Sessions?ControllableByUserId={Account.UserId}&ActiveWithinSeconds=600") as JsonArray; } catch { return; }
         if (arr is null) return;

@@ -1,9 +1,10 @@
 @page "/made/{Id}"
 @attribute [Authorize]
 @inherits UserComponent
+@inject IDownloads Downloads
 @* a ready-made playlist found by Search ("2010s", "Rock", "Best of ..."), owner 2 Nov: play it as it is, or keep a copy among your own playlists *@
 @{ var m = List(); var songs = m is null ? [] : m.Paths.Select(Lib.ByPath).OfType<Track>().ToList(); }
-@if (m is null || songs.Count == 0)
+@if (m is null || (songs.Count == 0 && web is null))
 {
     @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <p class="status">This playlist isn't there any more.</p> }
 }
@@ -13,11 +14,16 @@ else
     <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@m.ArtKey" Class="detail-cover" />
         <div class="detail-text">
-            <p class="eyebrow">Made for you</p>
+            <p class="eyebrow">@(web is null ? "Made for you" : "Playlist · " + From(web.Source))</p>
             <h1>@Title(m.Name)</h1>
             <p class="detail-facts">@Facts(songs)</p>
+            @if (web is not null && web.Tracks.Count > songs.Count)
+            {
+                @* F23: the songs the library lacks are fetched as you go (opening the list asks for them, in play order) *@
+                <p class="detail-facts made-missing" role="status">@(web.Tracks.Count - songs.Count) more @(web.Tracks.Count - songs.Count == 1 ? "song is" : "songs are") @(Downloads.Ready(Session) ? "being fetched; they join the list as they arrive" : "not in your library")</p>
+            }
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => Player.Play(songs, 0, m.Name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="detail-play" @onclick="() => { Played(); return Player.Play(songs, 0, m.Name); }"><Icon Name="play" Size="22" />Play</button>
                 <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, m.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 @if (savedId is { } sid)
                 {
@@ -38,9 +44,29 @@ else
     ElementReference headEl; string? headFor = "";
     string? savedId; string savedFor = "";
 
-    MadePlaylist? List() => Lib.Songs.Count == 0 ? null : MadePlaylists.Find(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), Uri.UnescapeDataString(Id));
+    MadePlaylist? List()
+    {
+        if (Lib.Songs.Count == 0) return null;
+        var id = Uri.UnescapeDataString(Id);
+        if (!id.StartsWith("web:")) return MadePlaylists.Find(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), id);
+        // F23: a list from outside: the songs the library has, in the list's order
+        if (web is null && id.Split(':', 3) is [_, var source, var lid]) web = AppHost.WebPlaylists?.Find(source, lid);
+        if (web is null) return null;
+        var have = web.Tracks.Select(t => Lib.Find(t.Title, t.Artist)).OfType<Track>().ToList();
+        return new MadePlaylist(id, web.Name, "", have.Select(t => t.ArtKey).FirstOrDefault(k => k is not null), have.Select(t => t.Path).ToList());
+    }
 
-    protected override void OnParametersSet() { if (savedFor != Id) { savedFor = Id; savedId = null; } }
+    WebPlaylist? web; string? openedFor;
+    static string From(string source) => source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", _ => "FLACie" };
+    /// <summary>Playing it: its missing songs are fetched in play order (F23.2).</summary>
+    void Played() { if (web is not null) AppHost.WebPlaylists?.Interest(Session, web, FetchTrigger.Played); }
+
+    protected override void OnParametersSet()
+    {
+        if (savedFor != Id) { savedFor = Id; savedId = null; web = null; }
+        // opening a list from outside asks for its missing songs, once per visit
+        if (List() is not null && web is not null && openedFor != Id) { openedFor = Id; AppHost.WebPlaylists?.Interest(Session, web, FetchTrigger.Opened); }
+    }
 
     // a normal playlist of the account from now on (it no longer follows the made one); the button then says Added and leads to it
     void Save(MadePlaylist m)

@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: F23 wired into server and web)
+- Done: SpotifyPlaylists (IWebPlaylists): Spotify editorial lists by fixed id (embed page), Deezer "100% <artist>" best-ofs, our own made lists as fallback; Search's "Playlists for you" row comes from it, a Playlists filter with genre chips, /made/web:<source>:<id> pages that queue missing songs (opened / played); artist and popular lists queue by the policy.
+- Server admin: Playlist sources switches (Spotify, Deezer, SoundCloud; a failed source shows when it rests until). FLACIE_WEB_PLAYLISTS=off = own lists only (web-smoke sets it).
+- Not done: SoundCloud playlist reading (the rules are in WebPlaylistPick; yt-dlp has no playlist search) and Spotify This Is lists (findable only with a Spotify account) - Deezer's 100% lists stand in.
+
 ## 2026-11-05 Cloud (cloud/round2: F23.2 policy, F23.3 own Best of, F23.4 clean-up)
 - Done: PlaylistFetchPolicy (opened/played all missing in play order, This Is top half first, popular 2, nothing automatic under 100 GB); MadePlaylists Best of: one version, no instrumentals, half the artist's songs (10-50).
 - F23.4: LibraryCleanup plan + LibraryCleanupRun/Service (every 6 h, only under 100 GB free) moves via /retire to .flacie-replaced; new file mover route /purge empties it after 30 days; Server admin "Clean-up" lists the moves.

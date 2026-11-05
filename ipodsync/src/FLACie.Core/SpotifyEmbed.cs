@@ -83,15 +83,35 @@ public sealed class WebSourceGate(Func<DateTime> now)
     public static readonly TimeSpan Gap = TimeSpan.FromSeconds(1), Rest = TimeSpan.FromHours(6);
     readonly Dictionary<string, DateTime> last = [], restUntil = [];
     readonly HashSet<string> off = [];
+    bool loaded;
 
-    public void Switch(string source, bool on) { lock (off) { if (on) off.Remove(source); else off.Add(source); } }
-    public bool IsOn(string source) { lock (off) return !off.Contains(source); }
+    /// <summary>Where the switches are kept (Server admin), or null to keep them in memory only.</summary>
+    public string? File { get; init; }
+
+    public void Switch(string source, bool on)
+    {
+        lock (off)
+        {
+            Load();
+            if (on) off.Remove(source); else off.Add(source);
+            try { if (File is not null) { Directory.CreateDirectory(Path.GetDirectoryName(File)!); System.IO.File.WriteAllText(File, JsonSerializer.Serialize(off)); } } catch (IOException) { }
+        }
+    }
+
+    void Load()
+    {
+        if (loaded) return; loaded = true;
+        try { if (File is not null && System.IO.File.Exists(File) && JsonSerializer.Deserialize<List<string>>(System.IO.File.ReadAllText(File)) is { } l) off.UnionWith(l); }
+        catch (Exception e) when (e is IOException or JsonException) { }
+    }
+    public bool IsOn(string source) { lock (off) { Load(); return !off.Contains(source); } }
 
     /// <summary>Whether [source] may be asked now (taking the turn); false while it is off, resting, or was asked under a second ago.</summary>
     public bool TryTake(string source)
     {
         lock (off)
         {
+            Load();
             var t = now();
             if (off.Contains(source) || (restUntil.TryGetValue(source, out var r) && t < r)) return false;
             if (last.TryGetValue(source, out var l) && t - l < Gap) return false;

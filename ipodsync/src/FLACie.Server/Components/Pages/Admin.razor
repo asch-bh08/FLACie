@@ -17,6 +17,7 @@
 @inject FLACie.Server.Dj.DjPronounceCheck DjNames
 @inject CoverFill Covers
 @inject LibraryCleanupRun Cleanup
+@inject WebSourceGate PlaylistSources
 <PageTitle>Server admin · FLACie</PageTitle>
 <div class="sp">
 <header class="page-head"><h1>Server <i>admin</i></h1><p class="sub">Only for whoever runs this server: what is playing, who is on, what the server is doing, and the server's settings</p></header>
@@ -164,6 +165,20 @@ else
                         break;
                 }
             </div>
+        }
+    </section>
+
+    @* F23: where Search's playlists may come from; a source that failed rests for 6 hours by itself *@
+    <section class="admin-block" aria-label="Playlist sources">
+        <div class="shelf-head"><div><h2>Playlist sources</h2><small>Playlists for Search, read only when a search needs them, at most once a second each</small></div></div>
+        @foreach (var (src, label) in new[] { ("spotify", "Spotify (public playlist pages)"), ("deezer", "Deezer"), ("soundcloud", "SoundCloud") })
+        {
+            var source = src;
+            <label class="switch-row">
+                <span><b>@label</b>@if (PlaylistSources.RestingUntil(source) is { } until) { <small>Resting after an error until @until.ToLocalTime().ToString("HH:mm")</small> }</span>
+                <input type="checkbox" role="switch" checked="@PlaylistSources.IsOn(source)" @onchange="e => PlaylistSources.Switch(source, (bool)(e.Value ?? false))" />
+                <i class="switch" aria-hidden="true"></i>
+            </label>
         }
     </section>
 

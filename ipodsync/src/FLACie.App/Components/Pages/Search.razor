@@ -42,7 +42,29 @@
 else
 {
     <ExploreBar Compact="true" Changed="OnFilters" />
-    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@Made()" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
+    @* F23: the Playlists filter: every playlist that matches (Spotify's, Deezer's, SoundCloud's, our own), best first, and a genre to narrow them *@
+    <div class="sr-kinds lists-filter" role="group" aria-label="Playlists filter">
+        <button class="chip @(listsAll ? "on" : "")" aria-pressed="@(listsAll ? "true" : "false")" @onclick="ToggleLists">Playlists</button>
+        @if (listsAll)
+        {
+            @foreach (var g in Genres())
+            {
+                var genre = g;
+                <button class="chip @(listGenre == genre ? "on" : "")" aria-pressed="@(listGenre == genre ? "true" : "false")" @onclick="() => PickGenre(genre)">@genre</button>
+            }
+        }
+    </div>
+    @if (listsAll)
+    {
+        <section class="sr-section" aria-label="All playlists">
+            <h2 class="section"><i>Playlists</i>@(listGenre is null ? "" : " · " + listGenre)</h2>
+            @if (filterLists.Count == 0) { <p class="status">No playlists for this yet.</p> }
+            <div class="grid">
+                @foreach (var m in filterLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+            </div>
+        </section>
+    }
+    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
     @if (webPaused) { <p class="hint" role="status">Online results are paused for a moment: that was a lot of searches in one minute. Your library's results are still here.</p> }
     @if (webBusy || webSongs.Count > 0 || webAlbums.Count > 0)
     {
@@ -111,6 +133,45 @@ else
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;
     void OnFilters() { }
+    // ---- F23: playlists from outside and our own, for the row and the Playlists filter ----
+    IReadOnlyList<MadePlaylist> lists = [], filterLists = [];
+    bool listsAll; string? listGenre;
+    IEnumerable<string> Genres() => Lib.Songs.Where(t => t.Genre.Length > 0).GroupBy(t => t.Genre, StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(10).Select(g => g.First().Genre);
+
+    async Task LoadLists(string query, CancellationToken ct)
+    {
+        if (AppHost.WebPlaylists is not { } w) { lists = Made(); return; }
+        try
+        {
+            await Task.Delay(400, ct);   // after the typing settles: a search per keystroke would ask the sources too often
+            var got = await w.ForSearchAsync(Session, query, ct);
+            if (ct.IsCancellationRequested) return;
+            lists = got.Select(ToMade).ToList();
+            if (listsAll) await LoadFilter(ct);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception) { lists = Made(); await InvokeAsync(StateHasChanged); }
+    }
+
+    async Task LoadFilter(CancellationToken ct = default)
+    {
+        if (AppHost.WebPlaylists is not { } w) { filterLists = Made(); return; }
+        filterLists = (await w.ForFilterAsync(Session, q, listGenre, ct)).Select(ToMade).ToList();
+    }
+
+    async Task ToggleLists() { listsAll = !listsAll; if (listsAll) await LoadFilter(); }
+    async Task PickGenre(string g) { listGenre = listGenre == g ? null : g; await LoadFilter(); }
+
+    /// <summary>A list as a card: our own keeps its page; one from outside opens as "web:source:id", with the songs the library has.</summary>
+    MadePlaylist ToMade(WebPlaylist l)
+    {
+        if (l.Source == "own" && MadePlaylists.Find(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), l.Id) is { } m) return m;
+        var have = l.Tracks.Select(t => Lib.Find(t.Title, t.Artist)).OfType<Track>().ToList();
+        var from = l.Source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", _ => "FLACie" };
+        return new MadePlaylist($"web:{l.Source}:{l.Id}", l.Name, $"{l.Tracks.Count} songs · {from}", have.Select(t => t.ArtKey).FirstOrDefault(k => k is not null), have.Select(t => t.Path).ToList());
+    }
+
     List<MadePlaylist> Made() => q.Length < 2 || Lib.Songs.Count == 0 ? [] : MadePlaylists.Search(MadePlaylists.Cached(Session, () => AppHost.ListenLog(Session), DateTime.UtcNow), q);
     void Suggest(string v) => Nav.NavigateTo("/search?q=" + Uri.EscapeDataString(v));
     List<CatalogSong> webSongs = [];
@@ -134,7 +195,8 @@ else
         q = next;
         pending?.Cancel();
         webSongs = []; webAlbums = []; webPaused = false;
-        if (q.Length < 2) { webBusy = false; return; }
+        if (q.Length < 2) { webBusy = false; lists = []; return; }
+        lists = Made();
         // one online catalog search per keystroke: past the account's "search" limit a minute (typing flat out for a whole minute stays under it) the online
         // part is left out for now, so a runaway page or a stolen session cannot hammer the public catalogs from this server; the library's results are unaffected.
         // (The Windows app's own copy has no limits registered: GetService gives null there.)
@@ -145,6 +207,7 @@ else
         _ = Task.Delay(2500, cts.Token).ContinueWith(t => { if (!t.IsCanceled && q == asked) { Session.AddRecentSearch(asked); SaveProfile(); } }, TaskScheduler.Default);
         webBusy = true;
         _ = SearchWeb(q, cts.Token);
+        _ = LoadLists(q, cts.Token);
     }
 
     async Task SearchWeb(string query, CancellationToken ct)

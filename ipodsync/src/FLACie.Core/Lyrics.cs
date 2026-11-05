@@ -54,6 +54,8 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
     {
         ask ??= new Ask();
         var l = await FromJellyfin(t, account, ct) ?? await FromLrclib(t, ct, ask);
+        // F18.1: no synced lyrics yet: NetEase's, when it has them for the same recording
+        if (l is not { Synced: true } && await FromNetease(t, ct, ask) is { } ne) l = ne;
         if (l is null && ask.Unanswered) return null;
         try
         {
@@ -90,6 +92,14 @@ public sealed partial class LyricsService(HttpClient http, JellyfinClient jf, st
         if (best is null) return null;
         if (t.DurationMs > 0 && Math.Abs((best["duration"]?.GetValue<double>() ?? 0) - t.DurationMs / 1000.0) > 20) return null; // a different recording
         return FromJson(best);
+    }
+
+    async Task<Lyrics?> FromNetease(Track t, CancellationToken ct, Ask ask)
+    {
+        if (t.Title.Trim().Length == 0 || t.Artist.Trim().Length == 0) return null;
+        if (await Http(LyricsNetease.SearchUrl(t), ct, ask) is not { } b || ParseJson(b) is not { } found || LyricsNetease.Pick(found, t) is not { } id) return null;
+        if (await Http(LyricsNetease.LyricUrl(id), ct, ask) is not { } lb || ParseJson(lb) is not { } lj || LyricsNetease.Lrc(lj) is not { } lrc) return null;
+        return Parse(lrc, "NetEase") is { Synced: true } l ? l : null;
     }
 
     static bool Has(JsonObject o, string k) => o[k] is JsonValue v && v.TryGetValue<string>(out var s) && s.Length > 0;

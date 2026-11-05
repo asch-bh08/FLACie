@@ -547,11 +547,16 @@ window.flacie = (() => {
       const buf = new Float32Array(an.fftSize);
       t0 = performance.now(); lastLoud = t0;
       rec.start(250);
+      // speech and quiet are judged against the room's own noise, measured in the first 300 ms: a fixed level heard a loud room as talking
+      // until the 15 s limit (owner, 5 Nov: "took 15 s")
+      let floor = 0, samples = 0;
       poll = setInterval(() => {
         an.getFloatTimeDomainData(buf);
         let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
-        const now = performance.now();
-        if (Math.sqrt(sum / buf.length) > 0.03) { spoke = true; lastLoud = now; }
+        const now = performance.now(), rms = Math.sqrt(sum / buf.length);
+        if (now - t0 < 300) { floor = (floor * samples + rms) / ++samples; return; }
+        if (!spoke) floor = floor * 0.95 + Math.min(rms, floor * 1.5 + 0.002) * 0.05;   // follows a room that changes, never a voice
+        if (rms > Math.max(0.02, floor * 2.5)) { spoke = true; lastLoud = now; }
         if (!spoke && now - t0 > (waitMs > 0 ? waitMs : 8000)) finish(false);
         else if (spoke && now - lastLoud > (quietMs > 0 ? quietMs : 1200)) finish(true);
         else if (now - t0 > 15000) finish(true);
@@ -1554,7 +1559,8 @@ window.flacie = (() => {
     // or when the browser ends the session itself.
     micStart(ref, waitMs, quietMs) {
       const R = window.SpeechRecognition || window.webkitSpeechRecognition;
-      let recorderOnly = false; try { recorderOnly = localStorage.getItem("flacie.micRecord") === "1"; } catch { }
+      // Brave's recogniser never works (its service is off): straight to recording, or the first words were lost while it failed (owner, 5 Nov)
+      let recorderOnly = !!navigator.brave; try { recorderOnly = recorderOnly || localStorage.getItem("flacie.micRecord") === "1"; } catch { }
       if (!R || recorderOnly) return micRecord(ref, waitMs, quietMs);
       if (micRec) { try { micRec.abort(); } catch { } }
       const rec = new R(); micRec = rec;

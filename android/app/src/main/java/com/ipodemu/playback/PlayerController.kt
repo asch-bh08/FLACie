@@ -515,7 +515,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (cur == null || next == null) { if (dj.pendingPath != null) dj.forget(); djVoice?.ready(null, false); return }
         // asked only in the song's last 30 s (DjCoordinator.askInMs), so a song skipped before then costs nothing; looked at again when the time comes
         handler.removeCallbacks(djAskLater)
-        val wait = DjCoordinator.askInMs(durationMs, exo.currentPosition, speed)
+        val wait = DjCoordinator.askInMs(durationMs, exo.currentPosition, speed, djLead.leadMs)
         if (wait > 0L) {
             if (dj.pendingPath != null && dj.pendingPath != next.path) dj.forget()
             handler.postDelayed(djAskLater, wait)
@@ -528,13 +528,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val loved = try { App.of(ctx).userData.isFavorite(next) } catch (_: Exception) { false }
         val body = dj.request(djSurface, DjSong.of(next), DjSong.of(cur), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString()
         val nextPath = next.path
+        val askedAt = djLead.asked()
         djExec.execute {
             val cue = try { djWeb.djNext(body) } catch (_: Exception) { null }
+            if (cue != null) djLead.answered(askedAt)   // a slow server is asked earlier next time
             handler.post { if (dj.accept(ticket, nextPath, cue) && cue != null) voice().ready(cue.clip, cue.backup) }
         }
     }
 
     private val djAskLater = Runnable { djAsk() }
+    private val djLead = DjLead()
 
     /** A new song: the cue held for it is said if the player got there by itself; anything still being said stops. Then the next song is asked about. */
     private fun djChanged(t: Track?, reason: Int) {

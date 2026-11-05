@@ -110,6 +110,7 @@ class DjCoordinatorTest {
         assertEquals("a short song: at once", 0L, DjCoordinator.askInMs(25_000, 0))
         assertEquals("not known: at once", 0L, DjCoordinator.askInMs(0, 0))
         assertEquals("at double speed the end comes in half the time", 85_000L, DjCoordinator.askInMs(200_000, 0, speed = 2f))
+        assertEquals("a slow server is asked earlier", 140_000L, DjCoordinator.askInMs(200_000, 0, leadMs = 60_000L))
     }
 
     @Test fun theCueIsSaidOnlyForTheSongItWasFetchedFor() {
@@ -299,5 +300,38 @@ class SeekOriginTest {
     @Test fun aMarkLeftOverNeverSwallowsTheListenersSeek() {
         val s = SeekOrigin()
         s.self(); s.clear(); assertTrue("cleared by the listener's seek, or at the end of the loop turn", s.seeked())
+    }
+
+    // ---- F17.2: ask early enough for the clip to be ready when the song ends ----
+
+    @Test fun theLeadIsTheDefaultUntilTheServerHasAnswered() {
+        assertEquals(DjCoordinator.ASK_LEAD_MS, DjLead { 0L }.leadMs)
+    }
+
+    @Test fun aQuickServerKeepsTheDefaultLead() {
+        var t = 0L; val lead = DjLead { t }
+        val at = lead.asked(); t += 4_000; lead.answered(at)
+        assertEquals(DjCoordinator.ASK_LEAD_MS, lead.leadMs)
+    }
+
+    @Test fun aSlowServerIsAskedEarlierUpToAMinute() {
+        var t = 0L; val lead = DjLead { t }
+        var at = lead.asked(); t += 15_000; lead.answered(at)
+        assertEquals(45_000L, lead.leadMs)
+        at = lead.asked(); t += 40_000; lead.answered(at)
+        assertEquals(DjLead.MAX_LEAD_MS, lead.leadMs)
+    }
+
+    @Test fun theAskComesEarlyEnoughForTheClipToBeReadyAtTheSongsEnd() {
+        // a 200 s song, the answer takes 12 s: asked at 164 s (3 x 12 s = 36 s before the end), answered at 176 s, 24 s to spare, so the gap is only the clip starting
+        var t = 0L; val lead = DjLead { t }
+        val at = lead.asked(); t += 12_000; lead.answered(at)
+        val askAt = DjCoordinator.askInMs(200_000, 0, leadMs = lead.leadMs)
+        assertEquals(164_000L, askAt)
+        assertTrue(askAt + 12_000 <= 200_000)
+    }
+
+    @Test fun aSongShorterThanTheLeadIsAskedAboutAtOnce() {
+        assertEquals(0L, DjCoordinator.askInMs(20_000, 0, leadMs = 36_000L))
     }
 }

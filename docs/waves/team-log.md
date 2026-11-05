@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round4: F26.2 "Lists with <artist> in")
+- Done: WebPlaylistPick.WithArtistIn: lists already read (Spotify's, Deezer's read ones, SoundCloud sets with songs) that hold the artist's songs but are not about them, most of their songs first; SongsLabel "Firestarter, Breathe + 2".
+- Shown by the new ListsWithArtist component on the artist search (after Playlists) and on the artist page (after Albums). Nothing is fetched for it (IWebPlaylists.ListsWithArtist reads the store).
+- Proof: SpotifyEmbedTests (The Prodigy vs Prodigy, lists about them left out, unread sets left out).
+
 ## 2026-11-05 Cloud (cloud/round4: F26.1 many real playlists, ours last)
 - Done: SpotifyPlaylists.DeezerListsAsync: one Deezer playlist search per artist (kept a day): the editors' best-of with its songs, plus every fans'/editors' list whose name holds the artist (names, size, picture; songs read when opened via FillAsync).
 - WebPlaylistPick.ForArtist: real lists (title holds the artist, The kept, or holds 2+ of their songs; 8+ songs; SoundCloud own sets) editors first, then by their songs held, size; same words once; our own only under 4 real ones and after them; up to 15 (2 rows of cards on desktop).

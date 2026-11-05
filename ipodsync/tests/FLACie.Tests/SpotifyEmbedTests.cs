@@ -184,4 +184,24 @@ public sealed class SpotifyEmbedTests : IDisposable
         var rock = WebPlaylistPick.ForFilter(Found, "", "Rock", Now);
         Assert.Equal(["s5"], rock.Select(l => l.Id));
     }
+
+    [Fact]
+    public void Lists_with_the_artist_in_name_which_of_their_songs_each_holds()
+    {
+        static WebTrack W(string t, string a) => new(t, a);
+        var known = new[]
+        {
+            new WebPlaylist("spotify", "a", "All Out 90s", WebPlaylistKind.Decade, "1990s", [W("Wannabe", "Spice Girls"), W("Firestarter", "The Prodigy"), W("Breathe", "The Prodigy")]),
+            new WebPlaylist("deezer", "b", "Big Beat Classics", WebPlaylistKind.Other, "", [W("Firestarter", "The Prodigy"), W("Breathe", "The Prodigy"), W("Block Rockin' Beats", "The Chemical Brothers"), W("Poison", "The Prodigy"), W("Omen", "The Prodigy feat. Someone")]),
+            new WebPlaylist("deezer", "c", "100% The Prodigy", WebPlaylistKind.Artist, "The Prodigy", [W("Firestarter", "The Prodigy")]),   // about them: in Playlists, not here
+            new WebPlaylist("deezer", "d", "Rap Classics", WebPlaylistKind.Other, "", [W("Shook Ones", "Prodigy"), W("Keep It Thoro", "Prodigy")]),   // the other Prodigy
+            new WebPlaylist("soundcloud", "e", "Rave Set", WebPlaylistKind.Other, "", []),                                                   // songs not read yet
+        };
+        var rows = WebPlaylistPick.WithArtistIn(known, "The Prodigy");
+        Assert.Equal(["Big Beat Classics", "All Out 90s"], rows.Select(r => r.List.Name));
+        Assert.Equal(["Firestarter", "Breathe", "Poison", "Omen"], rows[0].Songs);
+        Assert.Equal("Firestarter, Breathe + 2", WebPlaylistPick.SongsLabel(rows[0].Songs));
+        Assert.Equal("Firestarter, Breathe", WebPlaylistPick.SongsLabel(rows[1].Songs));
+        Assert.Equal("Shook Ones, Keep It Thoro", WebPlaylistPick.SongsLabel(WebPlaylistPick.WithArtistIn(known, "Prodigy").Single().Songs));
+    }
 }

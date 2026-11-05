@@ -52,6 +52,8 @@ public interface IWebPlaylists
     void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0);
     /// <summary>The list with its songs: a list found by name only (a SoundCloud set) has them read now, once (F25.3).</summary>
     Task<WebPlaylist> FillAsync(UserSession s, WebPlaylist list, CancellationToken ct);
+    /// <summary>F26.2: lists already read that hold [artist]'s songs (not lists about them), each with the songs it holds. Reads nothing new.</summary>
+    IReadOnlyList<(WebPlaylist List, IReadOnlyList<string> Songs)> ListsWithArtist(string artist);
 }
 
 public static class AppHost

@@ -32,6 +32,8 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
 
     public WebPlaylist? Find(string source, string id) => store.Use(source, id);
 
+    public IReadOnlyList<(WebPlaylist List, IReadOnlyList<string> Songs)> ListsWithArtist(string artist) => WebPlaylistPick.WithArtistIn(store.All, artist);
+
     public async Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct)
     {
         var (found, kind) = await GatherAsync(s, query, ct);

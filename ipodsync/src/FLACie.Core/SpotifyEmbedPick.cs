@@ -125,6 +125,31 @@ public static class WebPlaylistPick
         return [.. real.Take(ArtistRow), .. ours.Take(Math.Max(0, ArtistRow - real.Count))];
     }
 
+    /// <summary>
+    /// F26.2 "Lists with &lt;artist&gt; in": lists already read (Spotify's, Deezer's opened or best-ofs, SoundCloud sets) that hold the artist's songs but
+    /// are not about the artist (those are in the Playlists row), the ones holding most of their songs first; each with the songs it holds, in its order.
+    /// </summary>
+    public static List<(WebPlaylist List, IReadOnlyList<string> Songs)> WithArtistIn(IEnumerable<WebPlaylist> known, string artist, int take = 12)
+    {
+        var name = Matching.SearchWords(artist);
+        if (name.Count == 0) return [];
+        bool Theirs(WebTrack t) => Matching.SearchWords(t.Artist) is var w && w.Count >= name.Count && w.Take(name.Count).SequenceEqual(name)
+            && (w.Count == name.Count || w[name.Count] is "feat" or "ft" or "featuring" or "with" or "x" or "and");
+        return known.Where(l => l.Source != "own" && l.Tracks.Count > 0 && !TitleHolds(l.Name, artist) && !(l.Kind == WebPlaylistKind.Artist && TitleHolds(l.Subject, artist)))
+            .Select(l => (List: l, Songs: (IReadOnlyList<string>)l.Tracks.Where(Theirs).Select(t => t.Title).Distinct(StringComparer.OrdinalIgnoreCase).ToList()))
+            .Where(x => x.Songs.Count > 0)
+            .DistinctBy(x => x.List.Source + ":" + x.List.Id)
+            .OrderByDescending(x => x.Songs.Count).ThenBy(x => Rank(x.List.Source)).ThenBy(x => x.List.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(take).ToList();
+    }
+
+    /// <summary>Which of their songs a list holds, for its card: "Firestarter, Breathe + 2".</summary>
+    public static string SongsLabel(IReadOnlyList<string> songs) => songs.Count switch
+    {
+        0 => "", 1 => songs[0], 2 => songs[0] + ", " + songs[1],
+        _ => $"{songs[0]}, {songs[1]} + {songs.Count - 2}",
+    };
+
     /// <summary>The All view ([artist]: the artist an artist search found, for <see cref="Holds"/>): as many lists as the search is about, each near the best one's relevance, one per purpose, strongest first.</summary>
     public static List<WebPlaylist> ForAll(IEnumerable<WebPlaylist> found, string query, PlaylistQueryKind kind, DateTime nowUtc, string? artist = null)
     {

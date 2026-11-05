@@ -9,10 +9,10 @@ namespace FLACie.Server;
 public static class LinkImport
 {
     /// <summary>Reads [url] and starts the import. Failures are described by <see cref="Describe"/>.</summary>
-    public static async Task<ImportJob> StartAsync(PlaylistLinkReader reader, Func<ImportedPlaylist, ImportJob> start, string? url, CancellationToken ct = default)
+    public static async Task<ImportJob> StartAsync(PlaylistLinkReader reader, Func<ImportedPlaylist, ImportJob> start, string? url, CancellationToken ct = default, DownloadServices? services = null)
     {
-        if (string.IsNullOrWhiteSpace(url)) throw new InvalidDataException("That isn't a Spotify or Deezer playlist or album link. Copy it with Share > Copy link.");
-        var list = await reader.ReadAsync(url.Trim(), ct);
+        if (string.IsNullOrWhiteSpace(url)) throw new InvalidDataException(PlaylistLinks.Refusal);
+        var list = await reader.ReadAsync(url.Trim(), ct, services);
         return start(list);
     }
 

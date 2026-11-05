@@ -220,6 +220,9 @@ class FlacieWebClient(private val prefs: Prefs) {
 
     fun account(): AccountStats =JSONObject(send("/api/account", "GET")).let { AccountStats(it.optInt("songs"), it.optInt("albums"), it.optInt("artists"), it.optInt("playlists"), it.optInt("favourites"), it.optBoolean("admin")) }
 
+    /** A stamp of this account's playlists on FLACie Web: differs after any change made there (the phone polls it, see [PlaylistWatch]). */
+    fun playlistsRev(): String = JSONObject(send("/api/playlists/rev", "GET")).optString("rev")
+
     /** A chart (0 = Top Songs; the ids come from [settings]), as the server read it from the public charts. */
     fun chart(id: Int): List<ChartSong> { val a = JSONArray(send("/api/charts/$id", "GET")); return List(a.length()) { a.getJSONObject(it).let { o -> ChartSong(o.optInt("rank"), o.optString("title"), o.optString("artist"), o.optString("art").takeIf { s -> s.isNotBlank() && s != "null" }) } } }
 

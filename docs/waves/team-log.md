@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/dj-server: F7 done; full suite 1714 green)
+- Done: RemixMatch (Core/YtdlMatch.cs), SourceRank + SoundCloud.Best (Core/SoundCloud.cs); tools/ytdl/server.py: remix-aware rank, "source": "soundcloud" (scsearch, -f download/bestaudio).
+- SoundCloud entrant races beside YouTube only with FLACIE_SOUNDCLOUD=on (an old yt-dlp service ignores "source"); files go to "Artist - Title (SoundCloud).ext"; lossy goes on the upgrade list as before.
+- Local: redeploy tools/ytdl/server.py on frank, then set FLACIE_SOUNDCLOUD=on. I edited Downloads.cs (not in any spec) for the entrant, please check in the merge.
+
 ## 2026-11-05 Cloud (cloud/dj-server: F9 F16 F10 F11 F12-server F15-server done)
 - Done: F16 oldest line reused; F10 'play X from my Y playlist' / 'add X to Y (and play it next)'; F11 DjPick (own plays > IDjAskUser.Popularity > title) + 'not that one'/'the X one' for 1 min.
 - F12: remove asks 'are you sure?' (Ask step, Do=None, mic listens again) and removes on 'yes'; 'make a backroads playlist' = createplaylist+play+ask; reply 'call it X' -> new step do:"renameplaylist" {playlist: old, title: new}.

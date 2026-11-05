@@ -101,14 +101,22 @@ public static class HomeBuilder
         foreach (var p in jellyfin ?? []) if (lib.ByJellyfinId(p.Id) is { } jt) { var k = Matching.MatchKey(jt); jfWeight[k] = jfWeight.GetValueOrDefault(k) + Math.Log(1 + Math.Max(0, p.Plays)) * 1.5 + (p.Favourite ? 3 : 0); }
         double Taste(Track t) { var k = Matching.MatchKey(t); return plays.GetValueOrDefault(k) * 2 + jfWeight.GetValueOrDefault(k) + (favKeys.Contains(k) ? 3 : 0) + (listKeys.Contains(k) ? 1 : 0); }
 
-        if (listen.Count > 0)
-            shelves.Add(new("listen-again", "Listen again", "Your recent plays", listen.Take(16).ToList(), []));
+        // F21: Frequently played comes first: the songs really listened to (PlayCounts, from the listening log)
+        if (events is not null)
+        {
+            var frequent = PlayCounts.Rank(events, new DateTimeOffset(utcNow).ToUnixTimeMilliseconds()).Select(e => lib.Resolve(e.Path, e.Title, e.Artist)).OfType<Track>()
+                .DistinctBy(Matching.MatchKey).Take(20).ToList();
+            if (frequent.Count > 0) shelves.Add(new("frequently-played", "Frequently played", "Songs you keep coming back to", frequent, []));
+        }
+        // Listen again keeps every played song (F21), lower down: after Daily Mix, as on the phone
+        Shelf? listenAgain = null;
+        if (listen.Count > 0) listenAgain = new("listen-again", "Listen again", "Your recent plays", listen.ToList(), []);
         else if (jellyfin is { Count: > 0 })
         {
             // nothing played through FLACie yet: the songs Jellyfin says were played most recently
-            var lastPlayed = jellyfin.Where(p => p.LastMs > 0).OrderByDescending(p => p.LastMs).Select(p => lib.ByJellyfinId(p.Id)).OfType<Track>().DistinctBy(Matching.MatchKey).Take(16).ToList();
+            var lastPlayed = jellyfin.Where(p => p.LastMs > 0).OrderByDescending(p => p.LastMs).Select(p => lib.ByJellyfinId(p.Id)).OfType<Track>().DistinctBy(Matching.MatchKey).ToList();
             foreach (var t in lastPlayed) listen.Add(t);
-            if (lastPlayed.Count > 0) shelves.Add(new("listen-again", "Listen again", "Recently played in Jellyfin", lastPlayed, []));
+            if (lastPlayed.Count > 0) listenAgain = new("listen-again", "Listen again", "Recently played in Jellyfin", lastPlayed, []);
         }
 
         // Quick picks and Discover come from the engine, worked out as at the start of the hour so they hold still while Home is shown
@@ -149,6 +157,8 @@ public static class HomeBuilder
             var mix = Spread(Shuffled(now.Tracks, slot).OrderByDescending(t => Taste(t) > 0 ? 1 : 0), 3, 30);
             shelves.Add(new("daily-mix", "Daily Mix: " + now.Name, now.Sub, mix, [], "A new mix every hour, cycling through moods and genres"));
         }
+
+        if (listenAgain is not null) shelves.Add(listenAgain);
 
         // "Similar to": the artist you favour most, then songs of the same genre by other artists
         var top = lib.Songs.Where(t => Taste(t) > 0).GroupBy(t => Matching.PrimaryArtist(t.Artist)).Where(g => g.Key.Length > 0).OrderByDescending(g => g.Sum(Taste)).FirstOrDefault();

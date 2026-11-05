@@ -7,8 +7,12 @@
         @* a cover always on screen (the player, Now Playing) is asked for at once, not when lazy loading gets round to it; the big one shows the small cover
            (usually in the cache already) underneath straight away, and the sharp one covers it when it lands. Rows in long lists stay lazy. *@
         var now = Eager || Full;
-        @if (Full) { <img class="cover-under" src="@src" alt="" decoding="async" fetchpriority="high" onerror="this.style.visibility='hidden'" /> }
-        <img src="@(src + (Full ? "&s=full" : ""))" alt="" loading="@(now ? "eager" : "lazy")" decoding="async" fetchpriority="@(now ? "high" : "auto")" onerror="this.style.visibility='hidden'" />
+        @* a cover that fails shows the placeholder and is asked for once more four seconds later (a new address, "&r=1", so no cached error is reused): the server
+           answers 503 when the catalog could not be asked or the lookup was cut short, and the second try usually finds it (owner, 5 Nov: covers stayed blank).
+           An image cannot see the status, so a real miss is asked twice too; the server remembers it, so that answer is immediate. A picture that loads (also a
+           new one Blazor puts in) is shown again. *@
+        @if (Full) { <img class="cover-under" src="@src" alt="" decoding="async" fetchpriority="high" onload="this.style.visibility=''" onerror="this.style.visibility='hidden';var i=this,s=i.src;if(!/&r=1$/.test(s))setTimeout(function(){if(i.isConnected&&i.src===s)i.src=s+'&r=1'},4000)" /> }
+        <img src="@(src + (Full ? "&s=full" : ""))" alt="" loading="@(now ? "eager" : "lazy")" decoding="async" fetchpriority="@(now ? "high" : "auto")" onload="this.style.visibility=''" onerror="this.style.visibility='hidden';var i=this,s=i.src;if(!/&r=1$/.test(s))setTimeout(function(){if(i.isConnected&&i.src===s)i.src=s+'&r=1'},4000)" />
     }
 </div>
 @code {

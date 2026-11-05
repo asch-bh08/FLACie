@@ -125,8 +125,9 @@ public sealed class CoverOverrides
     public static string Versioned(string key) => key.StartsWith("it", StringComparison.Ordinal) && !key.Contains("~r") ? key + "~r" + CatalogRules : key;
     /// <summary>The key without the rules' mark the address carries.</summary>
     public static string Unversioned(string key) => key.StartsWith("it", StringComparison.Ordinal) && key.LastIndexOf("~r", StringComparison.Ordinal) is > 0 and var i ? key[..i] : key;
-    public string? Replacement(string artKey) { lock (lk) return Load().TryGetValue(artKey, out var e) ? e.Key : null; }
-    public bool Has(string artKey) { lock (lk) return Load().ContainsKey(artKey); }
+    // a cover chosen before the key carried a fallback picture (owner, 5 Nov) is found by the key without it
+    public string? Replacement(string artKey) { lock (lk) return Load().TryGetValue(artKey, out var e) || Load().TryGetValue(Art.LookupBase(artKey), out e) ? e.Key : null; }
+    public bool Has(string artKey) { lock (lk) return Load().ContainsKey(artKey) || Load().ContainsKey(Art.LookupBase(artKey)); }
 
     /// <summary>Keeps [bytes] (checked to be a picture) as the cover for [artKey]; returns the new key, or null when they are not a picture.</summary>
     public string? Set(string artKey, byte[] bytes, string source)

@@ -1,8 +1,14 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (late)
+- F24 rules fixed after the owner read the dry-run list (bands split, Bob->B.o.B, P!nk->PNK, &amp;, "feat. Th", WizKid (4)); 323323ec. Not deployed yet: the owner must not approve the old list.
+- Web mic: Brave records straight away; speech/quiet judged against the room's noise (15 s recordings).
+- Next for Cloud: F26 (docs/waves/specs/F26.md): real playlists, Featuring row, one-choice filters, real DJ favourites, DJ status/caption bar, imports show every song.
+
 ## 2026-11-05 Local (round 3 deploy)
 - Merged cloud/round3 (server tests 1852/1852) + Local fixes: quiet playlist downloads, LRCLIB-exact lyrics before Jellyfin's .lrc, web mic records + /api/dj/hear (Whisper) when the browser can't recognise (Brave), search layout (playlists under Top result, up to 8, lists holding the artist's songs, 2 per album in top songs), solid band behind the floating search box.
-- Cloud's Dockerfile had the entrypoint sed's raw CR turned into a line break (build failed): now writes  as text. Cloud: never put raw control characters in files.
+- Cloud's Dockerfile had the entrypoint sed's raw CR turned into a line break (build failed): now writes 
+ as text. Cloud: never put raw control characters in files.
 - Deployed web + ytdl + filemove (rollbacks *:rollback-20261105-pre-r3, server.py.bak-20261105-pre-r3). ffmpeg in the image, CPU 0.5%.
 - F24.2 (phone twin) skipped: once the owner approves Artist names, Jellyfin itself is fixed and the phone reads it. Owner reviews Server admin > Artist names first.
 

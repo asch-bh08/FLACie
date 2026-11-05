@@ -12,7 +12,9 @@ account in claude.ai/code on this GitHub repo; no frank, no phone, no emulator).
 ## Who builds what (specs in docs/waves/specs/, list in docs/waves/features-2026-11-05.md)
 - **Cloud**, branch `cloud/dj-server` from `ui/living-sleeve`: server-side work that needs no device:
   F9 (the step format in FLACie.Core and the web runner), F10, F11, F12 (server part), F15 (server part), F16, F7.
-- **Local**: F1-F6, F8, F13, F14, F17, the phone parts of F9/F12/F15, merging, releases and deploys.
+  Then, on branch `cloud/covers-search` from `ui/living-sleeve`: the server parts of F1 (ArtistGuess, cover chain, generated cover, fill pass)
+  and F6 (SearchRank on the server, the web search page), and F13's FLACie.Core part (QueueShuffle). Its usage resets at 03:00 on 6 Nov: use it all.
+- **Local**: F2-F5, the phone parts of F1/F6/F9/F12/F13/F15, F8, F14, F17, merging, releases and deploys.
 - Never edit a file the other side's specs own. If you must, write it in the log as a request instead.
 - Local merges `cloud/dj-server` after reading its log entry and diff, then runs every test.
 

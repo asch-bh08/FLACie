@@ -154,11 +154,18 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         if (job.State == "waiting") { job.State = "running"; job.Note = null; }
         // a playlist file is filled in the background: Hi-Res where it exists (smart downloads), the quick way where it does not
         var r = await downloads.FetchAsync(s, "Import", item.Artist, item.Title, item.Album, null, 0, ct, DownloadMode.HiRes);
-        if (r.Ok && r.Tracks.Count > 0) { foreach (var t in r.Tracks) s.AddToPlaylist(plId, t); item.State = "done"; }
-        else if (r.Ok) { item.State = "requested"; item.Message = "Requested from Lidarr; it appears after the next scan"; }
-        else { item.State = "failed"; item.Message = r.Message; }
+        if (r.Ok && r.Tracks.Count > 0) foreach (var t in r.Tracks) s.AddToPlaylist(plId, t);
+        (item.State, item.Message) = StateAfter(r);
         Touch(s, job);
     }
+
+    /// <summary>What a song of an import becomes after its fetch. A fetch that was cancelled (FLACie Web restarting, a deploy) goes back in the queue
+    /// and the import picks it up again: it was kept as failed, and the owner's playlist lost 3 songs to deploys (5 Nov).</summary>
+    public static (string State, string? Message) StateAfter(DownloadManager.DownloadResult r) =>
+        r.Ok && r.Tracks.Count > 0 ? ("done", null)
+        : r.Ok ? ("requested", "Requested from Lidarr; it appears after the next scan")
+        : r.Message == "Cancelled" ? ("pending", null)
+        : ("failed", r.Message);
 
     readonly ConcurrentDictionary<string, object> listLocks = new();
     static readonly System.Text.RegularExpressions.Regex QualityTag = new(@"\s*\((f?lac|alac|mp3|aac|wav|ogg|opus)\)\s*$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);

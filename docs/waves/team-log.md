@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Local (night, owner AFK)
+- Released b107 then b108 (phone/car mic retries the online recogniser when the on-device one fails at once). Both: server 1873/1873, Android tests, emulator smoke 23/23, MSI. Web b108 on frank (rollback flacie-web:rollback-20261105-pre-b108). main = ui/living-sleeve.
+- Also tonight: imported-playlist rows use the import's loose match; phone findLoose second pass (baseTitleKey); a restart puts in-flight import songs back to pending.
+- Not checked on a real car/phone yet: Android Auto buttons/captions/mic, the DJ bar mic level. Owner tests tomorrow.
+
 ## 2026-11-05 Local (round 4 deploy, owner AFK)
 - Merged cloud/round4 (server tests 1872/1872) and deployed (rollback flacie-web:rollback-20261105-pre-r4). Earlier tonight: playlist titles with Spotify extras ("- Radio Edit") match the downloaded files (Library.FindLoose second pass), F24 rules fixed, web mic recorder fixes.
 - Web smoke: whole suite on round 3 was 648 passed / 8 failed; all 8 fixed or updated (Apple links now read, one heading, the playlist's own list, recorder mic, UA version one token, DJ words shown whenever there is no voice clip). Whole suite not rerun on round 4 yet.

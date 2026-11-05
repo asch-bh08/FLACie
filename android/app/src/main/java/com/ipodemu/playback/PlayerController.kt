@@ -105,8 +105,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     // DefaultDataSource routes file:/content:/asset: URIs to Android's own local-file readers and only
     // hands http(s)/smb requests to our factory below -- otherwise every local track tries to open through
     // an HTTP-only data source and fails silently. Streamed songs also go through the on-disk cache (StreamSupport).
+    /** What the streams just downloaded say about the line (bits per second); [reviewQuality] reads it between songs. */
     @OptIn(UnstableApi::class)
-    private val upstream = DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs))
+    private val bandwidth = androidx.media3.exoplayer.upstream.DefaultBandwidthMeter.Builder(ctx).build()
+    @OptIn(UnstableApi::class)
+    private val upstream = DefaultDataSource.Factory(ctx, MultiServerDataSourceFactory(prefs)).setTransferListener(bandwidth)
     @OptIn(UnstableApi::class)
     // the cache is written in 512 KB pieces (not the default 5 MB), so the seek bar's frame-size shape (WaveAnalyzer) can follow the download closely
     private val cacheSource = CacheDataSource.Factory().setCache(StreamSupport.cache(ctx)).setUpstreamDataSourceFactory(upstream)
@@ -208,7 +211,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
     /** What the system media session (media buttons, notification, Bluetooth, Android Auto) controls: a window of the queue, commands sent here (see [SessionPlayer]). */
     @OptIn(UnstableApi::class)
-    val sessionPlayer: Player by lazy { SessionPlayer(this, prefs) }
+    val sessionPlayer: Player by lazy { SessionPlayer(this, prefs) { t -> try { App.of(ctx).lyrics.cached(t) } catch (_: UninitializedPropertyAccessException) { null } } }
     @OptIn(UnstableApi::class)
     private val prefetcher = Prefetcher(ctx) { prefetchSource.createDataSource() as CacheDataSource }
     private val netWatch = NetworkWatch(ctx) { Handler(Looper.getMainLooper()).post { nudge() } }
@@ -455,8 +458,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             val a = try { djWeb.djAsk(body) } catch (_: Exception) { null } ?: DjAskAnswer.SORRY
             Diag.add("heard", "\"${text.take(120)}\" -> ${a.say.take(120)}")
             handler.post {
+                askedQuestion = null
                 DjAskRunner.run(askPlayer, a)
                 if (a.say.isNotBlank() && (a.clip != null || a.deviceVoice)) try { voice().say(DjCue(a.say, a.say, a.clip, a.deviceVoice)) } catch (_: Exception) { }
+                // an ask step's question the line did not already say: said in the phone's voice
+                askedQuestion?.takeIf { !it.trim().equals(a.say.trim(), ignoreCase = true) }?.let { djSay(it) }
                 done(a)
             }
             val artist = a.waitArtist; val title = a.waitTitle
@@ -487,7 +493,17 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         override fun resume() = this@PlayerController.resume()
         override fun nudgeVolume(delta: Float) { volume = (volume + delta).coerceIn(0f, 1f) }
         override fun setDj(on: Boolean) { if (djAvailable && djOn != on) flipDj() }
+        // the playlist steps go through the phone's own playlists, so they sync to FLACie Web as any edit does
+        private fun edits() = com.ipodemu.library.DjPlaylistEdits(App.of(ctx).userData)
+        override fun addToPlaylist(name: String, list: List<Track>) = edits().add(name, list.map { it.path })
+        override fun removeFromPlaylist(name: String, list: List<Track>) = edits().remove(name, list.map { it.path })
+        override fun createPlaylist(name: String, list: List<Track>) = edits().create(name, list.map { it.path })
+        override fun renamePlaylist(name: String, to: String) = edits().rename(name, to)
+        override fun ask(question: String) { askedQuestion = question }
+        override fun setShuffle(on: Boolean) { if (prefs.shuffle != on) { prefs.shuffle = on; applyModes() } }
     }
+    /** The question of an ask step in the answer being carried out; said only if the answer's own line was not it. */
+    private var askedQuestion: String? = null
 
     private fun djAsk() {
         if (!hasQueue || !exo.playWhenReady) return
@@ -499,7 +515,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (cur == null || next == null) { if (dj.pendingPath != null) dj.forget(); djVoice?.ready(null, false); return }
         // asked only in the song's last 30 s (DjCoordinator.askInMs), so a song skipped before then costs nothing; looked at again when the time comes
         handler.removeCallbacks(djAskLater)
-        val wait = DjCoordinator.askInMs(durationMs, exo.currentPosition, speed)
+        val wait = DjCoordinator.askInMs(durationMs, exo.currentPosition, speed, djLead.leadMs)
         if (wait > 0L) {
             if (dj.pendingPath != null && dj.pendingPath != next.path) dj.forget()
             handler.postDelayed(djAskLater, wait)
@@ -512,13 +528,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val loved = try { App.of(ctx).userData.isFavorite(next) } catch (_: Exception) { false }
         val body = dj.request(djSurface, DjSong.of(next), DjSong.of(cur), contextId, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString()
         val nextPath = next.path
+        val askedAt = djLead.asked()
         djExec.execute {
             val cue = try { djWeb.djNext(body) } catch (_: Exception) { null }
+            if (cue != null) djLead.answered(askedAt)   // a slow server is asked earlier next time
             handler.post { if (dj.accept(ticket, nextPath, cue) && cue != null) voice().ready(cue.clip, cue.backup) }
         }
     }
 
     private val djAskLater = Runnable { djAsk() }
+    private val djLead = DjLead()
 
     /** A new song: the cue held for it is said if the player got there by itself; anything still being said stops. Then the next song is asked about. */
     private fun djChanged(t: Track?, reason: Int) {
@@ -606,7 +625,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 checkQueueLow()
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { startedItem(it) }
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && (sleepMode == SleepMode.END_OF_TRACK || sleepMode == SleepMode.END_OF_ALBUM)) sleepFired()
-                adaptUpcoming(); schedulePrefetch()
+                reviewQuality(); adaptUpcoming(); schedulePrefetch(); freePlayed()
                 djChanged(mediaItem?.localConfiguration?.tag as? Track, reason)
                 // a song ending on its own: a Jam moves the whole group on instead (see Jam)
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) onAutoAdvance?.invoke()
@@ -730,9 +749,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     fun applyModes() {
-        // turning shuffle on mid-song: a fresh order with the song playing first, so every other song is still to come
-        // (the player's old shuffle order could have put it near the end, leaving only a few songs before playback stopped)
-        if (prefs.shuffle && !exo.shuffleModeEnabled && exo.mediaItemCount > 1) setShuffleOrderQuiet(ShuffleStart.order(exo.currentMediaItemIndex, exo.mediaItemCount))
+        // turning shuffle on mid-song: the songs up to this one stay in place and the rest are shuffled (QueueShuffle); turning it off goes back to the queue order
+        // (the player's old shuffle order could have put the song near the end, leaving only a few songs before playback stopped)
+        if (prefs.shuffle && !exo.shuffleModeEnabled && exo.mediaItemCount > 1) setShuffleOrderQuiet(QueueShuffle.on(exo.mediaItemCount, exo.currentMediaItemIndex))
         exo.shuffleModeEnabled = prefs.shuffle
         exo.repeatMode = RepeatCycle.toPlayer(prefs.repeat)
         // the song after the last may be the first one now (or Autoplay's again): what is fetched ahead follows
@@ -1324,6 +1343,32 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         }
     }
 
+    /** The version the next songs stream in when Streaming quality is Automatic (see [StreamQuality]); looked at only as one song changes to the next. */
+    private var autoPick = StreamQuality.Pick.FLAC
+    private fun reviewQuality() {
+        val p = StreamQuality.pick(bandwidth.bitrateEstimate, autoPick)
+        if (p == autoPick) return
+        autoPick = p
+        Diag.add("quality", "line ${bandwidth.bitrateEstimate / 1000} kbps: the next songs are ${if (p == StreamQuality.Pick.OPUS) "Opus 128k" else "full quality"}")
+    }
+
+    /** The streamed songs whose start (or all) was fetched ahead or that have played, until they are freed ([freePlayed]): no song stays on the phone after it has played. */
+    private val cachedAhead = LinkedHashSet<String>()
+
+    /** Frees what is behind us: songs played or skipped past leave the cache; the playing song and the next four stay. Songs to keep are Offline downloads. */
+    private fun freePlayed() {
+        val i = exo.currentMediaItemIndex
+        if (i < 0 || i >= exo.mediaItemCount) return
+        fun uriAt(k: Int) = exo.getMediaItemAt(k).localConfiguration?.uri
+        val here = uriAt(i)
+        if (here != null && StreamSupport.cacheable(here)) cachedAhead.add(here.toString())
+        val wanted = (listOf(i) + upNext(4).map { it.first }).mapNotNull { uriAt(it)?.toString() }
+        val stale = NextBuffer.stale(cachedAhead, wanted)
+        if (stale.isEmpty()) return
+        cachedAhead.removeAll(stale.toSet())
+        browseExec.execute { for (u in stale) try { StreamSupport.cache(ctx).removeResource(u) } catch (_: Exception) { } }
+    }
+
     /**
      * A song kept offline finished downloading (OfflineManager): wherever it waits in the queue it now plays from the phone, not the network. The
      * playing song keeps its stream ([PlaySource.swapToLocal]); it is mostly buffered by then, and swapping it would start it again.
@@ -1356,9 +1401,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val ask = "$n|$heads|" + ups.joinToString("|")
         if (ask == lastPrefetchAsk) return
         lastPrefetchAsk = ask
+        val ahead = PrefetchPlan.targets(ups, if (n == 0) heads else n) { StreamSupport.cacheable(Uri.parse(it)) }
+        cachedAhead.addAll(ahead)
         // while the playing song still loads: just the starts of the next two (a skip then plays at once); once it has stopped: the whole songs
-        if (n == 0 && heads > 0) prefetcher.fetch(PrefetchPlan.targets(ups, heads) { StreamSupport.cacheable(Uri.parse(it)) }.map(Uri::parse), PrefetchPlan.HEAD_BYTES)
-        else prefetcher.fetch(PrefetchPlan.targets(ups, n) { StreamSupport.cacheable(Uri.parse(it)) }.map(Uri::parse))
+        if (n == 0 && heads > 0) prefetcher.fetch(ahead.map(Uri::parse), upNext(heads).maxOfOrNull { (_, t) -> NextBuffer.headBytes(t.size, t.durationMs) } ?: PrefetchPlan.HEAD_BYTES)
+        else prefetcher.fetch(ahead.map(Uri::parse))
     }
 
     /** The connection came back: an interrupted stream is restarted at once instead of after its timeout. */
@@ -1382,7 +1429,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val transcode = needsTranscode(t)
         // a song kept offline plays from its file (unless this phone needs the server to convert it): no network, no data used, no waiting
         val local = !own && !transcode && t.path !in freshPaths && App.of(ctx).offline.localFile(t) != null
-        return PlaySource.choose(own, local, transcode, dataSaver, hlsUri(t) != null)
+        val opusPossible = prefs.accountUserId.isNotBlank() && com.ipodemu.library.JellyfinPaths.idOf(t.path) != null
+        return PlaySource.choose(own, local, transcode, dataSaver, hlsUri(t) != null, StreamQuality.opusNow(prefs.streamQuality, autoPick), opusPossible)
     }
 
     /** The queue item of [t]. Every queue is built through here (a list played on the phone, the car's lists and voice requests, Autoplay, a queue
@@ -1397,6 +1445,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             PlaySource.From.LOCAL -> b.setUri(App.of(ctx).offline.localFile(t)?.let { Uri.fromFile(it) } ?: uri)
             // formats the phone cannot decode (WMA, APE ...) are converted by Jellyfin on the way, as is everything with "Data saver" pinned
             PlaySource.From.HLS -> b.setUri(hlsUri(t)).setMimeType(androidx.media3.common.MimeTypes.APPLICATION_M3U8)
+            // a weak line, Automatic quality: Jellyfin's Opus 128k copy (chosen between songs; never for a downloaded song)
+            PlaySource.From.OPUS -> b.setUri(com.ipodemu.library.JellyfinPaths.opusUrl(uri.toString(), prefs.accountUserId, prefs.deviceId))
             PlaySource.From.STREAM -> b.setUri(uri)
         }
         return b.build()
@@ -1424,10 +1474,4 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         ).filterValues { it != null }.mapValues { it.value!! }
         val EQ_NAMES: List<String> = listOf("Off") + EQ_PRESETS.keys.sorted()
     }
-}
-
-/** The shuffle order used when shuffle is turned on mid-song: the song playing first, the rest in a random order. */
-object ShuffleStart {
-    fun order(current: Int, count: Int, random: kotlin.random.Random = kotlin.random.Random.Default): IntArray =
-        intArrayOf(current.coerceIn(0, count - 1)) + (0 until count).filter { it != current.coerceIn(0, count - 1) }.shuffled(random).toIntArray()
 }

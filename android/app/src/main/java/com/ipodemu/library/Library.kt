@@ -7,6 +7,7 @@ import com.ipodemu.Prefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
@@ -208,15 +209,21 @@ class Library(ctx: Context, val art: ArtCache) {
     private val fileMover = FileMoverClient()
     private val prefs = Prefs(ctx)
     private val downloader = DownloadCoordinator(prefs)
+    private val webCover = WebCovers({ if (prefs.hasJellyfinAccount) prefs.flacieWebUrl else "" }, {
+        mapOf("X-Emby-Token" to prefs.accountToken, "X-Jellyfin-Server" to prefs.accountServer.trimEnd('/'))
+    }, WebCovers::get)
+    private val webCoverSlots = kotlinx.coroutines.sync.Semaphore(6)
 
     init {
         // covers for streamed tracks are fetched the first time they are shown, then kept on disk like scanned ones
         // Jellyfin covers: fixed sizes, through the gate, once per picture (see ArtCache); the other sources below as before
+        // F2: with FLACie Web connected every cover comes from its /art (phone and web show the same picture); the lookups below run only when it gives nothing
         art.jfFetch = { id, full, tag, etag, p ->
-            if (prefs.jellyfinUrl.isBlank()) null else covers.fetch(prefs.jellyfinUrl, prefs.jellyfinApiKey, id, full, tag, etag, p)
+            webCoverSlots.withPermit { withContext(Dispatchers.IO) { webCover.fetch("jf$id", tag, full, etag) } }
+                ?: if (prefs.jellyfinUrl.isBlank()) null else covers.fetch(prefs.jellyfinUrl, prefs.jellyfinApiKey, id, full, tag, etag, p)
         }
         art.fetcher = { key ->
-            when {
+            (if (key.startsWith("it")) webCover.fetch(key, null, false, null)?.takeIf { it.code in 200..299 }?.body else null) ?: when {
                 key.startsWith("px") && prefs.plexUrl.isNotBlank() ->
                     CoverLookup.bytes("${prefs.plexUrl.trimEnd('/')}/library/metadata/${key.substring(2)}/thumb", mapOf("X-Plex-Token" to prefs.plexToken))
                 key.startsWith("it") -> CoverLookup.fetch(key)
@@ -545,10 +552,12 @@ class Library(ctx: Context, val art: ArtCache) {
         job = scope.launch {
             try {
                 if (!loaded) {
-                    com.ipodemu.Boot.span("library load()") { load() }; com.ipodemu.Boot.span("library showSavedLibrary()") { showSavedLibrary() }
-                    com.ipodemu.Boot.span("library loadRemote()") { loadRemote() }; com.ipodemu.Boot.span("library rebuild()") { rebuild() }; loaded = true
-                    com.ipodemu.Boot.mark("library loaded: ${tracks.size} songs, ${jellyfinTracks.size} jellyfin")
-                    notifyChange()   // Home waits for this before it works its shelves out again from the whole library
+                    // F3: the saved library first, before any network (see LibraryOpen)
+                    LibraryOpen.run(loadSaved = {
+                        com.ipodemu.Boot.span("library load()") { load() }; com.ipodemu.Boot.span("library showSavedLibrary()") { showSavedLibrary() }
+                        com.ipodemu.Boot.span("library loadRemote()") { loadRemote() }; com.ipodemu.Boot.span("library rebuild()") { rebuild() }; loaded = true
+                        com.ipodemu.Boot.mark("library loaded: ${tracks.size} songs, ${jellyfinTracks.size} jellyfin")
+                    }, shown = { notifyChange() }, refresh = {})   // Home waits for this before it works its shelves out again from the whole library
                 }
                 if (source == Source.LOCAL) { mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
                 runScan()

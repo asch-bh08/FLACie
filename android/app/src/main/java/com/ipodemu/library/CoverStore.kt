@@ -107,8 +107,25 @@ interface StorageInfo {
     fun totalBytes(): Long
 }
 
+/** F3: the saved row tiles stay under a size cap (default 100 MB): over it, the oldest are deleted first until they fit. */
+object TileCap {
+    const val DEFAULT_BYTES = 100L * 1024 * 1024
+
+    /** Deletes the least recently used [tiles] until the rest fit in [cap] bytes. Returns the deleted files. */
+    fun trim(tiles: List<File>, cap: Long): List<File> {
+        var total = tiles.sumOf { it.length() }
+        val out = ArrayList<File>()
+        for (f in tiles.sortedBy { it.lastModified() }) {
+            if (total <= cap) break
+            val len = f.length()
+            if (f.delete()) { total -= len; out += f }
+        }
+        return out
+    }
+}
+
 /**
- * No fixed cap on the covers: everything stays while there is room. Only when the device's free storage is low (under 10 % or 1.5 GB)
+ * Past the tile cap, the least recently used covers are deleted first. Otherwise no fixed cap on the covers: everything stays while there is room. Only when the device's free storage is low (under 10 % or 1.5 GB)
  * are the least recently used covers deleted, oldest first, until there is room again.
  */
 object CacheEvictor {

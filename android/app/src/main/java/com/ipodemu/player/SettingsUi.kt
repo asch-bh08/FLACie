@@ -142,6 +142,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Download on this phone when FLACie Web can't", if (prefs.downloadOnPhone) "On" else "Off", toggle = true, desc = "FLACie Web does your downloads when it is set up and reachable. With this on, this phone downloads the song itself when it isn't") { prefs.downloadOnPhone = !prefs.downloadOnPhone }
                         SettingRow("Offline music", if (app.offline.doneCount > 0) "${com.ipodemu.library.offline.OfflineMath.songs(app.offline.doneCount)}, ${com.ipodemu.library.offline.OfflineMath.formatBytes(app.offline.usedBytes)}" else "None", chevron = true) { nav.push(Screen.Offline) }
                         SettingRow("Streaming quality", desc = "Automatic and Always full play the original file. Data saver plays a smaller copy.", choices = listOf("Automatic", "Always full", "Data saver"), picked = prefs.streamQuality.coerceIn(0, 2), onPick = { prefs.streamQuality = it })
+                        SettingRow("Lyrics in the car", if (prefs.lyricsInCar) "On" else "Off", toggle = true, desc = "Android Auto shows the line being sung in place of the artist (the DJ's words still come first)") { prefs.lyricsInCar = !prefs.lyricsInCar }
                         SettingRow("Equalizer", prefs.eq, chevron = true) {
                             nav.sheet = SheetSpec("Equalizer", prefs.eq, com.ipodemu.playback.PlayerController.EQ_NAMES.map { n ->
                                 SheetItem(if (prefs.eq == n) "$n  (on)" else n, if (prefs.eq == n) Glyph.CHECK else Glyph.LIST) { prefs.eq = n; app.player.applyEq() }
@@ -205,6 +206,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                                     val n = com.ipodemu.playback.DjStyle.entries[i]; save(org.json.JSONObject().put("style", n.wire), dj.copy(style = n)) })
                             SettingRow("Talk after skips", if (dj.talkAfterSkips) "On" else "Off", toggle = true, desc = "Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip.") {
                                 save(org.json.JSONObject().put("talkAfterSkips", !dj.talkAfterSkips), dj.copy(talkAfterSkips = !dj.talkAfterSkips))
+                            }
+                            SettingRow("First song", if (dj.firstSong) "On" else "Off", toggle = true, desc = "When you start a playlist or queue, the DJ says its name and the first song, like \"Shuffling Pop, starting with Lovegame\".") {
+                                save(org.json.JSONObject().put("firstSong", !dj.firstSong), dj.copy(firstSong = !dj.firstSong))
                             }
                             MonoLabel("Where", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
                             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

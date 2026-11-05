@@ -41,4 +41,5 @@ placeholder values, no "the existing one" gaps. Order:
    Albums, Singles & EPs (newest first), Playlists (Best of, Radio, decade and genre lists), Other artists with similar names (small).
    A song query keeps today's song-first layout. Playwright test for the "prodigy" page. Owner reviews it live afterwards.
 6. F19: the mini player (spec F19). 7. F4.2: web preloads the next song. 8. F17 web part: captions shown when their audio plays.
+9. /art?fmt=png (PNG made cover). 10. F21.1 Frequently played (server + web Home), Listen again keeps all played songs but moves further down Home. 11. F22 DJ favourites. 12. F23 Spotify playlists downloaded as you go (spec F23).
 Log after each item (five lines), push `cloud/round2`.

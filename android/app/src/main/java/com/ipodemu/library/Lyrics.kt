@@ -28,6 +28,9 @@ class LyricsProvider(private val app: App) {
     private val dir = File(app.filesDir, "lyrics").apply { mkdirs() }
     private val mem = HashMap<String, Lyrics?>()
 
+    /** The lyrics if they are already loaded in memory (for a caller that can't wait), else null. */
+    fun cached(t: Track): Lyrics? = synchronized(mem) { mem[cacheKey(t)] }
+
     suspend fun get(t: Track): Lyrics? = withContext(Dispatchers.IO) {
         val key = cacheKey(t)
         synchronized(mem) { if (mem.containsKey(key)) return@withContext mem[key] }

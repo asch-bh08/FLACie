@@ -125,9 +125,9 @@ class DjCoordinator {
         const val ASK_LEAD_MS = 30_000L
         /** How long from now to ask about the next song: in the playing song's last [ASK_LEAD_MS], so a song skipped before then costs nothing
          *  (the owner's DJ used its daily share on lines for songs that were skipped). 0 = now (near the end, a short song, or the length not known). */
-        fun askInMs(durationMs: Long, positionMs: Long, speed: Float = 1f): Long {
+        fun askInMs(durationMs: Long, positionMs: Long, speed: Float = 1f, leadMs: Long = ASK_LEAD_MS): Long {
             if (durationMs <= 0L) return 0L
-            val left = durationMs - positionMs - ASK_LEAD_MS
+            val left = durationMs - positionMs - leadMs
             return if (left <= 0L) 0L else (left / speed.coerceAtLeast(0.25f)).toLong()
         }
         /** How long a line asked for after a skip may take to come; later, the song has gone on too far and the DJ stays quiet (the web's DjSkipWait). */
@@ -257,4 +257,22 @@ class SeekOrigin {
     fun clear() { mark = false }
     /** The player reports a seek inside the song: true when it was the listener's (a line being said stops). */
     fun seeked(): Boolean { val mine = mark; mark = false; return !mine }
+}
+
+/**
+ * How early to ask the server for the next line (F17.2): the clip must be ready when the song ends, so the quiet before the DJ speaks stays under a second.
+ * The lead is [DjCoordinator.ASK_LEAD_MS] at least, and three times the slowest of the last few answers when the server is slower than that
+ * (a slow model or a weak signal), up to [MAX_LEAD_MS].
+ */
+class DjLead(private val clock: () -> Long = System::currentTimeMillis) {
+    private val recent = ArrayDeque<Long>()
+
+    /** When a request starts: hand the result to [answered] when its answer arrives. */
+    fun asked(): Long = clock()
+
+    fun answered(askedAt: Long) { recent.addLast((clock() - askedAt).coerceAtLeast(0L)); while (recent.size > 3) recent.removeFirst() }
+
+    val leadMs: Long get() = ((recent.maxOrNull() ?: 0L) * 3).coerceIn(DjCoordinator.ASK_LEAD_MS, MAX_LEAD_MS)
+
+    companion object { const val MAX_LEAD_MS = 60_000L }
 }

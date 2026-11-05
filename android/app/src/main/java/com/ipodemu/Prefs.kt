@@ -356,6 +356,10 @@ class Prefs(ctx: Context) {
     var playerTips: Int
         get() = sp.getInt("playerTips", 0)
         set(v) = sp.edit().putInt("playerTips", v).apply()
+    /** Lyrics in the car: the song's current synced lyric line shows in the artist line on Android Auto (off by default). */
+    var lyricsInCar: Boolean
+        get() = sp.getBoolean("lyricsInCar", false)
+        set(v) = sp.edit().putBoolean("lyricsInCar", v).apply()
     /** Streaming quality: 0 = automatic (full quality, a lower bitrate only when the connection can't keep up), 1 = always full, 2 = always data saver. */
     var streamQuality: Int
         get() = sp.getInt("streamQuality", 0)

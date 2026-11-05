@@ -103,7 +103,7 @@ class App : Application() {
             other(library.findSong(e.title, e.artist)) ?: other(library.findLoose(e.title, e.artist))
                 ?: library.songs().firstOrNull { it.title.equals(e.title, ignoreCase = true) && other(it) != null }
         }
-        player.onPlayEnded = { t, heard -> listened(com.ipodemu.library.ListenKind.PLAY, t, heard) }
+        player.onPlayEnded = { t, heard -> if (t.isMusic) userData.recordHeard(com.ipodemu.library.matchKey(t.title, t.artist), heard, t.durationMs / 1000.0); listened(com.ipodemu.library.ListenKind.PLAY, t, heard) }
         userData.onListen = { kind, path, playlist -> library.resolve(path, userData.meta[path])?.let { listened(kind, it, context = playlist) } }
         listenWriter.launch { sendListensSoon() }
         // playback problems go to FLACie Web once a minute when there are any (kept while there is no signal)

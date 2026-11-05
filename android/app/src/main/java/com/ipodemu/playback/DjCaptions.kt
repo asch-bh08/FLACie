@@ -35,6 +35,12 @@ object DjCaptions {
         return res
     }
 
+    /** How often a playing clip's position is looked at to show the right phrase: a phrase is up within this of its audio. */
+    const val POLL_MS = 50L
+
+    /** The phrase to show when the clip is [positionMs] in, or null before the first and after the last (and its linger). The clip's own position drives it, not the clock. */
+    fun at(plan: List<Phrase>, positionMs: Long): Phrase? = plan.firstOrNull { positionMs >= it.atMs && positionMs < it.untilMs }
+
     fun split(t: String): List<String> {
         if (t.length <= ONE_LINE) return listOf(t)
         val n = if (t.length > ONE_LINE * 2) 3 else 2

@@ -76,6 +76,8 @@ class ArtCache(private val dir: File) {
     /** Which pictures the canvas themes still ask for (a drawn row asks every frame it is on screen): a request nobody asks for any more is dropped. */
     private val scroll = ScrollWatch(SCROLLED_OFF_AFTER)
     @Volatile private var savesSinceCheck = 0
+    /** The most the saved row tiles may use on disk (F3); the oldest go first. */
+    @Volatile var tileCapBytes = TileCap.DEFAULT_BYTES
     @Volatile private var indexLoaded = false
     /** inSampleSize for the 240 px row covers on screens that show them small (44-56 dp rows: 120 px is sharp even at 3x density). */
     @Volatile var jfThumbSample = 2
@@ -195,7 +197,9 @@ class ArtCache(private val dir: File) {
     /** Deletes the least recently used covers when the device is low on storage; nothing happens while there is room. */
     fun checkSpace(): Int {
         val files = allFiles()
-        val gone = CacheEvictor.evict(files, storage)
+        // F3: the row tiles also stay under their size cap, oldest out first
+        val capped = TileCap.trim(files.filter { it.name.endsWith(".r") || it.name.endsWith(".jpg") }, tileCapBytes)
+        val gone = capped + CacheEvictor.evict(files - capped.toSet(), storage)
         for (g in gone) forgetByName(g.name)
         if (gone.isNotEmpty()) { android.util.Log.d("FLACieCache", "low storage: evicted ${gone.size} covers"); saveIndexSoon() }
         return gone.size
@@ -236,7 +240,7 @@ class ArtCache(private val dir: File) {
         try {
             if (f.exists()) return f // another request fetched it while this one waited
             val bytes = try { fx(key) } catch (e: Exception) { busy = e is CoverLookup.CatalogBusy; null }
-            if (bytes != null) try { save(key, bytes) } catch (_: Exception) {}
+            if (bytes != null) try { save(key, bytes); if (++savesSinceCheck >= 40) { savesSinceCheck = 0; checkSpace() } } catch (_: Exception) {}
         } finally { fetchSlots.release() }
         synchronized(this) { if (!f.exists()) fetchFailed[key] = System.currentTimeMillis() - (RETRY_MS - retryAfterMs(busy)) else fetchFailed.remove(key) }
         return f

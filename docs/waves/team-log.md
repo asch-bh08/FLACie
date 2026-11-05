@@ -41,6 +41,14 @@
 - The DJ looks up the versions of a title before ranking (own plays first, then Deezer rank, then title); a lookup Deezer could not answer is not kept.
 
 ## 2026-11-05 Local
+- Merged F2 (phone covers via /art, own lookup only when the web is down), F3, F17.2 (adaptive DJ lead).
+- REQUEST for Cloud: /art/{key}?fmt=png must answer a PNG of the made cover (both sizes); the phone sends ?fmt=png and cannot draw SVG. Add it to cloud/round2.
+
+## 2026-11-05 Local
+- Merged phone rounds: F9 runner, F12 mic reopen, F14 mic pre-warm+beep, F15 switch, F17 captions by clip position, F13 toggle, F20 car, F4.1, F5. Android build+tests green.
+- Next Local: F2/F3 phone covers, F17.2 voice early, F6.3 phone search after Cloud F6.2.
+
+## 2026-11-05 Local
 - Merged cloud/dj-server and cloud/covers-search into ui/living-sleeve; full suite 1743 green on real .NET 9.
 - New split (TEAM.md Round 2): Cloud does all server and web work on cloud/round2; Local does Android, Android Auto, frank deploys, devices.
 

@@ -213,7 +213,9 @@ class PlaybackService : MediaLibraryService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val app = App.of(this)
-        session = MediaLibrarySession.Builder(this, app.player.sessionPlayer, library).setSessionActivity(open).build()
+        session = MediaLibrarySession.Builder(this, app.player.sessionPlayer, library).setSessionActivity(open)
+            // the car keeps the skip previous and next places even when a song can't skip, so the buttons never move
+            .setExtras(Bundle().apply { CarActions.SLOT_RESERVATION_KEYS.forEach { putBoolean(it, true) } }).build()
         // Register the session so the notification manager tracks the player even with no external controller bound.
         addSession(session!!)
         setMediaNotificationProvider(DefaultMediaNotificationProvider(this).apply { setSmallIcon(R.drawable.ic_stat_flacie) })
@@ -262,32 +264,29 @@ class PlaybackService : MediaLibraryService() {
         val app = App.of(this)
         val fav = isFavorite(app)
         val speed = app.player.speed
-        // in the car: the DJ in Speed's place (dimmed when off), when the DJ can work at all (FLACie Web and a Jellyfin sign-in)
-        val last = if (app.player.carControllers > 0 && app.player.djAvailable) {
-            val on = app.player.djOn
-            CommandButton.Builder().setDisplayName(if (on) "DJ on" else "DJ off").setIconResId(if (on) R.drawable.ic_dj else R.drawable.ic_dj_off).setSessionCommand(djCommand).build()
-        } else app.player.current?.takeIf { SpeedPolicy.speedButton(it.genre, it.durationMs, speed) }?.let {
-            // only for audiobooks, podcasts and long items (or to get back to 1x): a stray tap on it in a pocket left songs at 1.75x (owner, 1 Nov)
-            CommandButton.Builder().setDisplayName("Speed " + SpeedPolicy.label(speed)).setIconResId(R.drawable.ic_speed).setSessionCommand(speedCommand).build()
+        val carDj = app.player.carControllers > 0 && app.player.djAvailable
+        // only for audiobooks, podcasts and long items (or to get back to 1x): a stray tap on it in a pocket left songs at 1.75x (owner, 1 Nov)
+        val speedButton = app.player.current?.let { SpeedPolicy.speedButton(it.genre, it.durationMs, speed) } == true
+        fun button(name: String, icon: Int, cmd: SessionCommand) = CommandButton.Builder().setDisplayName(name).setIconResId(icon).setSessionCommand(cmd).build()
+        // in the car: the mic first (it sits next to the playback controls), then the heart, shuffle and the DJ's switch, large simple icons, four at most ([CarActions])
+        val buttons = CarActions.order(carDj, speedButton).map { id ->
+            when (id) {
+                CarActions.Id.TALK -> carMic.let { m ->
+                    button(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Thinking…"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" },
+                        if (m.conversing) R.drawable.ic_car_mic_on else R.drawable.ic_car_mic, talkCommand)
+                }
+                CarActions.Id.FAVORITE -> button(if (fav) "Remove from favourites" else "Favourite",
+                    if (carDj) (if (fav) R.drawable.ic_car_heart_on else R.drawable.ic_car_heart) else (if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav), favCommand)
+                CarActions.Id.SHUFFLE -> button(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off",
+                    if (carDj) (if (app.prefs.shuffle) R.drawable.ic_car_shuffle_on else R.drawable.ic_car_shuffle_off) else (if (app.prefs.shuffle) R.drawable.ic_car_shuffle else R.drawable.ic_shuffle_off), shuffleCommand)
+                CarActions.Id.DJ -> app.player.djOn.let { on -> button(if (on) "DJ on" else "DJ off", if (on) R.drawable.ic_car_dj_on else R.drawable.ic_car_dj_off, djCommand) }
+                // repeat: dimmed when off, a 1 for repeat one
+                CarActions.Id.REPEAT -> button(RepeatCycle.label(app.prefs.repeat),
+                    when (app.prefs.repeat) { RepeatCycle.ALL -> R.drawable.ic_repeat; RepeatCycle.ONE -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }, repeatCommand)
+                CarActions.Id.SPEED -> button("Speed " + SpeedPolicy.label(speed), R.drawable.ic_speed, speedCommand)
+            }
         }
-        // the car's mic comes first, so it is one of the buttons the car shows beside play (the rest go under its "more" button)
-        val talk = if (app.player.carControllers > 0 && app.player.djAvailable) {
-            val m = carMic
-            CommandButton.Builder().setDisplayName(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Thinking…"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" })
-                .setIconResId(if (m.conversing) R.drawable.ic_mic_listening else R.drawable.ic_mic).setSessionCommand(talkCommand).build()
-        } else null
-        // repeat right after the mic, so it is among the buttons the car shows beside play rather than under "more": with it off a playlist ends in
-        // Autoplay's picks, and in the car the owner wanted the playlist to start again instead (30 Oct). Dimmed when off, a 1 for repeat one
-        val repeat = CommandButton.Builder().setDisplayName(RepeatCycle.label(app.prefs.repeat))
-            .setIconResId(when (app.prefs.repeat) { RepeatCycle.ALL -> R.drawable.ic_repeat; RepeatCycle.ONE -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }).setSessionCommand(repeatCommand).build()
-        return ImmutableList.copyOf(listOfNotNull(talk, repeat,
-            CommandButton.Builder().setDisplayName(if (fav) "Remove from favourites" else "Favourite").setIconResId(if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav)
-                .setSessionCommand(favCommand).build(),
-            // shuffle in the car (it shows only these buttons, not the phone's): dimmed when off
-            CommandButton.Builder().setDisplayName(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off").setIconResId(if (app.prefs.shuffle) R.drawable.ic_car_shuffle else R.drawable.ic_shuffle_off)
-                .setSessionCommand(shuffleCommand).build(),
-            last,
-        ))
+        return ImmutableList.copyOf(buttons)
     }
 
     /** The service can start (to hold the restored queue) before the favourites are loaded: until then, not a favourite. */

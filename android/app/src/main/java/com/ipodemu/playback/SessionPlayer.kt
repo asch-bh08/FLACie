@@ -21,11 +21,35 @@ import com.ipodemu.library.Track
  * app's content provider so other apps can read them.
  */
 @UnstableApi
-class SessionPlayer(private val c: PlayerController, private val prefs: Prefs) : SimpleBasePlayer(Looper.getMainLooper()) {
+class SessionPlayer(private val c: PlayerController, private val prefs: Prefs, private val lyricsOf: (Track) -> com.ipodemu.library.Lyrics?) : SimpleBasePlayer(Looper.getMainLooper()) {
     /** Queue indices of the items last shown, in order (what a controller's item index means). */
     private var shown: List<Int> = emptyList()
 
+    private val handler = android.os.Handler(Looper.getMainLooper())
+    /** The DJ's caption in the car's artist line changes at most every two seconds. */
+    private val captionGate = CarActions.Gate()
+    private val askAgain = Runnable { invalidateState() }
+
     init { c.observe { invalidateState() } }
+
+    /**
+     * The artist line the car shows for the playing song: the DJ's caption while it talks, else (with "Lyrics in the car") the current lyric line, else the artist.
+     * Only while a car is connected. Asks to be drawn again when a held-back caption is due or the next lyric line is.
+     */
+    private fun artistFor(t: Track?): String? {
+        handler.removeCallbacks(askAgain)
+        if (c.carControllers <= 0) { captionGate.reset(); return null }
+        val now = android.os.SystemClock.elapsedRealtime()
+        val caption = captionGate.show(c.djCaption, now)
+        val wait = captionGate.waitMs(c.djCaption, now)
+        var again = if (wait > 0) wait else null
+        val lyrics = if (prefs.lyricsInCar && t != null) lyricsOf(t) else null
+        val lyric = lyrics?.let { CarActions.lyricAt(it.lines, it.synced, c.positionMs) }
+        if (lyrics != null && exoPlaying()) CarActions.untilNextLine(lyrics.lines, lyrics.synced, c.positionMs, c.speed)?.let { again = minOf(again ?: it, it) }
+        again?.let { handler.postDelayed(askAgain, it) }
+        return CarActions.artistLine(caption, lyric, prefs.lyricsInCar)
+    }
+    private fun exoPlaying() = c.exo.isPlaying
 
     override fun getState(): State {
         val exo = c.exo
@@ -40,7 +64,8 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs) :
             val mi = exo.getMediaItemAt(real)
             val t = mi.localConfiguration?.tag as? Track
             // covers as addresses other apps can read; the song's own length (the stream's is not known until it is open)
-            val md = mi.mediaMetadata.buildUpon().also { b -> ArtProvider.uri(t?.artKey)?.let { b.setArtworkUri(it) } }.build()
+            val line = if (real == cur) artistFor(t) else null
+            val md = mi.mediaMetadata.buildUpon().also { b -> ArtProvider.uri(t?.artKey)?.let { b.setArtworkUri(it) }; line?.let { b.setArtist(it) } }.build()
             MediaItemData.Builder(real.toString() + "|" + (t?.path ?: mi.mediaId)).setMediaItem(mi.buildUpon().setMediaMetadata(md).build()).setMediaMetadata(md)
                 .setDurationUs(((t?.durationMs ?: 0L).takeIf { it > 0 } ?: 0L) * 1000L).setIsSeekable(true).build()
         }

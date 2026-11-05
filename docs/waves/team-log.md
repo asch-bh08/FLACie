@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round2: PNG made cover, smoke fixes, F21.1)
+- Done: /art/{key}?fmt=png = made cover as PNG (240 px, 1000 px with s=full; CoverPng, own encoder) 46590a1; F21.1 PlayCounts (same rules as PlayCounts.kt) + web Home: Frequently played first, Listen again (every played song) after Daily Mix, as on the phone.
+- web-smoke fixed on .NET 9: 1c-api (made cover only for song keys), mock Prodigy songs stream and sort after Harbour, 1h-queue reads the list without Recommended songs (failed on ui/living-sleeve too), 1m-ipod counts only letters inside a clipped line.
+- Tip: web-smoke keeps the server's data in .pub-smoke/.data-smoke; delete it when the mock's songs change. Merged ui/living-sleeve (F21.2, F22/F23 specs). Next: F22, F23.
+
 ## 2026-11-05 Cloud PROGRESS (cloud/round2): all 8 round 2 items done; PNG made cover in progress
 - Done: F11 337b2af, F1 chain b9b52cf, F12 6528b38, F13+F15 web 39f3f63, F6.2 1d100ec, F19 64d3e25, F4.2 d7d9293, F17 web c5ca927; fix: made cover only for song keys (1c-api) after them.
 - In progress: /art/{key}?fmt=png (row and ?s=full) as a PNG of the made cover, for the phone.

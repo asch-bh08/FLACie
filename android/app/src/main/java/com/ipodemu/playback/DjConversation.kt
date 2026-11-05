@@ -39,10 +39,9 @@ object DjConversation {
     /**
      * After the DJ answered [a] on turn [turn] (1 = the first). [intent] is the server's name for what it understood ("Clarify", "Goodbye", "ThumbsDown"...).
      * A control carried out ends it; a goodbye ends it; anything else (an answer, a question back, a line that didn't catch it) listens again until the last
-     * turn, for [listenWindowMs]. [asked] is kept for callers that know the question back from the answer's flag.
+     * turn, for [listenWindowMs]. A question back ([asked], also an answer with an ask step) always listens for the reply, whatever else the answer did.
      */
-    @Suppress("UNUSED_PARAMETER")
-    fun after(a: DjAskDo, asked: Boolean, turn: Int, intent: String = ""): DjTurn = when (a) {
+    fun after(a: DjAskDo, asked: Boolean, turn: Int, intent: String = ""): DjTurn = if (asked && intent != "Goodbye" && intent != "ThumbsDown" && turn < MAX_TURNS) DjTurn.LISTEN_AGAIN else when (a) {
         DjAskDo.PLAY, DjAskDo.NEXT, DjAskDo.RESUME, DjAskDo.PAUSE -> DjTurn.END_MUSIC_CHOSEN
         DjAskDo.NONE -> if (intent != "Goodbye" && intent != "ThumbsDown" && turn < MAX_TURNS) DjTurn.LISTEN_AGAIN else DjTurn.END
         else -> DjTurn.END

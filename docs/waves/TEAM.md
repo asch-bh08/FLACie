@@ -25,3 +25,20 @@ account in claude.ai/code on this GitHub repo; no frank, no phone, no emulator).
 - Comments and messages in plain English, short; code reads like the code around it.
 - Cloud never deploys, never releases, never pushes to `main` or `ui/living-sleeve`: only its own branch.
 - The phone needs FLACie Web; the DJ and SoundCloud live on frank. The phone keeps covers it has seen and looks them up itself only when frank is unreachable.
+
+## Round 2 (from 5 Nov afternoon): everything fully built
+New split: **Cloud = all server and web work. Local = all Android and Android Auto work, frank deploys, device tests, merges, releases.**
+Cloud works on branch `cloud/round2`, from `ui/living-sleeve` at or after "Merge cloud/covers-search" (485c6d41). Finish each item fully: no
+placeholder values, no "the existing one" gaps. Order:
+1. F11: real popularity. Deezer track `rank` from the catalog search, cached on disk on frank; combined with the person's plays. Test with
+   fixtures: "rhythm of the night" picks Corona's The Rhythm of the Night over DeBarge's when neither was played.
+2. F1: the full chain before the made cover: the folder picture (Jellyfin's image for the song's folder/album item), then the artist photo
+   (Jellyfin artist image, then the catalog's artist picture). Tests per step.
+3. F12 end to end: "remove this from the playlist" -> "are you sure?" -> "yes" removes, "no" keeps; "make a backroads playlist" -> made and
+   named -> "call it Country Roads" renames; "not that one" across turns. The web runner runs every step kind and reopens the mic after an ask.
+4. F13 web: the shuffle toggle button in the web player (uses QueueShuffle). F15 web: the first-song switch in the web DJ settings.
+5. F6.2: the web search page: Top result on the left with that artist's top 5 songs beside it (no big empty card); then rows Popular,
+   Albums, Singles & EPs (newest first), Playlists (Best of, Radio, decade and genre lists), Other artists with similar names (small).
+   A song query keeps today's song-first layout. Playwright test for the "prodigy" page. Owner reviews it live afterwards.
+6. F19: the mini player (spec F19). 7. F4.2: web preloads the next song. 8. F17 web part: captions shown when their audio plays.
+Log after each item (five lines), push `cloud/round2`.

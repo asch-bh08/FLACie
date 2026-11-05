@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-05 Cloud (cloud/round3: F25.2 tidy Import page)
+- Done: Import.razor in the new look: paste box first with the service's mark as the link is recognised, a smaller file drop, Replace as a real switch, body font that wraps, past imports as compact rows (source mark, "N of M added", date), finished ones over 7 days folded under Older (ImportJob.IsOld / Added / Source).
+- Proof: web-smoke 1z-import-page.spec.ts (375 px and 1600 px: no sideways scroll, switch visible and works, marks; a file import row), ImportPageTests. Styles in living-sleeve.css (.imp-*; the app has no scoped-CSS bundle).
+
 ## 2026-11-05 Cloud (cloud/round3: F25.1 any playlist link)
 - Done: PlaylistLinks recognises YouTube / YouTube Music (list=), SoundCloud sets, Apple Music playlists and albums; anything else gets PlaylistLinks.Refusal (the list of what it reads). YouTube titles cleaned ("Artist - Song (Official Video)").
 - AppleMusicPage reads the real page fixture (50 songs, "Solar Eclipse" by Drake). PlaylistLinkReader: Apple from its page; YouTube/SoundCloud via the file mover -> flacie-ytdl POST /playlist {url} (hosts checked, 500 max).

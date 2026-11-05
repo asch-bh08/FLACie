@@ -48,7 +48,12 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
 
     /// <summary>A Spotify or Deezer link, as the Import page and the phone's <c>POST /api/import/link</c> both start it (see <see cref="LinkImport"/>).</summary>
     public Task<ImportJob> StartLinkAsync(UserSession s, PlaylistLinkReader reader, string? url, bool replace = false, CancellationToken ct = default) =>
-        LinkImport.StartAsync(reader, list => StartLists(s, list.Name, [list], replace), url, ct, s.Services);
+        LinkImport.StartAsync(reader, list =>
+        {
+            var job = StartLists(s, list.Name, [list], replace);
+            job.Source = PlaylistLinks.Recognise(url)?.Service.ToString().ToLowerInvariant();
+            return job;
+        }, url, ct, s.Services);
 
     /// <summary>Picks up unfinished imports after a restart.</summary>
     public void Resume(UserSession s)

@@ -42,7 +42,7 @@ test('"prodigy" puts The Prodigy on top with their top 5 songs beside it, then t
   expect(hero.height).toBeLessThan(list.height + 80);
   await expect(page.getByRole('region', { name: 'Popular' }).locator('.card')).toHaveCount(7);
   expect(await titles(page, 'Albums', '.card-title')).toEqual(['The Fat of the Land', 'Music for the Jilted Generation']);
-  expect(await titles(page, 'Singles & EPs', '.card-title')).toEqual(['Firestarter', 'Charly EP']);
+  expect(await titles(page, 'Singles & EPs', '.card-title')).toEqual(['Out of Space', 'What Evil Lurks EP']);
   const lists = await titles(page, 'Playlists', '.card-title');
   expect(lists).toContain('Best of The Prodigy');
   expect(lists).toContain('The Prodigy Radio');

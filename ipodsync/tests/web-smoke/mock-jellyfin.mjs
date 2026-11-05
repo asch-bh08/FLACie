@@ -74,11 +74,11 @@ const lab = labSpec.map((s, i) => ({
 }));
 songs.push(...lab);
 // ---- search page (1r-search-artist.spec.ts): "prodigy" is The Prodigy (two albums, a single, an EP, 12 songs) far more than Prodigy (3 songs) ----
-const prodigy = [
-  ['The Prodigy', 'The Fat of the Land', 1997, ['Smack My Bitch Up', 'Breathe', 'Diesel Power', 'Funky Shit', 'Serial Thrilla']],
+const prodigy = [   // (titles that sort after "Harbour", so the iPod lists keep their order: 1m-ipod.spec.ts)
+  ['The Prodigy', 'The Fat of the Land', 1997, ['Smack My Bitch Up', 'Mindfields', 'Serial Thrilla', 'Narayan', 'Spitfire']],
   ['The Prodigy', 'Music for the Jilted Generation', 1994, ['Voodoo People', 'Poison', 'No Good (Start the Dance)', 'One Love']],
-  ['The Prodigy', 'Firestarter', 1996, ['Firestarter']],
-  ['The Prodigy', 'Charly EP', 1991, ['Charly', 'Your Love']],
+  ['The Prodigy', 'Out of Space', 1992, ['Out of Space']],
+  ['The Prodigy', 'What Evil Lurks EP', 1991, ['What Evil Lurks', 'We Are the Ruffest']],
   ['Prodigy', 'H.N.I.C.', 2000, ['Keep It Thoro', 'Rock Dat Shit', 'Wanna Be Thugs']],
 ];
 for (const [artist, album, year, titles] of prodigy) {
@@ -195,7 +195,7 @@ http
     // any other song's own item, as Jellyfin answers it: with its streams (CD-quality FLAC, as in the library listing)
     const songM = /^\/Users\/u1\/Items\/(s\d+)$/.exec(p);
     if (songM && songs.some((x) => x.Id === songM[1])) return json(res, 200, withSources(songs.find((x) => x.Id === songM[1])));
-    if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d))\/stream/.test(p)) {
+    if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d)|p\d+)\/stream/.test(p)) {
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
       if (firstByte > 0) await new Promise((r) => setTimeout(r, firstByte));
@@ -237,6 +237,8 @@ http
       return res.end(alacFile.subarray(from, to + 1));
     }
     if (/^\/Items\/[^/]+\/Images\//.test(p)) {
+      // an item with no picture at all (1c-api.spec.ts: the made cover, as SVG and as PNG)
+      if (p.split('/')[2].startsWith('nocover')) { res.writeHead(404); return res.end(); }
       const key = `${p.split('/')[2]}|${q.get('tag') || ''}|w=${q.get('maxWidth') || 'full'} q=${q.get('quality') || ''} ${q.get('format') || ''}`;
       if (images.has(key)) counts.imageRepeats++;
       images.set(key, (images.get(key) || 0) + 1);

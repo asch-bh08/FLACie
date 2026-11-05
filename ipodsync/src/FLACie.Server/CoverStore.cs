@@ -98,6 +98,8 @@ public static class GeneratedCover
 {
     /// <summary>Kept briefly by the browser, so a real cover found later shows within the hour.</summary>
     public const string CacheControl = "private, max-age=3600";
+    /// <summary>The PNG's sides: rows and tiles, and the player (?s=full).</summary>
+    public const int RowPx = 240, FullPx = 1000;
 
     // the app's dark sleeve colours, one picked by the song's name
     static readonly (string From, string To)[] Colours =
@@ -126,10 +128,16 @@ public static class GeneratedCover
         return ("", "");
     }
 
+    /// <summary>The two colours of the fade, picked by the song's name (the same for the SVG and the PNG).</summary>
+    public static (string From, string To) ColoursFor(string artist, string title) => Colours[(int)((uint)StableHash(artist + "\n" + title) % (uint)Colours.Length)];
+    /// <summary>The big letters: the first letters of the artist's first two words (the title's when there is no artist).</summary>
+    public static string Initials(string artist, string title) =>
+        string.Concat((artist.Length > 0 ? artist : title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetterOrDigit(w[0])).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+
     public static string Svg(string artist, string title)
     {
-        var (from, to) = Colours[(int)((uint)StableHash(artist + "\n" + title) % (uint)Colours.Length)];
-        var initials = string.Concat((artist.Length > 0 ? artist : title).Split(' ', StringSplitOptions.RemoveEmptyEntries).Where(w => char.IsLetterOrDigit(w[0])).Take(2).Select(w => char.ToUpperInvariant(w[0])));
+        var (from, to) = ColoursFor(artist, title);
+        var initials = Initials(artist, title);
         static string X(string s) => System.Security.SecurityElement.Escape(s.Length > 40 ? s[..39] + "…" : s);
         var sb = new StringBuilder();
         sb.Append("<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 240 240\" width=\"240\" height=\"240\">");

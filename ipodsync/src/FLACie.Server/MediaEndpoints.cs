@@ -251,6 +251,8 @@ public static class MediaEndpoints
                         // F1: every source failed: a cover made from the artist and title, never a blank or a 404
                         ctx.Response.Headers.CacheControl = GeneratedCover.CacheControl;
                         var (ga, gt) = GeneratedCover.Names(key);
+                        // the phone asks ?fmt=png (it cannot draw SVG): the same cover as a PNG, at the row size or the player's (?s=full)
+                        if (ctx.Request.Query["fmt"] == "png") return Results.File(CoverPng.Make(ga, gt, ctx.Request.Query["s"] == "full" ? GeneratedCover.FullPx : GeneratedCover.RowPx), "image/png");
                         return Results.Text(GeneratedCover.Svg(ga, gt), "image/svg+xml");
                     default: return Results.StatusCode(status);
                 }

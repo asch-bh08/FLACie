@@ -22,7 +22,7 @@ public class NoRealServerInTestsTests
 
     static readonly string[] Dirs = { "ipodsync/tests", "ipodsync/tools", "android/app/src/test", "android/app/src/androidTest", "android/tools", ".github" };
     static readonly string[] Exts = { ".cs", ".kt", ".kts", ".mjs", ".js", ".ts", ".ps1", ".sh", ".py", ".json", ".yml", ".yaml", ".md", ".xml", ".csproj" };
-    static readonly string[] SkipDirs = { "node_modules", "bin", "obj", ".data-smoke", ".pub-smoke", "test-results", "playwright-report", ".pub-real", ".data-real" };
+    static readonly string[] SkipDirs = { "node_modules", "bin", "obj", ".data-smoke", ".pub-smoke", "test-results", "playwright-report", ".pub-real", ".data-real", ".data-real-ls" };
     const string Self = "NoRealServerInTestsTests.cs";
 
     static IEnumerable<string> Files()

@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-06 Local (midday)
+- b112 released + deployed (rollback flacie-web:rollback-20261106-pre-b112). SpotifyPlaylists: Deezer/SoundCloud per-artist answers come from saved lists (WebPlaylistStore, Subject = artist) and refresh in the background; sources asked side by side, FirstAnswer 2.5 s. Phone: RemoteArt (disk cache RemoteArtFiles in cacheDir/remote-art, single flight, prefetch on results). DownloadCovers (data/download-covers.json): search downloads keep their catalogue cover (Library.Merge applies; /art jf key of that song redirects to it; phone sends artUrl to /api/download).
+- Import rows: Matching.SameSongLoosely pairs "Scatman" with "Scatman (ski-ba-bop-ba-dop-bop)" (web page and ImportManager.Have).
+- ArtistResolve after owner's review: no split when a later part starts with "the", "/" kept next to a 1-2 letter side, album artist leads, parts deduped by folded key, capitals changed only when Capitals() scores better. Owner must press "Check again".
+
 ## 2026-11-06 Local (late morning)
 - b111: Hi-Res upgrades dropped downloaded songs from playlists (owner's rally: Jellyfin playlist 72/99; all 25 missing were "[Hi-Res]" swaps; the phone mirror pushed the dead Jellyfin id). Fixes: ImportManager.Heal (once per done import, ImportJob.Healed, runs after sign-in), UserSession.RepointPlaylists on upgrade (+ profile saved), phone PlaylistMerge.mirrorId (dead id -> title/artist; never before the library loads).
 - DJ: PlaylistAndThen ("pop playlist and shuffle pop" = Pop + shuffle), ArtistFits ("by corona" never DeBarge; fetch + DjAskWait(AddTo, Shuffle) applied on land by web and phone), "play X and add it" = Play now, OtherRx "the one by X", vague playlist names ask "Which playlist".

@@ -9,7 +9,8 @@ import org.json.JSONObject
  * Songs come in the shape /api/recommend uses, so they are found on the phone the same way (by path, else title and artist).
  */
 object MadeLists {
-    class Summary(val id: String, val name: String, val subtitle: String, val count: Int, val first: RecPick?)
+    /** [picture]: an outside list's own picture (Spotify's, Deezer's), shown when the phone has none of its songs. */
+    class Summary(val id: String, val name: String, val subtitle: String, val count: Int, val first: RecPick?, val picture: String? = null)
     class Full(val id: String, val name: String, val subtitle: String, val tracks: List<RecPick>)
     class Saved(val id: String, val name: String, val count: Int)
 
@@ -18,7 +19,7 @@ object MadeLists {
 
     /** `GET /api/made?q=`: the matching lists, closest first. */
     fun parseSearch(json: String): List<Summary> = JSONObject(json).optJSONArray("lists")?.let { a ->
-        List(a.length()) { a.getJSONObject(it).let { o -> Summary(o.optString("id"), o.optString("name"), o.optString("subtitle"), o.optInt("count"), o.optJSONObject("first")?.let(::song)) } }
+        List(a.length()) { a.getJSONObject(it).let { o -> Summary(o.optString("id"), o.optString("name"), o.optString("subtitle"), o.optInt("count"), o.optJSONObject("first")?.let(::song), str(o, "picture")) } }
     }?.filter { it.id.isNotEmpty() } ?: emptyList()
 
     /** `GET /api/made/{id}`: one list with its songs. */
@@ -26,6 +27,13 @@ object MadeLists {
         val a = o.optJSONArray("tracks")
         Full(o.optString("id"), o.optString("name"), o.optString("subtitle"), if (a == null) emptyList() else List(a.length()) { song(a.getJSONObject(it)) })
     }
+
+    /** A list from outside (6 Nov: the web's Search playlists on the phone): "web:<source>:<id>". */
+    fun isOutside(id: String) = id.startsWith("web:")
+    fun source(id: String) = when (id.split(':').getOrNull(1)) { "spotify" -> "Spotify"; "deezer" -> "Deezer"; "soundcloud" -> "SoundCloud"; else -> "FLACie" }
+
+    /** The songs of an opened list the phone doesn't have, in the list's order, as (title, artist): shown greyed with Download. */
+    fun missing(f: Full, have: (RecPick) -> Boolean): List<Pair<String, String>> = f.tracks.filterNot(have).map { it.title to it.artist }
 
     /** `POST /api/made/{id}/save`: the playlist it became. */
     fun parseSaved(json: String): Saved = JSONObject(json).let { Saved(it.optString("id"), it.optString("name"), it.optInt("count")) }

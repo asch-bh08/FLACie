@@ -23,6 +23,22 @@ class MadeListsTest {
         assertEquals("8 songs · made for you", l[1].subtitle)
     }
 
+    @Test fun anOutsideListCarriesItsPictureAndSource() {
+        val l = MadeLists.parseSearch("""{"lists":[{"id":"web:spotify:abc","name":"This Is The Prodigy","subtitle":"50 songs · Spotify editors","count":50,"artKey":null,"picture":"https://i.scdn.co/image/x","first":null},
+            {"id":"made:genre:rock","name":"Rock","subtitle":"","count":2,"artKey":null,"picture":null,"first":null}]}""")
+        assertEquals("https://i.scdn.co/image/x", l[0].picture)
+        assertTrue(MadeLists.isOutside(l[0].id))
+        assertEquals("Spotify", MadeLists.source(l[0].id))
+        assertNull(l[1].picture)
+        assertFalse(MadeLists.isOutside(l[1].id))
+    }
+
+    @Test fun anOpenedOutsideListNamesTheSongsThePhoneLacks() {
+        val f = MadeLists.parseOne("""{"id":"web:deezer:9","name":"90s Rave","count":3,"tracks":[
+            {"path":"jf:1","title":"One","artist":"A","missing":false},{"path":null,"title":"Firestarter","artist":"The Prodigy","missing":true}]}""")
+        assertEquals(listOf("Firestarter" to "The Prodigy"), MadeLists.missing(f) { it.path != null })
+    }
+
     @Test fun anEmptyAnswerIsNoLists() {
         assertTrue(MadeLists.parseSearch("""{"lists":[]}""").isEmpty())
         assertTrue(MadeLists.parseSearch("{}").isEmpty())

@@ -16,11 +16,12 @@ class LyricLine(val timeMs: Long, val text: String)
 class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val source: String)
 
 /**
- * Lyrics for any track, first hit wins:
- *  1. Jellyfin's own lyrics for a Jellyfin item (.lrc files / lyrics plugins on the server),
- *  2. a `.lrc` next to a local file,
- *  3. LRCLIB (lrclib.net, the free open lyrics database LRCGET uses): exact artist/title/album/duration lookup, then
- *     a search on title + lead artist.
+ * Lyrics for any track, first hit wins (as the web finds them, 6 Nov):
+ *  1. LRCLIB (lrclib.net, the free open lyrics database LRCGET uses) for the exact artist/title/album/duration: timed to this length of the song
+ *     (a Jellyfin .lrc made for another edition ran late and stuck on a line: Lovegame, 5 Nov),
+ *  2. Jellyfin's own lyrics for a Jellyfin item (.lrc files / lyrics plugins on the server),
+ *  3. a `.lrc` next to a local file,
+ *  4. an LRCLIB search on title + lead artist.
  * Results -- including "none found" -- are cached on disk per song (a miss is retried after a week).
  * Only the song's title, artist, album and length are sent to LRCLIB.
  */
@@ -39,7 +40,9 @@ class LyricsProvider(private val app: App) {
         val result = when {
             cached == null -> fetch(t).also { save(f, it) }
             cached.startsWith(MISS) -> if (System.currentTimeMillis() - f.lastModified() > WEEK) fetch(t).also { save(f, it) } else null
-            else -> parse(cached.substringAfter('\n'), cached.substringBefore('\n'))
+            // saved from Jellyfin before LRCLIB's exact match came first: asked again once
+            stale(cached.substringBefore('\n')) -> fetch(t).also { save(f, it) }
+            else -> parse(cached.substringAfter('\n'), sourceOf(cached.substringBefore('\n')))
         }
         synchronized(mem) { mem[key] = result }
         result
@@ -47,12 +50,12 @@ class LyricsProvider(private val app: App) {
 
     private fun save(f: File, l: Lyrics?) {
         try {
-            f.writeText(if (l == null) MISS else l.source + "\n" + l.lines.joinToString("\n") { if (l.synced) "[${stamp(it.timeMs)}]${it.text}" else it.text })
+            f.writeText(if (l == null) MISS else header(l.source) + "\n" + l.lines.joinToString("\n") { if (l.synced) "[${stamp(it.timeMs)}]${it.text}" else it.text })
         } catch (_: Exception) {}
     }
 
     private suspend fun fetch(t: Track): Lyrics? =
-        fromJellyfin(t) ?: fromSidecar(t) ?: fromLrclib(t)
+        lrclibExact(t) ?: fromJellyfin(t) ?: fromSidecar(t) ?: lrclibSearch(t)
 
     private val jfId = Regex("/Audio/([0-9a-fA-F]{32})/stream")
 
@@ -79,18 +82,25 @@ class LyricsProvider(private val app: App) {
         return if (f.exists()) parse(f.readText(), "Local .lrc") else null
     }
 
-    private fun fromLrclib(t: Track): Lyrics? {
+    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+
+    private fun lrclibExact(t: Track): Lyrics? {
         val title = t.title.trim(); val artist = t.artist.trim()
         if (title.isEmpty() || !t.isMusic) return null
-        fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
         val lead = primaryArtistDisplay(artist)
         val exact = buildString {
             append("$LRCLIB/get?track_name=${enc(title)}&artist_name=${enc(lead.ifEmpty { artist })}")
             if (t.album.isNotBlank()) append("&album_name=${enc(t.album)}")
             if (t.durationMs > 0) append("&duration=${t.durationMs / 1000}")
         }
-        http(exact, UA)?.let { b -> fromLrclibJson(JSONObject(b))?.let { return it } }
-        // no exact match (different album/edition, or length off): search, and take the closest-length hit with lyrics
+        return http(exact, UA)?.let { b -> try { fromLrclibJson(JSONObject(b)) } catch (_: Exception) { null } }
+    }
+
+    /** No exact match (different album/edition, or length off): search, and take the closest-length hit with lyrics. */
+    private fun lrclibSearch(t: Track): Lyrics? {
+        val title = t.title.trim(); val artist = t.artist.trim()
+        if (title.isEmpty() || !t.isMusic) return null
+        val lead = primaryArtistDisplay(artist)
         val q = http("$LRCLIB/search?track_name=${enc(stripFeat(title))}&artist_name=${enc(lead.ifEmpty { artist })}", UA) ?: return null
         val arr = try { JSONArray(q) } catch (_: Exception) { return null }
         val hits = List(arr.length()) { arr.getJSONObject(it) }
@@ -121,6 +131,13 @@ class LyricsProvider(private val app: App) {
         private const val LRCLIB = "https://lrclib.net/api"
         private val UA = mapOf("User-Agent" to "ipodplayer/0.8 (Android music player)")
         private const val MISS = "#none"
+        /** Where lyrics are looked for, in order (see [fetch]). */
+        val ORDER = listOf("lrclib-exact", "jellyfin", "sidecar", "lrclib-search")
+        /** A saved copy's first line: its source, and "\t2" for the order above. */
+        fun header(source: String) = source + "\t2"
+        fun sourceOf(header: String) = header.substringBefore('\t')
+        /** Saved from Jellyfin under the old order (Jellyfin first): fetched again once. */
+        fun stale(header: String) = header == "Jellyfin"
         private const val WEEK = 7L * 24 * 3600 * 1000
         private val stampRe = Regex("""\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?]""")
 

@@ -297,6 +297,8 @@ fun PlayerHost(nav: PlayerNav) {
             val typing = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
             // what is downloading, above the mini player, wherever you are (owner, 1 Nov: it took ten menus to find out)
             if (!typing && !nav.nowPlaying && modern && !LocalHardware.current && !app.ui.guest) DownloadActivityBar { nav.push(Screen.Downloads) }
+            // what the DJ is doing after a press of the mic (as the web's DJ bar): listening, what it heard, thinking
+            if (!typing && !nav.nowPlaying && !LocalHardware.current) DjStatusBar()
             if (typing) Unit
             else if (remoteId != null && !snap.playing && !nav.nowPlaying && modern && !LocalHardware.current) {
                 AnimatedVisibility(remember { androidx.compose.animation.core.MutableTransitionState(false).apply { targetState = true } }, enter = slideInVertically(androidx.compose.animation.core.spring(0.8f, 380f)) { it } + androidx.compose.animation.fadeIn(tween(160))) { RemoteMiniPlayer(remoteId!!) }
@@ -1290,19 +1292,22 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
         catch (e: Exception) { android.util.Log.w("FLACie", "made list failed: ${e.message}"); failed = full == null }
     }
     val tracks = remember(full, libRev) { full?.tracks.orEmpty().mapNotNull { p -> lib.resolve(p.path ?: "", p.title to p.artist) }.distinctBy { it.path } }
+    // a list from outside (Spotify's, Deezer's...): the songs the phone lacks, greyed with Download, as an imported playlist shows them
+    val missing = remember(full, libRev) { full?.let { f -> com.ipodemu.library.MadeLists.missing(f) { p -> lib.resolve(p.path ?: "", p.title to p.artist) != null } } ?: emptyList() }
+    val outside = com.ipodemu.library.MadeLists.isOutside(d.id)
     val art = tracks.firstNotNullOfOrNull { it.artKey }
     BackdropArt(nav, art)
     val title = full?.name ?: d.name
     val info = DetailFacts.line(0, tracks.size, tracks.sumOf { it.durationMs }, emptyList())
     Column(Modifier.fillMaxSize()) {
         TopBar(if (LocalStyle.current.modern) "" else title, nav, showBack = true)
-        if (tracks.isEmpty()) {
+        if (tracks.isEmpty() && missing.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (failed) "Couldn't load this playlist. Check the connection and try again" else if (full == null) "Loading..." else "None of this playlist's songs are on this phone yet") }
             return@Column
         }
-        SongList(tracks, nav, snap, showArt = false, numbered = true, header = {
+        SongList(tracks, nav, snap, showArt = false, numbered = true, missing = missing, header = {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                DetailHeader(art, title, full?.subtitle.orEmpty(), info, tracks, nav, null, "Made for you", null)
+                DetailHeader(art, title, full?.subtitle.orEmpty(), info, tracks, nav, null, if (outside) "Playlist · ${com.ipodemu.library.MadeLists.source(d.id)}" else "Made for you", null)
                 DesignChip(if (added) "Added to my playlists" else if (saving) "Adding..." else "Add to my playlists", added, {
                     if (!added && !saving) {
                         saving = true
@@ -1537,11 +1542,34 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         val artistTop = remember(q, libRev) { if (q.length < 2) null else com.ipodemu.library.SearchRankTop.artist(app.library.artists(), q, app.userData.plays) }
         val artistPage = remember(artistTop, libRev) { artistTop?.let { com.ipodemu.library.ArtistPage.of(it, app.library.albums(), app.userData.plays) } }
         val similarArtists = remember(artistTop, libRev) { if (artistTop == null) emptyList() else SearchArtists.similar(app.library.artists(), q, artistTop) }
+        // "Lists with <artist> in": lists the server has already read that hold the artist's songs
+        var featuring by remember(artistTop?.name) { mutableStateOf<List<com.ipodemu.library.MadeLists.Summary>>(emptyList()) }
+        LaunchedEffect(artistTop?.name) {
+            val name = artistTop?.name ?: return@LaunchedEffect
+            if (app.ui.guest) return@LaunchedEffect
+            delay(500)
+            val c = com.ipodemu.library.FlacieWebClient(app.prefs)
+            if (c.available) featuring = withContext(Dispatchers.IO) { try { c.featuring(name) } catch (e: Exception) { emptyList() } }
+        }
         val restSongs = if (topSong != null) rankedSongs.drop(1) else rankedSongs
         var songsExpanded by remember(q) { mutableStateOf(false) }
         var albumsExpanded by remember(q) { mutableStateOf(false) }
         var webSongsExpanded by remember(q) { mutableStateOf(false) }
         var only by remember(q) { mutableStateOf("") }
+        // the Playlists chip's lists (null while asking) and its genre and decade
+        var listGenre by remember { mutableStateOf("") }
+        var listDecade by remember { mutableStateOf("") }
+        val listFilters = remember(libRev) { com.ipodemu.library.ListFilters.of(app.library.songs()) }
+        var allLists by remember(q) { mutableStateOf<List<com.ipodemu.library.MadeLists.Summary>?>(null) }
+        val webLists = !app.ui.guest && remember { com.ipodemu.library.FlacieWebClient(app.prefs) }.available
+        LaunchedEffect(q, only, listGenre, listDecade) {
+            if (only != "playlists" || !com.ipodemu.library.MadeLists.worthAsking(q)) return@LaunchedEffect
+            allLists = null
+            delay(250)
+            allLists = withContext(Dispatchers.IO) {
+                try { com.ipodemu.library.FlacieWebClient(app.prefs).madeSearch(q, "playlists", listGenre, listDecade) } catch (e: Exception) { android.util.Log.w("FLACie", "playlists filter failed: ${e.message}"); emptyList() }
+            }
+        }
         // the row keeps its scroll offset by item key; when a new result list arrives (or a download reshuffles it) it could stay scrolled
         // a few pixels, clipping the first card, so it snaps back to the start whenever the first album changes
         val albumRowState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -1566,29 +1594,42 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (picks != null) 150.dp else 24.dp)) {
             // Show only: All, Songs or Albums (as on the web), when there are both
             val hasSongs = w.songs.isNotEmpty() || rankedSongs.isNotEmpty(); val hasAlbums = w.albums.isNotEmpty() || r.albums.isNotEmpty()
-            if (hasSongs && picks == null) item(key = "select") {
+            if (hasSongs && picks == null && only != "playlists") item(key = "select") {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { DesignChip("Select", false, { picks = PickSet() }, icon = Glyph.CHECK) }
             }
-            if (hasSongs && hasAlbums) item(key = "kinds") {
+            // one choice, as on the web: All, Songs, Albums or Playlists (Playlists only with FLACie Web, which has them)
+            if (picks == null && (hasSongs || hasAlbums || webLists)) item(key = "kinds") {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((k, label) in listOf("" to "All", "songs" to "Songs", "albums" to "Albums")) DesignChip(label, only == k, { only = k })
+                    val kinds = listOf("" to "All", "songs" to "Songs", "albums" to "Albums") + (if (webLists) listOf("playlists" to "Playlists") else emptyList())
+                    for ((k, label) in kinds) DesignChip(label, only == k, { only = k })
                 }
             }
             fun shows(kind: String) = only == "" || only == kind
             val artistMode = artistTop != null && artistPage != null && only == "" && picks == null
+            // the web's Search playlists (6 Nov): ours, Spotify's, Deezer's and SoundCloud's, under the top of the results
             if (made.isNotEmpty() && only == "" && picks == null && !artistMode) {
-                item { SectionHeader("Playlists for you") }
-                item(key = "made") {
-                    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(made, key = { it.id }) { m ->
-                            val cover = m.first?.let { f -> app.library.resolve(f.path ?: "", f.title to f.artist)?.artKey }
-                            Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable { searchFocus.clearFocus(); nav.push(Screen.Made(m.id, m.name)) }
-                                .semantics { contentDescription = "${m.name}, playlist for you. ${m.subtitle}" }) {
-                                ArtImage(cover, Modifier.size(132.dp), corner = 10.dp)
-                                Txt(m.name, Modifier.padding(top = 6.dp), size = 14f, weight = FontWeight.SemiBold, maxLines = 2)
-                                Txt(m.subtitle, size = 12f, color = LocalScheme.current.onBgDim, maxLines = 2)
-                            }
+                item { SectionHeader("Playlists") }
+                item(key = "made") { ListRow(made, nav) { searchFocus.clearFocus() } }
+            }
+            // the Playlists chip (F26.3, one choice): every list that matches, narrowed by genre and decade as the web's Filters panel does
+            if (only == "playlists") {
+                item(key = "listfilters") {
+                    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (g in listFilters.genres) DesignChip(g, listGenre == g, { listGenre = if (listGenre == g) "" else g })
                         }
+                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (d in listFilters.decades) DesignChip(d, listDecade == d, { listDecade = if (listDecade == d) "" else d })
+                        }
+                    }
+                }
+                val shownLists = allLists
+                if (shownLists == null) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Finding playlists...", size = 13f, color = sc.onBgDim) } }
+                else if (shownLists.isEmpty()) item { Txt("No playlists for this yet.", Modifier.padding(16.dp), size = 14f, color = sc.onBgDim) }
+                // two covers a row
+                else items(shownLists.chunked(2), key = { row -> "pl" + row.first().id }) { row ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        for (m in row) ListCard(m, app, nav) { searchFocus.clearFocus() }
                     }
                 }
             }
@@ -1611,7 +1652,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 }
             }
             if (albumNamed) webAlbums()
-            if (artistMode && artistTop != null && artistPage != null) ArtistResults(artistTop, artistPage, made, similarArtists, nav, snap) { searchFocus.clearFocus() }
+            if (artistMode && artistTop != null && artistPage != null) ArtistResults(artistTop, artistPage, made, similarArtists, nav, snap, featuring) { searchFocus.clearFocus() }
             if (topSong != null && only == "" && picks == null && !artistMode) {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
@@ -1671,7 +1712,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 if (!albumsExpanded && only != "albums" && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
             }
             if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
-            if (!webLoading && w.songs.isEmpty() && !app.ui.guest) item { DownloadRequestBar(app, q) }
+            if (!webLoading && w.songs.isEmpty() && !app.ui.guest && only != "playlists") item { DownloadRequestBar(app, q) }
         }
         picks?.let { p ->
             SearchSelectBar(p.count, p.allOf(allIds), Modifier.align(Alignment.BottomCenter), onCancel = { picks = null }, onAll = { picks = p.selectAllOrNone(allIds) }) {
@@ -1700,7 +1741,7 @@ object SearchArtists {
 /** The artist search layout: Top result card over the artist's top 5 songs, then Popular, Albums, Singles & EPs, Playlists and similar names. */
 private fun androidx.compose.foundation.lazy.LazyListScope.ArtistResults(
     artist: com.ipodemu.library.Group, page: com.ipodemu.library.ArtistPage, made: List<com.ipodemu.library.MadeLists.Summary>,
-    similar: List<com.ipodemu.library.Group>, nav: PlayerNav, snap: PlayerSnap, unfocus: () -> Unit,
+    similar: List<com.ipodemu.library.Group>, nav: PlayerNav, snap: PlayerSnap, featuring: List<com.ipodemu.library.MadeLists.Summary> = emptyList(), unfocus: () -> Unit,
 ) {
     item { SectionHeader("Top result") }
     item(key = "artistTop") {
@@ -1747,15 +1788,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.ArtistResults(
     }
     if (made.isNotEmpty()) {
         item { SectionHeader("Playlists") }
-        item(key = "amade") {
-            val app = LocalApp.current
-            androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(made, key = { it.id }) { m ->
-                    val cover = m.first?.let { f -> app.library.resolve(f.path ?: "", f.title to f.artist)?.artKey }
-                    SearchCover(cover, m.name, m.subtitle, "${m.name}, playlist for you. ${m.subtitle}") { unfocus(); nav.push(Screen.Made(m.id, m.name)) }
-                }
-            }
-        }
+        item(key = "amade") { ListRow(made, nav, unfocus) }
+    }
+    // "Lists with <artist> in" (F26.2, the web's take on Spotify's Featuring)
+    if (featuring.isNotEmpty()) {
+        item { SectionHeader("Lists with ${artist.name} in") }
+        item(key = "afeaturing") { ListRow(featuring, nav, unfocus) }
     }
     if (similar.isNotEmpty()) {
         item { Txt("Other artists with similar names", Modifier.padding(start = 16.dp, top = 16.dp, bottom = 4.dp), size = 13f, color = LocalScheme.current.onBgDim) }
@@ -1767,11 +1805,28 @@ private fun androidx.compose.foundation.lazy.LazyListScope.ArtistResults(
     }
 }
 
+/** A row of playlists as the web's search shows them: our own, Spotify's, Deezer's and SoundCloud's; an outside one shows where it is from. */
+@Composable
+private fun ListRow(lists: List<com.ipodemu.library.MadeLists.Summary>, nav: PlayerNav, unfocus: () -> Unit) {
+    val app = LocalApp.current
+    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        items(lists, key = { it.id }) { m -> ListCard(m, app, nav, unfocus) }
+    }
+}
+
+@Composable
+private fun ListCard(m: com.ipodemu.library.MadeLists.Summary, app: com.ipodemu.App, nav: PlayerNav, unfocus: () -> Unit) {
+    val cover = m.first?.let { f -> app.library.resolve(f.path ?: "", f.title to f.artist)?.artKey }
+    val what = if (com.ipodemu.library.MadeLists.isOutside(m.id)) "playlist from ${com.ipodemu.library.MadeLists.source(m.id)}" else "playlist for you"
+    SearchCover(cover, m.name, m.subtitle, "${m.name}, $what. ${m.subtitle}", picture = m.picture) { unfocus(); nav.push(Screen.Made(m.id, m.name)) }
+}
+
 /** A square cover with a title and a line under it, for the search rows. */
 @Composable
-private fun SearchCover(artKey: String?, title: String, sub: String, description: String, onClick: () -> Unit) {
+private fun SearchCover(artKey: String?, title: String, sub: String, description: String, picture: String? = null, onClick: () -> Unit) {
     Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).semantics { contentDescription = description }) {
-        ArtImage(artKey, Modifier.size(132.dp), corner = 10.dp)
+        // an outside list the phone has none of the songs of shows its own picture
+        if (artKey == null && picture != null) RemoteArtImage(picture, Modifier.size(132.dp), corner = 10.dp) else ArtImage(artKey, Modifier.size(132.dp), corner = 10.dp)
         Txt(title, Modifier.padding(top = 6.dp), size = 14f, weight = FontWeight.SemiBold, maxLines = 2)
         Txt(sub, size = 12f, color = LocalScheme.current.onBgDim, maxLines = 2)
     }

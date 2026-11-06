@@ -35,8 +35,15 @@ class ArtistPage(val top: List<Track>, val popular: List<Track>, val albums: Lis
         private val named = Regex("""[(\[\s-](?:ep|single)[)\]]?\s*$""", RegexOption.IGNORE_CASE)
 
         fun of(artist: Group, albums: List<Group>, plays: Map<String, Int>): ArtistPage {
-            val songs = artist.tracks.sortedWith(compareByDescending<Track> { plays[it.matchKey] ?: 0 }.thenByDescending { it.year }.thenBy { it.title.lowercase() })
-                .distinctBy { it.matchKey }
+            // a song on several of their albums (the album and a best-of) is one of their hits: after real plays it comes first, before the newest year,
+            // which alone filled the top with the newest album (owner, 5 Nov: all No Tourists; as the web's ArtistPage)
+            val copies = artist.tracks.groupBy { it.matchKey }.mapValues { (_, g) -> g.map { it.album.lowercase() }.distinct().size }
+            val ranked = artist.tracks.sortedWith(compareByDescending<Track> { plays[it.matchKey] ?: 0 }.thenByDescending { copies[it.matchKey] ?: 1 }
+                .thenByDescending { it.year }.thenBy { it.title.lowercase() }).distinctBy { it.matchKey }
+            // no album gives more than 2 songs before every album has had its turn: the rest follow in the same order
+            val perAlbum = HashMap<String, Int>()
+            val (spread, later) = ranked.partition { t -> val k = t.album.lowercase(); perAlbum[k] = (perAlbum[k] ?: 0) + 1; perAlbum.getValue(k) <= 2 }
+            val songs = spread + later
             val paths = artist.tracks.map { it.path }.toHashSet()
             val theirs = albums.filter { g -> g.name.isNotEmpty() && g.tracks.any { it.path in paths } }
                 .sortedWith(compareByDescending<Group> { g -> g.tracks.maxOf { it.year } }.thenBy { it.name.lowercase() })

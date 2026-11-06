@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,7 +74,9 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     DisposableEffect(Unit) { MicSpeech.arm(ctx); onDispose { MicSpeech.disarm() } }
     val giveUp = remember { mutableStateOf<Runnable?>(null) }
     fun stop() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null; rec.value?.let { try { it.stopListening(); it.destroy() } catch (_: Exception) { }; MicSpeech.recycle(ctx) }; rec.value = null }
-    DisposableEffect(Unit) { onDispose { stop() } }
+    DisposableEffect(Unit) { onDispose { stop(); if (state == MicState.LISTENING) DjStatus.now.done() } }
+    // the DJ bar above the mini player follows the mic: listening, then (set in heard) what it heard and thinking, then nothing (its words are the caption)
+    LaunchedEffect(state) { when (state) { MicState.LISTENING -> DjStatus.now.listening(); MicState.IDLE -> DjStatus.now.done(); MicState.THINKING -> Unit } }
 
     // the conversation (DjConversation): on from a press until it ends; whether the mic paused the song (it carries on at the end); turns so far
     var conversing by remember { mutableStateOf(false) }
@@ -93,6 +96,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         // the search screen's mic it is nothing to answer, so it just ends
         val goodbye = DjConversation.isGoodbye(text)
         if (goodbye && turn == 0 && onSearch != null) { state = MicState.IDLE; end(DjTurn.END); return }
+        DjStatus.now.heard(text)
         state = MicState.THINKING
         app.player.askDj(text, search = onSearch != null) { a ->
             state = MicState.IDLE
@@ -131,7 +135,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             }
             override fun onReadyForSpeech(params: Bundle?) { timing.listening(); MicSpeech.beep() }
             override fun onBeginningOfSpeech() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null }
-            override fun onRmsChanged(rmsdB: Float) {}
+            override fun onRmsChanged(rmsdB: Float) { DjStatus.now.level(rmsdB) }
             override fun onBufferReceived(buffer: ByteArray?) {}
             override fun onEndOfSpeech() {}
             override fun onPartialResults(partialResults: Bundle?) {}

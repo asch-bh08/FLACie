@@ -28,7 +28,7 @@
         <ApplicationId>dev.ashley.ipodsync</ApplicationId>
 
         <!-- Versions -->
-        <ApplicationDisplayVersion>1.0.109</ApplicationDisplayVersion>
+        <ApplicationDisplayVersion>1.0.110</ApplicationDisplayVersion>
         <!-- Android versionCode: must go up with every APK released, or phones refuse the update. -->
         <ApplicationVersion>91</ApplicationVersion>
 

@@ -49,6 +49,18 @@ class SearchRankTopTest {
         assertEquals(listOf("Firestarter", "Remixes - EP", "Charly EP"), page.singles.map { it.name })
     }
 
+    @Test fun withoutPlaysTheHitsOnSeveralAlbumsComeFirstAndNoAlbumGivesMoreThanTwo() {
+        // owner, 5 Nov: the newest album filled the top (all No Tourists)
+        val newest = listOf("Need Some1", "Light Up the Sky", "We Live Forever", "No Tourists", "Fight Fire").map { s(it, "The Prodigy", "No Tourists", 2018) }
+        val fat = listOf("Breathe", "Narayan").map { s(it, "The Prodigy", "The Fat of the Land", 1997) }
+        val best = listOf("Breathe", "Out of Space").map { s(it, "The Prodigy", "Their Law: The Singles", 2005) }
+        val old = listOf(s("Out of Space", "The Prodigy", "Experience", 1992))
+        val all = newest + fat + best + old
+        val page = ArtistPage.of(group("The Prodigy", all), albumsOf(all), emptyMap())
+        assertEquals(listOf("Breathe", "Out of Space"), page.top.take(2).map { it.title })
+        assertTrue(page.top.count { it.album == "No Tourists" } <= 2)
+    }
+
     @Test fun theAlbumSingleSplit() {
         fun g(name: String, count: Int) = group(name, List(count) { s("t$it", "A", name, 2000) })
         assertTrue(ArtistPage.isSingle(g("Hit", 1))); assertTrue(ArtistPage.isSingle(g("Three", 3))); assertFalse(ArtistPage.isSingle(g("Four", 4)))

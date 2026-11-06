@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-06 Local (morning)
+- b109: no covers on the phone. /art was cookie-only (RequireAuthorization): the phone's token request was redirected to /login and WebCovers kept the HTML page as the picture. /art now takes ApiEndpoints.CallerAsync (401 for nobody, not a redirect); WebCovers only accepts image/* (not svg). Owner confirmed covers back after the server deploy.
+- b110: the web's search on the phone. /api/made returns WebPlaylists (ForSearchAsync / ForFilterAsync with kind=playlists, genre, decade) as cards (id "web:source:id", picture); /api/made/featuring?artist= (ListsWithArtist); /api/made/web:... opens a list with every song, missing:true for ones the library lacks (Interest Opened). Phone: one-choice chips incl. Playlists + genre/decade from the library (ListFilters), "Lists with X in", missing songs greyed via SongList(missing=), ArtistPage as the web (copies across albums, 2 per album), lyrics LRCLIB exact first (cache header "Source	2", old "Jellyfin" refetched), DjStatus bar above the mini player.
+- Lesson: don't run web smoke/dotnet next to the emulator smoke: b109's first run had an ANR with System UI ANRs too; alone it was 23/23.
+- Rollbacks: flacie-web:rollback-20261106-pre-b109, -pre-b110. Server 1881/1881. CoverFilesTest (20 writers) flaked once, passed on rerun.
+
 ## 2026-11-06 Local (overnight)
 - Whole web smoke on b108: 655 passed, 8 failed -> all fixed: kind chips were radios with aria-pressed (axe), "Show only" is a radiogroup, the DJ's favourites waited on 8 Deezer lookups in a row (now side by side, max 2.5 s, rest in background), device-voice captions show even with no browser voices.
 - Smoke data lives in tests/web-smoke/.pub-smoke/.data-smoke: delete THAT before a full run (old imports/playlists pile up otherwise).

@@ -169,16 +169,6 @@ public sealed class WebCatalog(HttpClient http)
         return (hit is not null && S(hit, "picture_xl") is { Length: > 0 } u && !u.Contains("/artist//") ? u : null, false);
     }
 
-    /// <summary>F24: how the catalog writes an artist's name (Deezer's artist of the same name, capitals aside): "Lady Gaga", "OutKast", "DJ BoBo",
-    /// "a-ha". Null when it has no artist of that name; [Unasked] when Deezer could not be asked.</summary>
-    public async Task<(string? Name, bool Unasked)> ArtistSpellingAsync(string artist, CancellationToken ct = default)
-    {
-        if (artist.Trim().Length == 0) return (null, false);
-        if (await Json($"https://api.deezer.com/search/artist?q={Enc(artist)}&limit=10", ct) is not { } j) return (null, true);
-        var hit = (j["data"] as JsonArray)?.OfType<JsonObject>().Select(o => S(o, "name")).FirstOrDefault(n => string.Equals(n.Trim(), artist.Trim(), StringComparison.OrdinalIgnoreCase));
-        return (hit?.Trim(), false);
-    }
-
     /// <summary>F11: how well known a song is: Deezer's track "rank" (higher is better) for the hit with this title and lead artist; 0 when Deezer has it
     /// unranked or has nothing, null when Deezer could not be asked (then nothing is to be remembered).</summary>
     public async Task<long?> SongRankAsync(string artist, string title, CancellationToken ct = default)

@@ -132,6 +132,15 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
         var query = QueryFor(t);
         if (Cached(query) is { } hit) return hit;
         var url = "https://musicbrainz.org/ws/2/recording?query=" + Uri.EscapeDataString(query) + "&fmt=json&limit=8";
+        var list = Parse(await GetAsync(url, interactive, ct));
+        Store(query, list);
+        return list;
+    }
+
+    /// <summary>One answer from MusicBrainz, a second apart from every other: a busy answer (503, 429, 502, 504, 500, 408) or none at all is asked again
+    /// after as long as the server says (at most a minute; else 2 s, then 5 s); any other answer is a failure.</summary>
+    async Task<string> GetAsync(string url, bool interactive, CancellationToken ct)
+    {
         for (var attempt = 0; attempt < 3; attempt++)
         {
             var (code, body, retry) = await gate.RunAsync(async () =>
@@ -152,19 +161,41 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
                     return (0, "", (TimeSpan?)null);
                 }
             }, interactive, ct);
-            if (code == 200)
-            {
-                var list = Parse(body);
-                Store(query, list);
-                return list;
-            }
-            // busy (503, 429; 502 and 504 from its proxy, 500, 408) or no answer at all: wait as long as the server says (at most a minute; else 2 s, then 5 s),
-            // then try again, still a second apart; any other answer is a failure
+            if (code == 200) return body;
             if ((code == 0 || HttpRetry.Transient((System.Net.HttpStatusCode)code)) && attempt < 2) { gate.Pause(retry ?? TimeSpan.FromSeconds(2 + attempt * 3)); continue; }
             throw new HttpRequestException($"MusicBrainz answered {code}");
         }
         throw new HttpRequestException("MusicBrainz is busy");
     }
+
+    /// <summary>F24: how MusicBrainz writes an artist's name ("OutKast", "twenty one pilots", "MIA.", "a-ha"): the best match of the same name, capitals
+    /// and hyphens aside; null when it has none. Throws when MusicBrainz cannot be asked. In the background (not a person waiting).</summary>
+    public async Task<string?> ArtistNameAsync(string name, CancellationToken ct = default)
+    {
+        if (name.Trim().Length == 0) return null;
+        // (searched without hyphens: "A-Ha" found nothing, "A Ha" finds a-ha; the name found is still compared hyphens and all)
+        var url = "https://musicbrainz.org/ws/2/artist?query=" + Uri.EscapeDataString("artist:" + Quote(name.Trim().Replace((char)0x2D, (char)0x20))) + "&fmt=json&limit=10";
+        var hits = JsonNode.Parse(await GetAsync(url, false, ct))?["artists"] as JsonArray ?? [];
+        return hits.OfType<JsonObject>().Select(a => Dashes(a["name"]?.GetValue<string>() ?? "")).FirstOrDefault(n => string.Equals(n, Dashes(name.Trim()), StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>F24: who an album is credited to on MusicBrainz, among [names] ("Hotel California" is Eagles', "The Fat of the Land" The Prodigy's): the
+    /// best release group of that title by one of them; null when none. Throws when MusicBrainz cannot be asked.</summary>
+    public async Task<string?> AlbumArtistAsync(string album, IReadOnlyList<string> names, CancellationToken ct = default)
+    {
+        if (album.Trim().Length == 0 || names.Count == 0) return null;
+        var query = "releasegroup:" + Quote(album.Trim()) + " AND (" + string.Join(" OR ", names.Select(n => "artist:" + Quote(n))) + ")";
+        var url = "https://musicbrainz.org/ws/2/release-group?query=" + Uri.EscapeDataString(query) + "&fmt=json&limit=10";
+        var groups = JsonNode.Parse(await GetAsync(url, false, ct))?["release-groups"] as JsonArray ?? [];
+        foreach (var g in groups.OfType<JsonObject>())
+            if ((g["artist-credit"] as JsonArray)?.OfType<JsonObject>().FirstOrDefault()?["name"]?.GetValue<string>() is { } credit
+                && names.FirstOrDefault(n => string.Equals(Dashes(n), Dashes(credit), StringComparison.OrdinalIgnoreCase)) is { } who)
+                return who;
+        return null;
+    }
+
+    /// <summary>MusicBrainz writes a-ha with a typographic hyphen (U+2010): the plain one, as tags are typed.</summary>
+    static string Dashes(string s) => s.Replace((char)0x2010, (char)0x2D).Replace((char)0x2011, (char)0x2D);
 
     static TimeSpan? RetryAfter(HttpResponseMessage r) =>
         r.Headers.RetryAfter?.Delta is { } d ? TimeSpan.FromSeconds(Math.Min(60, d.TotalSeconds)) : null;

@@ -4,6 +4,7 @@
 @implements IDisposable
 @inherits UserComponent
 @inject IConfiguration Conf
+@inject MusicBrainzClient FixMb
 @inject ActivityLog Log
 @inject Notifier Notify
 @inject SessionStore Store
@@ -175,7 +176,7 @@ else
         @{ var pending = ArtistFixes.Pending; var applied = ArtistFixes.Done.Where(d => !d.Undone).ToList(); }
         <div class="shelf-head"><div><h2>Artist names</h2><small>Songs tagged under the wrong artist ("Prodigy" for The Prodigy, "Eminem feat. Dido"), fixed in Jellyfin's own data so every app agrees. The music files are not changed.</small></div></div>
         <div class="row-actions">
-            <button class="btn" disabled="@fixBusy" @onclick="PlanFixes">@(fixBusy ? "Checking…" : pending.Count > 0 ? "Check again" : "Check artist names")</button>
+            <button class="btn" disabled="@fixBusy" @onclick="PlanFixes">@(fixBusy ? "Checking… (asking MusicBrainz how names are written: a few minutes the first time)" : pending.Count > 0 ? "Check again" : "Check artist names")</button>
             @if (pending.Count > 0) { <button class="btn primary" disabled="@fixBusy" @onclick="ApproveFixes">Approve and fix @pending.Count @(pending.Count == 1 ? "song" : "songs") in Jellyfin</button> }
             @if (applied.Count > 0) { <button class="btn ghost" disabled="@fixBusy" @onclick="() => UndoFixes(null)">Undo all @applied.Count</button> }
         </div>
@@ -364,7 +365,7 @@ else
     {
         fixBusy = true; fixNote = null; StateHasChanged();
         try { var plan = await ArtistFixes.PlanAsync(Session.Library.Songs, (t, a, ct) => ArtistResolveCatalog.AskAsync(FixCatalog, t, a, ct), CancellationToken.None,
-            (n, ct) => ArtistResolveCatalog.SpellAsync(FixCatalog, n, ct)); fixNote = plan.Count == 0 ? "Every artist name looks right." : null; }
+            (n, ct) => ArtistResolveCatalog.NameAsync(FixMb, n, ct), (al, names, ct) => ArtistResolveCatalog.CreditAsync(FixMb, al, names, ct)); fixNote = plan.Count == 0 ? "Every artist name looks right." : null; }
         catch (Exception e) { fixNote = FriendlyError.Of(e); }
         finally { fixBusy = false; }
     }

@@ -351,20 +351,47 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Contains("Kings Of Leon", q); Assert.DoesNotContain("Madonna", q);
     }
 
-    [Fact]
-    public void The_catalog_spelling_is_taken_only_when_the_library_writes_the_name_so_too()
+    // how MusicBrainz writes these names (the reference for artist names; Deezer's search said "Bt", "Omi", "24kgoldn")
+    static readonly Dictionary<string, string> Mb = new(StringComparer.OrdinalIgnoreCase)
     {
-        // owner, 6 Nov: with Deezer's spellings the list said BT "Bt", OMI "Omi", 24kGoldn "24kgoldn", Mac DeMarco "Mac Demarco"
-        var deezer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            { ["BT"] = "Bt", ["OMI"] = "Omi", ["24kGoldn"] = "24kgoldn", ["Mac DeMarco"] = "Mac Demarco", ["Lady GaGa"] = "Lady Gaga", ["no artist"] = "NO ARTIST" };
+        ["BT"] = "BT", ["OMI"] = "OMI", ["24kGoldn"] = "24kGoldn", ["Mac DeMarco"] = "Mac DeMarco", ["Lady Gaga"] = "Lady Gaga", ["OutKast"] = "OutKast",
+        ["twenty one pilots"] = "twenty one pilots", ["MIA."] = "MIA.", ["a-ha"] = "a-ha", ["JME"] = "JME",
+    };
+
+    [Fact]
+    public void MusicBrainz_settles_capitals()
+    {
+        // owner, 6 Nov: "the ones to leave as they are should be decided for me as part of the check"
         var lib = new List<Track>
         {
             T("Flaming June", "BT", "Flaming June"), T("Cheerleader", "OMI", "Me 4 U"), T("Mood", "24kGoldn", "El Dorado"), T("Chamber of Reflection", "Mac DeMarco", "Salad Days"),
-            T("Americano", "Lady GaGa", "Born This Way"), T("Die With A Smile", "Lady Gaga", "MAYHEM"),
-            T("Destination Calabria", "no artist", "no title"), T("x", "NO ARTIST", "y"),
+            T("Americano", "Lady GaGa", "Born This Way"), T("Hey Ya!", "Outkast", "Speakerboxxx"), T("Ms. Jackson", "OutKast", "Stankonia"),
+            T("Heathens", "Twenty One Pilots", "Suicide Squad"), T("Stressed Out", "twenty one pilots", "Blurryface"), T("Hungriges Herz", "Mia.", "Stille Post"),
+            T("Analogue", "A-Ha", "Analogue"), T("96 Fuckries", "JME", "Integrity>"),
+            T("Destination Calabria", "no artist", "no title"),
         };
-        var plan = ArtistResolve.Plan(lib, spelling: n => deezer.GetValueOrDefault(n));
+        var plan = ArtistResolve.Plan(lib, spelling: n => Mb.GetValueOrDefault(n));
         Assert.Equal(["Lady Gaga"], For(plan, "Americano", "Lady GaGa").NewArtists);
-        Assert.DoesNotContain(plan, c => c.OldArtists[0] is "BT" or "OMI" or "24kGoldn" or "Mac DeMarco" or "no artist" or "NO ARTIST");
+        Assert.Equal(["OutKast"], For(plan, "Hey Ya!", "Outkast").NewArtists);
+        Assert.Equal(["twenty one pilots"], For(plan, "Heathens", "Twenty One Pilots").NewArtists);
+        Assert.Equal(["MIA."], For(plan, "Hungriges Herz", "Mia.").NewArtists);
+        Assert.Equal(["a-ha"], For(plan, "Analogue", "A-Ha").NewArtists);
+        Assert.DoesNotContain(plan, c => c.OldArtists[0] is "BT" or "OMI" or "24kGoldn" or "Mac DeMarco" or "OutKast" or "twenty one pilots" or "JME" or "no artist");
+    }
+
+    [Fact]
+    public void An_album_MusicBrainz_credits_to_X_keeps_X_and_not_The_X()
+    {
+        // owner, 6 Nov: Hotel California is Eagles' (the list wanted The Eagles); The Fat of the Land is The Prodigy's
+        var lib = new List<Track>
+        {
+            T("Hotel California", "Eagles", "Hotel California"), T("New Kid in Town", "The Eagles", "Hotel California"),
+            T("Breathe", "Prodigy", "The Fat of the Land"), T("Firestarter", "The Prodigy", "The Fat of the Land"),
+        };
+        string? credited(string album, IReadOnlyList<string> names) => album == "Hotel California" ? "Eagles" : album == "The Fat of the Land" ? "The Prodigy" : null;
+        var plan = ArtistResolve.Plan(lib, albumBy: credited);
+        Assert.DoesNotContain(plan, c => c.Title == "Hotel California");
+        Assert.Equal(["The Prodigy"], For(plan, "Breathe", "Prodigy").NewArtists);
+        Assert.Contains(ArtistResolve.AlbumQuestions(lib), q => q.Album == "Hotel California");
     }
 }

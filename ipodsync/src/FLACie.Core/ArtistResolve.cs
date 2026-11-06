@@ -40,7 +40,10 @@ public static partial class ArtistResolve
 
     /// <summary>The changes, one per song that needs one. [catalogSays] answers whether the catalog has [title] by [artist] (cached by the caller; null when it
     /// could not be asked, which counts as no).</summary>
-    public static List<ArtistChange> Plan(IReadOnlyList<Track> songs, Func<string, string, bool?>? catalogSays = null, Func<string, string?>? spelling = null)
+    /// <summary>[spelling]: how MusicBrainz writes a name; [albumBy]: who MusicBrainz credits an album to, among the names given (Hotel California is
+    /// Eagles', The Fat of the Land The Prodigy's).</summary>
+    public static List<ArtistChange> Plan(IReadOnlyList<Track> songs, Func<string, string, bool?>? catalogSays = null, Func<string, string?>? spelling = null,
+        Func<string, IReadOnlyList<string>, string?>? albumBy = null)
     {
         // every artist name in the library as written, by its words
         var names = songs.Select(t => t.Artist).Concat(songs.Select(t => t.AlbumArtist)).Where(n => n.Length > 0)
@@ -52,7 +55,9 @@ public static partial class ArtistResolve
             var artist = t.Artist.Trim(); var k = Key(artist);
             var albumArtist = t.AlbumArtist.Length > 0 ? t.AlbumArtist : artist;
             // 1. "X" that is The X's song
-            if (!k.StartsWith("the ") && names.TryGetValue("the " + k, out var theName) && byArtist.TryGetValue("the " + k, out var theirs))
+            // (not when MusicBrainz credits the album to X itself: Hotel California is Eagles', not The Eagles'; owner, 6 Nov)
+            if (!k.StartsWith("the ") && names.TryGetValue("the " + k, out var theName) && byArtist.TryGetValue("the " + k, out var theirs)
+                && !(albumBy?.Invoke(t.Album, [artist, theName]) is { } credit && Key(credit) == k))
             {
                 var album = Matching.NormTitle(WebCatalog.BaseTitle(t.Album)); var title = Matching.NormTitle(WebCatalog.BaseTitle(t.Title));
                 var why = album.Length > 0 && theirs.Any(x => Matching.NormTitle(WebCatalog.BaseTitle(x.Album)) == album) ? $"{theName} also has the album {t.Album}"
@@ -89,6 +94,15 @@ public static partial class ArtistResolve
     /// one with a capital inside a word ("Lady GaGa", "OutKast", "DJ BoBo"), one all in small letters ("train", "a-ha") and one with a capital small word
     /// ("Tyler, The Creator"). Without the catalog's answer
     /// such a name is left as it is.</summary>
+    /// <summary>The albums to ask MusicBrainz about: those of songs tagged "X" while the library also has "The X", with both names.</summary>
+    public static List<(string Album, IReadOnlyList<string> Names)> AlbumQuestions(IReadOnlyList<Track> songs)
+    {
+        var names = songs.Select(t => t.Artist.Trim()).Where(n => n.Length > 0).GroupBy(Key).ToDictionary(g => g.Key, g => g.First());
+        return songs.Where(t => t.Album.Trim().Length > 0 && Key(t.Artist) is var k && k.Length > 0 && !k.StartsWith("the ") && names.ContainsKey("the " + k))
+            .Select(t => (t.Album.Trim(), (IReadOnlyList<string>)[t.Artist.Trim(), names["the " + Key(t.Artist)]]))
+            .DistinctBy(q => q.Item1 + "|" + q.Item2[0]).ToList();
+    }
+
     public static List<string> SpellingQuestions(IReadOnlyList<Track> songs)
     {
         var all = songs.Select(x => x.Artist).Where(n => n.Length > 0)
@@ -129,13 +143,9 @@ public static partial class ArtistResolve
         string Clean(string n)
         {
             n = n.Trim();
-            // the catalog's way only when the library writes the name so too: Deezer alone said "Bt", "Omi", "24kgoldn" (owner, 6 Nov)
-            // and never one that makes small words big ("A Touch Of Class", "Cage The Elephant") or a short name in capitals small (JME, OTE, SNAP!)
-            if (spelling?.Invoke(n) is { Length: > 0 } c && string.Equals(c, n, StringComparison.OrdinalIgnoreCase))
-            {
-                var shortCaps = n.Count(char.IsLetter) <= 5 && n.Any(char.IsLetter) && !n.Any(char.IsLower);
-                return c == n || (names.Exact.Contains(c) && SmallWords(c) == c && !shortCaps) ? c : n;
-            }
+            // MusicBrainz's way of writing the name when it has one: the reference for artist names (OutKast, twenty one pilots, MIA., BT, JME; owner, 6 Nov:
+            // "the ones to leave should be decided for me")
+            if (spelling?.Invoke(n) is { Length: > 0 } c && string.Equals(c, n, StringComparison.OrdinalIgnoreCase)) return c;
             // small words made small only when the library already writes the name so ("Kings of Leon" beside "Kings Of Leon"): never on a guess
             // ("Lady A" is not "Lady a", "Tyler, The Creator" keeps its capital, an album's name in the artist tag is left alone; owner, 6 Nov)
             var small = SmallWords(n);

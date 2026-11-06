@@ -259,11 +259,12 @@ object WaveAnalyzer {
     internal fun headersFor(prefs: Prefs, uri: String): Map<String, String> {
         val jf = prefs.jellyfinUrl.trimEnd('/'); val plex = prefs.plexUrl.trimEnd('/'); val mover = prefs.fileMoverUrl.trimEnd('/'); val acct = prefs.accountServer.trimEnd('/')
         return when {
-            jf.isNotBlank() && uri.startsWith(jf) -> mapOf("Authorization" to com.ipodemu.library.JellyfinAuth.header(prefs.jellyfinApiKey))
-            plex.isNotBlank() && uri.startsWith(plex) -> mapOf("X-Plex-Token" to prefs.plexToken)
-            mover.isNotBlank() && uri.startsWith(mover) -> mapOf("X-Api-Key" to prefs.fileMoverApiKey)
-            prefs.flacieWebUrl.isNotBlank() && uri.startsWith(prefs.flacieWebUrl.trimEnd('/') + "/api/") -> mapOf("X-Emby-Token" to prefs.accountToken, "X-Jellyfin-Server" to acct)
-            acct.isNotBlank() && uri.startsWith(acct) && prefs.accountToken.isNotBlank() -> mapOf("X-Emby-Token" to prefs.accountToken)
+            // FLACie Web first: it can share a host with the file mover (com.ipodemu.playback.ServerUrl)
+            com.ipodemu.playback.ServerUrl.under(uri, prefs.flacieWebUrl.trimEnd('/') + "/api") -> mapOf("X-Emby-Token" to prefs.accountToken, "X-Jellyfin-Server" to acct)
+            com.ipodemu.playback.ServerUrl.under(uri, jf) -> mapOf("Authorization" to com.ipodemu.library.JellyfinAuth.header(prefs.jellyfinApiKey))
+            com.ipodemu.playback.ServerUrl.under(uri, plex) -> mapOf("X-Plex-Token" to prefs.plexToken)
+            com.ipodemu.playback.ServerUrl.under(uri, mover) -> mapOf("X-Api-Key" to prefs.fileMoverApiKey)
+            com.ipodemu.playback.ServerUrl.under(uri, acct) && prefs.accountToken.isNotBlank() -> mapOf("X-Emby-Token" to prefs.accountToken)
             else -> emptyMap()
         }
     }

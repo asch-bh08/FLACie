@@ -70,14 +70,15 @@ private class MultiServerDataSource(private val prefs: Prefs, private val priori
         // every open of a Jellyfin stream takes a slot at the one gate for as long as the connection is being made (not for the whole song), so a skip burst
         // or a prefetch can never flood the server; the playing song goes first, a prefetch waits behind everything and while the server is slow
         val acct = prefs.accountServer.trimEnd('/')
-        val jellyfin = (jfUrl.isNotBlank() && uriStr.startsWith(jfUrl)) || (acct.isNotBlank() && uriStr.startsWith(acct))
+        val jellyfin = ServerUrl.under(uriStr, jfUrl) || ServerUrl.under(uriStr, acct)
         when {
-            jfUrl.isNotBlank() && uriStr.startsWith(jfUrl) -> http.setRequestProperty("Authorization", com.ipodemu.library.JellyfinAuth.header(prefs.jellyfinApiKey))
-            plexUrl.isNotBlank() && uriStr.startsWith(plexUrl) -> http.setRequestProperty("X-Plex-Token", prefs.plexToken)
-            moverUrl.isNotBlank() && uriStr.startsWith(moverUrl) -> http.setRequestProperty("X-Api-Key", prefs.fileMoverApiKey)
-            prefs.flacieWebUrl.isNotBlank() && uriStr.startsWith(prefs.flacieWebUrl.trimEnd('/') + "/api/") -> {
+            // FLACie Web first: its address can share a host with the file mover (the DJ's clips were sent the file mover's key: owner, 6 Nov)
+            ServerUrl.under(uriStr, prefs.flacieWebUrl.trimEnd('/') + "/api") -> {
                 http.setRequestProperty("X-Emby-Token", prefs.accountToken); http.setRequestProperty("X-Jellyfin-Server", prefs.accountServer.trimEnd('/'))
             }
+            ServerUrl.under(uriStr, jfUrl) -> http.setRequestProperty("Authorization", com.ipodemu.library.JellyfinAuth.header(prefs.jellyfinApiKey))
+            ServerUrl.under(uriStr, plexUrl) -> http.setRequestProperty("X-Plex-Token", prefs.plexToken)
+            ServerUrl.under(uriStr, moverUrl) -> http.setRequestProperty("X-Api-Key", prefs.fileMoverApiKey)
         }
         if (!jellyfin) return http.open(dataSpec)
         return com.ipodemu.library.JellyfinNet.gate.withPermitBlocking(priority, "stream", { e ->
@@ -593,6 +594,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             else -> DjCoordinator.Change.NEW_QUEUE
         }
         val left = djLeftAt; djLeftAt = -1L
+        if (t != null && t.path in autoplayPaths) Diag.add("queue", "\"${t.title}\" is one Autoplay added, not from ${contextName?.let { "\"$it\"" } ?: "the queue started"} (${change.name.lowercase()})")
         val before = djLastPlayed; djLastPlayed = t
         val afterSkips = djSettings.talkAfterSkips
         val cue = dj.changed(change, path, left, afterSkips)
@@ -885,12 +887,15 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.addMediaItem(exo.currentMediaItemIndex + 1, item(t)); queueChanged()
     }
 
+    /** The songs Autoplay put in this queue, so the log can tell them from the playlist's own (owner, 6 Nov: "playlists not playing the songs from the playlist"). */
+    private val autoplayPaths = HashSet<String>()
     /** Autoplay's songs go on the end of the queue. */
     fun appendAutoplay(list: List<Track>) {
         // Repeat switched on while Autoplay was choosing (or a song it asked for landed later): the playlist starts again instead, nothing is added
         if (list.isEmpty() || !hasQueue || !RepeatCycle.autoplayMayAdd(prefs.repeat)) return
         Diag.add("queue", "Autoplay added ${list.size} after \"${current?.title}\" (${QueueEdit.upcoming(playOrderNow(), exo.currentMediaItemIndex, false).size} still to come of ${exo.mediaItemCount})")
         val before = if (exo.shuffleModeEnabled) playOrderNow() else null
+        autoplayPaths += list.map { it.path }
         exo.addMediaItems(list.map(::item))
         // on shuffle they play after the rest, in the order Autoplay chose
         if (before != null) setShuffleOrderQuiet(QueueEdit.appendOrder(before, list.size))
@@ -1189,7 +1194,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (list.isEmpty()) return
         queue = list
         // a new queue: the DJ's "this queue" switch goes back to untouched, and nothing from the old queue is said
-        this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon()
+        this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); autoplayPaths.clear()
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), 0L)
         exo.prepare()

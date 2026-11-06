@@ -27,6 +27,8 @@ test.describe('anonymous callers', () => {
     ['GET', '/api/account'], ['GET', '/api/import'], ['POST', '/api/import'], ['GET', '/api/settings'], ['POST', '/api/settings'], ['POST', '/api/charts/run'],
     ['GET', '/api/charts/0'], ['POST', '/api/played'], ['GET', '/api/alac?id=00000000000000000000000000000000'], ['GET', '/api/audiofacts'], ['GET', '/api/downloads'], ['POST', '/api/downloaded'],
     ['POST', '/api/import/abc/cancel'], ['POST', '/api/import/link'],
+    // covers: the phone asks with its token, so a signed-out caller is told 401, not sent to the sign-in page (b108 drew that page as every cover)
+    ['GET', '/art/jfs1'],
     // the AI DJ (docs/spec/ai-dj.md): settings are per person, and asking about the next song needs a caller too
     ['GET', '/api/dj/settings'], ['POST', '/api/dj/settings'], ['POST', '/api/dj/next'],
   ];
@@ -45,7 +47,7 @@ test.describe('anonymous callers', () => {
     await anon.dispose();
   });
 
-  for (const p of ['/stream?p=x', '/art/jfs1', '/api/whoami']) {
+  for (const p of ['/stream?p=x', '/api/whoami']) {
     test(`${p} sends a signed-out visitor to the login page`, async ({ playwright, baseURL }) => {
       const anon = await playwright.request.newContext({ baseURL });
       const r = await anon.get(p, { maxRedirects: 0 });
@@ -283,6 +285,17 @@ test.describe('/art', () => {
     }
   });
 
+  test('the phone gets covers with its Jellyfin token; a caller with neither token nor sign-in gets a 401, never the sign-in page', async ({ baseURL }) => {
+    const anon = await pwRequest.newContext({ baseURL });
+    try {
+      const r = await anon.get('/art/jfnocover3~t1?fmt=png', { headers: TOKEN, maxRedirects: 0 });
+      expect(r.status()).toBe(200);
+      expect(r.headers()['content-type']).toBe('image/png');
+      expect((await anon.get('/art/jfnocover3~t1?fmt=png', { maxRedirects: 0 })).status()).toBe(401);
+      expect((await anon.get('/art/jfnocover3~t1?fmt=png', { headers: { 'X-Emby-Token': 'bogus' }, maxRedirects: 0 })).status()).toBe(401);
+    } finally { await anon.dispose(); }
+  });
+
   test('an external cover address outside the public cover hosts is never fetched', async () => {
     const key = 'ex' + Buffer.from('http://169.254.169.254/latest/meta-data').toString('base64url');
     const r = await web.get('/art/' + key);
@@ -325,5 +338,21 @@ test.describe('sharing from the phone', () => {
     const r = await phone.get('/api/wave?p=' + encodeURIComponent(S1), { headers: TOKEN, maxRedirects: 0 });
     expect([200, 404]).toContain(r.status());
     await phone.dispose();
+  });
+});
+
+test.describe('the phone\'s search playlists', () => {
+  test('the phone asks for the Playlists filter, the lists with an artist in, and an outside list it never saw is a 404', async ({ baseURL }) => {
+    const phone = await pwRequest.newContext({ baseURL });
+    try {
+      const lists = await phone.get('/api/made?q=electronic&kind=playlists&genre=Electronic', { headers: TOKEN });
+      expect(lists.status()).toBe(200);
+      expect(Array.isArray((await lists.json()).lists)).toBe(true);
+      const featuring = await phone.get('/api/made/featuring?artist=' + encodeURIComponent('The Prodigy'), { headers: TOKEN });
+      expect(featuring.status()).toBe(200);
+      expect(Array.isArray((await featuring.json()).lists)).toBe(true);
+      expect((await phone.get('/api/made/' + encodeURIComponent('web:spotify:nothere'), { headers: TOKEN })).status()).toBe(404);
+      expect((await phone.get('/api/made/featuring?artist=x')).status()).toBe(401);
+    } finally { await phone.dispose(); }
   });
 });

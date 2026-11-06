@@ -231,6 +231,8 @@ public static class MediaEndpoints
         app.MapGet("/art/{key}", async (HttpContext ctx, string key, SessionStore store, JellyfinClient jf, IHttpClientFactory hf) =>
         {
             if (key.Length > 400 || key.Contains('/') || key.Contains('\\') || key.Contains("..")) return Results.BadRequest();
+            // the signed-in browser or the phone by its Jellyfin token (the phone was sent to the sign-in page and took that page for its cover)
+            if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
             key = FLACie.Core.CoverOverrides.Unversioned(key);   // a catalog cover's address carries the lookup rules ("~r2"): the key itself does not
             // a catalog key may carry a Jellyfin picture for when the catalog has nothing (a hoodtrap remix in no catalog shows its folder's picture; owner, 5 Nov).
             // The lookup and the saved cover use the key without it.
@@ -279,7 +281,6 @@ public static class MediaEndpoints
             ctx.Response.Headers.CacheControl = Briefly;
             // a cover that was just looked for and not found is not looked for again at once (a page of tiles would ask again and again)
             if (artMisses.TryGet(flightKey, out _)) return Missing(false);
-            var s = store.For(ctx.User);
             // one lookup per cover however many tiles ask at once (single flight): a tile that is scrolled away leaves the others their cover, and when EVERY tile that
             // wanted it is gone (the browser aborted its requests) the lookup is cancelled: still queued at the gate, it never reaches Jellyfin; already sent, it stops.
             // The big Now Playing cover is the one cover a person waits for (the gate's top priority); rows and tiles are "visible".
@@ -382,7 +383,7 @@ public static class MediaEndpoints
             if (got.File is not { } saved) return Missing(got.Transient);
             ctx.Response.Headers.CacheControl = Kept;
             return Cover(saved);
-        }).RequireAuthorization().RateLimited("art");
+        }).RateLimited("art");
     }
 
     /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>

@@ -52,7 +52,7 @@ class CoverSourceTest {
     @Test fun aWebThatAnswersOnceMoreIsUsedAgain() {
         answer = null
         val w = web(); w.fetch("itA", null, false, null)
-        clock += 31_000; answer = GateResponse(200, byteArrayOf(9))
+        clock += 31_000; answer = GateResponse(200, byteArrayOf(9), mapOf("content-type" to "image/png"))
         assertNotNull(w.fetch("itB", null, false, null))
     }
 
@@ -61,6 +61,14 @@ class CoverSourceTest {
         val w = web()
         assertNull(w.fetch("itA", null, false, null))
         assertNull(w.fetch("itB", null, false, null)); assertEquals("an svg answer is not an outage", 2, sent.size)
+    }
+
+    @Test fun aPageThatIsNotAPictureIsNeverUsedAsACover() {
+        // b108: the web sent the phone to its sign-in page, and the page's HTML was kept as every cover
+        answer = GateResponse(200, "<!DOCTYPE html><html>".toByteArray(), mapOf("content-type" to "text/html; charset=utf-8"))
+        assertNull(web().fetch("itA", null, false, null))
+        answer = GateResponse(200, byteArrayOf(1, 2, 3), emptyMap())
+        assertNull("no type, no picture", web().fetch("itA", null, false, null))
     }
 
     @Test fun anErrorAnswerFallsBackWithoutMarkingTheWebDown() {

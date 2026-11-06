@@ -26,7 +26,9 @@ class WebCovers(
         if (r == null) { downUntil = now() + DOWN_MS; return null }   // one timeout, then the phone's own lookup for a while
         if (r.code == 304) return r
         if (r.code !in 200..299 || r.body.isEmpty()) return null
-        if (r.headers["content-type"].orEmpty().contains("svg", ignoreCase = true)) return null
+        // only a picture the phone can draw: not the made (svg) cover, and never a page (b108 kept the sign-in page as every cover)
+        val type = r.headers["content-type"].orEmpty().lowercase()
+        if (!type.startsWith("image/") || type.contains("svg")) return null
         return r
     }
 

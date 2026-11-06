@@ -73,8 +73,12 @@ public static partial class ArtistResolve
             // 3. "Eminem feat. Dido": the lead, with the others featured
             if (Split(artist, byArtist.ContainsKey, songs) is { Count: > 0 } parts && !parts.SequenceEqual([artist]))
             {
+                // the album artist leads when the tag names them ("Free; Pras; Queen; Wyclef Jean" on Queen's Greatest Hits III is Queen's; owner, 6 Nov)
+                if (parts.FindIndex(x => Key(x) == Key(albumArtist)) is > 0 and var ai) { var a = parts[ai]; parts.RemoveAt(ai); parts.Insert(0, a); }
                 var leadName = parts[0];
-                var why = parts.Count == 1 ? $"the tag \"{artist}\" is written \"{leadName}\"" : $"{leadName} with {string.Join(", ", parts.Skip(1))} featured";
+                var why = parts.Count == 1 ? $"the tag \"{artist}\" is written \"{leadName}\""
+                    : Feat().IsMatch(artist) ? $"{leadName} with {string.Join(", ", parts.Skip(1))} featured"
+                    : $"the tag lists {parts.Count} artists: {string.Join(", ", parts)}";
                 changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, parts, Key(albumArtist) == k ? leadName : albumArtist, why));
             }
         }
@@ -93,22 +97,66 @@ public static partial class ArtistResolve
         var s = Discogs().Replace(System.Net.WebUtility.HtmlDecode(tag), "").Trim();
         var spelled = songs.Select(x => x.Artist).Where(n => n.Length > 0).GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.GroupBy(n => n).OrderByDescending(x => x.Count()).First().Key, StringComparer.OrdinalIgnoreCase);
-        string Clean(string n) { n = n.Trim(); return spelled.GetValueOrDefault(n, n); }
+        var ways = songs.Select(x => x.Artist).Where(n => n.Length > 0).Distinct().GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
+        // another way of writing the name (capitals only) is taken only when it is better by Capitals: "Lady GaGa" is Lady Gaga, "Tears For Fears" is
+        // Tears for Fears, but "Kings of Leon" never becomes "Kings Of Leon", nor JME "Jme" (owner, 6 Nov)
+        string Clean(string n)
+        {
+            n = n.Trim();
+            if (!ways.TryGetValue(n, out var all)) return n;
+            var best = all.OrderByDescending(Capitals).First();
+            return Capitals(best) > Capitals(n) ? best : n;
+        }
         // an artist here by the name as written (capitals aside): by its letters alone "Bob" was B.o.B
         bool Known(string n) => spelled.ContainsKey(n.Trim()) && isArtist(Key(n));
         // "a & b" parts only when each side is an artist here; a name that is itself an artist here is never parted
         // (or the lead is one and the others are not "the ...": Eminem & Dr. Dre parts, Diana Ross & the Supremes does not). The whole tag is not
         // asked: the song being looked at makes it "an artist here" by itself
         List<string> By(string n, string sep) => Regex.Split(n, sep, RegexOptions.IgnoreCase) is var p && p.Length > 1
-            && (p.All(x => Known(x)) || (Known(p[0]) && p.Skip(1).All(x => !Key(x).StartsWith("the ")))) ? [.. p] : [n];
+            && p.Skip(1).All(x => !Key(x).StartsWith("the ")) && (p.All(x => Known(x)) || Known(p[0])) ? [.. p] : [n];
         List<string> Pair(string n) => By(n, @"\s*(?:&|\band\b)\s*");
         var (lead, rest) = Feat().Match(s) is { Success: true } f ? (f.Groups[1].Value, f.Groups[2].Value) : (s, "");
-        var leads = Regex.Split(lead, @"\s*[/;]\s*").SelectMany(x => By(x, @"\s*,\s*")).SelectMany(Pair);
-        var featured = rest.Length == 0 ? [] : Regex.Split(rest, @"\s*(?:[/;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase).SelectMany(Pair);
-        var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var leads = Slashes(lead).SelectMany(x => Regex.Split(x, @"\s*;\s*")).SelectMany(x => By(x, @"\s*,\s*")).SelectMany(Pair);
+        var featured = rest.Length == 0 ? [] : Slashes(rest).SelectMany(x => Regex.Split(x, @"\s*(?:[;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase)).SelectMany(Pair);
+        // one artist written two ways in one tag ("JAŸ-Z; JAY-Z") is one artist
+        var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).DistinctBy(x => Key(Fold(x))).ToList();
         if (parts.Any(x => x.Count(char.IsLetterOrDigit) < 3 && !Known(x))) return null;
         return parts;
     }
 
     [GeneratedRegex(@"\s*\(\d+\)(?=\s|$|[,&;/])")] private static partial Regex Discogs();
+
+    /// <summary>A tag parted at "/", except where a side is one or two letters: that "/" is in the name (HUNTR/X, AC/DC; owner, 6 Nov).</summary>
+    static List<string> Slashes(string s)
+    {
+        var bits = s.Split('/');
+        var res = new List<string>();
+        foreach (var b in bits)
+        {
+            static bool Short(string x) => x.Trim().TakeWhile(c => c != ',' && c != ';').Count(char.IsLetterOrDigit) < 3 || x.TrimEnd().Reverse().TakeWhile(c => c != ',' && c != ';' && c != ' ').Count(char.IsLetterOrDigit) < 3;
+            if (res.Count > 0 && (Short(b) || Short(res[^1]))) res[^1] += "/" + b; else res.Add(b);
+        }
+        return res.Select(x => x.Trim()).ToList();
+    }
+
+    static string Fold(string s) => new(s.Normalize(System.Text.NormalizationForm.FormD).Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
+
+    static readonly HashSet<string> Small = ["of", "the", "at", "for", "and", "in", "a", "an", "to", "on", "by", "with", "from", "or"];
+
+    /// <summary>How well a name is written: small words ("of", "the", "for") small after the first word, no capital inside a word after small letters
+    /// ("GaGa", "DeeJay"), a one-word name begun with a capital. Ways that score the same are equally good: the tag is left as it is.</summary>
+    static int Capitals(string name)
+    {
+        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        var score = 0;
+        for (var i = 0; i < words.Length; i++)
+        {
+            var w = words[i];
+            if (i > 0 && Small.Contains(w.ToLowerInvariant())) score += w == w.ToLowerInvariant() ? 1 : -1;
+            if (Regex.IsMatch(w, @"\p{Ll}\p{Lu}")) score--;
+        }
+        if (words.Length == 1 && words[0].Length > 0 && char.IsLower(words[0][0]) && words[0] == words[0].ToLowerInvariant()) score--;
+        return score;
+    }
 }

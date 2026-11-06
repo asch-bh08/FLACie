@@ -259,6 +259,8 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     public void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true, string kind = "Search")
     {
         if (!Allowed) return;
+        // asked for from search: the cover it was shown with stays its cover (a playlist's songs fetched as interest shows were not shown with one)
+        if (kind == "Search") DownloadCovers.Current?.Remember(song.Title, song.Artist, song.ArtUrl);
         Run(s, Add(s, $"{song.Title} · {song.Artist}{(hiRes ? " (Hi-Res)" : "")}", song.ArtUrl, kind, song.Artist, song.Title, song.Album, song.DurationMs),
             (c, on) => hiRes ? c.DownloadHiResAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on, default, fallbackToNormal) : c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
     }

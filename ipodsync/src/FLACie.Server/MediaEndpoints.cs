@@ -266,6 +266,9 @@ public static class MediaEndpoints
                 return Results.File(chosen.File, chosen.Mime);
             }
             var isJf = key.StartsWith("jf");
+            // a song downloaded from search: the cover it was found with, not the picture inside its file (the phone asks by the Jellyfin key; owner, 6 Nov)
+            if (isJf && DownloadCovers.Current is { } dc && JellyfinSongOf(s, key) is { } song && dc.For(song) is { } chosenKey)
+                return Results.Redirect("/art/" + Uri.EscapeDataString(chosenKey) + ctx.Request.QueryString.Value);
             var tagged = isJf && key.Contains('~');
             var external = Art.ExternalUrl(key);
             // a catalogue cover comes in two sizes too: 250 px for rows and cards, the big one only for the player
@@ -385,6 +388,9 @@ public static class MediaEndpoints
             return Cover(saved);
         }).RateLimited("art");
     }
+
+    /// <summary>The song whose own picture a Jellyfin cover key ("jf" + item id [+ "~" + tag]) is, or null (an album's picture, or not in the library).</summary>
+    static Track? JellyfinSongOf(UserSession s, string key) => key.Length > 2 ? s.Library.ByJellyfinId(key[2..].Split('~')[0]) : null;
 
     /// <summary>How much of the next song the early read asks for: enough for it to start at once, nowhere near the whole file.</summary>
     public const int PrefetchBytes = 1 << 20;

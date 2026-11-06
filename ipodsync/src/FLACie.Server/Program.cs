@@ -53,7 +53,9 @@ if (CatalogRedirectHandler.Parse(builder.Configuration["FLACIE_CATALOG_REDIRECT"
 builder.Services.AddSingleton<MusicBrainzGate>();   // one gate for everything that asks MusicBrainz or the Cover Art Archive
 builder.Services.AddSingleton(sp => new MusicBrainzClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), Path.Combine(dataDir, "mb-cache"), sp.GetRequiredService<MusicBrainzGate>()));
 builder.Services.AddSingleton(sp => new CoverArtArchiveClient(sp.GetRequiredService<IHttpClientFactory>().CreateClient("musicbrainz"), MusicBrainzClient.UserAgentFor(AppInfo.Version, builder.Configuration["FLACIE_MB_CONTACT"]), sp.GetRequiredService<MusicBrainzGate>()));
-builder.Services.AddSingleton(_ => CoverOverrides.Current = new CoverOverrides(Path.Combine(dataDir, "art-override")));   // covers a person chose (the original cover and the files are never touched)
+builder.Services.AddSingleton(_ => CoverOverrides.Current = new CoverOverrides(Path.Combine(dataDir, "art-override")));
+// the cover each song was found with in search, kept once it is downloaded (owner, 6 Nov)
+DownloadCovers.Current = new DownloadCovers(Path.Combine(dataDir, "download-covers.json"));   // covers a person chose (the original cover and the files are never touched)
 builder.Services.AddSingleton(new MbOverlay(Path.Combine(dataDir, "mb-overlay.json")));
 builder.Services.AddSingleton(new ShareStore(Path.Combine(dataDir, "shares")));   // shared songs and playlists (/s/{id})
 builder.Services.AddSingleton(sp => new DeskDiscPictures(sp.GetRequiredService<CoverArtArchiveClient>()));

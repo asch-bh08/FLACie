@@ -84,7 +84,20 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     async Task<List<WebPlaylist>> SoundCloudSetsAsync(UserSession s, string artist, Library lib, CancellationToken ct)
     {
         var key = Matching.PrimaryArtist(artist);
-        lock (soundcloud) if (soundcloud.TryGetValue(key, out var known) && now() - known.At < AccountKept) return known.Sets.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        List<WebPlaylist>? had = null; var fresh = false;
+        lock (soundcloud) if (soundcloud.TryGetValue(key, out var known)) { had = known.Sets; fresh = now() - known.At < AccountKept; }
+        if (fresh) return had!.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        had ??= Saved("soundcloud", artist);
+        if (had.Count > 0)
+        {
+            Refresh("soundcloud:" + key, () => FetchSoundCloudAsync(s, artist, key, lib, CancellationToken.None));
+            return had.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        }
+        return await FetchSoundCloudAsync(s, artist, key, lib, ct);
+    }
+
+    async Task<List<WebPlaylist>> FetchSoundCloudAsync(UserSession s, string artist, string key, Library lib, CancellationToken ct)
+    {
         if (s.Services.FileMoverUrl.Length == 0 || !gate.TryTake("soundcloud")) return [];
         try
         {
@@ -134,6 +147,10 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         return res.IsSuccessStatusCode ? await res.Content.ReadAsStringAsync(ct) : null;
     }
 
+    /// <summary>How long a search waits for a source that has nothing saved yet; one slower than this finishes in the background, for next time (owner,
+    /// 6 Nov: the playlists took a while to come).</summary>
+    public static readonly TimeSpan FirstAnswer = TimeSpan.FromSeconds(2.5);
+
     async Task<(List<WebPlaylist> Found, PlaylistQueryKind Kind)> GatherAsync(UserSession s, string query, CancellationToken ct)
     {
         var lib = Lib(s);
@@ -141,25 +158,34 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         var found = new List<WebPlaylist>();
         // FLACie's own lists, always: the fallback when the others cannot be read
         found.AddRange(own(s).Select(m => Own(m, lib)));
+        // the sources are asked side by side, never one after another; each answers at once from what it has saved (and looks again in the background
+        // when that is old). Only a source with nothing saved is waited for, and at most FirstAnswer: it carries on in the background either way.
+        var asks = new List<Task<List<WebPlaylist>>>();
         // Spotify's fixed lists that this search is about (only those are read; never a crawl)
         foreach (var f in Fixed)
         {
             var probe = new WebPlaylist("spotify", f.Id, f.Name, f.Kind, f.Subject, []);
-            if (WebPlaylistPick.Relevance(probe, query) > 0) { if (await SpotifyAsync(f.Id, f.Kind, f.Subject, ct) is { } l) found.Add(l); }
+            if (WebPlaylistPick.Relevance(probe, query) > 0) asks.Add(Task.Run(async () => await SpotifyAsync(f.Id, f.Kind, f.Subject, CancellationToken.None) is { } l ? new List<WebPlaylist> { l } : []));
             // an artist search also looks inside the ones already read (WarmFixed reads them once a day) for that artist's songs
             else if (kind == PlaylistQueryKind.Artist && store.All.FirstOrDefault(l => l.Source == "spotify" && l.Id == f.Id) is { } known) found.Add(known);
         }
         WarmFixed();
-        // an artist's best-of from Deezer's editors
-        if (kind == PlaylistQueryKind.Artist && SearchRankTop.Artist(lib.Artists, query, s.PlayStats) is { } artist)
+        var artist = kind == PlaylistQueryKind.Artist ? SearchRankTop.Artist(lib.Artists, query, s.PlayStats) : null;
+        if (artist is not null)
         {
             // F26.1: Deezer's playlist search: the editors' best-of (with its songs) and the fans' and editors' lists that name the artist (names only)
-            found.AddRange(await DeezerListsAsync(artist.Name, ct));
-            // lists read before (opened, or Deezer's that were filled) that hold several of the artist's songs
-            found.AddRange(store.All.Where(l => l.Source == "deezer" && l.Tracks.Count > 0 && WebPlaylistPick.HoldsCount(l, artist.Name) >= 2 && found.All(f => f.Id != l.Id || f.Source != l.Source)));
+            asks.Add(Task.Run(() => DeezerListsAsync(artist.Name, CancellationToken.None)));
             // F25.3: the artist's own SoundCloud sets, quietly (names only; songs read when one is opened)
-            found.AddRange(await SoundCloudSetsAsync(s, artist.Name, lib, ct));
+            asks.Add(Task.Run(() => SoundCloudSetsAsync(s, artist.Name, lib, CancellationToken.None)));
         }
+        if (asks.Count > 0)
+        {
+            try { await Task.WhenAny(Task.WhenAll(asks), Task.Delay(FirstAnswer, ct)); } catch (OperationCanceledException) { }
+            foreach (var a in asks) if (a.IsCompletedSuccessfully) found.AddRange(a.Result);
+        }
+        // lists read before (opened, or Deezer's that were filled) that hold several of the artist's songs
+        if (artist is not null)
+            found.AddRange(store.All.Where(l => l.Source == "deezer" && l.Tracks.Count > 0 && WebPlaylistPick.HoldsCount(l, artist.Name) >= 2 && found.All(f => f.Id != l.Id || f.Source != l.Source)));
         return (found, kind);
     }
 
@@ -242,8 +268,36 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     public async Task<List<WebPlaylist>> DeezerListsAsync(string artist, CancellationToken ct)
     {
         var key = string.Join(' ', Matching.SearchWords(artist));
-        lock (deezerLists) if (deezerLists.TryGetValue(key, out var known) && now() - known.At < DeezerListsKept) return known.Lists.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
-        if (!gate.TryTake("deezer")) { lock (deezerLists) return deezerLists.TryGetValue(key, out var old) ? old.Lists : []; }
+        List<WebPlaylist>? had = null; var fresh = false;
+        lock (deezerLists) if (deezerLists.TryGetValue(key, out var known)) { had = known.Lists; fresh = now() - known.At < DeezerListsKept; }
+        if (fresh) return had!.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        // what Deezer said before (kept in the saved lists, so a restart does not forget it): shown now, and Deezer asked again in the background
+        had ??= Saved("deezer", artist);
+        if (had.Count > 0)
+        {
+            Refresh("deezer:" + key, () => FetchDeezerAsync(artist, key, CancellationToken.None));
+            return had.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        }
+        return await FetchDeezerAsync(artist, key, ct);
+    }
+
+    /// <summary>Lists of [source] saved before that are about [artist] (Deezer's search answer, the artist's SoundCloud sets).</summary>
+    List<WebPlaylist> Saved(string source, string artist) =>
+        store.All.Where(l => l.Source == source && (string.Equals(Matching.PrimaryArtist(l.Subject), Matching.PrimaryArtist(artist), StringComparison.OrdinalIgnoreCase)
+            || l.Subject.StartsWith(artist + " ", StringComparison.OrdinalIgnoreCase))).ToList();   // "The Prodigy remixes": the artist's remix sets
+
+    readonly HashSet<string> refreshing = [];
+
+    /// <summary>Looks again in the background, once at a time per source and subject.</summary>
+    void Refresh(string what, Func<Task> look)
+    {
+        lock (refreshing) if (!refreshing.Add(what)) return;
+        _ = Task.Run(async () => { try { await look(); } catch (Exception) { } finally { lock (refreshing) refreshing.Remove(what); } });
+    }
+
+    async Task<List<WebPlaylist>> FetchDeezerAsync(string artist, string key, CancellationToken ct)
+    {
+        if (!gate.TryTake("deezer")) { lock (deezerLists) return deezerLists.TryGetValue(key, out var old) ? old.Lists : Saved("deezer", artist); }
         static string S(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
         static long L(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<long>(out var x) ? x : 0;
         try

@@ -94,11 +94,12 @@ class FlacieWebClient(private val prefs: Prefs) {
      * playable copy, upgraded later) or "hires" (Hi-Res only, quick as the fallback). Throws [Refused] when the server answers no, and any other
      * IOException when it can't be reached or is broken, which tells the caller to download on the phone instead.
      */
-    fun startDownload(artist: String, title: String, album: String, durationMs: Long, mode: String): String {
+    /** [artUrl]: the cover search showed it with, which stays its cover once it is downloaded. */
+    fun startDownload(artist: String, title: String, album: String, durationMs: Long, mode: String, artUrl: String? = null): String {
         val c = open("/api/download", "POST")
         c.connectTimeout = 6_000; c.readTimeout = 20_000
         try {
-            val b = JSONObject().put("artist", artist).put("title", title).put("album", album).put("durationMs", durationMs).put("mode", mode).toString().toByteArray()
+            val b = JSONObject().put("artist", artist).put("title", title).put("album", album).put("durationMs", durationMs).put("mode", mode).apply { if (artUrl != null) put("artUrl", artUrl) }.toString().toByteArray()
             c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)
             c.outputStream.use { it.write(b) }
             val code = c.responseCode

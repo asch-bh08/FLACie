@@ -167,4 +167,70 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Equal(["A$AP Rocky", "Rod Stewart", "Miguel", "Mark Ronson"], For(plan, "Everyday", "A$AP Rocky feat. Rod Stewart x Miguel x Mark Ronson").NewArtists);
         Assert.Equal(["Diana Ross & the Supremes", "The Temptations"], For(plan, "I Second That Emotion", "Diana Ross & the Supremes/The Temptations").NewArtists);
     }
+
+    // ---- the owner's review of the list (6 Nov) ----
+
+    static List<Track> Reviewed() =>
+    [
+        T("Baby Love", "Diana Ross & the Supremes", "40 Golden Motown Greats"), T("Upside Down", "Diana Ross", "Diana"), T("Stop! In the Name of Love", "The Supremes", "Where Did Our Love Go"),
+        T("Golden", "HUNTR/X, EJAE, AUDREY NUNA, REI AMI & KPop Demon Hunters Cast", "KPop Demon Hunters"),
+        T("Back in Black", "AC/DC", "Back in Black"),
+        T("Another One Bites the Dust", "Free; Prakazrel \"Pras\" Michel; Queen; Wyclef Jean", "Greatest Hits III", "Queen"), T("Bohemian Rhapsody", "Queen", "A Night at the Opera"),
+        T("Crazy In Love", "Beyoncé; JAŸ-Z; JAY-Z", "Crazy In Love"),
+        T("Use Somebody", "Kings of Leon", "Only by the Night"), T("Arizona", "Kings Of Leon", "Because Of The Times"), T("Charmer", "Kings Of Leon", "Because Of The Times"),
+        T("Mad World", "Tears For Fears", "The Hurting"), T("Shout", "Tears for Fears", "Songs from the Big Chair"),
+        T("Americano", "Lady GaGa", "Born This Way"), T("Poker Face", "Lady Gaga", "The Fame"), T("Just Dance", "Lady Gaga", "The Fame"),
+        T("Better Off Alone", "Alice Deejay", "Who Needs Guitars Anyway?"), T("Back In My Life", "Alice DeeJay", "Who Needs Guitars Anyway?"), T("Will I Ever", "Alice DeeJay", "x"),
+        T("96 Fuckries", "JME", "Integrity>"), T("Man Don't Care", "Jme", "Integrity>"), T("Taking Over", "Jme", "x"),
+        T("Hungriges Herz", "MIA.", "Stille Post"), T("Tanz der Moleküle", "Mia.", "Stille Post"), T("Mia 2", "Mia.", "x"),
+        T("Drops of Jupiter", "train", "Drops of Jupiter"), T("Hey, Soul Sister", "Train", "Save Me, San Francisco"),
+    ];
+
+    [Fact]
+    public void A_group_named_with_and_the_stays_whole()
+    {
+        var plan = ArtistResolve.Plan(Reviewed());
+        Assert.DoesNotContain(plan, c => c.Title == "Baby Love");
+    }
+
+    [Fact]
+    public void A_slash_inside_a_name_is_not_a_split()
+    {
+        var plan = ArtistResolve.Plan(Reviewed());
+        var golden = plan.FirstOrDefault(c => c.Title == "Golden");
+        if (golden is not null) Assert.Contains("HUNTR/X", golden.NewArtists);
+        Assert.DoesNotContain(plan, c => c.Title == "Back in Black");
+    }
+
+    [Fact]
+    public void The_album_artist_leads_a_list_that_names_them()
+    {
+        var c = For(ArtistResolve.Plan(Reviewed()), "Another One Bites the Dust", "Free; Prakazrel \"Pras\" Michel; Queen; Wyclef Jean");
+        Assert.Equal("Queen", c.NewArtists[0]);
+        Assert.Equal(4, c.NewArtists.Count);
+        Assert.Contains("lists 4 artists", c.Why);
+        Assert.DoesNotContain("featured", c.Why);
+    }
+
+    [Fact]
+    public void One_artist_written_two_ways_is_kept_once()
+    {
+        var c = For(ArtistResolve.Plan(Reviewed()), "Crazy In Love", "Beyoncé; JAŸ-Z; JAY-Z");
+        Assert.Equal(2, c.NewArtists.Count);
+    }
+
+    [Fact]
+    public void Capitals_change_only_for_the_better()
+    {
+        var plan = ArtistResolve.Plan(Reviewed());
+        Assert.DoesNotContain(plan, c => c.Title == "Use Somebody");                                  // "of" stays small
+        Assert.Equal(["Kings of Leon"], For(plan, "Arizona", "Kings Of Leon").NewArtists);
+        Assert.Equal(["Tears for Fears"], For(plan, "Mad World", "Tears For Fears").NewArtists);
+        Assert.Equal(["Lady Gaga"], For(plan, "Americano", "Lady GaGa").NewArtists);
+        Assert.DoesNotContain(plan, c => c.Title == "Better Off Alone");                              // never "DeeJay"
+        Assert.Equal(["Alice Deejay"], For(plan, "Back In My Life", "Alice DeeJay").NewArtists);
+        Assert.DoesNotContain(plan, c => c.Title == "96 Fuckries");                                   // JME is how he writes it
+        Assert.DoesNotContain(plan, c => c.Title == "Hungriges Herz");
+        Assert.Equal(["Train"], For(plan, "Drops of Jupiter", "train").NewArtists);
+    }
 }

@@ -17,7 +17,10 @@ else
         var have = tracks.GroupBy(t => Matching.MatchKey(t.Title, t.Artist)).ToDictionary(g => g.Key, g => g.First());
         // the exact match first, then the import's own loose one: Spotify's "More And More - Single Version" is the "More And More" that was downloaded
         // (it showed as Waiting while the import said 99 of 99, owner 5 Nov)
-        var (inOrder, wait) = ImportRows.Build(im.Songs, (a, t) => have.GetValueOrDefault(Matching.MatchKey(t, a)) ?? Lib.FindLoose(t, a), (a, t) => Downloads.JobFor(Session, a, t));
+        // and last the playlist's own song by that artist whose title is the same without its extras ("Scatman" for "Scatman (ski-ba-bop-ba-dop-bop)"):
+        // it was counted in the list and shown as still to come as well ("87, 11 still to come" in a list of 98; owner, 6 Nov)
+        var (inOrder, wait) = ImportRows.Build(im.Songs, (a, t) => have.GetValueOrDefault(Matching.MatchKey(t, a)) ?? Lib.FindLoose(t, a) ?? tracks.FirstOrDefault(x => Matching.SameSongLoosely(t, a, x)),
+            (a, t) => Downloads.JobFor(Session, a, t));
         var placed = inOrder.Select(t => t.Path).ToHashSet();
         tracks = [.. inOrder, .. tracks.Where(t => !placed.Contains(t.Path))];
         waiting = wait;

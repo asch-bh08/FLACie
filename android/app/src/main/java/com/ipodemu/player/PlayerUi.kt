@@ -1482,6 +1482,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 com.ipodemu.library.SearchRank.rank(lib.albums(), { docs.album(it) }, q, 30),
             )
         }
+        // the covers of the first results are asked for at once, as rows on screen are, before the rows are drawn
+        val art = app.library.art
+        (results.songs.take(10).map { it.artKey } + results.albums.take(6).map { it.artKey }).filterNotNull().distinct()
+            .forEach { art.prefetch(it, priority = com.ipodemu.library.Priority.VISIBLE) }
     }
     // Songs and albums that aren't owned yet, most popular first (iTunes ranks by popularity, so a hit song comes before
     // anyone else's track with the same name). Debounced longer than the local filter: these are network calls.
@@ -1492,8 +1496,12 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         delay(450)
         webLoading = true
         val songs = withContext(Dispatchers.IO) { WebCatalog.songs(q) }
+        // their covers start now, before the rows are drawn (owner, 6 Nov: covers came slowly in search)
+        RemoteArt.prefetch(app, songs.take(12).mapNotNull { it.artUrl })
         web = WebResults(songs, emptyList())
-        web = WebResults(songs, withContext(Dispatchers.IO) { WebCatalog.albumsWithTop(q, songs.firstOrNull()) })
+        val albums = withContext(Dispatchers.IO) { WebCatalog.albumsWithTop(q, songs.firstOrNull()) }
+        RemoteArt.prefetch(app, albums.take(8).mapNotNull { it.artUrl })
+        web = WebResults(songs, albums)
         webLoading = false
     }
     LaunchedEffect(query) {
@@ -1502,6 +1510,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         delay(500)
         val web = com.ipodemu.library.FlacieWebClient(app.prefs)
         made = if (!web.available) emptyList() else withContext(Dispatchers.IO) { try { web.madeSearch(q) } catch (e: Exception) { android.util.Log.w("FLACie", "made search failed: ${e.message}"); emptyList() } }
+        RemoteArt.prefetch(app, made.mapNotNull { it.picture })
     }
     Column(Modifier.fillMaxSize().imePadding()) {
         // the big title goes while typing, so more results fit above the keyboard
@@ -1669,12 +1678,12 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
-                        onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs); app.ui.say("Getting \"${s.title}\"…") },
+                        onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") },
                         picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },
                         // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                         onHiRes = {
                             val items = ArrayList<SheetItem>()
-                            items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs); app.ui.say("Getting \"${s.title}\"…") }
+                            items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") }
                             if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) items += SheetItem("✦ Hi-Res download…", Glyph.DOWN) {
                                 nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
                                     SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
@@ -1719,7 +1728,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 val split = PickSet.split(p.asList()) { tracksById[it] }
                 val kept = if (split.keep.isEmpty()) 0 else app.offline.keep(split.keep, com.ipodemu.library.offline.OfflineReason.MANUAL)
                 var asked = 0
-                for (id in split.fetch) webById[id]?.let { s -> app.library.requestDownload(s.artist, s.title, s.album, s.durationMs); asked++ }
+                for (id in split.fetch) webById[id]?.let { s -> app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); asked++ }
                 app.ui.say(if (kept + asked > 0) PickSet.summary(kept, asked) else "Already on this phone", warn = kept + asked == 0)
                 picks = null
             }

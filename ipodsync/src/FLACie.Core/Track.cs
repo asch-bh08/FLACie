@@ -52,6 +52,25 @@ public static partial class Matching
     }
 
     public static string MatchKey(string title, string artist) => NormTitle(title) + "|" + PrimaryArtist(artist);
+
+    /// <summary>
+    /// An imported song and a file that is the same song under a longer or shorter title (owner, 6 Nov: Spotify's "Scatman (ski-ba-bop-ba-dop-bop)" is the
+    /// "Scatman" that was downloaded, "No Coke - 7'' Mix" is "No Coke"): the artist the same once spacing and "&amp;"/"+" are ignored, and the titles the same
+    /// without what is in brackets or after " - ", or one the other's start by whole words (two at least).
+    /// </summary>
+    public static bool SameSongLoosely(string title, string artist, Track t)
+    {
+        static string A(string s) { var a = NonAlnum().Replace(s.ToLowerInvariant().Replace("&", " ").Replace("+", " ").Replace(" and ", " "), ""); return a.StartsWith("the") && a.Length > 3 ? a[3..] : a; }
+        static string Core(string s) => NormTitle(Bracketed().Replace(s.Split(" - ")[0], " "));
+        if (A(artist) != A(t.Artist) && A(artist) != A(t.AlbumArtist)) return false;
+        var x = Core(title); var y = Core(t.Title);
+        if (x.Length == 0 || y.Length == 0) return false;
+        if (x == y) return true;
+        var (shorter, longer) = x.Length <= y.Length ? (x, y) : (y, x);
+        return shorter.Contains(' ') && longer.StartsWith(shorter + " ", StringComparison.Ordinal);
+    }
+
+    [GeneratedRegex(@"[(\[][^)\]]*[)\]]")] private static partial Regex Bracketed();
     /// <summary>Worked out once per song and remembered (a song never changes; `with` makes a new one): Home asked for it tens of thousands of times each
     /// time it opened, and with the owner's 11,000 songs that alone was most of the 1-2 s Home took.</summary>
     public static string MatchKey(Track t) => matchKeys.GetValue(t, x => MatchKey(x.Title, x.Artist));

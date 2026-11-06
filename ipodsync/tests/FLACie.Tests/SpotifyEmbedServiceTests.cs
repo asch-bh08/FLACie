@@ -31,10 +31,13 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
             ]}
             """;
         public List<string> Hosts = []; readonly List<string> urls = [];
+        /// <summary>Deezer and the file mover never answer (a slow or dead source).</summary>
+        public bool Hang;
         public int Asked(string url) => urls.Count(u => u == url);
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
         {
-            Hosts.Add(r.RequestUri!.Host); urls.Add(r.RequestUri.ToString());
+            lock (urls) { Hosts.Add(r.RequestUri!.Host); urls.Add(r.RequestUri.ToString()); }
+            if (Hang && (r.RequestUri!.Host == "api.deezer.com" || r.RequestUri.Host == "mover.test")) await Task.Delay(Timeout.Infinite, ct);
             var u = r.RequestUri.ToString();
             (HttpStatusCode, string) a = u.Contains("open.spotify.com/embed/playlist/")
                 ? spotifyUp ? (HttpStatusCode.OK, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAudio", "embed", "this-is-the-prodigy.html")).Replace("This Is The Prodigy", "All Out 90s")) : (HttpStatusCode.TooManyRequests, "")
@@ -43,7 +46,7 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
                 : u == "http://mover.test/playlist" ? (HttpStatusCode.OK, """{"name": "Experience: Expanded", "tracks": [{"title": "Charly", "artist": "The Prodigy"}, {"title": "Your Love", "artist": "The Prodigy"}]}""")
                 : u.Contains("api.deezer.com/playlist/9001/tracks") ? (HttpStatusCode.OK, """{"data": [{"title": "Firestarter", "duration": 280, "artist": {"name": "The Prodigy"}}, {"title": "Breathe", "duration": 335, "artist": {"name": "The Prodigy"}}, {"title": "Omen", "duration": 216, "artist": {"name": "The Prodigy"}}]}""")
                 : (HttpStatusCode.NotFound, "");
-            return Task.FromResult(new HttpResponseMessage(a.Item1) { Content = new StringContent(a.Item2) });
+            return new HttpResponseMessage(a.Item1) { Content = new StringContent(a.Item2) };
         }
     }
 
@@ -176,5 +179,31 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
         Assert.Contains(shown, l => l.Source == "own");
         var order = shown.Select(l => l.Source).ToList();
         Assert.True(order.IndexOf("own") > order.FindLastIndex(x => x != "own"));
+    }
+
+    [Fact]
+    public async Task After_a_restart_an_artist_search_answers_at_once_from_the_lists_already_read()
+    {
+        // owner, 6 Nov: searching Prodigy, the playlists took a while to come (every restart forgot what Deezer had said)
+        var (svc, _, _, me, _) = Rig(spotifyUp: true);
+        await svc.ForSearchAsync(me, "prodigy", default);
+        var (again, web, _, me2, _) = Rig(spotifyUp: true);   // the same saved lists, a new server
+        web.Hang = true;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var shown = await again.ForSearchAsync(me2, "prodigy", default);
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"{sw.ElapsedMilliseconds} ms");
+        Assert.Contains(shown, l => l.Name == "100% The Prodigy");
+        Assert.Contains(shown, l => l.Name == "The Prodigy Mix");
+    }
+
+    [Fact]
+    public async Task A_first_search_with_a_source_that_does_not_answer_shows_what_it_has_soon()
+    {
+        var (svc, web, _, me, _) = Rig(spotifyUp: true);
+        web.Hang = true;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var shown = await svc.ForSearchAsync(me, "prodigy", default);
+        Assert.True(sw.ElapsedMilliseconds < SpotifyPlaylists.FirstAnswer.TotalMilliseconds + 1000, $"{sw.ElapsedMilliseconds} ms");
+        Assert.Contains(shown, l => l.Source == "own");
     }
 }

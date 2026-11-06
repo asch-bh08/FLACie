@@ -89,6 +89,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import com.ipodemu.App
 
@@ -537,8 +539,42 @@ fun ArtImage(key: String?, modifier: Modifier = Modifier, thumb: Boolean = false
     }
 }
 
-private val remoteArtCache = object : LruCache<String, Bitmap>(16 * 1024 * 1024) {
+private val remoteArtCache = object : LruCache<String, Bitmap>(24 * 1024 * 1024) {
     override fun sizeOf(k: String, v: Bitmap) = v.byteCount
+}
+
+/**
+ * Catalogue covers for search (owner, 6 Nov: they came slowly): from memory, else from disk ([RemoteArtFiles]), else fetched once however many rows
+ * want the same picture. [prefetch] starts the first ones as soon as results arrive, before their rows are drawn.
+ */
+object RemoteArt {
+    private val inflight = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Bitmap?>>()
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private val slots = kotlinx.coroutines.sync.Semaphore(8)
+    @Volatile private var files: com.ipodemu.library.RemoteArtFiles? = null
+    private fun files(ctx: android.content.Context) = files ?: synchronized(this) { files ?: com.ipodemu.library.RemoteArtFiles(java.io.File(ctx.cacheDir, "remote-art")).also { files = it } }
+
+    suspend fun load(ctx: android.content.Context, url: String): Bitmap? {
+        remoteArtCache.get(url)?.let { return it }
+        val app = ctx.applicationContext
+        // one fetch per picture: it carries on when the row that asked scrolls away, and leaves the table when it ends (a failure is tried again later)
+        val job = inflight.computeIfAbsent(url) { scope.async { fetch(app, url) }.also { d -> d.invokeOnCompletion { inflight.remove(url, d) } } }
+        return job.await()
+    }
+
+    fun prefetch(ctx: android.content.Context, urls: List<String>) { for (u in urls.distinct()) if (remoteArtCache.get(u) == null) scope.launch { load(ctx, u) } }
+
+    private suspend fun fetch(ctx: android.content.Context, url: String): Bitmap? {
+        val disk = files(ctx)
+        val bytes = disk.get(url) ?: slots.withPermit {
+            try {
+                val conn = java.net.URL(com.ipodemu.library.CoverLookup.small(url)).openConnection() as java.net.HttpURLConnection
+                conn.connectTimeout = 5000; conn.readTimeout = 8000
+                conn.inputStream.use { it.readBytes() }.also { disk.put(url, it) }
+            } catch (_: Exception) { null }
+        } ?: return null
+        return try { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) } catch (_: Exception) { null }?.also { remoteArtCache.put(url, it) }
+    }
 }
 
 /** Cover art for a catalog search result (Lidarr's own image cache) -- not yet in the library, so
@@ -547,17 +583,11 @@ private val remoteArtCache = object : LruCache<String, Bitmap>(16 * 1024 * 1024)
 @Composable
 fun RemoteArtImage(url: String?, modifier: Modifier = Modifier, corner: Dp = 8.dp) {
     val sc = LocalScheme.current
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     var bmp by remember(url) { mutableStateOf(url?.let { remoteArtCache.get(it) }) }
     LaunchedEffect(url) {
         if (url == null || bmp != null) return@LaunchedEffect
-        val loaded = withContext(Dispatchers.IO) {
-            try {
-                val conn = java.net.URL(com.ipodemu.library.CoverLookup.small(url)).openConnection() as java.net.HttpURLConnection
-                conn.connectTimeout = 5000; conn.readTimeout = 8000
-                conn.inputStream.use { BitmapFactory.decodeStream(it) }
-            } catch (_: Exception) { null }
-        }
-        if (loaded != null) { remoteArtCache.put(url, loaded); bmp = loaded }
+        RemoteArt.load(ctx, url)?.let { bmp = it }
     }
     Box(modifier.clip(RoundedCornerShape(corner)).background(Brush.linearGradient(listOf(sc.onBg.copy(alpha = .16f), sc.onBg.copy(alpha = .05f)))), contentAlignment = Alignment.Center) {
         val b = bmp

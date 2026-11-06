@@ -74,7 +74,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         foreach (var item in list.Items)
         {
             if (item.State is not ("owned" or "done")) continue;
-            var t = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
+            var t = Have(s, item);
             if (t is null) continue;
             var key = Matching.MatchKey(t);
             if (!have.Contains(key) && !have.Contains(Matching.MatchKey(item.Title, item.Artist)))
@@ -146,7 +146,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
             var plId = EnsurePlaylist(s, list, job.Replace);
             foreach (var item in list.Items.Where(i => i.State == "pending"))
             {
-                var have = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
+                var have = Have(s, item);
                 if (have is null) continue;
                 s.AddToPlaylist(plId, have); item.State = "owned";
             }
@@ -183,7 +183,7 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     async Task HandleAsync(UserSession s, ImportJob job, ImportList list, ImportItem item, CancellationToken ct)
     {
         var plId = EnsurePlaylist(s, list, job.Replace);
-        var have = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
+        var have = Have(s, item);
         if (have is not null) { s.AddToPlaylist(plId, have); item.State = "owned"; Touch(s, job); return; }
         if (!downloads.Allowed) { item.State = "failed"; item.Message = DownloadManager.OffMessage; Touch(s, job); return; }
         if (!s.Services.Any) { item.State = "failed"; item.Message = "Downloads aren't set up"; Touch(s, job); return; }
@@ -200,6 +200,10 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         (item.State, item.Message) = StateAfter(r);
         Touch(s, job);
     }
+
+    /// <summary>The library's copy of an import's song: by title and artist, the import's loose match, then the same song under a longer or shorter title.</summary>
+    static Track? Have(UserSession s, ImportItem item) =>
+        s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist) ?? s.Library.Songs.FirstOrDefault(x => Matching.SameSongLoosely(item.Title, item.Artist, x));
 
     /// <summary>What a song of an import becomes after its fetch. A fetch that was cancelled (FLACie Web restarting, a deploy) goes back in the queue
     /// and the import picks it up again: it was kept as failed, and the owner's playlist lost 3 songs to deploys (5 Nov).</summary>

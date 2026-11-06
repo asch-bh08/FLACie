@@ -324,7 +324,9 @@ class Library(ctx: Context, val art: ArtCache) {
     /** Search's per-song Download. Several can run at once; each reports under its own key. */
     fun requestDownload(artist: String, title: String, album: String, durationMs: Long = 0, hiRes: Boolean = false, fallbackToNormal: Boolean = true,
                         /** How many places down the queue the song will play (fetch ahead): 3 or more asks FLACie Web for Hi-Res straight away, fewer for the quickest copy. */
-                        placesAhead: Int = 0, then: ((Track) -> Unit)? = null) {
+                        placesAhead: Int = 0,
+                        /** The cover search showed it with: FLACie Web keeps it as its cover (owner, 6 Nov). */
+                        artUrl: String? = null, then: ((Track) -> Unit)? = null) {
         val key = songKey(artist, title)
         // what to do with the song once it is here (the car's "Download and play"), on the main thread
         if (then != null) thenPlay[key] = then
@@ -344,7 +346,7 @@ class Library(ctx: Context, val art: ArtCache) {
                 val serverOk = web.available && serverAllowsDownloads()
                 val tryServer = serverOk && title.isNotBlank() && (!hiRes || fallbackToNormal)
                 val ask = SmartDownload.Ask(artist, title, album, durationMs, SmartDownload.modeFor(placesAhead, hiRes))
-                val handled = tryServer && SmartDownload.run(ask, prefs.fileMoverUrl, { web.startDownload(artist, title, album, durationMs, ask.mode) }, { web.downloadStatus(it) }, r)
+                val handled = tryServer && SmartDownload.run(ask, prefs.fileMoverUrl, { web.startDownload(artist, title, album, durationMs, ask.mode, artUrl) }, { web.downloadStatus(it) }, r)
                 when (SmartDownload.choose(serverOk, handled, prefs.downloadOnPhone)) {
                     DownloadRoute.SERVER -> {}
                     DownloadRoute.OFF -> r(DownloadStatus(DownloadStage.FAILED, SmartDownload.OFF_MESSAGE))

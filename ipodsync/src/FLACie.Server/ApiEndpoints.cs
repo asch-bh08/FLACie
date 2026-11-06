@@ -280,6 +280,8 @@ public static class ApiEndpoints
             var durationMs = body["durationMs"] is System.Text.Json.Nodes.JsonValue dv && dv.TryGetValue<long>(out var d) && d is > 0 and <= 86_400_000 ? d : 0;
             DownloadMode? mode = body["mode"] is null ? DownloadMode.Quick : Str("mode", 10)?.ToLowerInvariant() switch { "quick" => DownloadMode.Quick, "hires" => DownloadMode.HiRes, _ => null };
             if (mode is null) return Results.BadRequest(new { error = "mode is \"quick\" or \"hires\"." });
+            // the cover the phone showed it with in search stays its cover once it is here (owner, 6 Nov)
+            if (mode == DownloadMode.Quick) DownloadCovers.Current?.Remember(title, artist, Str("artUrl", 1000));
             // asked for by someone (quick) or fetched ahead for the phone's queue (hires): the job's kind says which on the Downloads page
             var job = downloads.Start(s, mode == DownloadMode.HiRes ? "Autoplay" : "Search", artist, title, Str("album", 200) ?? "", durationMs, mode.Value);
             return job is null ? Results.Json(new { error = DownloadManager.OffMessage }, statusCode: 403) : Results.Json(new { id = job.Id });

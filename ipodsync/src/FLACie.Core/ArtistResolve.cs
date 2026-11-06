@@ -54,6 +54,8 @@ public static partial class ArtistResolve
         {
             var artist = t.Artist.Trim(); var k = Key(artist);
             var albumArtist = t.AlbumArtist.Length > 0 ? t.AlbumArtist : artist;
+            // title and artist swapped (the song "Goldfrapp" by "rocket"): for a person to look at, not this check (owner, 6 Nov)
+            if (byArtist.TryGetValue(Key(t.Title), out var titled) && titled.Count >= 3) continue;
             // 1. "X" that is The X's song
             // (not when MusicBrainz credits the album to X itself: Hotel California is Eagles', not The Eagles'; owner, 6 Nov)
             if (!k.StartsWith("the ") && names.TryGetValue("the " + k, out var theName) && byArtist.TryGetValue("the " + k, out var theirs)

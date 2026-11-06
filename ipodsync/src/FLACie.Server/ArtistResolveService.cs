@@ -57,8 +57,17 @@ public sealed class ArtistResolveService(string? file, Func<DateTime> now)
         public Dictionary<string, string> MbNames { get; set; } = [];
         /// <summary>Who MusicBrainz credits an album to ("Hotel California|Eagles" to "Eagles"; "" when none of the names asked), asked once.</summary>
         public Dictionary<string, string> MbAlbums { get; set; } = [];
+        /// <summary>The rules the MusicBrainz answers were kept under: older ones are asked again (2: an artist written exactly so is that artist).</summary>
+        public int MbRules { get; set; }
     }
-    readonly State state = Load(file);
+    const int MbRules = 2;
+    readonly State state = Fresh(Load(file));
+
+    static State Fresh(State s)
+    {
+        if (s.MbRules < MbRules) { s.MbNames.Clear(); s.MbRules = MbRules; }
+        return s;
+    }
     readonly SemaphoreSlim one = new(1, 1);
 
     public IReadOnlyList<ArtistChange> Pending { get { lock (state) return state.Pending.ToList(); } }

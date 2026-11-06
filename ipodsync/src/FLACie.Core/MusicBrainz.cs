@@ -176,7 +176,9 @@ public sealed class MusicBrainzClient(HttpClient http, string userAgent, string?
         // (searched without hyphens: "A-Ha" found nothing, "A Ha" finds a-ha; the name found is still compared hyphens and all)
         var url = "https://musicbrainz.org/ws/2/artist?query=" + Uri.EscapeDataString("artist:" + Quote(name.Trim().Replace((char)0x2D, (char)0x20))) + "&fmt=json&limit=10";
         var hits = JsonNode.Parse(await GetAsync(url, false, ct))?["artists"] as JsonArray ?? [];
-        return hits.OfType<JsonObject>().Select(a => Dashes(a["name"]?.GetValue<string>() ?? "")).FirstOrDefault(n => string.Equals(n, Dashes(name.Trim()), StringComparison.OrdinalIgnoreCase));
+        var same = hits.OfType<JsonObject>().Select(a => Dashes(a["name"]?.GetValue<string>() ?? "")).Where(n => string.Equals(n, Dashes(name.Trim()), StringComparison.OrdinalIgnoreCase)).ToList();
+        // an artist written exactly so is that artist ("Miley" the duo is not MILEY, Miley Cyrus's project; JME stays JME): else the best match
+        return same.FirstOrDefault(n => n == Dashes(name.Trim())) ?? same.FirstOrDefault();
     }
 
     /// <summary>F24: who an album is credited to on MusicBrainz, among [names] ("Hotel California" is Eagles', "The Fat of the Land" The Prodigy's): the

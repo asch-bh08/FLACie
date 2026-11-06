@@ -394,4 +394,14 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Equal(["The Prodigy"], For(plan, "Breathe", "Prodigy").NewArtists);
         Assert.Contains(ArtistResolve.AlbumQuestions(lib), q => q.Album == "Hotel California");
     }
+
+    [Fact]
+    public void Swapped_title_and_artist_tags_are_left_alone()
+    {
+        // owner, 6 Nov: Goldfrapp songs tagged with the song as the artist ("ooh la la", "rocket") had their capitals "fixed" by MusicBrainz artists of those names
+        var lib = new List<Track> { T("Ooh La La", "Goldfrapp", "Supernature"), T("Number 1", "Goldfrapp", "Supernature"), T("Rocket", "Goldfrapp", "Head First"),
+            T("Goldfrapp", "rocket", ""), T("Goldfrapp", "ooh la la", "") };
+        var plan = ArtistResolve.Plan(lib, spelling: n => n.ToLowerInvariant() switch { "rocket" => "ROCKET", "ooh la la" => "Ooh La La", _ => null });
+        Assert.DoesNotContain(plan, c => c.Title == "Goldfrapp");
+    }
 }

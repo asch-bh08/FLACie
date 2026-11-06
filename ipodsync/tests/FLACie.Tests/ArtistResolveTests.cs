@@ -233,4 +233,36 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.DoesNotContain(plan, c => c.Title == "Hungriges Herz");
         Assert.Equal(["Train"], For(plan, "Drops of Jupiter", "train").NewArtists);
     }
+
+    // ---- the owner's second look (6 Nov) ----
+
+    static List<Track> SecondLook() =>
+    [
+        T("Angry", "Paul McCartney", "Press To Play"), T("Hope Of Deliverance", "Paul McCartney", "Hope Of Deliverance"), T("Mull of Kintyre", "Paul Mccartney", "x"),
+        T("All Day And Night", "Jax Jones, Martin Solveig & Madison Beer", "Now 103"), T("Breathe", "Jax Jones", "x"), T("Intoxicated", "Martin Solveig", "x"), T("Selfish", "Madison Beer", "x"),
+        T("I Ain't No Joke", "Eric B & Rakim", "Paid In Full", "Eric B & Rakim"), T("Paid in Full", "Eric B & Rakim", "Paid In Full", "Eric B & Rakim"), T("Eric B. Is President", "Eric B & Rakim", "Paid In Full", "Eric B & Rakim"), T("x1", "Eric B", "x"), T("x2", "Rakim", "y"),
+        T("Danger", "Panda Bear and Sonic Boom", "Reset", "Panda Bear and Sonic Boom"), T("Go On", "Panda Bear and Sonic Boom", "Reset", "Panda Bear and Sonic Boom"), T("Everyday", "Panda Bear and Sonic Boom", "Reset", "Panda Bear and Sonic Boom"), T("Comfy in Nautica", "Panda Bear", "Person Pitch"), T("Big Echo", "Sonic Boom", "All Things Being Equal"),
+    ];
+
+    [Fact]
+    public void Mc_and_Mac_names_keep_their_capitals()
+    {
+        var plan = ArtistResolve.Plan(SecondLook());
+        Assert.DoesNotContain(plan, c => c.Title is "Angry" or "Hope Of Deliverance");
+        Assert.Equal(["Paul McCartney"], For(plan, "Mull of Kintyre", "Paul Mccartney").NewArtists);
+    }
+
+    [Fact]
+    public void The_last_and_of_a_comma_list_is_part_of_the_list()
+    {
+        var c = For(ArtistResolve.Plan(SecondLook()), "All Day And Night", "Jax Jones, Martin Solveig & Madison Beer");
+        Assert.Equal(["Jax Jones", "Martin Solveig", "Madison Beer"], c.NewArtists);
+    }
+
+    [Fact]
+    public void An_act_its_album_is_credited_to_stays_whole()
+    {
+        var plan = ArtistResolve.Plan(SecondLook());
+        Assert.DoesNotContain(plan, c => c.OldArtists[0] is "Eric B & Rakim" or "Panda Bear and Sonic Boom");
+    }
 }

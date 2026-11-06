@@ -71,7 +71,7 @@ public static partial class ArtistResolve
                 continue;
             }
             // 3. "Eminem feat. Dido": the lead, with the others featured
-            if (Split(artist, byArtist.ContainsKey, songs) is { Count: > 0 } parts && !parts.SequenceEqual([artist]))
+            if (Split(artist, byArtist.ContainsKey, songs, t.AlbumArtist) is { Count: > 0 } parts && !parts.SequenceEqual([artist]))
             {
                 // the album artist leads when the tag names them ("Free; Pras; Queen; Wyclef Jean" on Queen's Greatest Hits III is Queen's; owner, 6 Nov)
                 if (parts.FindIndex(x => Key(x) == Key(albumArtist)) is > 0 and var ai) { var a = parts[ai]; parts.RemoveAt(ai); parts.Insert(0, a); }
@@ -92,7 +92,7 @@ public static partial class ArtistResolve
     /// the library's own way of writing the same name. Web codes are decoded ("&amp;amp;") and a record database's number is dropped ("WizKid (4)"). A
     /// part under 3 letters that is no artist here is a cut-off tag ("feat. Th"): null, for the owner to look at.
     /// </summary>
-    public static List<string>? Split(string tag, Func<string, bool> isArtist, IReadOnlyList<Track> songs)
+    public static List<string>? Split(string tag, Func<string, bool> isArtist, IReadOnlyList<Track> songs, string? albumArtist = null)
     {
         var s = Discogs().Replace(System.Net.WebUtility.HtmlDecode(tag), "").Trim();
         var spelled = songs.Select(x => x.Artist).Where(n => n.Length > 0).GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
@@ -122,6 +122,10 @@ public static partial class ArtistResolve
         // one artist written two ways in one tag ("JAŸ-Z; JAY-Z") is one artist
         var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).DistinctBy(x => Key(Fold(x))).ToList();
         if (parts.Any(x => x.Count(char.IsLetterOrDigit) < 3 && !Known(x))) return null;
+        // an act whose album is credited to exactly this name ("Eric B &amp; Rakim" on Paid In Full, "Panda Bear and Sonic Boom" on Reset) is one name
+        // (owner, 6 Nov); a list with ";" or "/" or "feat." is never a name
+        if (albumArtist is { Length: > 0 } aa && Key(aa) == Key(s) && !Regex.IsMatch(s, "[;/,]") && !Feat().IsMatch(s)
+            && songs.Count(x => Key(x.AlbumArtist) == Key(s)) >= 3) return [Clean(s)];
         return parts;
     }
 
@@ -154,8 +158,11 @@ public static partial class ArtistResolve
         {
             var w = words[i];
             if (i > 0 && Small.Contains(w.ToLowerInvariant())) score += w == w.ToLowerInvariant() ? 1 : -1;
-            if (Regex.IsMatch(w, @"\p{Ll}\p{Lu}")) score--;
+            // (a family-name prefix is not one: McCartney, MacDonald, O'Brien, D'Agostino; owner, 6 Nov: "Paul Mccartney" was proposed)
+            if (Regex.IsMatch(Regex.Replace(w, @"^(?:Mc|Mac|O['’]|D['’])(?=\p{Lu})", ""), @"\p{Ll}\p{Lu}")) score--;
         }
+        // "Mccartney" is not how a Mc name is written
+        score -= words.Count(w => Regex.IsMatch(w, @"^Mc\p{Ll}"));
         if (words.Length == 1 && words[0].Length > 0 && char.IsLower(words[0][0]) && words[0] == words[0].ToLowerInvariant()) score--;
         return score;
     }

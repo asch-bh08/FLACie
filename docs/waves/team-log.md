@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-06 Local (overnight)
+- Whole web smoke on b108: 655 passed, 8 failed -> all fixed: kind chips were radios with aria-pressed (axe), "Show only" is a radiogroup, the DJ's favourites waited on 8 Deezer lookups in a row (now side by side, max 2.5 s, rest in background), device-voice captions show even with no browser voices.
+- Smoke data lives in tests/web-smoke/.pub-smoke/.data-smoke: delete THAT before a full run (old imports/playlists pile up otherwise).
+- Deployed (rollback flacie-web:rollback-20261106-pre-djfast). Car emulator: b108 installs, car browse screen draws (Home/Playlists/Albums/Artists, Shuffle all).
+
 ## 2026-11-05 Local (night, owner AFK)
 - Released b107 then b108 (phone/car mic retries the online recogniser when the on-device one fails at once). Both: server 1873/1873, Android tests, emulator smoke 23/23, MSI. Web b108 on frank (rollback flacie-web:rollback-20261105-pre-b108). main = ui/living-sleeve.
 - Also tonight: imported-playlist rows use the import's loose match; phone findLoose second pass (baseTitleKey); a restart puts in-flight import songs back to pending.

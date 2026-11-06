@@ -111,6 +111,39 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Equal(writes + 1, jf.Writes.Count);
     }
 
+    [Fact]
+    public async Task A_song_put_back_by_hand_is_never_fixed_again_by_itself()
+    {
+        var lib = Library(); var jf = new Jellyfin();
+        foreach (var t in lib) jf.Items[t.JellyfinId!] = ([t.Artist], t.AlbumArtist);
+        var svc = new ArtistResolveService(null, () => DateTime.UtcNow);
+        Func<string, string, CancellationToken, Task<bool?>> no = (_, _, _) => Task.FromResult<bool?>(false);
+        await svc.PlanAsync(lib, no, default); await svc.ApproveAsync(jf, default);
+        var breathe = lib.First(t => t.Title == "Breathe").JellyfinId!;
+        await svc.UndoAsync(jf, breathe, default);
+        var writes = jf.Writes.Count;
+        Assert.Equal(0, await svc.AfterSyncAsync(lib, jf, no, default));
+        Assert.Equal(writes, jf.Writes.Count);
+        Assert.DoesNotContain(await svc.PlanAsync(lib, no, default), c => c.ItemId == breathe);
+    }
+
+    [Fact]
+    public async Task Leave_as_it_is_drops_that_kind_of_change_now_and_for_songs_that_come_later()
+    {
+        // owner, 6 Nov: "Eagles" is the band's own name; the list wanted The Eagles
+        var lib = new List<Track> { T("Hotel California", "Eagles", "Hotel California"), T("New Kid in Town", "The Eagles", "Hotel California"), T("Take It Easy", "The Eagles", "Eagles") };
+        var jf = new Jellyfin(); foreach (var t in lib) jf.Items[t.JellyfinId!] = ([t.Artist], t.AlbumArtist);
+        var svc = new ArtistResolveService(Path.Combine(dir, "leave.json"), () => DateTime.UtcNow);
+        Func<string, string, CancellationToken, Task<bool?>> no = (_, _, _) => Task.FromResult<bool?>(false);
+        var c = Assert.Single(await svc.PlanAsync(lib, no, default));
+        svc.Leave(c);
+        Assert.Empty(svc.Pending);
+        await svc.ApproveAsync(jf, default);
+        var later = T("Life in the Fast Lane", "Eagles", "Hotel California"); jf.Items[later.JellyfinId!] = (["Eagles"], "Eagles");
+        Assert.Equal(0, await new ArtistResolveService(Path.Combine(dir, "leave.json"), () => DateTime.UtcNow).AfterSyncAsync([.. lib, later], jf, no, default));
+        Assert.Empty(jf.Writes);
+    }
+
     sealed class FakeJellyfin : HttpMessageHandler
     {
         public string? Posted; public string? PostedTo;
@@ -219,10 +252,18 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Equal(2, c.NewArtists.Count);
     }
 
+    // how the catalog writes these names (Deezer), as the server asks it once per name
+    static readonly Dictionary<string, string> Catalog = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Lady Gaga"] = "Lady Gaga", ["Alice Deejay"] = "Alice Deejay", ["Train"] = "Train", ["Paul McCartney"] = "Paul McCartney", ["OutKast"] = "OutKast",
+        ["DJ BoBo"] = "DJ BoBo", ["a-ha"] = "a-ha", ["JME"] = "JME",
+    };
+    static string? Spelling(string n) => Catalog.GetValueOrDefault(n);
+
     [Fact]
     public void Capitals_change_only_for_the_better()
     {
-        var plan = ArtistResolve.Plan(Reviewed());
+        var plan = ArtistResolve.Plan(Reviewed(), spelling: Spelling);
         Assert.DoesNotContain(plan, c => c.Title == "Use Somebody");                                  // "of" stays small
         Assert.Equal(["Kings of Leon"], For(plan, "Arizona", "Kings Of Leon").NewArtists);
         Assert.Equal(["Tears for Fears"], For(plan, "Mad World", "Tears For Fears").NewArtists);
@@ -247,7 +288,7 @@ public sealed class ArtistResolveTests : IDisposable
     [Fact]
     public void Mc_and_Mac_names_keep_their_capitals()
     {
-        var plan = ArtistResolve.Plan(SecondLook());
+        var plan = ArtistResolve.Plan(SecondLook(), spelling: Spelling);
         Assert.DoesNotContain(plan, c => c.Title is "Angry" or "Hope Of Deliverance");
         Assert.Equal(["Paul McCartney"], For(plan, "Mull of Kintyre", "Paul Mccartney").NewArtists);
     }
@@ -264,5 +305,49 @@ public sealed class ArtistResolveTests : IDisposable
     {
         var plan = ArtistResolve.Plan(SecondLook());
         Assert.DoesNotContain(plan, c => c.OldArtists[0] is "Eric B & Rakim" or "Panda Bear and Sonic Boom");
+    }
+
+    // ---- the owner's third look: the whole library (6 Nov) ----
+
+    [Fact]
+    public void Capitals_only_the_catalog_can_settle_are_left_alone_without_it()
+    {
+        var lib = new List<Track>
+        {
+            T("Ms. Jackson", "OutKast", "Stankonia"), T("Hey Ya!", "Outkast", "Speakerboxxx"),
+            T("Let the Dream Come True", "DJ BoBo", "There Is a Party"), T("Chihuahua", "DJ Bobo", "x"),
+            T("Take On Me", "a-ha", "Hunting High and Low"),
+            T("Shake It Out", "Florence And The Machine", "Ceremonials"), T("Dog Days", "Florence and the machine", "Lungs"),
+        };
+        var without = ArtistResolve.Plan(lib);
+        Assert.DoesNotContain(without, c => c.OldArtists[0] is "OutKast" or "DJ BoBo" or "a-ha");
+        Assert.DoesNotContain(without, c => c.Title == "Shake It Out");   // never "machine", and without the right spelling anywhere it is left alone
+        var with = ArtistResolve.Plan(lib, spelling: Spelling);
+        Assert.Equal(["OutKast"], For(with, "Hey Ya!", "Outkast").NewArtists);
+        Assert.Equal(["DJ BoBo"], For(with, "Chihuahua", "DJ Bobo").NewArtists);
+        Assert.DoesNotContain(with, c => c.OldArtists[0] is "OutKast" or "DJ BoBo" or "a-ha");
+    }
+
+    [Fact]
+    public void A_duo_at_the_end_of_a_list_stays_whole_and_one_person_is_kept_once()
+    {
+        var lib = new List<Track>
+        {
+            T("Shine", "Gary Pine, Dollarman, Bob Sinclar, Sly & Robbie", "Made in Jamaica", "Bob Sinclar"), T("x", "Gary Pine", "x"), T("Taxi", "Sly & Robbie", "Taxi"),
+            T("If I Ruled the World", "Nas; Ms. Lauryn Hill; Lauryn Hill", "It Was Written", "Nas"),
+            T("Telephone", "Lady Gaga Feat. Beyonc�", "The Fame Monster"),
+        };
+        var plan = ArtistResolve.Plan(lib);
+        Assert.Equal(["Bob Sinclar", "Gary Pine", "Dollarman", "Sly & Robbie"], For(plan, "Shine", "Gary Pine, Dollarman, Bob Sinclar, Sly & Robbie").NewArtists);
+        Assert.Equal(2, For(plan, "If I Ruled the World", "Nas; Ms. Lauryn Hill; Lauryn Hill").NewArtists.Count);
+        Assert.DoesNotContain(plan, c => c.Title == "Telephone");
+    }
+
+    [Fact]
+    public void The_names_to_ask_the_catalog_about()
+    {
+        var q = ArtistResolve.SpellingQuestions([T("a", "Lady GaGa", "x"), T("b", "train", "x"), T("c", "OutKast", "x"), T("d", "Outkast", "x"), T("e", "Kings Of Leon", "x"), T("f", "Madonna; Charli xcx", "x")]);
+        Assert.Contains("Lady GaGa", q); Assert.Contains("train", q); Assert.Contains("OutKast", q); Assert.Contains("Outkast", q);
+        Assert.Contains("Kings Of Leon", q); Assert.DoesNotContain("Madonna", q);
     }
 }

@@ -182,10 +182,15 @@ else
         @if (fixNote is not null) { <p class="hint" role="status">@fixNote</p> }
         @if (pending.Count > 0)
         {
-            <p class="hint">Dry run @(ArtistFixes.PlannedAt?.ToLocalTime().ToString("d MMM HH:mm")): nothing has been changed yet.</p>
+            <p class="hint">Dry run @(ArtistFixes.PlannedAt?.ToLocalTime().ToString("d MMM HH:mm")): nothing has been changed yet. "Leave as it is" takes that kind of change off the list, for songs added later too. Once approved, new songs (downloads and imports) are checked the same way every 15 minutes.</p>
             <ul class="admin-list">
-                @foreach (var c in pending.Take(300)) { <li><b>@c.Title</b> <small>@c.Album</small> · @string.Join(", ", c.OldArtists) → <b>@string.Join(", ", c.NewArtists)</b> <small>(@c.Why)</small></li> }
+                @foreach (var c in pending.Take(300))
+                {
+                    var change = c;
+                    <li><b>@c.Title</b> <small>@c.Album</small> · @string.Join(", ", c.OldArtists) → <b>@string.Join(", ", c.NewArtists)</b> <small>(@c.Why)</small> <button class="btn ghost" aria-label="@($"Leave {string.Join(", ", c.OldArtists)} as it is")" @onclick="() => ArtistFixes.Leave(change)">Leave as it is</button></li>
+                }
             </ul>
+            @if (pending.Count > 300) { <p class="hint">And @(pending.Count - 300) more of the same kinds.</p> }
         }
         @if (applied.Count > 0)
         {
@@ -358,7 +363,8 @@ else
     async Task PlanFixes()
     {
         fixBusy = true; fixNote = null; StateHasChanged();
-        try { var plan = await ArtistFixes.PlanAsync(Session.Library.Songs, (t, a, ct) => ArtistResolveCatalog.AskAsync(FixCatalog, t, a, ct), CancellationToken.None); fixNote = plan.Count == 0 ? "Every artist name looks right." : null; }
+        try { var plan = await ArtistFixes.PlanAsync(Session.Library.Songs, (t, a, ct) => ArtistResolveCatalog.AskAsync(FixCatalog, t, a, ct), CancellationToken.None,
+            (n, ct) => ArtistResolveCatalog.SpellAsync(FixCatalog, n, ct)); fixNote = plan.Count == 0 ? "Every artist name looks right." : null; }
         catch (Exception e) { fixNote = FriendlyError.Of(e); }
         finally { fixBusy = false; }
     }

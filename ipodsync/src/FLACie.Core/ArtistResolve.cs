@@ -40,7 +40,7 @@ public static partial class ArtistResolve
 
     /// <summary>The changes, one per song that needs one. [catalogSays] answers whether the catalog has [title] by [artist] (cached by the caller; null when it
     /// could not be asked, which counts as no).</summary>
-    public static List<ArtistChange> Plan(IReadOnlyList<Track> songs, Func<string, string, bool?>? catalogSays = null)
+    public static List<ArtistChange> Plan(IReadOnlyList<Track> songs, Func<string, string, bool?>? catalogSays = null, Func<string, string?>? spelling = null)
     {
         // every artist name in the library as written, by its words
         var names = songs.Select(t => t.Artist).Concat(songs.Select(t => t.AlbumArtist)).Where(n => n.Length > 0)
@@ -71,7 +71,7 @@ public static partial class ArtistResolve
                 continue;
             }
             // 3. "Eminem feat. Dido": the lead, with the others featured
-            if (Split(artist, byArtist.ContainsKey, songs, t.AlbumArtist) is { Count: > 0 } parts && !parts.SequenceEqual([artist]))
+            if (Split(artist, byArtist.ContainsKey, songs, t.AlbumArtist, spelling) is { Count: > 0 } parts && !parts.SequenceEqual([artist]))
             {
                 // the album artist leads when the tag names them ("Free; Pras; Queen; Wyclef Jean" on Queen's Greatest Hits III is Queen's; owner, 6 Nov)
                 if (parts.FindIndex(x => Key(x) == Key(albumArtist)) is > 0 and var ai) { var a = parts[ai]; parts.RemoveAt(ai); parts.Insert(0, a); }
@@ -85,48 +85,92 @@ public static partial class ArtistResolve
         return changes;
     }
 
+    /// <summary>The names whose capitals only the catalog can settle (asked once each, kept by the caller): a name the library writes more than one way,
+    /// one with a capital inside a word ("Lady GaGa", "OutKast", "DJ BoBo"), one all in small letters ("train", "a-ha") and one with a capital small word
+    /// ("Tyler, The Creator"). Without the catalog's answer
+    /// such a name is left as it is.</summary>
+    public static List<string> SpellingQuestions(IReadOnlyList<Track> songs)
+    {
+        var all = songs.Select(x => x.Artist).Where(n => n.Length > 0)
+            .SelectMany(n => Regex.Split(Feat().Replace(n, "$1, $2"), @"\s*(?:[;/,&]|\band\b)\s*", RegexOptions.IgnoreCase))
+            .Select(n => n.Trim()).Where(n => n.Count(char.IsLetter) >= 2).Distinct().ToList();
+        var variants = all.GroupBy(n => n, StringComparer.OrdinalIgnoreCase).Where(g => g.Count() > 1).SelectMany(g => g);
+        var odd = all.Where(n => Regex.IsMatch(n, @"\p{Ll}\p{Lu}") || (n.Any(char.IsLetter) && !n.Any(char.IsUpper)) || SmallWords(n) != n);
+        return variants.Concat(odd).Distinct().ToList();
+    }
+
+    /// <summary>What the library knows once per scan, not once per song (planning 12,000 songs took 6 minutes when this was worked out for each).</summary>
+    sealed class Names(IReadOnlyList<Track> songs)
+    {
+        public readonly HashSet<string> Spelled = songs.Select(x => x.Artist.Trim()).Where(n => n.Length > 0).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Every name exactly as the library writes it.</summary>
+        public readonly HashSet<string> Exact = songs.Select(x => x.Artist.Trim()).Concat(songs.Select(x => x.AlbumArtist.Trim())).Where(n => n.Length > 0).ToHashSet(StringComparer.Ordinal);
+        public readonly Dictionary<string, int> AlbumArtistSongs = songs.GroupBy(x => Key(x.AlbumArtist)).ToDictionary(g => g.Key, g => g.Count());
+    }
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyList<Track>, Names> namesOf = new();
+
     /// <summary>
     /// The separate artists in one artist tag, or null to leave the tag alone. "/" and ";" always part names, and after feat. so do "," and " x ";
-    /// "&amp;", "and" (and "," in the lead) part names only when every part is an artist with songs of their own here, so bands stay whole (Diana Ross
-    /// &amp; the Supremes, Earth, Wind &amp; Fire, KC And Jojo). Names keep their spelling (P!nk, Eric B.; "Bob" is not B.o.B): only capitals follow
-    /// the library's own way of writing the same name. Web codes are decoded ("&amp;amp;") and a record database's number is dropped ("WizKid (4)"). A
-    /// part under 3 letters that is no artist here is a cut-off tag ("feat. Th"): null, for the owner to look at.
+    /// "&amp;", "and" (and "," in the lead) part names only when the lead is an artist with songs of their own here and the others are not "the ...", so
+    /// bands stay whole (Diana Ross &amp; the Supremes, Earth, Wind &amp; Fire, KC And Jojo); the last "&amp;" of a list with commas is part of the list
+    /// (Jax Jones, Martin Solveig &amp; Madison Beer) unless that pair is an act here (Sly &amp; Robbie). Capitals: the catalog's way of writing a name
+    /// when [spelling] knows it (Lady Gaga, OutKast, DJ BoBo, a-ha), else only small words made small ("Kings Of Leon" is Kings of Leon); nothing is
+    /// copied from another way the library writes it. Web codes are decoded ("&amp;amp;"), a record database's number is dropped ("WizKid (4)"), and a
+    /// tag with a broken character or a cut-off part ("feat. Th") is null, for the owner to look at.
     /// </summary>
-    public static List<string>? Split(string tag, Func<string, bool> isArtist, IReadOnlyList<Track> songs, string? albumArtist = null)
+    public static List<string>? Split(string tag, Func<string, bool> isArtist, IReadOnlyList<Track> songs, string? albumArtist = null, Func<string, string?>? spelling = null)
     {
         var s = Discogs().Replace(System.Net.WebUtility.HtmlDecode(tag), "").Trim();
-        var spelled = songs.Select(x => x.Artist).Where(n => n.Length > 0).GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.GroupBy(n => n).OrderByDescending(x => x.Count()).First().Key, StringComparer.OrdinalIgnoreCase);
-        var ways = songs.Select(x => x.Artist).Where(n => n.Length > 0).Distinct().GroupBy(n => n, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.OrdinalIgnoreCase);
-        // another way of writing the name (capitals only) is taken only when it is better by Capitals: "Lady GaGa" is Lady Gaga, "Tears For Fears" is
-        // Tears for Fears, but "Kings of Leon" never becomes "Kings Of Leon", nor JME "Jme" (owner, 6 Nov)
+        // a broken character, or a song's title in the artist tag ("The Way You Move - Outkast Featuring Sleepy Brown"): for the owner to look at
+        if (s.Contains('\uFFFD') || s.Contains(" - ")) return null;
+        var names = namesOf.GetValue(songs, l => new Names(l));
         string Clean(string n)
         {
             n = n.Trim();
-            if (!ways.TryGetValue(n, out var all)) return n;
-            var best = all.OrderByDescending(Capitals).First();
-            return Capitals(best) > Capitals(n) ? best : n;
+            if (spelling?.Invoke(n) is { Length: > 0 } c && string.Equals(c, n, StringComparison.OrdinalIgnoreCase)) return c;
+            // small words made small only when the library already writes the name so ("Kings of Leon" beside "Kings Of Leon"): never on a guess
+            // ("Lady A" is not "Lady a", "Tyler, The Creator" keeps its capital, an album's name in the artist tag is left alone; owner, 6 Nov)
+            var small = SmallWords(n);
+            return small != n && names.Exact.Contains(small) ? small : n;
         }
         // an artist here by the name as written (capitals aside): by its letters alone "Bob" was B.o.B
-        bool Known(string n) => spelled.ContainsKey(n.Trim()) && isArtist(Key(n));
-        // "a & b" parts only when each side is an artist here; a name that is itself an artist here is never parted
-        // (or the lead is one and the others are not "the ...": Eminem & Dr. Dre parts, Diana Ross & the Supremes does not). The whole tag is not
-        // asked: the song being looked at makes it "an artist here" by itself
-        List<string> By(string n, string sep) => Regex.Split(n, sep, RegexOptions.IgnoreCase) is var p && p.Length > 1
-            && p.Skip(1).All(x => !Key(x).StartsWith("the ")) && (p.All(x => Known(x)) || Known(p[0])) ? [.. p] : [n];
-        List<string> Pair(string n) => By(n, @"\s*(?:&|\band\b)\s*");
+        bool Known(string n) => names.Spelled.Contains(n.Trim()) && isArtist(Key(n));
+        bool NoThe(IEnumerable<string> rest) => rest.All(x => !Key(x).StartsWith("the "));
+        List<string> Pair(string n) => Regex.Split(n, @"\s*(?:&|\band\b)\s*", RegexOptions.IgnoreCase) is var p && p.Length > 1 && NoThe(p.Skip(1)) && Known(p[0]) ? [.. p] : [n];
+        // the last of a list: "Martin Solveig & Madison Beer" is two, "Sly & Robbie" (an act here) one
+        // ("Sly & Robbie", one-word names nobody here knows apart, stays one act)
+        List<string> Last(string n) => Known(n) ? [n] : Regex.Split(n, @"\s*(?:&|\band\b)\s*", RegexOptions.IgnoreCase) is var p && p.Length > 1 && NoThe(p.Skip(1))
+            && p.Any(x => x.Trim().Contains(' ') || Known(x)) ? [.. p] : [n];
+        List<string> List(string[] items) => items.Length < 2 ? Pair(items[0]) : [.. items[..^1].SelectMany(Pair), .. Last(items[^1])];
+        List<string> Commas(string n) => Regex.Split(n, @"\s*,\s*") is var p && p.Length > 1 && Known(p[0]) ? List(p) : Pair(n);
         var (lead, rest) = Feat().Match(s) is { Success: true } f ? (f.Groups[1].Value, f.Groups[2].Value) : (s, "");
-        var leads = Slashes(lead).SelectMany(x => Regex.Split(x, @"\s*;\s*")).SelectMany(x => By(x, @"\s*,\s*")).SelectMany(Pair);
-        var featured = rest.Length == 0 ? [] : Slashes(rest).SelectMany(x => Regex.Split(x, @"\s*(?:[;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase)).SelectMany(Pair);
-        // one artist written two ways in one tag ("JAŸ-Z; JAY-Z") is one artist
-        var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).DistinctBy(x => Key(Fold(x))).ToList();
+        var leads = Slashes(lead).SelectMany(x => Regex.Split(x, @"\s*;\s*")).SelectMany(Commas);
+        var featured = rest.Length == 0 ? [] : Slashes(rest).SelectMany(x => List(Regex.Split(x, @"\s*(?:[;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase)));
+        // one artist written two ways in one tag ("JAŸ-Z; JAY-Z", "Ms. Lauryn Hill; Lauryn Hill") is one artist
+        var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).DistinctBy(x => Key(Fold(Honorific().Replace(x, "")))).ToList();
         if (parts.Any(x => x.Count(char.IsLetterOrDigit) < 3 && !Known(x))) return null;
         // an act whose album is credited to exactly this name ("Eric B &amp; Rakim" on Paid In Full, "Panda Bear and Sonic Boom" on Reset) is one name
-        // (owner, 6 Nov); a list with ";" or "/" or "feat." is never a name
+        // (owner, 6 Nov); a list with ";" or "/" or "," or "feat." is never a name
         if (albumArtist is { Length: > 0 } aa && Key(aa) == Key(s) && !Regex.IsMatch(s, "[;/,]") && !Feat().IsMatch(s)
-            && songs.Count(x => Key(x.AlbumArtist) == Key(s)) >= 3) return [Clean(s)];
+            && names.AlbumArtistSongs.GetValueOrDefault(Key(s)) >= 3) return [Clean(s)];
         return parts;
+    }
+
+    [GeneratedRegex(@"^(?:ms|mr|mrs|miss)\.?\s+", RegexOptions.IgnoreCase)] private static partial Regex Honorific();
+
+    /// <summary>Small words made small after the first word ("Kings Of Leon" is Kings of Leon, "Panic! At The Disco" is Panic! at the Disco); every
+    /// other word kept exactly as it is written.</summary>
+    static string SmallWords(string name)
+    {
+        var words = name.Split(' ');
+        var seen = false;
+        for (var i = 0; i < words.Length; i++)
+        {
+            if (words[i].Length == 0) continue;
+            if (seen && Small.Contains(words[i].ToLowerInvariant())) words[i] = words[i].ToLowerInvariant();
+            seen = true;
+        }
+        return string.Join(' ', words);
     }
 
     [GeneratedRegex(@"\s*\(\d+\)(?=\s|$|[,&;/])")] private static partial Regex Discogs();
@@ -146,24 +190,6 @@ public static partial class ArtistResolve
 
     static string Fold(string s) => new(s.Normalize(System.Text.NormalizationForm.FormD).Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark).ToArray());
 
-    static readonly HashSet<string> Small = ["of", "the", "at", "for", "and", "in", "a", "an", "to", "on", "by", "with", "from", "or"];
+    static readonly HashSet<string> Small = ["of", "the", "at", "for", "and", "in", "a", "an", "to", "on", "by", "with", "from", "or", "but", "nor", "vs"];
 
-    /// <summary>How well a name is written: small words ("of", "the", "for") small after the first word, no capital inside a word after small letters
-    /// ("GaGa", "DeeJay"), a one-word name begun with a capital. Ways that score the same are equally good: the tag is left as it is.</summary>
-    static int Capitals(string name)
-    {
-        var words = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var score = 0;
-        for (var i = 0; i < words.Length; i++)
-        {
-            var w = words[i];
-            if (i > 0 && Small.Contains(w.ToLowerInvariant())) score += w == w.ToLowerInvariant() ? 1 : -1;
-            // (a family-name prefix is not one: McCartney, MacDonald, O'Brien, D'Agostino; owner, 6 Nov: "Paul Mccartney" was proposed)
-            if (Regex.IsMatch(Regex.Replace(w, @"^(?:Mc|Mac|O['’]|D['’])(?=\p{Lu})", ""), @"\p{Ll}\p{Lu}")) score--;
-        }
-        // "Mccartney" is not how a Mc name is written
-        score -= words.Count(w => Regex.IsMatch(w, @"^Mc\p{Ll}"));
-        if (words.Length == 1 && words[0].Length > 0 && char.IsLower(words[0][0]) && words[0] == words[0].ToLowerInvariant()) score--;
-        return score;
-    }
 }

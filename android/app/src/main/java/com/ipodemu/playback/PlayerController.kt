@@ -557,9 +557,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val nextPath = next.path
         val askedAt = djLead.asked()
         djExec.execute {
-            val cue = try { djWeb.djNext(body) } catch (_: Exception) { null }
+            var why = ""
+            val cue = try { djWeb.djNext(body) } catch (e: Exception) { why = e.message ?: e.javaClass.simpleName; null }
             if (cue != null) djLead.answered(askedAt)   // a slow server is asked earlier next time
-            handler.post { if (dj.accept(ticket, nextPath, cue) && cue != null) voice().ready(cue.clip, cue.backup) }
+            handler.post {
+                val kept = dj.accept(ticket, nextPath, cue)
+                // the DJ's steps in the log (owner, 6 Nov: "the DJ still doesn't speak"): asked, answered, said or dropped, and why
+                Diag.add("dj", if (cue == null) "no line for \"${next.title}\" (${why.ifEmpty { "the server had none" }}, ${djLead.asked() - askedAt} ms)"
+                    else "line for \"${next.title}\": ${if (cue.clip != null) "voice clip" else if (cue.backup) "phone voice" else "words only"}${if (kept) "" else ", too late (another song came first)"}")
+                if (kept && cue != null) voice().ready(cue.clip, cue.backup)
+            }
         }
     }
 
@@ -582,6 +589,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         val before = djLastPlayed; djLastPlayed = t
         val afterSkips = djSettings.talkAfterSkips
         val cue = dj.changed(change, path, left, afterSkips)
+        if (t != null && djOn) Diag.add("dj", "\"${t.title}\" started (${change.name.lowercase()}): ${when { cue == null -> "no line ready for it"; !exo.playWhenReady -> "paused, so nothing said"; else -> "the DJ says its line" }}")
         if (cue != null && djOn && exo.playWhenReady) voice().say(cue, exo.currentPosition) else djVoice?.stop()
         // Next with "Talk after skips" on and no line ready for this song (it was not the one coming next): asked now, said if it comes in time
         if (cue == null && change == DjCoordinator.Change.SKIP && afterSkips && t != null && djOn && exo.playWhenReady) djAskNow(t, before)

@@ -86,13 +86,13 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         when (l.late(now)) {
             DjLine.Late.PHONE -> { quietClip(); speak(l); watch() }
             DjLine.Late.WAIT -> watch()
-            DjLine.Late.GIVE_UP -> stop()
+            DjLine.Late.GIVE_UP -> { Diag.add("dj", "line dropped: its voice was not ready in time (clip ${if (exo?.playbackState == Player.STATE_READY) "ready" else "not loaded"}, phone voice ${if (ttsReady) "ready" else "not ready"})"); stop() }
         }
     }
     private fun watch() { handler.removeCallbacks(watchdog); line?.let { handler.postAtTime(watchdog, it.stopAt) } }
 
     private val listener = object : Player.Listener {
-        override fun onIsPlayingChanged(isPlaying: Boolean) { val l = line; if (isPlaying && l != null && !l.phoneVoice && !l.heard) heard(l) }
+        override fun onIsPlayingChanged(isPlaying: Boolean) { val l = line; if (isPlaying && l != null && !l.phoneVoice && !l.heard) { Diag.add("dj", "the DJ's voice is playing"); heard(l) } }
         override fun onPlaybackStateChanged(state: Int) {
             if (state == Player.STATE_READY && waitingForClip && line?.phoneVoice == false) { begin(); return }
             // the clip ran dry part-way through on a weak signal: the line ends there and the music comes back up, rather than the song going on for
@@ -105,6 +105,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         }
         override fun onPlayerError(error: PlaybackException) {
             android.util.Log.w("FLACie", "DJ clip failed: ${error.errorCodeName}")
+            Diag.add("dj", "voice clip failed to load: ${error.errorCodeName}")
             failed = loaded; loaded = null
             val l = line
             when {
@@ -323,6 +324,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
 
     /** Says [l] with the phone's voice, now or once the engine is ready. */
     private fun speak(l: DjLine) {
+        Diag.add("dj", "said with the phone's own voice${if (ttsReady) "" else " (waiting for it to start)"}")
         utter++
         voice()
         if (ttsReady) speakNow(l) else waitingForVoice = true

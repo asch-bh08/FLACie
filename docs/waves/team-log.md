@@ -241,3 +241,7 @@
 - Silent DJ root cause: the phone asked about the next song only in the last 30 s by the song's TAGGED length; files shorter than their tags (owner: 3:20 song ending at 41 s) never reached it. Now `DjCoordinator.lengthMs` uses ExoPlayer's duration; seeks re-time the ask; skip/first-song waits 8/10 s (Kokoro p90 4.3 s, max 6.5 s); First song introduces Search/Home plays. Proved on the emulator with `tools/loadtest/dj-android.mjs` (asks, clip, said, every song).
 - Also in b117: catalogue song page + grouped versions (phone Search), DJ remembers the version picked with "the other one" (data/listen/<id>.chosen.json).
 - Rollback tag: flacie-web:rollback-b116.
+
+## 2026-11-06 22:55 (local desktop Claude): b118 released (phone only)
+- Owner's b116 car log: DJ lines made but "voice clip failed to load: HTTP status". Cause: header choice by plain startsWith; FLACie Web (frank:8443) matched the file mover's https://frank base and got X-Api-Key → 401. Fix: `ServerUrl.under` (path boundary) and FLACie Web checked first, in PlayerController's data source and WaveAnalyzer.headersFor.
+- "Playlist plays recommendations": the 80s-90s rally car session (shuf, 94 songs) played only playlist songs; not reproduced. b118 logs "<song> is one Autoplay added, not from <list>" to catch it.

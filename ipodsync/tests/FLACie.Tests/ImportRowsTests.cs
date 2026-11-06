@@ -7,7 +7,7 @@ namespace FLACie.Tests;
 /// <summary>F26.6: an imported playlist lists every song in order; missing ones are greyed with their live state.</summary>
 public class ImportRowsTests
 {
-    static Track T(string a, string t) => new("/p/" + t, t, a, "Alb", a, 1, 1, 1000, 2000, null, 0, TrackSource.Jellyfin);
+    static Track T(string a, string t) => new("/p/" + t, t, a, "Alb", a, 1, 1, 200_000, 2000, null, 0, TrackSource.Jellyfin);
     static DownloadJob J(DownloadStage st, string msg) => new("j", "l", null) { Stage = st, Message = msg };
 
     [Fact]
@@ -59,7 +59,7 @@ public class ServerImportsTests
 
 public class ImportHealTests
 {
-    static Track T(string a, string t) => new("/p/" + t, t, a, "Alb", a, 1, 1, 1000, 2000, null, 0, TrackSource.Jellyfin);
+    static Track T(string a, string t) => new("/p/" + t, t, a, "Alb", a, 1, 1, 200_000, 2000, null, 0, TrackSource.Jellyfin);
 
     [Fact]
     public void Songs_of_a_finished_import_that_dropped_out_of_its_playlist_go_back_in_their_place()
@@ -107,5 +107,28 @@ public class PlaylistRepointTests
         Assert.Equal(2, s.RepointPlaylists(now));
         Assert.Equal(["/p/other", now.Path], s.Playlists.Single(p => p.Name == "Rally").Entries.Select(e => e.Path));
         Assert.Equal([now.Path], s.Playlists.Single(p => p.Name == "Pop").Entries.Select(e => e.Path));
+    }
+}
+
+public class ImportSweepTests
+{
+    static Track T(string a, string t, long ms) => new("/p/" + t + ms, t, a, "Alb", a, 1, 1, ms, 2000, null, 0, TrackSource.Jellyfin);
+
+    [Fact]
+    public void A_song_gone_from_the_library_or_only_a_clip_is_fetched_again()
+    {
+        // owner, 6 Nov: "if it gave me the option in the playlist, why didn't it download when imported or on a sweep?"
+        var s = new UserSession("local", null, null);
+        s.AddDownloaded([T("Scatman John", "Scatman", 12_000), T("Corona", "The Rhythm of the Night", 264_000), T("Gala", "Freed From Desire", 0)]);
+        var list = new ImportList { Name = "Rally", Items = [
+            new() { Artist = "Scatman John", Title = "Scatman (ski-ba-bop-ba-dop-bop)", State = "done" },
+            new() { Artist = "Corona", Title = "The Rhythm of the Night", State = "done" },
+            new() { Artist = "The Free", Title = "Lover On The Line", State = "done" },
+            new() { Artist = "Gala", Title = "Freed From Desire - Radio Edit", State = "owned" },
+            new() { Artist = "X", Title = "Gone", State = "failed" }] };
+
+        var (again, clips) = ImportManager.Sweep(s, list);
+        Assert.Equal(["Scatman (ski-ba-bop-ba-dop-bop)", "Lover On The Line"], again.Select(i => i.Title));
+        Assert.Equal(["Scatman"], clips.Select(t => t.Title));
     }
 }

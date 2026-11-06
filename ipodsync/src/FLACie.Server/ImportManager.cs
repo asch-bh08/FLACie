@@ -202,8 +202,60 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     }
 
     /// <summary>The library's copy of an import's song: by title and artist, the import's loose match, then the same song under a longer or shorter title.</summary>
-    static Track? Have(UserSession s, ImportItem item) =>
-        s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist) ?? s.Library.Songs.FirstOrDefault(x => Matching.SameSongLoosely(item.Title, item.Artist, x));
+    /// <summary>A clip is not the song (a shop's 30 s preview filed as Scatman; owner, 6 Nov).</summary>
+    static bool Clip(Track t) => t.DurationMs is > 0 and < 45_000;
+
+    /// <summary>Every copy in the library of an import's song (by title and artist, the import's loose match, the same song under a longer or shorter title).</summary>
+    static IEnumerable<Track> Copies(UserSession s, ImportItem item) =>
+        new[] { s.Library.Find(item.Title, item.Artist), s.Library.FindLoose(item.Title, item.Artist) }.OfType<Track>()
+            .Concat(s.Library.Songs.Where(x => Matching.SameSongLoosely(item.Title, item.Artist, x))).DistinctBy(t => t.Path);
+
+    static Track? Have(UserSession s, ImportItem item) => Copies(s, item).FirstOrDefault(t => !Clip(t));
+
+    /// <summary>
+    /// The sweep of a finished import: its songs that are no longer in the library (moved, swapped, deleted) or are there only as a clip go back in the
+    /// queue, and the clips are named so they can be taken out (owner, 6 Nov: "if it gave me the option in the playlist, why didn't it download?").
+    /// </summary>
+    public static (List<ImportItem> Again, List<Track> Clips) Sweep(UserSession s, ImportList list)
+    {
+        var again = new List<ImportItem>(); var clips = new List<Track>();
+        foreach (var item in list.Items.Where(i => i.State is "owned" or "done"))
+        {
+            if (Have(s, item) is not null) continue;
+            again.Add(item);
+            clips.AddRange(Copies(s, item).Where(Clip));
+        }
+        return (again, clips.DistinctBy(t => t.Path).ToList());
+    }
+
+    /// <summary>
+    /// After sign-in and every 6 hours: every finished import is swept. Its clips leave its playlist and, when FLACie downloaded them (the download log has
+    /// the file), leave the library too; its missing songs are fetched again.
+    /// </summary>
+    public async Task SweepAsync(UserSession s, Func<string, Task>? retire = null)
+    {
+        for (var i = 0; i < 360 && (s.Loading || s.LoadedAt == default); i++) await Task.Delay(500);
+        if (s.Library.Songs.Count == 0 || !downloads.MayBulk(s)) return;
+        foreach (var job in states.For(s).Imports.Where(j => j.State == "done").ToList())
+        {
+            var again = 0;
+            foreach (var list in job.Lists)
+            {
+                var (items, clips) = Sweep(s, list);
+                foreach (var c in clips)
+                {
+                    if (list.PlaylistId is { } pl) s.RemoveFromPlaylist(pl, c);
+                    if (retire is not null && c.FilePath is { Length: > 0 } f) try { await retire(f); } catch (Exception e) { log.LogWarning(e, "Moving a clip out of the library failed"); }
+                }
+                foreach (var item in items) { item.State = "pending"; item.Message = null; again++; }
+            }
+            if (again == 0) continue;
+            log.LogInformation("Imports: {Count} songs of {File} fetched again (missing or only a clip)", again, job.File);
+            job.State = "running"; job.Note = null;
+            states.Save(s);
+            Launch(s, job);
+        }
+    }
 
     /// <summary>What a song of an import becomes after its fetch. A fetch that was cancelled (FLACie Web restarting, a deploy) goes back in the queue
     /// and the import picks it up again: it was kept as failed, and the owner's playlist lost 3 songs to deploys (5 Nov).</summary>
@@ -267,5 +319,44 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     {
         states.Save(s);
         try { await s.SaveAsync(jf); } catch (Exception e) { log.LogWarning(e, "Saving the profile after an import step failed"); }
+    }
+}
+
+/// <summary>
+/// The import sweep (owner, 6 Nov): every signed-in account's finished imports are checked a few minutes after the server starts and then every 6
+/// hours; songs gone from the library or there only as a clip are fetched again (ImportManager.SweepAsync). A clip leaves the library only when the
+/// download log says FLACie filed it.
+/// </summary>
+public sealed class ImportSweepService(SessionStore sessions, ImportManager imports, DownloadLog downloads, IHttpClientFactory hf, ILogger<ImportSweepService> log) : BackgroundService
+{
+    public static readonly TimeSpan Every = TimeSpan.FromHours(6);
+    readonly Dictionary<string, DateTime> swept = [];
+
+    protected override async Task ExecuteAsync(CancellationToken stop)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMinutes(3), stop);
+            while (!stop.IsCancellationRequested)
+            {
+                foreach (var s in sessions.Active.Where(s => !s.Loading).ToList())
+                {
+                    if (swept.TryGetValue(s.Id, out var at) && DateTime.UtcNow - at < Every) continue;
+                    swept[s.Id] = DateTime.UtcNow;
+                    try { await imports.SweepAsync(s, f => Retire(s, f)); }
+                    catch (Exception e) when (e is not OperationCanceledException) { log.LogWarning(e, "Import sweep failed"); }
+                }
+                await Task.Delay(TimeSpan.FromMinutes(15), stop);
+            }
+        }
+        catch (OperationCanceledException) { }
+    }
+
+    /// <summary>A clip FLACie filed (the download log has it) moved out of the library by the file mover; anything else is left where it is.</summary>
+    async Task Retire(UserSession s, string filePath)
+    {
+        if (downloads.FindByFile(filePath) is not { File: { Length: > 0 } rel } || s.Services.FileMoverUrl.Length == 0) return;
+        if (await new FileMoverClient(hf.CreateClient("downloads"), s.Services.FileMoverUrl, s.Services.FileMoverKey).RetireAsync(rel))
+            log.LogInformation("Imports: moved the clip {File} out of the library", rel);
     }
 }

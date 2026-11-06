@@ -701,6 +701,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     exo.replaceMediaItem(idx, item(cur0)); selfSeekTo(idx, at); exo.prepare(); exo.play()
                     fire(); return
                 }
+                // a song whose file is not there any more (swapped for a Hi-Res copy, moved): the library's other copy of it, from the same spot
+                val gone = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) in setOf(404, 410)
+                val cur2 = current
+                if (gone && cur2 != null) OtherCopy.of(cur2, App.of(ctx).library.songs())?.let { other ->
+                    Diag.add("error", "\"${cur2.title}\" is not there any more: playing the library's other copy")
+                    val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
+                    queue = queue.map { if (it.path == cur2.path) other else it }; queueRev++
+                    exo.replaceMediaItem(idx, item(other)); selfSeekTo(idx, at); exo.prepare(); exo.play()
+                    fire(); return
+                }
                 val key = exo.currentMediaItemIndex to (current?.path ?: "")
                 retries = if (key == retryKey) retries + 1 else 1
                 retryKey = key

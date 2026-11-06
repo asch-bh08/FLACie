@@ -53,9 +53,36 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     SlskdClient Slskd => new(http, cfg.SlskdUrl, cfg.SlskdKey);
     IFileMover Mover => fileMover ??= new FileMoverClient(http, cfg.FileMoverUrl, cfg.FileMoverKey);
 
+    /// <summary>How long the song is by the catalog (its hit with this title by this artist), in ms; 0 when it has none.</summary>
+    public static long ExpectedLength(IEnumerable<CatalogSong> hits, string artist, string title)
+    {
+        var a = Matching.PrimaryArtist(artist); var tt = Matching.NormTitle(WebCatalog.BaseTitle(title));
+        return hits.FirstOrDefault(h => h.DurationMs > 0 && Matching.PrimaryArtist(h.Artist) == a && Matching.NormTitle(WebCatalog.BaseTitle(h.Title)) == tt)?.DurationMs ?? 0;
+    }
+
+    /// <summary>A copy too short to be the song: well under its known length (a 2-minute mash-up for a 4-minute song), or, with no length known, under
+    /// 45 s (a shop's 30 s preview). 0 s means not known: never too short.</summary>
+    public static bool TooShort(int sec, int expectedSec) =>
+        sec > 0 && (expectedSec > 0 ? sec < expectedSec - Math.Max(20, expectedSec / 5) : sec < 45);
+
+    /// <summary>The song's length when the caller did not know it (a song from a playlist): asked of the catalog, so every source can check what it
+    /// found (owner, 6 Nov: a 12 s Scatman and a mash-up for Corona came in with an import). 0 when the catalog has nothing or does not answer soon.</summary>
+    async Task<long> LengthOf(string artist, string title, long durationMs, CancellationToken ct)
+    {
+        if (durationMs > 0) return durationMs;
+        try
+        {
+            using var soon = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            soon.CancelAfter(TimeSpan.FromSeconds(6));
+            return ExpectedLength(await catalog.SongsAsync($"{Matching.PrimaryArtist(artist)} {WebCatalog.BaseTitle(title)}", 10, soon.Token), artist, title);
+        }
+        catch (Exception e) when (e is not OperationCanceledException || !ct.IsCancellationRequested) { return 0; }
+    }
+
     public async Task DownloadAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
     {
         on(new(DownloadStage.Requested, $"Requested \"{title}\""));
+        durationMs = await LengthOf(artist, title, durationMs, ct);
         var sec = (int)(durationMs / 1000);
         // YouTube and the open sources can't be stopped once their file mover has started filing, so they only race when a copy that lost can be moved
         // out of the library again (a file mover with /retire). With an older file mover they keep their old turn, after Soulseek, as before. The file
@@ -151,7 +178,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 {
                     var done = await Task.WhenAny(left).WaitAsync(race);
                     left.Remove(done);
-                    if (await done is not { } hit || !OpenSources.Allowed(hit)) continue;
+                    if (await done is not { } hit || !OpenSources.Allowed(hit) || TooShort((int)hit.DurationSec, (int)(durationMs / 1000))) continue;
                     on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
                     var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}.{hit.Ext}";
                     if (!await FetchViaFileMover(hit.Url, dest, ct)) { on(new(DownloadStage.Searching, OpenSourceSettings.Name(hit.Source) + " had it, but the download failed", hit.Source, null, true)); continue; }
@@ -188,7 +215,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 if (finders is null || !finders.Tasks.TryGetValue(id, out var task)) continue;
                 var sname = OpenSourceSettings.Name(id);
                 var left = (int)Math.Max(0, deadline - Environment.TickCount64);
-                if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit) { on(new(DownloadStage.Searching, sname + " had nothing", id, null, true)); continue; }
+                if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit || TooShort((int)hit.DurationSec, (int)(durationMs / 1000))) { on(new(DownloadStage.Searching, sname + " had nothing", id, null, true)); continue; }
                 on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
                 var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}.{hit.Ext}";
                 on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
@@ -248,6 +275,12 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                         {
                             on(new(DownloadStage.Importing, "Filing into the library...", tag));
                             var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
+                            if (TooShort(secs, (int)(durationMs / 1000)))
+                            {
+                                // not the song (a preview, a short edit): out of the library again
+                                try { await Mover.RetireAsync($"{noExt}.{ext}"); } catch (Exception) { }
+                                why = $"{name} only had a {secs} s copy"; break;
+                            }
                             return OpenTrack($"{noExt}.{ext}", title, artist, album, artUrl, durationMs > 0 ? durationMs : secs * 1000L);
                         }
                         // 404 = the search really found nothing usable; anything else is the YouTube service failing, worth one more try
@@ -362,6 +395,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     public async Task<UpgradeCopy?> UpgradeAsync(string artist, string title, string album, long durationMs, string oldFile, bool lossless, CancellationToken ct = default)
     {
         if (!cfg.SoulseekReady) return null;
+        durationMs = await LengthOf(artist, title, durationMs, ct);
         var sl = Slskd; var sec = (int)(durationMs / 1000);
         var found = await SearchSong(sl, artist, title, sec, !lossless, _ => { }, ct);
         var cands = lossless ? SlskdClient.RankSong(found, artist, title, sec).Where(f => f.Lossless).ToList() : SlskdClient.RankSong(found, artist, title, sec, hiRes: true);
@@ -383,6 +417,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     public async Task DownloadHiResAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default, bool fallbackToNormal = true)
     {
         on(new(DownloadStage.Requested, $"Requested \"{title}\" in Hi-Res"));
+        durationMs = await LengthOf(artist, title, durationMs, ct);
         if (cfg.SoulseekReady)
         {
             if (await TrySoulseek(artist, title, album, artUrl, (int)(durationMs / 1000), on, ct, hiRes: true)) return;

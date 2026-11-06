@@ -144,7 +144,7 @@ public sealed class SlskdClient(HttpClient http, string url, string apiKey)
         {
             var leaf = Tokens(f.Leaf[..(f.Leaf.LastIndexOf('.') is var d && d > 0 ? d : f.Leaf.Length)]).ToHashSet();
             return titleWords.All(leaf.Contains) && !Variants.Any(v => leaf.Contains(v) && !wanted.Contains(v)) &&
-                   (durationSec == 0 || f.LengthSec == 0 || Math.Abs(f.LengthSec - durationSec) <= 12) && f.Size > 1_000_000;
+                   (durationSec == 0 || f.LengthSec == 0 || Math.Abs(f.LengthSec - durationSec) <= 12) && !DownloadCoordinator.TooShort(f.LengthSec, durationSec) && f.Size > 1_000_000;
         }).ToList();
         // the typed artist somewhere in the path (file or folder) rules out the same title by somebody else
         var byArtist = ok.Where(f => { var p = Tokens(f.Filename).ToHashSet(); return artistWords.All(p.Contains); }).ToList();

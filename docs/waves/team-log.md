@@ -1,5 +1,12 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-06 Local (late morning)
+- b111: Hi-Res upgrades dropped downloaded songs from playlists (owner's rally: Jellyfin playlist 72/99; all 25 missing were "[Hi-Res]" swaps; the phone mirror pushed the dead Jellyfin id). Fixes: ImportManager.Heal (once per done import, ImportJob.Healed, runs after sign-in), UserSession.RepointPlaylists on upgrade (+ profile saved), phone PlaylistMerge.mirrorId (dead id -> title/artist; never before the library loads).
+- DJ: PlaylistAndThen ("pop playlist and shuffle pop" = Pop + shuffle), ArtistFits ("by corona" never DeBarge; fetch + DjAskWait(AddTo, Shuffle) applied on land by web and phone), "play X and add it" = Play now, OtherRx "the one by X", vague playlist names ask "Which playlist".
+- Not done yet: search covers keep the catalogue picture after download/upgrade (needs cover memory or embedding); phone search covers slow; search playlists should show stored lists at once.
+- Storage (owner asked): 10.30 TiB used = 11.33 TB; only 117 GB changed in 7 days (Sonarr: Dark 44 GB, One Piece 25 GB). Leftovers: downloads/complete 69 GB (lidarr 48, radarr 18), $RECYCLE.BIN 8.5 GB, .flacie-replaced 4.2 GB (auto-emptied after 30 days). Nothing deleted.
+- Junk from the DJ bug in Jellyfin: playlist "Pop playlist and then shuffle the pop" (1 song). Left for the owner.
+
 ## 2026-11-06 Local (morning)
 - b109: no covers on the phone. /art was cookie-only (RequireAuthorization): the phone's token request was redirected to /login and WebCovers kept the HTML page as the picture. /art now takes ApiEndpoints.CallerAsync (401 for nobody, not a redirect); WebCovers only accepts image/* (not svg). Owner confirmed covers back after the server deploy.
 - b110: the web's search on the phone. /api/made returns WebPlaylists (ForSearchAsync / ForFilterAsync with kind=playlists, genre, decade) as cards (id "web:source:id", picture); /api/made/featuring?artist= (ListsWithArtist); /api/made/web:... opens a list with every song, missing:true for ones the library lacks (Interest Opened). Phone: one-choice chips incl. Playlists + genre/decade from the library (ListFilters), "Lists with X in", missing songs greyed via SongList(missing=), ArtistPage as the web (copies across albums, 2 per album), lyrics LRCLIB exact first (cache header "Source	2", old "Jellyfin" refetched), DjStatus bar above the mini player.

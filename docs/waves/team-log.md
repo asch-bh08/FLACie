@@ -236,3 +236,8 @@
 - Done: specs F1-F17 (docs/waves/specs), TEAM.md; lyrics glide fix and artist search (Radio + featuring lists) committed on ui/living-sleeve, not released.
 - Found: Lose Yourself has no cover because the file has no tags at all (137 such songs); F1 takes the artist from file/folder names.
 - Next (Local): wave plan, search mock-up, then F1/F2 and F6. Cloud: start F9 then F10/F11/F16 on cloud/dj-server.
+
+## 2026-11-06 21:05 (local desktop Claude): b117 released, server deployed
+- Silent DJ root cause: the phone asked about the next song only in the last 30 s by the song's TAGGED length; files shorter than their tags (owner: 3:20 song ending at 41 s) never reached it. Now `DjCoordinator.lengthMs` uses ExoPlayer's duration; seeks re-time the ask; skip/first-song waits 8/10 s (Kokoro p90 4.3 s, max 6.5 s); First song introduces Search/Home plays. Proved on the emulator with `tools/loadtest/dj-android.mjs` (asks, clip, said, every song).
+- Also in b117: catalogue song page + grouped versions (phone Search), DJ remembers the version picked with "the other one" (data/listen/<id>.chosen.json).
+- Rollback tag: flacie-web:rollback-b116.

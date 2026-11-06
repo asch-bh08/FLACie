@@ -12,6 +12,7 @@ import tempfile
 import threading
 import unittest
 import urllib.error
+import urllib.parse
 import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -114,6 +115,13 @@ class RetireTests(unittest.TestCase):
     def test_a_file_already_retired_is_not_moved_again(self):
         self.put(".flacie-replaced/Artist/Artist - Song.flac")
         code, _ = self.call("POST", "/retire", {"path": ".flacie-replaced/Artist/Artist - Song.flac"})
+        self.assertEqual(400, code)
+
+    def test_playing_a_file_that_is_not_there_is_404(self):
+        # the phone takes a 404 for "this copy is gone" and plays the library's other copy (owner, 6 Nov: a swapped song answered 400 and never played)
+        code, _ = self.call("GET", "/file?path=" + urllib.parse.quote("Nobody/Nobody - Nothing.m4a"))
+        self.assertEqual(404, code)
+        code, _ = self.call("GET", "/file")
         self.assertEqual(400, code)
 
     def test_a_missing_file_is_404(self):

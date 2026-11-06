@@ -72,6 +72,23 @@ def lead_artist(a):
     return n[4:] if n.startswith("the ") and len(n) > 4 else n
 
 
+def real_seconds(path):
+    """How long the file really plays (ffprobe), or 0 when it cannot be read."""
+    try:
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", path], capture_output=True, text=True, timeout=30)
+        return float(r.stdout.strip() or 0)
+    except Exception:
+        return 0.0
+
+
+def preview(real, said):
+    """A preview instead of the song: SoundCloud serves a 30 s clip of some tracks while naming the whole track's length (owner, 6 Nov: a 30 s Ice MC
+    Megamix filed as the song). Well short of the length the source names, or under 45 s when it names none."""
+    if real <= 0:
+        return False
+    return real < said * 0.8 if said and said > 60 else real < 45
+
+
 def resolve(rel):
     full = os.path.normpath(os.path.join(ROOT, rel.lstrip("/")))
     if not full.startswith(ROOT + os.sep):
@@ -245,6 +262,10 @@ def fetch_best(artist, title, dur, dest_noext, source="youtube"):
             if size < 10_000 or size > MAX_BYTES:
                 last = "file size out of range"
                 continue
+            real = real_seconds(final)
+            if preview(real, c.get("duration") or 0):
+                last = f"only a {int(real)} s preview"
+                continue
             dest = f"{dest_noext}.{ext}"
             os.makedirs(os.path.dirname(dest), exist_ok=True)
             try:
@@ -254,7 +275,7 @@ def fetch_best(artist, title, dur, dest_noext, source="youtube"):
                 if os.path.exists(dest + ".part"):
                     os.remove(dest + ".part")
                 raise
-            return {"ok": True, "ext": ext, "source": source, "bytes": size, "durationSec": c.get("duration") or 0, "channel": c.get("channel") or c.get("uploader") or ""}
+            return {"ok": True, "ext": ext, "source": source, "bytes": size, "durationSec": int(real) or c.get("duration") or 0, "channel": c.get("channel") or c.get("uploader") or ""}
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
     raise RuntimeError(last)

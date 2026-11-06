@@ -702,7 +702,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     fire(); return
                 }
                 // a song whose file is not there any more (swapped for a Hi-Res copy, moved): the library's other copy of it, from the same spot
-                val gone = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) in setOf(404, 410)
+                val gone = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) in setOf(400, 404, 410)   // (the file mover said 400 for a missing file until 6 Nov)
                 val cur2 = current
                 if (gone && cur2 != null) OtherCopy.of(cur2, App.of(ctx).library.songs())?.let { other ->
                     Diag.add("error", "\"${cur2.title}\" is not there any more: playing the library's other copy")

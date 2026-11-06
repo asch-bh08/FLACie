@@ -219,6 +219,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             full = self._resolve(rel)
             if not os.path.isfile(full):
                 raise FileNotFoundError(f"not found: {rel}")
+        except FileNotFoundError as e:
+            # gone (swapped for a better copy, moved): 404, so a player knows to look for the song's other copy
+            self._reply(404, {"error": str(e)})
+            return
         except Exception as e:
             self._reply(400, {"error": str(e)})
             return

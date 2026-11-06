@@ -123,11 +123,19 @@ public static partial class ArtistResolve
         var s = Discogs().Replace(System.Net.WebUtility.HtmlDecode(tag), "").Trim();
         // a broken character, or a song's title in the artist tag ("The Way You Move - Outkast Featuring Sleepy Brown"): for the owner to look at
         if (s.Contains('\uFFFD') || s.Contains(" - ")) return null;
+        // a stand-in, not a name ("no artist", "Unknown Artist"): left alone
+        if (Regex.IsMatch(s, @"^\W*(?:no artist|unknown(?: artist)?|artist|untitled|none|n/?a)\W*$", RegexOptions.IgnoreCase)) return null;
         var names = namesOf.GetValue(songs, l => new Names(l));
         string Clean(string n)
         {
             n = n.Trim();
-            if (spelling?.Invoke(n) is { Length: > 0 } c && string.Equals(c, n, StringComparison.OrdinalIgnoreCase)) return c;
+            // the catalog's way only when the library writes the name so too: Deezer alone said "Bt", "Omi", "24kgoldn" (owner, 6 Nov)
+            // and never one that makes small words big ("A Touch Of Class", "Cage The Elephant") or a short name in capitals small (JME, OTE, SNAP!)
+            if (spelling?.Invoke(n) is { Length: > 0 } c && string.Equals(c, n, StringComparison.OrdinalIgnoreCase))
+            {
+                var shortCaps = n.Count(char.IsLetter) <= 5 && n.Any(char.IsLetter) && !n.Any(char.IsLower);
+                return c == n || (names.Exact.Contains(c) && SmallWords(c) == c && !shortCaps) ? c : n;
+            }
             // small words made small only when the library already writes the name so ("Kings of Leon" beside "Kings Of Leon"): never on a guess
             // ("Lady A" is not "Lady a", "Tyler, The Creator" keeps its capital, an album's name in the artist tag is left alone; owner, 6 Nov)
             var small = SmallWords(n);

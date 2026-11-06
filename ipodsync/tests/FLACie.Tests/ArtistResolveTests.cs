@@ -350,4 +350,21 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Contains("Lady GaGa", q); Assert.Contains("train", q); Assert.Contains("OutKast", q); Assert.Contains("Outkast", q);
         Assert.Contains("Kings Of Leon", q); Assert.DoesNotContain("Madonna", q);
     }
+
+    [Fact]
+    public void The_catalog_spelling_is_taken_only_when_the_library_writes_the_name_so_too()
+    {
+        // owner, 6 Nov: with Deezer's spellings the list said BT "Bt", OMI "Omi", 24kGoldn "24kgoldn", Mac DeMarco "Mac Demarco"
+        var deezer = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            { ["BT"] = "Bt", ["OMI"] = "Omi", ["24kGoldn"] = "24kgoldn", ["Mac DeMarco"] = "Mac Demarco", ["Lady GaGa"] = "Lady Gaga", ["no artist"] = "NO ARTIST" };
+        var lib = new List<Track>
+        {
+            T("Flaming June", "BT", "Flaming June"), T("Cheerleader", "OMI", "Me 4 U"), T("Mood", "24kGoldn", "El Dorado"), T("Chamber of Reflection", "Mac DeMarco", "Salad Days"),
+            T("Americano", "Lady GaGa", "Born This Way"), T("Die With A Smile", "Lady Gaga", "MAYHEM"),
+            T("Destination Calabria", "no artist", "no title"), T("x", "NO ARTIST", "y"),
+        };
+        var plan = ArtistResolve.Plan(lib, spelling: n => deezer.GetValueOrDefault(n));
+        Assert.Equal(["Lady Gaga"], For(plan, "Americano", "Lady GaGa").NewArtists);
+        Assert.DoesNotContain(plan, c => c.OldArtists[0] is "BT" or "OMI" or "24kGoldn" or "Mac DeMarco" or "no artist" or "NO ARTIST");
+    }
 }

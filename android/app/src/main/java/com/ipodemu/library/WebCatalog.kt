@@ -10,7 +10,9 @@ import java.net.URLEncoder
  * Deezer can't be reached. Albums carry their tracklist (with durations), which an album download needs.
  */
 object WebCatalog {
-    data class Song(val artist: String, val title: String, val album: String, val artUrl: String?, val durationMs: Long, val trackNo: Int, val discNo: Int)
+    /** [albumId]: Deezer's album, for its year on the song's page; [year] when the catalog said it with the song (iTunes). */
+    data class Song(val artist: String, val title: String, val album: String, val artUrl: String?, val durationMs: Long, val trackNo: Int, val discNo: Int,
+                    val albumId: Long = 0, val year: String = "")
     /** [id] is a Deezer album id, or an iTunes collection id when [itunes]. */
     data class Album(val id: Long, val artist: String, val title: String, val artUrl: String?, val trackCount: Int, val year: String,
                      val type: String = "", val itunes: Boolean = false) {
@@ -32,6 +34,33 @@ object WebCatalog {
             // karaoke/tribute/cover acts sit below real recordings unless asked for ("Karaoke Carpool" names it in the artist)
             .sortedBy { variant(it.title, words) + (if (typedNone(coverActs, words) && coverActs.containsMatchIn("${it.artist} ${it.album} ${it.title}")) 2 else 0) }
             .distinctBy { norm(primaryArtist(it.artist)) + "|" + norm(baseTitle(it.title)) }.take(limit)
+    }
+
+    /**
+     * The songs as Spotify lists them (owner, 6 Nov): one row for each song by each artist, its versions (mixes, edits, remasters) under it; the row is led
+     * by the first of them in the catalog's order (the best known, with mixes put after the original by [songs]' ranking). Titles compared without what is
+     * in brackets or after " - ".
+     */
+    fun groups(found: List<Song>): List<Pair<Song, List<Song>>> {
+        fun core(t: String) = norm(t.replace(Regex("""[(\[][^)\]]*[)\]]"""), " ").split(" - ")[0])
+        val order = LinkedHashMap<String, MutableList<Song>>()
+        for (s in found) order.getOrPut(norm(primaryArtist(s.artist)) + "|" + core(s.title)) { ArrayList() }.add(s)
+        return order.values.map { it.first() to it.drop(1) }
+    }
+
+    /** The song's search with every version kept, grouped ([groups]): the search page's rows. */
+    fun songGroups(query: String, limit: Int = 30): List<Pair<Song, List<Song>>> {
+        val words = words(query)
+        val raw = deezerSongs(query) ?: itunesSongs(query) ?: return emptyList()
+        val ranked = raw.filter { s -> SearchRank.matches(query, s.title, s.artist, s.album) }
+            .sortedBy { variant(it.title, words) + (if (typedNone(coverActs, words) && coverActs.containsMatchIn("${it.artist} ${it.album} ${it.title}")) 2 else 0) }
+        return groups(ranked).take(limit)
+    }
+
+    /** The year of a song's album, from Deezer when the song did not carry it ("" when not known). */
+    fun yearOf(s: Song): String {
+        if (s.year.isNotBlank() || s.albumId <= 0) return s.year
+        return json("https://api.deezer.com/album/${s.albumId}")?.optString("release_date").orEmpty().take(4)
     }
 
     fun albums(query: String, limit: Int = 12): List<Album> {
@@ -131,7 +160,7 @@ object WebCatalog {
         return objects(arr).map { o ->
             val al = o.optJSONObject("album")
             Song(o.optJSONObject("artist")?.optString("name").orEmpty(), o.optString("title"), al?.optString("title").orEmpty(),
-                al?.optString("cover_xl")?.ifBlank { null }, o.optLong("duration") * 1000, 0, 0)
+                al?.optString("cover_xl")?.ifBlank { null }, o.optLong("duration") * 1000, 0, 0, albumId = al?.optLong("id") ?: 0)
         }
     }
 
@@ -165,7 +194,7 @@ object WebCatalog {
 
     private fun itunesSong(o: JSONObject) = Song(
         o.optString("artistName"), o.optString("trackName"), o.optString("collectionName").replace(Regex("""\s*-\s*(Single|EP)$"""), ""),
-        big(o.optString("artworkUrl100")), o.optLong("trackTimeMillis"), o.optInt("trackNumber"), o.optInt("discNumber"),
+        big(o.optString("artworkUrl100")), o.optLong("trackTimeMillis"), o.optInt("trackNumber"), o.optInt("discNumber"), year = o.optString("releaseDate").take(4),
     )
 
     // ---- ranking ----

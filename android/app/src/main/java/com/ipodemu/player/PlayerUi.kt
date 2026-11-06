@@ -121,6 +121,8 @@ sealed interface Screen {
     data class Detail(val kind: DetailKind, val id: String = "") : Screen
     /** A ready-made playlist from FLACie Web (owner, 2 Nov): its id, and its name to show while it loads. */
     data class Made(val id: String, val name: String) : Screen
+    /** A song from the online catalog, before it is downloaded (owner, 6 Nov): its big cover, full title, artist, album, year and length, and its other versions. */
+    data class CatalogSong(val song: com.ipodemu.library.WebCatalog.Song, val versions: List<com.ipodemu.library.WebCatalog.Song>) : Screen
     data object Search : Screen
     data object Queue : Screen
     data object Settings : Screen
@@ -337,6 +339,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         is Screen.Lib -> LibraryScreen(screen.kind, nav, snap)
         is Screen.Detail -> DetailScreen(screen, nav, snap)
         is Screen.Made -> MadeScreen(screen, nav, snap)
+        is Screen.CatalogSong -> CatalogSongScreen(screen, nav, snap)
         Screen.Search -> SearchScreen(nav, snap)
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
@@ -1275,6 +1278,55 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
 }
 
 
+/** A song from the online catalog before it is downloaded (owner, 6 Nov): the big cover, its whole title, artist, album, year and length, Download (or Play
+ *  once it is here), and its other versions, each opening its own page. Nothing downloads until Download is pressed. */
+@Composable
+private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: PlayerSnap) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val s = d.song
+    val libRev = rememberLibRev(app.library)
+    val owned = remember(libRev) { app.library.songs().firstOrNull { it.matchKey == com.ipodemu.library.matchKey(s.title, s.artist) } }
+    val status = remember(libRev) { app.library.downloads[app.library.songKey(s.artist, s.title)] }
+    var year by remember(s) { mutableStateOf(s.year) }
+    LaunchedEffect(s) { if (year.isBlank()) year = withContext(Dispatchers.IO) { try { WebCatalog.yearOf(s) } catch (_: Exception) { "" } } }
+    Column(Modifier.fillMaxSize()) {
+        TopBar("", nav, showBack = true)
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "head") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RemoteArtImage(s.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = 340.dp).aspectRatio(1f), corner = 18.dp)
+                    Txt(s.title, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    Txt(s.artist, size = 16f, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    val facts = listOfNotNull(s.album.ifBlank { null }, year.ifBlank { null }, if (s.durationMs > 0) "%d:%02d".format(s.durationMs / 60000, s.durationMs / 1000 % 60) else null)
+                    if (facts.isNotEmpty()) Txt(facts.joinToString(" · "), size = 14f, color = sc.onBgDim, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
+                    Box(Modifier.padding(top = 8.dp)) {
+                        when {
+                            owned != null -> GlossPill("Play", { app.player.play(listOf(owned), 0, null, from = "search") }, height = 40.dp)
+                            busy -> Txt(com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(status!!.stage, status.message)), size = 14f, color = sc.onBgDim)
+                            else -> GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download", {
+                                app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…")
+                            }, icon = Glyph.DOWN, height = 40.dp)
+                        }
+                    }
+                }
+            }
+            if (d.versions.isNotEmpty()) {
+                item { SectionHeader("Other versions") }
+                items(d.versions, key = { "v" + it.artist + it.title + it.album }) { v ->
+                    val vOwned = app.library.songs().firstOrNull { it.matchKey == com.ipodemu.library.matchKey(v.title, v.artist) }
+                    val vStatus = app.library.downloads[app.library.songKey(v.artist, v.title)]
+                    WebRow(v.title, "${v.artist} · ${v.album}", v.artUrl, vOwned, vStatus,
+                        onPlay = { vOwned?.let { app.player.play(listOf(it), 0, null, from = "search") } },
+                        onDownload = { app.library.requestDownload(v.artist, v.title, v.album, v.durationMs, artUrl = v.artUrl); app.ui.say("Getting \"${v.title}\"…") },
+                        onOpen = { nav.push(Screen.CatalogSong(v, listOf(s) + d.versions.filter { it != v })) })
+                }
+            }
+        }
+    }
+}
+
 /** A ready-made playlist (owner, 2 Nov): its songs as this phone has them, Play, Shuffle and "Add to my playlists". */
 @Composable
 private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
@@ -1495,13 +1547,16 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (q.isEmpty() || app.ui.guest) { web = WebResults(emptyList(), emptyList()); webLoading = false; return@LaunchedEffect }
         delay(450)
         webLoading = true
-        val songs = withContext(Dispatchers.IO) { WebCatalog.songs(q) }
+        // one row a song, its versions under it (owner, 6 Nov: "filter out the 30 versions and list like Spotify would")
+        val groups = withContext(Dispatchers.IO) { WebCatalog.songGroups(q) }
+        val songs = groups.map { it.first }
+        val versions = groups.associate { versionKey(it.first) to it.second }
         // their covers start now, before the rows are drawn (owner, 6 Nov: covers came slowly in search)
         RemoteArt.prefetch(app, songs.take(12).mapNotNull { it.artUrl })
-        web = WebResults(songs, emptyList())
+        web = WebResults(songs, emptyList(), versions)
         val albums = withContext(Dispatchers.IO) { WebCatalog.albumsWithTop(q, songs.firstOrNull()) }
         RemoteArt.prefetch(app, albums.take(8).mapNotNull { it.artUrl })
-        web = WebResults(songs, albums)
+        web = WebResults(songs, albums, versions)
         webLoading = false
     }
     LaunchedEffect(query) {
@@ -1675,7 +1730,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
-                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) } ?: "${s.artist} · ${s.album}", s.artUrl, owned, status,
+                    val more = w.versions[versionKey(s)].orEmpty()
+                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) }
+                        ?: ("${s.artist} · ${s.album}" + if (more.isNotEmpty()) " · +${more.size} version${if (more.size == 1) "" else "s"}" else ""), s.artUrl, owned, status,
+                        onOpen = { searchFocus.clearFocus(); nav.push(Screen.CatalogSong(s, more)) },
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
                         onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") },
@@ -1890,7 +1948,9 @@ private fun AlbumCard(a: WebCatalog.Album, owned: Boolean, status: DownloadStatu
         Txt(if (busy || failed) status!!.message else "${a.kind} · ${a.artist}", size = 12f, color = if (failed) Color(0xFFFF9C9C) else sc.onBgDim, maxLines = 1)
     }
 }
-private class WebResults(val songs: List<WebCatalog.Song>, val albums: List<WebCatalog.Album>)
+/** [versions]: each song's other versions, by [versionKey] (search shows one row a song, as Spotify does). */
+private class WebResults(val songs: List<WebCatalog.Song>, val albums: List<WebCatalog.Album>, val versions: Map<String, List<WebCatalog.Song>> = emptyMap())
+private fun versionKey(s: WebCatalog.Song) = s.artist + "|" + s.title
 
 /** "Espresso", "Espresso EP", "Espresso - Single" and "Espresso (Deluxe)" are one release when checking what's owned. */
 private fun ownedAlbumKey(artist: String, album: String) = com.ipodemu.library.primaryArtist(artist) + "|" +
@@ -1902,13 +1962,15 @@ private fun ownedAlbumKey(artist: String, album: String) = com.ipodemu.library.p
  */
 @Composable
 private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Track?, status: DownloadStatus?, onPlay: () -> Unit, onDownload: () -> Unit, actionLabel: String = "Download $title", onHiRes: (() -> Unit)? = null,
-                   picked: Boolean? = null, onPick: (() -> Unit)? = null) {
+                   picked: Boolean? = null, onPick: (() -> Unit)? = null,
+                   /** A tap on a song not in the library opens its page; it downloads only from the Download button (owner, 6 Nov). */
+                   onOpen: (() -> Unit)? = null) {
     val sc = LocalScheme.current
     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
     val failed = status?.stage == DownloadStage.FAILED
     val tagged = owned != null && isTagged(owned)   // a song fetched just now: "Recently downloaded · 5s ago" under the line
     // choosing several songs: a tick in place of the cover, and a tap ticks the row; a long press starts choosing
-    IpodRow({ if (picked != null && onPick != null) onPick() else if (owned != null) onPlay() else if (!busy) onDownload() }, onLong = if (picked == null) onPick else null, height = if (tagged) 76.dp else 60.dp,
+    IpodRow({ if (picked != null && onPick != null) onPick() else if (owned != null) onPlay() else if (onOpen != null) onOpen() else if (!busy) onDownload() }, onLong = if (picked == null) onPick else null, height = if (tagged) 76.dp else 60.dp,
         leading = {
             // choosing keeps the cover, with the tick on it (the bare ticks made a cramped list you couldn't tell apart; owner, 1 Nov)
             Box(Modifier.size(48.dp)) {

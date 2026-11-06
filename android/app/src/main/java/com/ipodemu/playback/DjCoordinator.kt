@@ -118,9 +118,18 @@ class DjCoordinator {
         /** A new queue is announced when the listener started it from a named playlist or album ([name], [from] null: not a home shelf or a search), on shuffle
          *  ("Shuffling Pop") or in order ("Playing Pop"). Pressing shuffle later, in the middle of a queue, is not a new queue and says nothing. */
         fun announcesQueue(name: String?, from: String?): Boolean = from == null && !name.isNullOrBlank()
+        /** What a new queue's first line names: the list ([announcesQueue]), "" for the song alone (a search or a home shelf, with First song on: owner,
+         *  6 Nov, "didn't announce the first time you clicked play on a song"), or null for no line. */
+        fun queueLine(name: String?, from: String?, firstSong: Boolean): String? = when {
+            announcesQueue(name, from) -> name!!.trim()
+            firstSong -> ""
+            else -> null
+        }
+        /** The playing song's length for timing the ask: the player's, once it knows it (a file can be shorter than its tags say), else the tags'. */
+        fun lengthMs(tagMs: Long, playerMs: Long): Long = playerMs.takeIf { it > 0L } ?: tagMs.coerceAtLeast(0L)
         /** How long a queue start's line may take to come (the model, then the clip); later the song is too far on and the DJ stays quiet. Longer than after a
          *  skip: the listener has just pressed play and is waiting for something. */
-        const val QUEUE_WAIT_MS = 6_000L
+        const val QUEUE_WAIT_MS = 10_000L
         /** How long before a song's end the server is asked about the next one (writing the line and making its clip take a few seconds). */
         const val ASK_LEAD_MS = 30_000L
         /** How long from now to ask about the next song: in the playing song's last [ASK_LEAD_MS], so a song skipped before then costs nothing
@@ -131,7 +140,7 @@ class DjCoordinator {
             return if (left <= 0L) 0L else (left / speed.coerceAtLeast(0.25f)).toLong()
         }
         /** How long a line asked for after a skip may take to come; later, the song has gone on too far and the DJ stays quiet (the web's DjSkipWait). */
-        const val SKIP_WAIT_MS = 5_000L   // 3 s was too short on a weak signal: the DJ went quiet after nearly every skip (owner, 1 Nov)
+        const val SKIP_WAIT_MS = 8_000L   // 3 s, then 5 s, were too short: Kokoro on the NAS takes up to 6.5 s for a clip and the DJ went quiet after skips (owner, 1 and 6 Nov)
         /** A song left within this long of starting counts as skipped. */
         const val QUICK_SKIP_MS = 10_000L
         /** .NET's DayOfWeek, which the server reads: 0 = Sunday ... 6 = Saturday. */

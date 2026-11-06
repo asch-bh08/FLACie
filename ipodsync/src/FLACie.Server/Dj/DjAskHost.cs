@@ -79,6 +79,8 @@ public sealed class SessionAskUser(UserSession s, SessionAlexaUser alexa, Func<R
     public IReadOnlyList<ListenEvent> Listens => listens?.Read(s) ?? [];
     public IReadOnlyList<PhraseAsk> Phrases => listens?.Phrases(s) ?? [];
     public void NotePhrase(PhraseAsk p) => listens?.AddPhrase(s, p);
+    public IReadOnlyDictionary<string, string> Chosen => listens?.Chosen(s) ?? new Dictionary<string, string>();
+    public void NoteChosen(string title, string song) => listens?.SetChosen(s, title, song);
 }
 
 /// <summary>

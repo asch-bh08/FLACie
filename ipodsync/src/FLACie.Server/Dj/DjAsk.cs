@@ -354,6 +354,10 @@ public interface IDjAskUser
     /// <summary>The account's learned requests, oldest first.</summary>
     IReadOnlyList<PhraseAsk> Phrases => [];
     void NotePhrase(PhraseAsk p) { }
+    /// <summary>The version this person picked of a title (its <see cref="DjPick.TitleKey"/> to the song's match key), after "the other one" (owner, 6 Nov:
+    /// "it should know to play that one because I've asked so many times").</summary>
+    IReadOnlyDictionary<string, string> Chosen => new Dictionary<string, string>();
+    void NoteChosen(string title, string song) { }
     /// <summary>How well known the song is (higher is better; 0 when unknown), for picking between versions (F11).</summary>
     int Popularity(Track t) => 0;
     /// <summary>F26.4: how often Jellyfin says the song was played (every app, from before FLACie's own log began); 0 when unknown.</summary>
@@ -640,9 +644,15 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.CreatePlaylist: return await MakePlaylistAsync(u, p.What ?? "", cur, recent, ct, text);
             case AskIntent.OtherOne:
             {
-                if (Pick.Other(u.Account, p.What) is { } o) return new(DjAskDo.Play, $"{T(o.Title)}, by {o.Artist}.", [o.Path], T(o.Title));
+                if (Pick.Other(u.Account, p.What) is { } o) { Remember(u, o); return new(DjAskDo.Play, $"{T(o.Title)}, by {o.Artist}.", [o.Path], T(o.Title)); }
                 // "the corona one": this song by them (fetched when the library lacks it), not anything by them
-                if (p.What is { Length: > 0 } w) return await PlayAsync(u, cur is null ? w : $"{cur.Title} by {w}", cur, recent, ct);
+                if (p.What is { Length: > 0 } w)
+                {
+                    var named = await PlayAsync(u, cur is null ? w : $"{cur.Title} by {w}", cur, recent, ct);
+                    // the version of this song by them, played: theirs from now on
+                    if (cur is not null && named.Paths is [var first, ..] && u.Find(first) is { } got && DjPick.TitleKey(got.Title) == DjPick.TitleKey(cur.Title)) Remember(u, got);
+                    return named;
+                }
                 return DjAskAnswer.Said(cur is null ? "That's the only one I've got." : $"That's the only {T(cur.Title)} I've got. Tell me who it’s by and I'll get theirs.");
             }
             default: return await PlayAsync(u, p.What ?? "", cur, recent, ct);
@@ -803,6 +813,17 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         return u.Songs.Where(t => Playable(t) && Core(t.Title) == said && ArtistFits(q.Artist, t)).OrderByDescending(u.Popularity).FirstOrDefault() ?? matched;
     }
 
+    static string? Chosen(IDjAskUser u, Track t)
+    {
+        try { return u.Chosen.TryGetValue(DjPick.TitleKey(t.Title), out var mk) ? mk : null; } catch (Exception) { return null; }
+    }
+
+    /// <summary>"The other one" played [t]: that is the version of its title from now on.</summary>
+    static void Remember(IDjAskUser u, Track t)
+    {
+        try { u.NoteChosen(DjPick.TitleKey(t.Title), Matching.MatchKey(t)); } catch (Exception) { }
+    }
+
     /// <summary>The artist said ("by corona") is this song's, or none was said.</summary>
     static bool ArtistFits(string? said, Track t)
     {
@@ -896,6 +917,9 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                     var versions = DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0).DistinctBy(x => x.Path).ToList();
                     if (query.Artist is not { Length: > 0 } && versions.Count > 1) await u.LookUpPopularityAsync(versions, ct);
                     var ranked = query.Artist is { Length: > 0 } ? [t0] : DjPick.Rank(u, versions, query.Title ?? what);
+                    // the version picked before with "the other one" comes first
+                    if (query.Artist is not { Length: > 0 } && Chosen(u, t0) is { } mk && ranked.FirstOrDefault(v => Matching.MatchKey(v) == mk) is { } picked)
+                        ranked = [picked, .. ranked.Where(v => v.Path != picked.Path)];
                     var song = ranked[0];
                     Pick.Keep(u.Account, ranked.Skip(1).ToList());
                     var others = u.Songs.Where(x => x.Path != song.Path && Playable(x) && Matching.PrimaryArtist(x.Artist) == Matching.PrimaryArtist(song.Artist)).OrderBy(_ => Random.Shared.Next()).Take(25).Select(x => x.Path);

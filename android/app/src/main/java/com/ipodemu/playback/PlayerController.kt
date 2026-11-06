@@ -542,10 +542,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (cur == null || next == null) { if (dj.pendingPath != null) dj.forget(); djVoice?.ready(null, false); return }
         // asked only in the song's last 30 s (DjCoordinator.askInMs), so a song skipped before then costs nothing; looked at again when the time comes
         handler.removeCallbacks(djAskLater)
-        val wait = DjCoordinator.askInMs(durationMs, exo.currentPosition, speed, djLead.leadMs)
+        // timed by the file playing, not its tags: the owner's songs said 3:20 and ended at 41 s, so the "last 30 s" never came and nothing was asked
+        val known = exo.duration > 0L
+        val raw = DjCoordinator.askInMs(DjCoordinator.lengthMs(cur.durationMs, exo.duration), exo.currentPosition, speed, djLead.leadMs)
+        // the player does not know the length yet: looked at again in a few seconds
+        val wait = if (!known && raw > 0L) minOf(raw, 3_000L) else raw
         if (wait > 0L) {
             if (dj.pendingPath != null && dj.pendingPath != next.path) dj.forget()
             handler.postDelayed(djAskLater, wait)
+            val note = cur.path + "|" + next.path
+            if (known && djWaitNoted != note) { djWaitNoted = note; Diag.add("dj", "asks about \"${next.title}\" in ${wait / 1000} s (near the end of \"${cur.title}\")") }
             return
         }
         val ticket = dj.ask(listOf(cur.path, next.path, djSurface.wire, contextId ?: "").joinToString("\n"))
@@ -571,6 +577,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     }
 
     private val djAskLater = Runnable { djAsk() }
+    private var djWaitNoted: String? = null
     private val djLead = DjLead()
 
     /** A new song: the cue held for it is said if the player got there by itself; anything still being said stops. Then the next song is asked about. */
@@ -633,10 +640,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private fun djSayWhenAnswered(t: Track, body: String, waitMs: Long) {
         val askedAt = android.os.SystemClock.uptimeMillis()
         djExec.execute {
-            val cue = try { djWeb.djNext(body) } catch (_: Exception) { null } ?: return@execute
+            var why = ""
+            val cue = try { djWeb.djNext(body) } catch (e: Exception) { why = e.message ?: e.javaClass.simpleName; null }
+            val took = android.os.SystemClock.uptimeMillis() - askedAt
+            if (cue == null) { Diag.add("dj", "no line for \"${t.title}\" (${why.ifEmpty { "the server had none" }}, $took ms)"); return@execute }
             handler.post {
                 val late = android.os.SystemClock.uptimeMillis() - askedAt > waitMs
-                if (!late && current?.path == t.path && djOn && exo.playWhenReady && djVoice?.speaking != true) voice().say(cue, exo.currentPosition)
+                val say = !late && current?.path == t.path && djOn && exo.playWhenReady && djVoice?.speaking != true
+                Diag.add("dj", "line for \"${t.title}\" in $took ms: " + when {
+                    say -> "the DJ says it"; late -> "too late"; current?.path != t.path -> "another song is playing"; djVoice?.speaking == true -> "the DJ is already talking"; else -> "the DJ is off or paused" })
+                if (say) voice().say(cue, exo.currentPosition)
             }
         }
     }
@@ -695,6 +708,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // stops a line (the player's own seeks do not: see selfSeekTo)
                 if (oldPosition.mediaItemIndex != newPosition.mediaItemIndex) djLeftAt = oldPosition.positionMs
                 else if (reason == Player.DISCONTINUITY_REASON_SEEK && seekOrigin.seeked()) djVoice?.stop()
+                // a seek inside the song moves its end: the ask about the next one is timed again
+                if (oldPosition.mediaItemIndex == newPosition.mediaItemIndex && reason == Player.DISCONTINUITY_REASON_SEEK) djAsk()
             }
             // a pause from anywhere (the app, the car, a headset, the sleep timer, losing audio focus for good) stops a line; playing again asks ahead
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) { if (playWhenReady) djAsk() else djVoice?.stop() }
@@ -1181,7 +1196,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         exo.play()
         djAsk()
         // started from a playlist or album: the DJ says so over the first song, "Shuffling Pop" or "Playing Pop" (once per queue start; a shuffle toggled later says nothing)
-        if (DjCoordinator.announcesQueue(context, from)) djQueueStart(list[index.coerceIn(0, list.lastIndex)], context!!)
+        // a song played from Search or Home: with First song on the DJ introduces it (owner, 6 Nov: "didn't announce the first time you clicked play on a song")
+        DjCoordinator.queueLine(context, from, djSettings.firstSong)?.let { djQueueStart(list[index.coerceIn(0, list.lastIndex)], it) }
         ctx.startService(Intent(ctx, PlaybackService::class.java))
         handler.postDelayed({ checkQueueLow() }, 1500)
     }

@@ -37,6 +37,9 @@ public class DjAskUnderstandTests
         public List<string> Fetched = [];
         public Func<string, AlexaRequested?> Fetch = _ => null;
         public Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct) { Fetched.Add(words); return Task.FromResult(Fetch(words)); }
+        public Dictionary<string, string> Picked = [];
+        public IReadOnlyDictionary<string, string> Chosen => Picked;
+        public void NoteChosen(string title, string song) => Picked[title] = song;
     }
 
     sealed class Model(string reply) : IDjAskModel
@@ -205,5 +208,21 @@ public class DjAskUnderstandTests
         Assert.Equal("/p/Los Del Rio/Macarena - Bayside Boys Remix", a.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
         var b = await new DjAskEngine().AnswerAsync(u, "play ayy macarena", null, []);
         Assert.Equal("/p/Tyga/Ayy Macarena", b.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
+    }
+
+    [Fact]
+    public async Task The_version_picked_with_the_other_one_is_played_from_then_on()
+    {
+        // owner, 6 Nov: "it should know to play that one because I've asked so many times"
+        var u = new User();
+        u.Library.AddRange([T("Rhythm of the Night", "DeBarge"), T("The Rhythm of the Night", "Corona"), T("Toxic", "Britney Spears")]);
+        u.Pop["/p/DeBarge/Rhythm of the Night"] = 10;   // the catalog thinks DeBarge's is the better known
+        var e = new DjAskEngine();
+        var first = await e.AnswerAsync(u, "play rhythm of the night", null, []);
+        Assert.Equal("/p/DeBarge/Rhythm of the Night", first.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
+        var other = await e.AnswerAsync(u, "the other one", "/p/DeBarge/Rhythm of the Night", []);
+        Assert.Equal("/p/Corona/The Rhythm of the Night", other.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
+        var again = await new DjAskEngine().AnswerAsync(u, "play rhythm of the night", null, []);
+        Assert.Equal("/p/Corona/The Rhythm of the Night", again.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
     }
 }

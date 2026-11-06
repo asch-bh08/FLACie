@@ -37,6 +37,9 @@ public sealed class DjPick(Func<DateTime> now)
 
     static string Core(string title) { var n = Matching.NormTitle(title); return n.StartsWith("the ") ? n[4..] : n; }
 
+    /// <summary>What versions of one song share: the title without "The" and its extras ("The Rhythm of the Night" and "Rhythm of the Night").</summary>
+    public static string TitleKey(string title) => Core(WebCatalog.BaseTitle(title));
+
     /// <summary>Keeps the matches not played, for "the other one".</summary>
     public void Keep(string account, IReadOnlyList<Track> others)
     {

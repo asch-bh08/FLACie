@@ -103,6 +103,24 @@ class DjCoordinatorTest {
         assertTrue("a queue line may take longer to come than a skip's", DjCoordinator.QUEUE_WAIT_MS > DjCoordinator.SKIP_WAIT_MS)
     }
 
+    // owner, 6 Nov: "didn't announce the first time you clicked play on a song": with First song on, a song played from Search or Home is introduced too
+    @Test fun firstSongOnIntroducesASongStartedFromSearchOrHome() {
+        assertEquals("Pop", DjCoordinator.queueLine("Pop", null, firstSong = true))
+        assertEquals("a named list is announced as before", "Pop", DjCoordinator.queueLine("Pop", null, firstSong = false))
+        assertEquals("a search: the song, no list name", "", DjCoordinator.queueLine(null, "search", firstSong = true))
+        assertEquals("a home shelf is not a list the listener chose", "", DjCoordinator.queueLine("New Releases", "home", firstSong = true))
+        assertNull("First song off: a search starts quietly", DjCoordinator.queueLine(null, "search", firstSong = false))
+        // Kokoro on the NAS takes up to 6.5 s for a clip: 5 s dropped most lines after a skip
+        assertTrue(DjCoordinator.SKIP_WAIT_MS >= 8_000L)
+    }
+
+    // the owner's phone never asked about the next song: a song's tags can say 3:20 while its file is 41 s, so the end comes before the "last 30 s"
+    @Test fun theAskIsTimedByTheAudioPlayingNotTheTags() {
+        assertEquals(45_000L, DjCoordinator.lengthMs(tagMs = 150_000L, playerMs = 45_000L))
+        assertEquals("the player does not know yet: the tags", 150_000L, DjCoordinator.lengthMs(tagMs = 150_000L, playerMs = -9_223_372_036_854_775_807L))
+        assertEquals(0L, DjCoordinator.lengthMs(0L, 0L))
+    }
+
     // lines for songs that get skipped used the DJ's daily share (115 made, 40 said): the next song is asked about only in the last 30 s
     @Test fun theNextSongIsAskedAboutOnlyNearTheEnd() {
         assertEquals(170_000L, DjCoordinator.askInMs(200_000, 0))

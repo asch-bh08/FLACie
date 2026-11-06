@@ -93,6 +93,28 @@ public sealed class ListenLogStore(DataPaths paths)
 
     public const int MaxPhrases = 300;
 
+    /// <summary>The versions this account picked with "the other one" (data/listen/[account].chosen.json): a title's key to the song's match key.</summary>
+    public IReadOnlyDictionary<string, string> Chosen(UserSession s)
+    {
+        lock (Of(s).Gate)
+        {
+            var f = Path.ChangeExtension(FileOf(s), ".chosen.json");
+            try { return File.Exists(f) ? JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(f), Json) ?? [] : []; }
+            catch (JsonException) { return new Dictionary<string, string>(); }
+        }
+    }
+
+    public void SetChosen(UserSession s, string title, string song)
+    {
+        var all = new Dictionary<string, string>(Chosen(s)) { [title] = song };
+        lock (Of(s).Gate)
+        {
+            var f = Path.ChangeExtension(FileOf(s), ".chosen.json");
+            File.WriteAllText(f + ".tmp", JsonSerializer.Serialize(all, Json));
+            File.Move(f + ".tmp", f, true);
+        }
+    }
+
     public void AddPhrase(UserSession s, PhraseAsk p)
     {
         var kept = Phrases(s).Append(p).TakeLast(MaxPhrases).ToList();

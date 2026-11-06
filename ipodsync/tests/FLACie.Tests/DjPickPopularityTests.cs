@@ -81,4 +81,15 @@ public sealed class DjPickPopularityTests : IDisposable
         Assert.False(System.IO.File.Exists(File));
         Assert.Equal(0, pop.Of(t));
     }
+
+    [Fact]
+    public async Task Songs_are_looked_up_side_by_side_not_one_after_another()   // "play my favourite ..." waited on 8 lookups in a row (owner, 5 Nov: 15 s)
+    {
+        var songs = Enumerable.Range(0, 8).Select(i => DjAskUnderstandTests.T($"Song {i}", "Corona")).ToList();
+        var pop = new DjPickPopularity(async (_, _, ct) => { await Task.Delay(400, ct); return 100L; }, File);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        await pop.LookUpAsync(songs, default);
+        Assert.True(sw.ElapsedMilliseconds < 1500, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.All(songs, t => Assert.Equal(100, pop.Of(t)));
+    }
 }

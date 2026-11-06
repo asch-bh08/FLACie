@@ -22,7 +22,7 @@ test('an imported playlist shows every song in order, the missing ones greyed, a
   await page.waitForTimeout(1200);
   await page.getByLabel('Choose a playlist file').setInputFiles({ name: 'f26.txt', mimeType: 'text/plain',
     buffer: Buffer.from('## Every Song\nNobody Known - Missing First\nAurora Vale - Harbour 3\nNobody Known - Missing Last\n') });
-  const row = page.getByTestId('import-job').filter({ hasText: 'f26.txt' });
+  const row = page.getByTestId('import-job').filter({ hasText: 'f26.txt' }).first();
   await expect(row.getByRole('link', { name: 'Open' })).toBeVisible({ timeout: 30_000 });
   await row.getByRole('link', { name: 'Open' }).click();
 

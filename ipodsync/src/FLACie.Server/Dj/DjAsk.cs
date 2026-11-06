@@ -768,7 +768,9 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         else return DjAskAnswer.Said($"I can't find {what} in your library.");
         // how well known each is, for filling up with their most popular songs (a few looked up; the rest as already known)
         // the hits to fill up with: a handful of Deezer asks for the scope's songs, kept on frank (F26.4)
-        await u.LookUpPopularityAsync(scope.Where(t => u.Popularity(t) == 0).DistinctBy(Matching.MatchKey).Take(15).ToList(), ct);
+        // at most 2.5 s: the DJ answers with what is known by then; the rest finish in the background for next time
+        var looking = u.LookUpPopularityAsync(scope.Where(t => u.Popularity(t) == 0).DistinctBy(Matching.MatchKey).Take(15).ToList(), CancellationToken.None);
+        await Task.WhenAny(looking, Task.Delay(2500, ct));
         var pick = DjFavourites.Pick(u, scope, now());
         if (pick.Songs.Count == 0) return DjAskAnswer.Said($"I couldn't find {name} songs you'd want to hear.");
         return new(DjAskDo.Play, DjFavourites.Say(pick, name, byArtist: scope.Count > 0 && scope.All(t => Key(Matching.PrimaryArtist(t.Artist)) == Key(Matching.PrimaryArtist(scope[0].Artist)))),

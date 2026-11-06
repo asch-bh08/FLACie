@@ -33,8 +33,11 @@ public sealed class DjPickPopularity
     public async Task LookUpAsync(IEnumerable<Track> songs, CancellationToken ct)
     {
         var added = false;
-        foreach (var t in songs.DistinctBy(Key).Where(t => !known.ContainsKey(Key(t))).Take(8))
+        // side by side: one after another, 8 lookups held "play my favourite ..." up for many seconds (owner, 5 Nov)
+        await Task.WhenAll(songs.DistinctBy(Key).Where(t => !known.ContainsKey(Key(t))).Take(8).Select(async t =>
+        {
             if (await rank(t.Artist, t.Title, ct) is { } r) { known[Key(t)] = r; added = true; }
+        }));
         if (added && file is not null)
         {
             await saving.WaitAsync(ct);

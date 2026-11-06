@@ -18,14 +18,14 @@ test('the Songs chip keeps only the songs, All brings everything back', async ({
   await page.setViewportSize({ width: 1280, height: 800 });
   await signIn(page);
   await page.goto('/search?q=Lab');
-  const kinds = page.getByRole('group', { name: 'Show only' });
+  const kinds = page.getByRole('radiogroup', { name: 'Show only' });
   await expect(kinds).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole('region', { name: 'Albums' })).toBeVisible();
-  await kinds.getByRole('button', { name: 'Songs' }).click();
-  await expect(kinds.getByRole('button', { name: 'Songs' })).toHaveAttribute('aria-pressed', 'true');
+  await kinds.getByRole('radio', { name: 'Songs' }).click();
+  await expect(kinds.getByRole('radio', { name: 'Songs' })).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('region', { name: 'Songs' })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Albums' })).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Top result' })).toHaveCount(0);
-  await kinds.getByRole('button', { name: 'All' }).click();
+  await kinds.getByRole('radio', { name: 'All' }).click();
   await expect(page.getByRole('region', { name: 'Albums' })).toBeVisible();
 });

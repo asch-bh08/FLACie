@@ -1050,7 +1050,14 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             // F26.5: the answer's words show in the DJ bar when its voice is heard (F17's timing: OnDjSpeaking)
             if (captions && (a.Clip is { Length: > 0 } || a.DeviceVoice)) djCaptionDue = (a.Say, DjTiming.EstimateMs(a.Say));
             if (a.Clip is { Length: > 0 } url) { await audio.DjPlayAsync(url, a.Say, false, 0, 0); djActive = true; return; }
-            if (a.DeviceVoice) { await audio.DjSayAsync(a.Say); djActive = true; return; }
+            if (a.DeviceVoice)
+            {
+                await audio.DjSayAsync(a.Say); djActive = true;
+                // a browser with no voices never starts speaking: its words show anyway after a moment
+                var due = djCaptionDue;
+                if (due is not null) _ = Task.Run(async () => { try { await DjWait(1500, CancellationToken.None); } catch (Exception) { } if (djCaptionDue == due) OnDjSpeaking(); });
+                return;
+            }
         }
         catch (Exception) { }
     }

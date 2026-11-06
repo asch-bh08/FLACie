@@ -70,7 +70,7 @@
         {
             if (n == 0 && only != k) continue;
             var kind = k;
-            <button class="chip @(only == kind ? "on" : "")" role="radio" aria-checked="@(only == kind ? "true" : "false")" aria-pressed="@(only == kind ? "true" : "false")" @onclick="() => PickKind(kind)">@label</button>
+            <button class="chip @(only == kind ? "on" : "")" role="radio" aria-checked="@(only == kind ? "true" : "false")" @onclick="() => PickKind(kind)">@label</button>
         }
         @ExtraKinds
     </div>

@@ -29,6 +29,16 @@ object PlaylistMerge {
         }
     }
 
+    /**
+     * The Jellyfin song id a playlist entry is mirrored as: the one in its stream path while Jellyfin still has it, else the song found again by its title
+     * and artist ([byTitle]). A song swapped for a Hi-Res copy has a new id; sending the old one dropped it from the playlist (6 Nov). Null: not on Jellyfin.
+     */
+    fun mirrorId(path: String, isLive: (String) -> Boolean, byTitle: () -> String?): String? {
+        val id = jfSong.find(path)?.groupValues?.get(1)
+        if (id != null && isLive(id)) return id
+        return byTitle()
+    }
+
     /** A Jellyfin playlist deleted on this phone (or on another device, by the id it had there). */
     fun isDeleted(jfId: String, deletedIds: Set<String>, deletedJf: Set<String>) = jfId in deletedJf || "jf$jfId" in deletedIds
 

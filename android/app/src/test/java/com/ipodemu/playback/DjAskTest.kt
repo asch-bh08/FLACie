@@ -149,4 +149,19 @@ class DjSettingsLinkTest {
         val both = DjAskAnswer.parse("""{"do":"none","say":"Made Backroads. Call it something else?","intent":"Clarify","steps":[{"do":"play","songs":[{"path":"/a"}]},{"do":"ask","say":"x"}]}""")
         assertEquals(DjTurn.LISTEN_AGAIN, DjConversation.after(both.mainDo, both.asked, 1, both.intent))
     }
+
+    @Test fun aSongFetchedForAPlaylistIsAddedThenThePlaylistShuffledWithItFirst() {
+        // owner, 6 Nov: "play rhythm of the night by corona and add it to my pop playlist and shuffle pop"
+        val a = DjAskAnswer.parse("""{"do":"none","say":"Getting it.","wait":{"artist":"Corona","title":"The Rhythm of the Night","addTo":"Pop","shuffle":true}}""")
+        assertEquals("Pop", a.waitAddTo)
+        assertTrue(a.waitShuffle)
+        val order = DjAskRunner.landedOrder("/new", listOf("/a", "/new", "/b", "/c"), shuffle = true)
+        assertEquals("/new", order.first())
+        assertEquals(setOf("/a", "/b", "/c", "/new"), order.toSet())
+        assertEquals(4, order.size)
+        assertEquals(listOf("/new"), DjAskRunner.landedOrder("/new", listOf("/a"), shuffle = false))
+        val plain = DjAskAnswer.parse("""{"do":"none","say":"Getting it.","wait":{"artist":"Corona","title":"X"}}""")
+        assertNull(plain.waitAddTo)
+        assertFalse(plain.waitShuffle)
+    }
 }

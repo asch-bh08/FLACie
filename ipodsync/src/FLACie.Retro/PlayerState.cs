@@ -1073,6 +1073,19 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 await Task.Delay(5000);
                 if (RetroHost.DjLanded?.Invoke(s, w.Artist, w.Title) is { } path && s.FindByPath(path) is { } t)
                 {
+                    // "... and add it to pop (and shuffle pop)": added now it is here, then that playlist shuffled with it first
+                    if (w.AddTo is { Length: > 0 } list)
+                    {
+                        var ask = new AskPlayer(this, s);
+                        await ask.AddToPlaylistAsync(list, [t.Path]);
+                        if (w.Shuffle && s.Playlists.FirstOrDefault(x => x.Name.Equals(list, StringComparison.OrdinalIgnoreCase)) is { } pl)
+                        {
+                            var rest = pl.Entries.Select(e => s.FindByPath(e.Path)).OfType<Track>().Where(x => x.Path != t.Path).OrderBy(_ => Random.Shared.Next());
+                            await Play([t, .. rest], 0, pl.Name);
+                            DjAskSaid?.Invoke($"Here it is: {t.Title}, by {t.Artist}, in {pl.Name}.");
+                            return;
+                        }
+                    }
                     await Play([t], 0, t.Title);
                     DjAskSaid?.Invoke($"Here it is: {t.Title}, by {t.Artist}.");
                     return;

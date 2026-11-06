@@ -200,6 +200,7 @@ public sealed class UpgradeWorker(
         catch (Exception) { }
         // the song plays from the new file at once (before Jellyfin has looked again), and FLACie playlists find it by title and artist
         s.ReplaceDownloaded(e.File, copy.Track);
+        s.RepointPlaylists(copy.Track);
         try { await rescan(s); } catch (Exception) { }
         if (lossless)
         {

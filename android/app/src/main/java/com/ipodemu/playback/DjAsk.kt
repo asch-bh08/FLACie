@@ -35,6 +35,8 @@ data class DjAskAnswer(
     val intent: String = "",
     /** The steps to carry out in order (F9); null for an old single-action answer, which is then its one step. */
     val steps: List<DjAskStep>? = null,
+    /** A song being fetched for a playlist: added to [waitAddTo] when it lands, then that playlist shuffled with it first when [waitShuffle] (6 Nov). */
+    val waitAddTo: String? = null, val waitShuffle: Boolean = false,
 ) {
     /** What the answer does, for the conversation: [doThis], else (an answer made of steps may say "none" on top) the step that decides the music, else the first real one. */
     val mainDo: DjAskDo get() = if (doThis != DjAskDo.NONE) doThis else steps?.let { st ->
@@ -62,7 +64,8 @@ data class DjAskAnswer(
             val w = o.optJSONObject("wait")
             return DjAskAnswer(d, o.optString("say"), songs, o.optString("title"), o.optBoolean("shuffle"), o.optBoolean("replace"),
                 w?.optString("artist"), w?.optString("title"), o.optString("clip").takeIf { it.isNotBlank() && it != "null" }, o.optBoolean("deviceVoice"),
-                o.optString("intent") == "Clarify" || steps?.any { it.doThis == DjAskDo.ASK && it.say.isNotBlank() } == true, o.optString("intent"), steps)
+                o.optString("intent") == "Clarify" || steps?.any { it.doThis == DjAskDo.ASK && it.say.isNotBlank() } == true, o.optString("intent"), steps,
+                w?.optString("addTo")?.takeIf { it.isNotBlank() && it != "null" }, w?.optBoolean("shuffle") ?: false)
         }
 
         /** The request body: the words, the song playing (by title and artist: the server's paths are not the phone's), where, and the hour. */
@@ -93,6 +96,10 @@ interface DjAskPlayer<T> {
 }
 
 object DjAskRunner {
+    /** A fetched song has landed: the order to play, the song first, then (when shuffling) the rest of its playlist in a random order. */
+    fun landedOrder(song: String, playlist: List<String>, shuffle: Boolean): List<String> =
+        if (!shuffle) listOf(song) else listOf(song) + playlist.filter { it != song }.distinct().shuffled()
+
     const val VOLUME_STEP = 0.15f
 
     /** Carries [a]'s steps out in order. True when it changed anything. */

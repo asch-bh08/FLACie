@@ -484,7 +484,23 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     if (landed) {
                         // the phone's library learns of the song at its next sync; by title until then nothing is played
                         val t = App.of(ctx).library.let { it.findSong(title, artist) ?: it.findLoose(title, artist) }
-                        if (t != null) { handler.post { play(listOf(t), 0, shuffle = false); done(DjAskAnswer(DjAskDo.NONE, "Here it is: ${t.title}, by ${t.artist}.")) }; return@Thread }
+                        if (t != null) {
+                            handler.post {
+                                // "... and add it to pop (and shuffle pop)": added now it is here, then that playlist shuffled with it first
+                                val list = a.waitAddTo
+                                var order = listOf(t)
+                                if (list != null) {
+                                    val ud = App.of(ctx).userData
+                                    com.ipodemu.library.DjPlaylistEdits(ud).add(list, listOf(t.path))
+                                    val lib = App.of(ctx).library.byPath()
+                                    val paths = ud.playlists.firstOrNull { it.name.trim().equals(list.trim(), ignoreCase = true) }?.paths.orEmpty()
+                                    order = DjAskRunner.landedOrder(t.path, paths, a.waitShuffle).mapNotNull { lib[it] }.ifEmpty { listOf(t) }
+                                }
+                                play(order, 0, shuffle = false, context = if (list != null && a.waitShuffle) list else null)
+                                done(DjAskAnswer(DjAskDo.NONE, "Here it is: ${t.title}, by ${t.artist}." + if (list != null) " It's in $list." else ""))
+                            }
+                            return@Thread
+                        }
                     }
                 }
             }, "dj-ask-wait").apply { isDaemon = true }.start()

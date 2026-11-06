@@ -110,7 +110,8 @@ builder.Services.AddHostedService(sp =>
         id => sessions.Active.FirstOrDefault(s => s.Id == id), guard.Ok,
         s => new FileMoverClient(hf.CreateClient("downloads"), s.Services.FileMoverUrl, s.Services.FileMoverKey),
         (s, e, lossless, ct) => new DownloadCoordinator(hf.CreateClient("downloads"), catalog, s.Services, hf.CreateClient("downloads-long")).UpgradeAsync(e.Artist, e.Title, e.Album, e.DurationMs, e.File, lossless, ct),
-        async s => { if (s.Jellyfin is { } a) await jf.PostAsync(a, "/Library/Refresh", null); },
+        // Jellyfin looks again; the profile is saved, as the swap points the playlists at the new copy
+        async s => { if (s.Jellyfin is { } a) { await jf.PostAsync(a, "/Library/Refresh", null); try { await s.SaveAsync(jf); } catch (Exception) { } } },
         // what is still to play in this person's open players (a song about to be heard is upgraded first)
         s =>
         {

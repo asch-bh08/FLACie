@@ -13,8 +13,9 @@ public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, 
 
 /// <summary>A request understood: the intent, and what it is about (the song, artist or album for Play, the playlist's name, the mood's words, the
 /// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
-/// <summary>[Playlist]: the playlist named (F10: PlayFrom, AddToPlaylist); [AndPlay]: AddToPlaylist also plays the song next.</summary>
-public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null, string? Playlist = null, bool AndPlay = false);
+/// <summary>[Playlist]: the playlist named (F10: PlayFrom, AddToPlaylist); [AndPlay]: AddToPlaylist also plays the song next. [Then]: what AddToPlaylist
+/// does after adding: "play" (play it now: "play X and add it to Y"), "shuffle" (shuffle that playlist, the song first: "... and shuffle pop").</summary>
+public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null, string? Playlist = null, bool AndPlay = false, string? Then = null);
 
 /// <summary>
 /// The quick rules for "talk to the DJ": the phrases people say most, matched without any model. Null when none fits (then the text model is asked).
@@ -85,7 +86,10 @@ public static partial class DjAskRules
     // F22: "play my favourite prodigy songs", "my favourite 90s songs", "my favorite fat of the land tracks"
     [GeneratedRegex(@"^(?:play |put on |shuffle |give me )?(?:some of )?my (?:favourite|favorite|fave|fav)s? (.+?)(?: songs| tracks| tunes| music| ones)?$")] private static partial Regex FavouritesOfRx();
     // F11: "not that one", "the other one", "the corona one"
-    [GeneratedRegex(@"^(?:no )?(?:not that one|not that|wrong one|the other one|the other version|other one|(?:play )?the (.+?) (?:one|version))$")] private static partial Regex OtherRx();
+    [GeneratedRegex(@"^(?:no )?(?:not that one|not that|wrong one|the other one|the other version|other one|(?:play )?the (.+?) (?:one|version)|(?:play )?the (?:one|version) by (.+))$")] private static partial Regex OtherRx();
+    /// <summary>Where a playlist's name stops and the next ask starts: "pop playlist and shuffle pop" is Pop, then a shuffle.</summary>
+    [GeneratedRegex(@"\s+(?:and |then |and then )+(?=shuffle\b|play\b|put\b)")] private static partial Regex NextAsk();
+    [GeneratedRegex(@"^shuffle\b")] private static partial Regex ShuffleAsk();
     // F12: "remove this from the playlist", "take toxic off my pop playlist"; "make a backroads playlist", "make me a playlist called backroads"
     [GeneratedRegex(@"^(?:remove|take|delete|get rid of) (.+?) (?:from|off|out of) (?:my |the |this )?(.+?)(?: playlist)?$")] private static partial Regex RemoveRx();
     [GeneratedRegex(@"^(?:make|create|start|build)(?: me)? (?:a |an |my )?(?:new )?(?:playlist (?:called |named |for )?(.+)|(.+?) playlist)$")] private static partial Regex CreateRx();
@@ -112,13 +116,22 @@ public static partial class DjAskRules
         Regex.Replace(text ?? "", @"\b(\p{L})(\*+)", m =>
             Swears.FirstOrDefault(w => w.Length == 1 + m.Groups[2].Length && char.ToLowerInvariant(w[0]) == char.ToLowerInvariant(m.Groups[1].Value[0])) ?? m.Value);
 
+    /// <summary>The playlist's name, and what comes after it ("shuffle" for "... and shuffle pop"/"then shuffle it"; null for nothing else).</summary>
+    static (string Name, string? Then) PlaylistAndThen(string raw)
+    {
+        var parts = NextAsk().Split(raw.Trim(), 2);
+        var name = Regex.Replace(parts[0].Trim(), @"(?:^(?:my|the) | playlist$)", "").Trim();
+        return (name, parts.Length > 1 && ShuffleAsk().IsMatch(parts[1].Trim()) ? "shuffle" : null);
+    }
+
     public static AskParse? Parse(string text)
     {
         var s = Normalise(Uncensor(text));
         if (s.Length == 0 || s.Length > 200) return null;
         if (FavouritesOfRx().Match(s) is { Success: true } fo && fo.Groups[1].Value.Trim() is var fw && fw.Length > 0 && fw is not ("songs" or "tracks" or "tunes" or "music" or "ones" or "song"))
             return new(AskIntent.FavouritesOf, System.Text.RegularExpressions.Regex.Replace(fw, @"^(?:(?:songs|tracks|tunes|music) )?(?:by |from )", ""));
-        if (OtherRx().Match(s) is { Success: true } oo) return new(AskIntent.OtherOne, oo.Groups[1].Success && oo.Groups[1].Value != "other" ? oo.Groups[1].Value.Trim() : null);
+        if (OtherRx().Match(s) is { Success: true } oo)
+            return new(AskIntent.OtherOne, oo.Groups[1].Success && oo.Groups[1].Value != "other" ? oo.Groups[1].Value.Trim() : oo.Groups[2].Success ? oo.Groups[2].Value.Trim() : null);
         if (RemoveRx().Match(s) is { Success: true } rm)
         {
             var song = rm.Groups[1].Value.Trim(); var pl = rm.Groups[2].Value.Trim();
@@ -127,11 +140,16 @@ public static partial class DjAskRules
         if (CreateRx().Match(s) is { Success: true } cr) return new(AskIntent.CreatePlaylist, (cr.Groups[1].Success ? cr.Groups[1].Value : cr.Groups[2].Value).Trim());
         if (PlayFromRx().Match(s) is { Success: true } pf)
             return new(AskIntent.PlayFrom, pf.Groups[1].Value.Trim(), Playlist: (pf.Groups[2].Success ? pf.Groups[2].Value : pf.Groups[3].Value).Trim());
-        if (PlayAddRx().Match(s) is { Success: true } pa) return new(AskIntent.AddToPlaylist, pa.Groups[2].Value.Trim(), Playlist: pa.Groups[3].Value.Trim(), AndPlay: true);
+        if (PlayAddRx().Match(s) is { Success: true } pa)
+        {
+            var (pl, then) = PlaylistAndThen(pa.Groups[3].Value);
+            return new(AskIntent.AddToPlaylist, pa.Groups[2].Value.Trim(), Playlist: pl, AndPlay: true, Then: then ?? "play");
+        }
         if (AddRx().Match(s) is { Success: true } ad)
         {
             var song = ad.Groups[1].Value.Trim();
-            return new(AskIntent.AddToPlaylist, song is "it" or "this" or "that" or "this song" or "this one" ? null : song, Playlist: ad.Groups[2].Value.Trim(), AndPlay: ad.Groups[3].Success);
+            var (pl, then) = PlaylistAndThen(ad.Groups[2].Value);
+            return new(AskIntent.AddToPlaylist, song is "it" or "this" or "that" or "this song" or "this one" ? null : song, Playlist: pl, AndPlay: ad.Groups[3].Success, Then: then);
         }
         // two asks in one breath ("play some Prodigy and play Smack My Bitch Up"): the first is done
         if (TwoAsks().Match(s) is { Success: true } two) s = two.Groups[1].Value.Trim();
@@ -616,14 +634,16 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.Situation: return Situation(u, p, text, cur, recent);
             case AskIntent.Playlist: return Playlist(u, p.What ?? "");
             case AskIntent.PlayFrom: return PlayFrom(u, p.What ?? "", p.Playlist ?? "", text);
-            case AskIntent.AddToPlaylist: return AddTo(u, p, cur);
+            case AskIntent.AddToPlaylist: return await AddToAsync(u, p, cur, ct);
             case AskIntent.RemoveFromPlaylist: return RemoveFrom(u, p, cur);
             case AskIntent.FavouritesOf: return await FavouritesOfAsync(u, p.What ?? "", ct);
             case AskIntent.CreatePlaylist: return await MakePlaylistAsync(u, p.What ?? "", cur, recent, ct, text);
             case AskIntent.OtherOne:
             {
                 if (Pick.Other(u.Account, p.What) is { } o) return new(DjAskDo.Play, $"{T(o.Title)}, by {o.Artist}.", [o.Path], T(o.Title));
-                return p.What is { Length: > 0 } w ? await PlayAsync(u, w, cur, recent, ct) : DjAskAnswer.Said("That's the only one I've got.");
+                // "the corona one": this song by them (fetched when the library lacks it), not anything by them
+                if (p.What is { Length: > 0 } w) return await PlayAsync(u, cur is null ? w : $"{cur.Title} by {w}", cur, recent, ct);
+                return DjAskAnswer.Said(cur is null ? "That's the only one I've got." : $"That's the only {T(cur.Title)} I've got. Tell me who it’s by and I'll get theirs.");
             }
             default: return await PlayAsync(u, p.What ?? "", cur, recent, ct);
         }
@@ -741,15 +761,54 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     }
 
     /// <summary>F10: "add rhythm of the night to my pop playlist (and play it next)": the add step, then Up next when asked. A new name makes the playlist.</summary>
-    DjAskAnswer AddTo(IDjAskUser u, AskParse p, Track? cur)
+    async Task<DjAskAnswer> AddToAsync(IDjAskUser u, AskParse p, Track? cur, CancellationToken ct)
     {
+        // "add this to the playlist": no name said, so nothing is made called "Playlist" (owner, 6 Nov: an empty one appeared)
+        if (p.Playlist is null or "" or "a" or "an" or "new" or "a new" or "playlist" or "list" or "a playlist" or "a list" or "my list" or "the list" or "it" or "one" or "a new one")
+            return DjAskAnswer.Said(p.What is null && cur is null ? "Nothing's playing right now." : "Which playlist should I add it to?", "Clarify");
+        var pl = PlaylistFor(u, p.Playlist);
+        var name = pl?.Name ?? Capital(p.Playlist);
         var song = p.What is { Length: > 0 } w ? SongFor(u, w) : cur;
-        if (song is null) return DjAskAnswer.Said(p.What is null ? "Nothing's playing right now." : $"I can't find {p.What} in your library.");
-        var name = PlaylistFor(u, p.Playlist ?? "")?.Name ?? Capital(p.Playlist ?? "");
-        if (name.Length == 0) return DjAskAnswer.Said(DidntCatch);
+        // "rhythm of the night by corona" is Corona's: another artist's song of that name is not it (owner, 6 Nov: DeBarge's was added)
+        if (song is not null && p.What is { Length: > 0 } w2 && !ArtistFits(VoiceParser.FromRaw("play " + w2).Artist, song)) song = null;
+        if (song is null)
+        {
+            if (p.What is null) return DjAskAnswer.Said("Nothing's playing right now.");
+            // not in the library: fetched, then added (and played) by the player when it lands
+            var req = await FetchAsync(u, p.What, ct);
+            if (req is null) return DjAskAnswer.Said($"I can't find {p.What} anywhere, sorry.");
+            if (req.InLibrary && u.FindSong(req.Artist, req.Title) is { } have && Playable(have)) song = have;
+            else return new(DjAskDo.None, $"Getting {T(req.Title)} by {req.Artist}. I'll add it to {name} when it lands.", Wait: new(req.Artist, req.Title, name, p.Then == "shuffle"));
+        }
         var add = DjAskStep.AddTo(name, [song.Path]);
+        if (p.Then == "shuffle")
+        {
+            // the playlist shuffled, the song first (it is in the playlist by then)
+            var rest = (pl is null ? [] : PathsOf(u, pl)).Where(x => x != song.Path).OrderBy(_ => Random.Shared.Next()).ToList();
+            List<string> all = [song.Path, .. rest];
+            return new(DjAskDo.Play, $"Added {T(song.Title)} to {name}. Shuffling {name}.", all, name) { Steps = [add, new(DjAskDo.Play, all, name)] };
+        }
+        if (p.Then == "play") return new(DjAskDo.Play, $"Added {T(song.Title)} to {name}. Here it is.", [song.Path], T(song.Title)) { Steps = [add, new(DjAskDo.Play, [song.Path], T(song.Title))] };
         if (!p.AndPlay) return new(DjAskDo.None, $"Added {T(song.Title)} to {name}.") { Steps = [add] };
         return new(DjAskDo.UpNext, $"Added {T(song.Title)} to {name}, and it's up next.", [song.Path]) { Steps = [add, new(DjAskDo.UpNext, [song.Path])] };
+    }
+
+    /// <summary>The artist said ("by corona") is this song's, or none was said.</summary>
+    static bool ArtistFits(string? said, Track t)
+    {
+        if (said is not { Length: > 0 }) return true;
+        static string K(string s) { var n = Matching.NormTitle(s); return n.StartsWith("the ") ? n[4..] : n; }
+        var a = K(said);
+        return K(t.Artist).Contains(a) || K(t.AlbumArtist).Contains(a) || a.Contains(K(Matching.PrimaryArtist(t.Artist)));
+    }
+
+    /// <summary>A download of what was said, as Alexa fetches it; null when it is nowhere.</summary>
+    static async Task<AlexaRequested?> FetchAsync(IDjAskUser u, string what, CancellationToken ct)
+    {
+        var q = VoiceParser.FromRaw("play " + what);
+        var words = q.Title is { Length: > 0 } ti ? (q.Artist is { Length: > 0 } ar ? $"{ti} {ar}" : ti) : q.Album ?? q.Raw ?? q.Artist ?? what;
+        if (words.Trim().Length < 2) return null;
+        try { return await u.RequestDownloadAsync(words, ct); } catch (OperationCanceledException) { throw; } catch (Exception) { return null; }
     }
 
     /// <summary>F22: "play my favourite prodigy songs": their real favourites among an artist's, an album's, a genre's or a decade's songs (DjFavourites).</summary>
@@ -822,7 +881,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             var best = m.Ranked[0];
             switch (best.Item)
             {
-                case Track t0 when Playable(t0):
+                case Track t0 when Playable(t0) && ArtistFits(query.Artist, t0):
                     // F11: several versions match: own plays, popularity, then the title said; the rest kept for "not that one"
                     var versions = DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0).DistinctBy(x => x.Path).ToList();
                     if (query.Artist is not { Length: > 0 } && versions.Count > 1) await u.LookUpPopularityAsync(versions, ct);
@@ -831,7 +890,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                     Pick.Keep(u.Account, ranked.Skip(1).ToList());
                     var others = u.Songs.Where(x => x.Path != song.Path && Playable(x) && Matching.PrimaryArtist(x.Artist) == Matching.PrimaryArtist(song.Artist)).OrderBy(_ => Random.Shared.Next()).Take(25).Select(x => x.Path);
                     return new(DjAskDo.Play, $"{T(song.Title)}, by {song.Artist}.", [song.Path, .. others], T(song.Title));
-                case Track t:
+                case Track t when !Playable(t) && ArtistFits(query.Artist, t):
                     return DjAskAnswer.Said($"{T(t.Title)} is on its way into your library. Give it a minute.");
                 case FLACie.Core.Group g when best.Kind == MatchKind.Artist:
                     var songs = g.Tracks.Where(Playable).Select(x => x.Path).Take(300).ToList();

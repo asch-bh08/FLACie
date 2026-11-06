@@ -660,6 +660,21 @@ public sealed class UserSession
         return PlaylistAdd.Added;
     }
 
+    /// <summary>A song swapped for a better copy (the upgrade worker): every playlist entry of that song now names the new copy, so a player that knows
+    /// songs by their path does not lose it (owner, 6 Nov: 25 songs dropped out of a playlist on the phone and in Jellyfin). Returns how many changed.</summary>
+    public int RepointPlaylists(Track now)
+    {
+        var key = Matching.MatchKey(now); var n = 0;
+        lock (listLock)
+        {
+            foreach (var o in (Profile["playlists"] as JsonArray ?? []).OfType<JsonObject>())
+                foreach (var x in (o["tracks"] as JsonArray ?? []).OfType<JsonObject>())
+                    if (S(x, "p") != now.Path && Matching.MatchKey(S(x, "t"), S(x, "a")) == key) { x["p"] = now.Path; o["m"] = Now(); n++; }
+        }
+        if (n > 0) Changed?.Invoke();
+        return n;
+    }
+
     /// <summary>Takes a song back out (the Undo after an add).</summary>
     public void RemoveFromPlaylist(string id, Track t)
     {

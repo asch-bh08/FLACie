@@ -403,12 +403,15 @@ class AccountSync(private val app: App) {
     /** The Jellyfin item id for a playlist entry: straight from a Jellyfin stream path, or by title + artist among
      * the Jellyfin tracks (a local file of a song the server also has). Null = not on Jellyfin. */
     private fun jellyfinIdFor(path: String): String? {
-        jfIdRe.find(path)?.let { return it.groupValues[1] }
-        val t = app.library.byPath()[path]
-        val m = app.userData.meta[path]
-        val key = t?.matchKey ?: m?.let { matchKey(it.first, it.second) } ?: return null
-        val hit = app.library.jellyfinByKey()[key] ?: return null
-        return jfIdRe.find(hit.path)?.groupValues?.get(1)
+        val byPath = app.library.byPath()
+        // until the Jellyfin songs are loaded nothing counts as gone (a playlist must never be emptied by a sync that ran too early)
+        val loaded = app.library.jellyfinTracks.isNotEmpty()
+        return PlaylistMerge.mirrorId(path, isLive = { !loaded || byPath.containsKey(path) }) {
+            val t = byPath[path]
+            val m = app.userData.meta[path]
+            val key = t?.matchKey ?: m?.let { matchKey(it.first, it.second) }
+            key?.let { app.library.jellyfinByKey()[it] }?.let { hit -> jfIdRe.find(hit.path)?.groupValues?.get(1) }
+        }
     }
 
 

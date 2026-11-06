@@ -56,3 +56,56 @@ public class ServerImportsTests
         Assert.Equal("p2", ServerImports.OfJob(jobs, "other")!.Value.PlaylistId);
     }
 }
+
+public class ImportHealTests
+{
+    static Track T(string a, string t) => new("/p/" + t, t, a, "Alb", a, 1, 1, 1000, 2000, null, 0, TrackSource.Jellyfin);
+
+    [Fact]
+    public void Songs_of_a_finished_import_that_dropped_out_of_its_playlist_go_back_in_their_place()
+    {
+        // owner, 6 Nov: 25 of the 99 songs of "80s - 90s rally" were gone from the playlist after their Hi-Res swap
+        var s = new UserSession("local", null, null);
+        s.AddDownloaded([T("A", "One"), T("B", "Two"), T("C", "Three"), T("D", "Four")]);
+        var pl = s.CreatePlaylist("Rally");
+        s.AddToPlaylist(pl.Id, s.Library.Find("One", "A")!);
+        s.AddToPlaylist(pl.Id, s.Library.Find("Four", "D")!);
+        var list = new ImportList { Name = "Rally", PlaylistId = pl.Id, Items = [
+            new() { Artist = "A", Title = "One", State = "owned" }, new() { Artist = "B", Title = "Two", State = "done" },
+            new() { Artist = "C", Title = "Three", State = "done" }, new() { Artist = "D", Title = "Four", State = "done" },
+            new() { Artist = "E", Title = "Five", State = "failed" }] };
+
+        Assert.Equal(2, ImportManager.Heal(s, list));
+        Assert.Equal(["One", "Two", "Three", "Four"], s.Playlists.Single().Entries.Select(e => e.Title));
+        Assert.Equal(0, ImportManager.Heal(s, list));   // nothing twice
+    }
+
+    [Fact]
+    public void A_playlist_the_person_deleted_is_not_made_again()
+    {
+        var s = new UserSession("local", null, null);
+        s.AddDownloaded([T("A", "One")]);
+        var list = new ImportList { Name = "Gone", PlaylistId = "deleted-id", Items = [new() { Artist = "A", Title = "One", State = "owned" }] };
+        Assert.Equal(0, ImportManager.Heal(s, list));
+        Assert.Empty(s.Playlists);
+    }
+}
+
+public class PlaylistRepointTests
+{
+    [Fact]
+    public void A_song_swapped_for_a_better_copy_is_the_new_copy_in_every_playlist()
+    {
+        var s = new UserSession("local", null, null);
+        var old = new Track("/file?path=music%2Fx.m4a", "The Rhythm of the Night", "Corona", "Alb", "Corona", 1, 1, 1000, 1994, null, 0, TrackSource.Jellyfin);
+        var other = new Track("/p/other", "Other", "B", "Alb", "B", 1, 1, 1000, 1994, null, 0, TrackSource.Jellyfin);
+        s.AddDownloaded([old, other]);
+        var a = s.CreatePlaylist("Rally"); s.AddToPlaylist(a.Id, other); s.AddToPlaylist(a.Id, old);
+        var b = s.CreatePlaylist("Pop"); s.AddToPlaylist(b.Id, old);
+        var now = old with { Path = "/file?path=music%2Fx%20%5BHi-Res%5D.flac" };
+
+        Assert.Equal(2, s.RepointPlaylists(now));
+        Assert.Equal(["/p/other", now.Path], s.Playlists.Single(p => p.Name == "Rally").Entries.Select(e => e.Path));
+        Assert.Equal([now.Path], s.Playlists.Single(p => p.Name == "Pop").Entries.Select(e => e.Path));
+    }
+}

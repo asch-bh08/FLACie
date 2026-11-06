@@ -62,6 +62,7 @@ public sealed class SessionStore(JellyfinClient jf, ILogger<SessionStore> log, I
                     if (e is UnauthorizedAccessException) { if (TokenKey(p) is { Length: > 0 } dk) deadTokens[dk] = DateTime.UtcNow; if (p.FindFirst("jf.token")?.Value is { Length: > 0 } dead) tokens.Invalidate(dead); sessions.TryRemove(new KeyValuePair<string, UserSession>(key, us)); if (live.TryGetValue(us, out var l)) { l.Connect.Dispose(); live.Remove(us); } }
                 }
                 imports.Resume(us);
+                try { await imports.HealAsync(us); } catch (Exception e) { log.LogWarning(e, "Checking import playlists failed"); }
             });
             return us;
         });

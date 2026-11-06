@@ -62,6 +62,48 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         foreach (var job in states.For(s).Imports.Where(j => j.State is "running" or "waiting").ToList()) Launch(s, job);
     }
 
+    /// <summary>
+    /// Songs of an import that are in the library but no longer in its playlist go back in, in the import's order (owner, 6 Nov: 25 of 99 dropped out of
+    /// "80s - 90s rally" when their files were swapped for Hi-Res copies). A playlist the person deleted is left deleted. Returns how many went back.
+    /// </summary>
+    public static int Heal(UserSession s, ImportList list)
+    {
+        if (list.PlaylistId is not { } id || s.Playlists.FirstOrDefault(p => p.Id == id) is not { } pl) return 0;
+        var have = pl.Entries.Select(e => Matching.MatchKey(e.Title, e.Artist)).ToHashSet();
+        var healed = 0; var at = 0;
+        foreach (var item in list.Items)
+        {
+            if (item.State is not ("owned" or "done")) continue;
+            var t = s.Library.Find(item.Title, item.Artist) ?? s.Library.FindLoose(item.Title, item.Artist);
+            if (t is null) continue;
+            var key = Matching.MatchKey(t);
+            if (!have.Contains(key) && !have.Contains(Matching.MatchKey(item.Title, item.Artist)))
+            {
+                s.InsertIntoPlaylist(id, at, new PlaylistEntry(t.Path, t.Title, t.Artist));
+                have.Add(key); healed++;
+            }
+            at++;
+        }
+        return healed;
+    }
+
+    /// <summary>After sign-in: every finished import's playlist is checked once (see <see cref="Heal(UserSession, ImportList)"/>) and saved when one changed.</summary>
+    public async Task HealAsync(UserSession s)
+    {
+        for (var i = 0; i < 360 && (s.Loading || s.LoadedAt == default); i++) await Task.Delay(500);
+        if (s.Library.Songs.Count == 0) return;
+        var healed = 0; var checkedAny = false;
+        foreach (var job in states.For(s).Imports.Where(j => j.State == "done" && !j.Healed).ToList())
+        {
+            foreach (var l in job.Lists) healed += Heal(s, l);
+            job.Healed = true; checkedAny = true;
+        }
+        if (checkedAny) states.Save(s);
+        if (healed == 0) return;
+        log.LogInformation("Imports: {Count} songs put back in their playlists", healed);
+        try { await s.SaveAsync(jf); } catch (Exception e) { log.LogWarning(e, "Saving the profile after putting import songs back failed"); }
+    }
+
     public void Cancel(UserSession s, string id)
     {
         // only the account's own imports: the id is looked up in this account's list before anything is cancelled

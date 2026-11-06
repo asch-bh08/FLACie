@@ -17,8 +17,9 @@ public sealed record DjAskStep(DjAskDo Do, IReadOnlyList<string>? Paths = null, 
     public static DjAskStep Question(string say) => new(DjAskDo.Ask, Say: say);
 }
 
-/// <summary>A song the library lacked and that is being downloaded: the player plays it when it lands.</summary>
-public sealed record DjAskWait(string Artist, string Title);
+/// <summary>A song the library lacked and that is being downloaded: the player plays it when it lands. [AddTo]: a playlist it is added to first (owner,
+/// 6 Nov: "play rhythm of the night by corona and add it to pop"); [Shuffle]: then that playlist is played shuffled, the song first.</summary>
+public sealed record DjAskWait(string Artist, string Title, string? AddTo = null, bool Shuffle = false);
 
 /// <summary>
 /// The DJ's answer to one request. [Say] is the short line in the DJ's voice ("" for plain controls like Next); [Clip] the address of that line said by

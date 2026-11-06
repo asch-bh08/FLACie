@@ -34,6 +34,8 @@ public sealed class ImportJob
     public bool Replace { get; set; }
     /// <summary>Replace mode has already merged the same-named playlists for this job.</summary>
     public bool Consolidated { get; set; }
+    /// <summary>Its playlist was checked once for songs that dropped out (ImportManager.HealAsync): a song taken out by hand afterwards stays out.</summary>
+    public bool Healed { get; set; }
     public DateTime Created { get; set; } = DateTime.UtcNow;
     /// <summary>running, waiting (for disk space), done, cancelled</summary>
     public string State { get; set; } = "running";

@@ -33,7 +33,10 @@ public class DjAskUnderstandTests
         public IReadOnlyList<Track> RecommendNext(IReadOnlyList<string> session, int n) => [];
         public Vibe? VibeOf(Track t) => null;
         public Task RateAsync(Track t, int stars) => Task.CompletedTask;
-        public Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct) => Task.FromResult<AlexaRequested?>(null);
+        /// <summary>What the DJ asked to download, and the answer (null: found nowhere).</summary>
+        public List<string> Fetched = [];
+        public Func<string, AlexaRequested?> Fetch = _ => null;
+        public Task<AlexaRequested?> RequestDownloadAsync(string words, CancellationToken ct) { Fetched.Add(words); return Task.FromResult(Fetch(words)); }
     }
 
     sealed class Model(string reply) : IDjAskModel
@@ -66,15 +69,16 @@ public class DjAskUnderstandTests
     }
 
     [Fact]
-    public async Task Play_and_add_to_a_playlist_adds_it_then_plays_it_next()
+    public async Task Play_and_add_to_a_playlist_adds_it_then_plays_it_now()
     {
+        // owner, 6 Nov: "play ... and add it to ..." queued it instead of playing it
         var u = Library();
         var a = await new DjAskEngine().AnswerAsync(u, "play rhythm of the night, add it to my pop playlist", null, []);
-        Assert.Equal([DjAskDo.AddToPlaylist, DjAskDo.UpNext], a.AllSteps.Select(s => s.Do));
+        Assert.Equal([DjAskDo.AddToPlaylist, DjAskDo.Play], a.AllSteps.Select(s => s.Do));
         Assert.Equal("Pop", a.AllSteps[0].Playlist);
         Assert.Equal(["/p/Corona/Rhythm of the Night"], a.AllSteps[0].Paths);
         Assert.Equal(["/p/Corona/Rhythm of the Night"], a.AllSteps[1].Paths);
-        Assert.Equal(DjAskDo.UpNext, a.Do); // an old player still plays it next
+        Assert.Equal(DjAskDo.Play, a.Do); // an old player plays it too
     }
 
     [Fact]
@@ -110,5 +114,84 @@ public class DjAskUnderstandTests
         Assert.Equal(intent, p.Intent);
         Assert.Equal(what, p.What);
         Assert.Equal(playlist, p.Playlist);
+    }
+
+    static User WithDeBarge()
+    {
+        var u = new User();
+        u.Library.AddRange([T("Just Dance", "Lady Gaga"), T("Rhythm of the Night", "DeBarge"), T("Toxic", "Britney Spears")]);
+        u.Lists.Add(new("pl-pop", "Pop", 1, null, [new PlaylistEntry(u.Library[0].Path, u.Library[0].Title, u.Library[0].Artist), new PlaylistEntry(u.Library[2].Path, u.Library[2].Title, u.Library[2].Artist)]));
+        return u;
+    }
+
+    [Theory]
+    [InlineData("play rhythm of the night and add it to my pop playlist and shuffle pop", "pop", "shuffle")]
+    [InlineData("play rhythm of the night add it to pop playlist then shuffle it", "pop", "shuffle")]
+    [InlineData("add rhythm of the night to my pop playlist and shuffle the playlist", "pop", "shuffle")]
+    [InlineData("add rhythm of the night to pop and play it next", "pop", null)]
+    public void The_playlist_name_stops_where_the_next_ask_starts(string said, string playlist, string? then)
+    {
+        // owner, 6 Nov: "Pop playlist and shuffle pop" was taken as the playlist's name, and a new playlist made with it
+        var p = DjAskRules.Parse(said)!;
+        Assert.Equal(AskIntent.AddToPlaylist, p.Intent);
+        Assert.Equal(playlist, p.Playlist);
+        Assert.Equal(then, p.Then);
+    }
+
+    [Fact]
+    public async Task Add_and_shuffle_adds_it_then_shuffles_the_playlist_starting_with_it()
+    {
+        var u = Library();
+        var a = await new DjAskEngine().AnswerAsync(u, "play rhythm of the night and add it to my pop playlist and shuffle pop", null, []);
+        Assert.Equal([DjAskDo.AddToPlaylist, DjAskDo.Play], a.AllSteps.Select(s => s.Do));
+        Assert.Equal("Pop", a.AllSteps[0].Playlist);
+        var play = a.AllSteps[1];
+        Assert.Equal("/p/Corona/Rhythm of the Night", play.Paths![0]);
+        Assert.Equal(5, play.Paths.Count);   // the song, then the 4 of Pop
+        Assert.Equal("Pop", play.Title);
+    }
+
+    [Fact]
+    public async Task By_an_artist_the_library_lacks_fetches_theirs_and_never_plays_another_artists_song()
+    {
+        // owner, 6 Nov: "rhythm of the night by corona" added DeBarge's to a playlist
+        var u = WithDeBarge();
+        u.Fetch = w => new AlexaRequested("Corona", "The Rhythm of the Night");
+        var a = await new DjAskEngine().AnswerAsync(u, "play rhythm of the night by corona and add it to my pop playlist and shuffle pop", null, []);
+        Assert.DoesNotContain(a.AllSteps, s => s.Paths?.Contains("/p/DeBarge/Rhythm of the Night") == true);
+        Assert.Contains(u.Fetched, w => w.Contains("corona", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(new DjAskWait("Corona", "The Rhythm of the Night", "Pop", true), a.Wait);
+        Assert.DoesNotContain(a.AllSteps, s => s.Do == DjAskDo.AddToPlaylist);   // added when it lands, by the player
+    }
+
+    [Fact]
+    public async Task The_corona_one_gets_that_song_by_corona()
+    {
+        var u = WithDeBarge();
+        u.Fetch = w => new AlexaRequested("Corona", "The Rhythm of the Night");
+        var a = await new DjAskEngine().AnswerAsync(u, "the corona one", "/p/DeBarge/Rhythm of the Night", []);
+        Assert.Contains(u.Fetched, w => w.Contains("rhythm of the night", StringComparison.OrdinalIgnoreCase) && w.Contains("corona", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Corona", a.Wait?.Artist);
+    }
+
+    [Fact]
+    public async Task Not_that_one_with_no_other_version_says_how_to_name_the_right_one()
+    {
+        var u = WithDeBarge();
+        var a = await new DjAskEngine().AnswerAsync(u, "not that one", "/p/DeBarge/Rhythm of the Night", []);
+        Assert.Contains("who it’s by", a.Say);
+    }
+
+    [Theory]
+    [InlineData("add this to the playlist")]
+    [InlineData("add it to a playlist")]
+    [InlineData("add this to my list")]
+    public async Task A_playlist_not_named_is_asked_about_never_made_as_Playlist(string said)
+    {
+        // owner, 6 Nov: an empty playlist called "Playlist" appeared
+        var u = Library();
+        var a = await new DjAskEngine().AnswerAsync(u, said, "/p/Corona/Rhythm of the Night", []);
+        Assert.DoesNotContain(a.AllSteps, s => s.Do is DjAskDo.AddToPlaylist or DjAskDo.CreatePlaylist);
+        Assert.Contains("Which playlist", a.Say);
     }
 }

@@ -537,6 +537,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (burstTarget >= 0) return
         val cur = current
         // in a Jam the group drives playback; with Repeat one the song after this one is this one again
+        if (!djOn || interceptor != null) noteDjQuiet(cur)
         val next = if (djOn && interceptor == null && exo.repeatMode != Player.REPEAT_MODE_ONE) upNext(1).firstOrNull()?.second else null
         if (cur == null || next == null) { if (dj.pendingPath != null) dj.forget(); djVoice?.ready(null, false); return }
         // asked only in the song's last 30 s (DjCoordinator.askInMs), so a song skipped before then costs nothing; looked at again when the time comes
@@ -600,8 +601,22 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** A new queue was started from the playlist or album [name]: the DJ is asked about its first song now, "Shuffling Pop... starting with
      *  Firework, Katy Perry", said over the start of that song if it comes within [DjCoordinator.QUEUE_WAIT_MS]. Once per queue, from [play] only. */
+    /** Why the DJ says nothing over [t], in the log once per song (owner, 6 Nov: "I didn't hear the DJ the entire time" in the car). */
+    private var djQuietFor: String? = null
+    private fun noteDjQuiet(t: Track?) {
+        if (t == null || djQuietFor == t.path) return
+        djQuietFor = t.path
+        val s = djSettings
+        val why = when {
+            !djAvailable -> "no FLACie Web account on this phone"
+            interceptor != null -> "a Jam or another device is playing"
+            else -> "off (${djSurface.wire}: DJ ${if (s.enabled) "on" else "off"}, here ${if (s.on(djSurface)) "on" else "off"}, this list ${contextId?.let { s.playlists[it] } ?: "-"}, this queue ${dj.queueDj ?: "-"})"
+        }
+        Diag.add("dj", "\"${t.title}\": no DJ, $why")
+    }
+
     private fun djQueueStart(first: Track, name: String) {
-        if (!djOn || interceptor != null) return
+        if (!djOn || interceptor != null) { noteDjQuiet(first); return }
         val now = java.time.LocalDateTime.now()
         val loved = try { App.of(ctx).userData.isFavorite(first) } catch (_: Exception) { false }
         djSayWhenAnswered(first, dj.queueStartRequest(djSurface, DjSong.of(first), contextId, name, prefs.shuffle, now.hour, DjCoordinator.weekday(now.dayOfWeek), loved).toString(), DjCoordinator.QUEUE_WAIT_MS)
@@ -704,6 +719,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // a song whose file is not there any more (swapped for a Hi-Res copy, moved): the library's other copy of it, from the same spot
                 val gone = ((error.cause as? androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException)?.responseCode) in setOf(400, 404, 410)   // (the file mover said 400 for a missing file until 6 Nov)
                 val cur2 = current
+                // with no other copy known yet (a new download Jellyfin has only just taken in), the library looks again, so it plays next time
+                if (gone && cur2 != null && OtherCopy.of(cur2, App.of(ctx).library.songs()) == null) { Diag.add("error", "\"${cur2.title}\" is not there and no other copy is known yet: the library looks again"); App.of(ctx).library.lookAgain() }
                 if (gone && cur2 != null) OtherCopy.of(cur2, App.of(ctx).library.songs())?.let { other ->
                     Diag.add("error", "\"${cur2.title}\" is not there any more: playing the library's other copy")
                     val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
@@ -849,6 +866,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun appendAutoplay(list: List<Track>) {
         // Repeat switched on while Autoplay was choosing (or a song it asked for landed later): the playlist starts again instead, nothing is added
         if (list.isEmpty() || !hasQueue || !RepeatCycle.autoplayMayAdd(prefs.repeat)) return
+        Diag.add("queue", "Autoplay added ${list.size} after \"${current?.title}\" (${QueueEdit.upcoming(playOrderNow(), exo.currentMediaItemIndex, false).size} still to come of ${exo.mediaItemCount})")
         val before = if (exo.shuffleModeEnabled) playOrderNow() else null
         exo.addMediaItems(list.map(::item))
         // on shuffle they play after the rest, in the order Autoplay chose
@@ -1210,6 +1228,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         return true
     }
     fun next() {
+        Diag.add("skip", "next pressed at ${exo.currentMediaItemIndex + 1} of ${exo.mediaItemCount}${if (interceptor != null) " (a Jam or another device plays)" else ""}${if (exo.shuffleModeEnabled) ", shuffle on" else ""}")
         if (interceptor?.next() == true) return
         if (skip(true)) return
         if (exo.hasNextMediaItem()) exo.seekToNextMediaItem() else if (hasQueue) exo.seekTo(0, 0L)

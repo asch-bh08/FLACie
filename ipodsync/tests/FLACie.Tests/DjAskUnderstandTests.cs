@@ -194,4 +194,16 @@ public class DjAskUnderstandTests
         Assert.DoesNotContain(a.AllSteps, s => s.Do is DjAskDo.AddToPlaylist or DjAskDo.CreatePlaylist);
         Assert.Contains("Which playlist", a.Say);
     }
+
+    [Fact]
+    public async Task The_song_whose_title_is_what_was_said_beats_one_that_only_contains_it()
+    {
+        // owner, 6 Nov: "play Macarena" played Tyga's Ayy Macarena, not Los Del Rio's Macarena (the Bayside Boys Remix is the one in the library)
+        var u = new User();
+        u.Library.AddRange([T("Ayy Macarena", "Tyga"), T("Macarena - Bayside Boys Remix", "Los Del Rio"), T("Toxic", "Britney Spears")]);
+        var a = await new DjAskEngine().AnswerAsync(u, "play macarena", null, []);
+        Assert.Equal("/p/Los Del Rio/Macarena - Bayside Boys Remix", a.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
+        var b = await new DjAskEngine().AnswerAsync(u, "play ayy macarena", null, []);
+        Assert.Equal("/p/Tyga/Ayy Macarena", b.AllSteps.First(s => s.Do == DjAskDo.Play).Paths![0]);
+    }
 }

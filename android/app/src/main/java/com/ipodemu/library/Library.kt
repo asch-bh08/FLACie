@@ -169,6 +169,9 @@ class Library(ctx: Context, val art: ArtCache) {
         if (c.sync && (!c.onlyIfStale || System.currentTimeMillis() - lastJfSyncAt > 2 * 60_000L)) syncJellyfinSoon()
     }
 
+    /** A song's file was not there and this phone knows no other copy yet (a new download, a Hi-Res swap): Jellyfin's changes are fetched in a few seconds. */
+    fun lookAgain() = syncJellyfinSoon()
+
     @Volatile private var lastJfSyncAt = 0L
     private var jfDebounceSince = 0L
     private fun syncJellyfinSoon() {

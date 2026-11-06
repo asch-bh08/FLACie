@@ -793,6 +793,16 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         return new(DjAskDo.UpNext, $"Added {T(song.Title)} to {name}, and it's up next.", [song.Path]) { Steps = [add, new(DjAskDo.UpNext, [song.Path])] };
     }
 
+    /// <summary>The song whose title is what was said, when the match only contains it: "play macarena" is Los Del Rio's "Macarena - Bayside Boys Remix",
+    /// not Tyga's "Ayy Macarena" (owner, 6 Nov). Titles compared without what follows " - " or sits in brackets; the match itself when it is that already.</summary>
+    static Track ExactTitle(IDjAskUser u, VoiceQuery q, string what, Track matched)
+    {
+        static string Core(string s) => Matching.NormTitle(Regex.Replace(s.Split(" - ")[0], @"[(\[][^)\]]*[)\]]", " "));
+        var said = Core(q.Title is { Length: > 0 } ti ? ti : what);
+        if (said.Length == 0 || Core(matched.Title) == said) return matched;
+        return u.Songs.Where(t => Playable(t) && Core(t.Title) == said && ArtistFits(q.Artist, t)).OrderByDescending(u.Popularity).FirstOrDefault() ?? matched;
+    }
+
     /// <summary>The artist said ("by corona") is this song's, or none was said.</summary>
     static bool ArtistFits(string? said, Track t)
     {
@@ -881,7 +891,7 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             var best = m.Ranked[0];
             switch (best.Item)
             {
-                case Track t0 when Playable(t0) && ArtistFits(query.Artist, t0):
+                case Track t1 when Playable(t1) && ArtistFits(query.Artist, t1) && ExactTitle(u, query, what, t1) is var t0:
                     // F11: several versions match: own plays, popularity, then the title said; the rest kept for "not that one"
                     var versions = DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0).DistinctBy(x => x.Path).ToList();
                     if (query.Artist is not { Length: > 0 } && versions.Count > 1) await u.LookUpPopularityAsync(versions, ct);

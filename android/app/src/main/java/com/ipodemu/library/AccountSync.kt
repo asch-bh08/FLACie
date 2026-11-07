@@ -197,6 +197,12 @@ class AccountSync(private val app: App) {
         status = "Synced" + if (restored > 0) ", restored $restored service connection${if (restored == 1) "" else "s"}" else ""
         // a sign-in (or a Jellyfin account restored from the NAS copy) brings Connect up
         kotlinx.coroutines.withContext(Dispatchers.Main) { app.connect.refresh() }
+        // FLACie Web just became known (a new sign-in): the DJ's settings are fetched now, not when a queue starts, so the first song played is not
+        // already past when they say the DJ is on
+        if (prefs.djSettings.isBlank() && FlacieWebClient(prefs).available) try {
+            val s = FlacieWebClient(prefs).djSettings()
+            kotlinx.coroutines.withContext(Dispatchers.Main) { app.player.djSettingsFetched(s) }
+        } catch (_: Exception) { }
     }
 
     // ---- the NAS copy of the profile ------------------------------------------------------------------------------

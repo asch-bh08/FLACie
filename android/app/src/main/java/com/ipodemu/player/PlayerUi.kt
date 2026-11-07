@@ -123,6 +123,8 @@ sealed interface Screen {
     data class Made(val id: String, val name: String) : Screen
     /** A song from the online catalog, before it is downloaded (owner, 6 Nov): its big cover, full title, artist, album, year and length, and its other versions. */
     data class CatalogSong(val song: com.ipodemu.library.WebCatalog.Song, val versions: List<com.ipodemu.library.WebCatalog.Song>) : Screen
+    /** An album the library lacks, from the catalogue: its page, downloaded only from its button (owner, 6 Nov: a tap downloaded it). */
+    data class CatalogAlbum(val album: com.ipodemu.library.WebCatalog.Album) : Screen
     data object Search : Screen
     data object Queue : Screen
     data object Settings : Screen
@@ -340,6 +342,7 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         is Screen.Detail -> DetailScreen(screen, nav, snap)
         is Screen.Made -> MadeScreen(screen, nav, snap)
         is Screen.CatalogSong -> CatalogSongScreen(screen, nav, snap)
+        is Screen.CatalogAlbum -> CatalogAlbumScreen(screen, nav, snap)
         Screen.Search -> SearchScreen(nav, snap)
         Screen.Queue -> QueueScreen(nav, snap)
         Screen.Settings -> SettingsScreen(nav)
@@ -1327,6 +1330,57 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
     }
 }
 
+@Composable
+private fun CatalogAlbumScreen(d: Screen.CatalogAlbum, nav: PlayerNav, snap: PlayerSnap) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val a = d.album
+    val libRev = rememberLibRev(app.library)
+    val status = remember(libRev) { app.library.downloads[app.library.albumKey(a)] }
+    var tracks by remember(a.id) { mutableStateOf<List<WebCatalog.Song>?>(null) }
+    var year by remember(a.id) { mutableStateOf(a.year) }
+    LaunchedEffect(a.id) {
+        tracks = withContext(Dispatchers.IO) { try { WebCatalog.tracks(a) } catch (_: Exception) { emptyList() } }
+        // the catalogue leaves some albums' year out: its first song's year then
+        if (year.isBlank()) tracks?.firstOrNull()?.let { s -> year = withContext(Dispatchers.IO) { try { s.year.ifBlank { WebCatalog.yearOf(s) } } catch (_: Exception) { "" } } }
+    }
+    Column(Modifier.fillMaxSize()) {
+        TopBar("", nav, showBack = true)
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+            item(key = "head") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    RemoteArtImage(a.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = 340.dp).aspectRatio(1f), corner = 18.dp)
+                    Txt(a.cleanTitle, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    Txt(a.artist, size = 16f, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    val n = tracks?.size?.takeIf { it > 0 } ?: a.trackCount
+                    Txt(listOfNotNull(a.kind, year.ifBlank { null }, if (n > 0) "$n song${if (n == 1) "" else "s"}" else null).joinToString(" · "), size = 14f, color = sc.onBgDim)
+                    val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
+                    Box(Modifier.padding(top = 8.dp)) {
+                        if (busy) Txt(status!!.message, size = 14f, color = sc.onBgDim)
+                        else GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download ${a.kind.lowercase()}", {
+                            app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…")
+                        }, icon = Glyph.DOWN, height = 40.dp)
+                    }
+                }
+            }
+            val list = tracks
+            if (list == null) item { Txt("Loading the songs...", Modifier.padding(24.dp), size = 14f, color = sc.onBgDim) }
+            else {
+                item { SectionHeader("Songs") }
+                items(list, key = { "t" + it.trackNo + it.discNo + it.title }) { s ->
+                    // each song opens its own page (with its own Download), never downloads from a tap
+                    IpodRow({ nav.push(Screen.CatalogSong(s, emptyList())) }) {
+                        Column(Modifier.padding(horizontal = 16.dp)) {
+                            Txt(s.title, size = 15f, color = sc.onBg, maxLines = 1)
+                            if (s.durationMs > 0) Txt("%d:%02d".format(s.durationMs / 60000, s.durationMs / 1000 % 60), size = 12f, color = sc.onBgDim)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 /** A ready-made playlist (owner, 2 Nov): its songs as this phone has them, Play, Shuffle and "Add to my playlists". */
 @Composable
 private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
@@ -1709,8 +1763,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                             items(w.albums, key = { it.id }) { a ->
                                 val owned = ownedAlbums[ownedAlbumKey(a.artist, a.cleanTitle)]
                                 AlbumCard(a, owned != null, dl[app.library.albumKey(a)],
-                                    onOpen = { owned?.let { nav.push(Screen.Detail(DetailKind.ALBUM, it.tracks.first().albumKey)) } },
-                                    onDownload = { app.library.requestAlbum(a) })
+                                    onOpen = { searchFocus.clearFocus(); owned?.let { nav.push(Screen.Detail(DetailKind.ALBUM, it.tracks.first().albumKey)) } ?: nav.push(Screen.CatalogAlbum(a)) },
+                                    onDownload = { app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…") })
                             }
                         }
                     }
@@ -1931,13 +1985,14 @@ private fun AlbumCard(a: WebCatalog.Album, owned: Boolean, status: DownloadStatu
     val sc = LocalScheme.current
     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
     val failed = status?.stage == DownloadStage.FAILED
-    val act = { if (owned) onOpen() else if (!busy) onDownload() }
-    Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = act)
+    // a tap opens the album (its page when the library lacks it); only the badge on the cover downloads (owner, 6 Nov: a tap downloaded it)
+    Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onOpen)
         .semantics { contentDescription = "${a.cleanTitle}, ${a.kind} by ${a.artist}. " + if (owned) "In your library" else if (busy) status!!.message else "Download" }) {
         Box {
             RemoteArtImage(a.artUrl, Modifier.size(132.dp), corner = 10.dp)
             Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).height(32.dp).widthIn(min = 32.dp).clip(RoundedCornerShape(50))
-                .background(if (owned || busy) Color(0xCC000000) else sc.accent).padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
+                .background(if (owned || busy) Color(0xCC000000) else sc.accent).clickable(onClick = { if (owned) onOpen() else if (!busy) onDownload() })
+                .semantics { contentDescription = if (owned) "Open ${a.cleanTitle}" else "Download ${a.cleanTitle}" }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                 when {
                     owned -> Txt("Open", size = 12f, weight = FontWeight.Medium, color = Color.White)
                     busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 12f, weight = FontWeight.Medium, color = Color.White)

@@ -20,7 +20,7 @@ In priority order:
    - Not everything square: circles for artists and round buttons, squares where they fit (album covers).
    - **Fluid, smooth animations.** More than fades: shared-element style moves, springy sheets, smooth list changes. Keep the performance rules in §3.
    - The sidebar, Settings, the Home page's menus and style (the content is fine), and **the pages that never got attention**: go through all of them.
-7. **Release a beta** (Android APK + Windows MSI + web deploy) **only when every check below passes on the final build.** If any fail and you can't fix them, **don't release**: write in the log what failed, and leave b121 as the current beta. A broken beta is worse than none.
+7. **Release beta b122 in the morning, whatever happens: it must work.** The owner wants a beta either way. Commit each item separately, so it can be left out. Before releasing, run every check below on the final build. **If an item makes a check fail and you can't fix it in time, revert that item's commits (`git revert`) and release the rest.** Write in the release notes and the log what was left out and why. Never release a build that fails a check. At the very least, b122 carries the fixes already committed since b121 (AccountSync keeps repeated songs) plus whatever item passes.
    - Server tests (1,945; a single known flake may pass on a rerun).
    - The web tests for every page you changed, plus `1i-download-tags`, `1r-search-artist`, `1z-settings-sound` and `1q-dj`.
    - Android unit tests.

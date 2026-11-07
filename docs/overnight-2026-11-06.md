@@ -29,3 +29,10 @@ The owner asked for all of FLACie to be tested as if nothing were fixed: phone, 
 - Released: **b119** and **b120** (b120 is the one to install). Server deployed with b120.
 - New tests to run on any change to playback: `playlists-android.mjs` (phone + stand-in car, debug APK + androidTest APK), `search-android.mjs`, `dj-android.mjs`, plus the old `smoke-android.mjs`. All via run-android.ps1 under heavy.ps1, emulator only.
 - Not covered tonight: Jam / Connect, offline downloads on the phone, Alexa, the Windows app at run time (it builds), a real car (the stand-in uses the same Media3 browser path; Android Auto's own screens are not exercised).
+
+## 7 Nov evening: b121
+
+- "80s - 90s rally" kept 4 songs under "Not in your library" after they were downloaded: the library has them as "Bailando", "My Heart Beats Like A Drum (Dam Dam Dam)", "Scatman" and "Lover On The Line" tagged "90's Eurodance". Matching (server Library.FindLoose / phone Library.findLoose, WebCatalog.baseTitle) now strips a dash note before a bracket, treats Video/Single/Short Edit and Version as the same song, and accepts a file in the artist's own folder. All 99 import items match the real library. The import sweep had been re-fetching three of them every 6 hours.
+- DJ silent on a playlist's first song and a swoosh with no voice after a skip: Kokoro takes 1.5-4.5 s per clip and the phone and web dropped lines at 1.5 s / 4 s. Now up to 10 s, never dropped after the swoosh, and never switched to a phone voice that isn't awake. dj-android.mjs makes clips in 4.5 s and fails on a dropped line (b120 fails, b121 passes).
+- New swoosh (the old one dropped to nothing half-way and jumped back: a click). A song in your own playlist is never "new to you".
+- Gate: unit tests, server 1937, web DJ specs 38, emulator smoke 23/23, playlists 23/23 + car 9/9, search 9/9, DJ slow-voice 3/3. Released v1.0.0-b121; server deployed (rollback flacie-web:rollback-b120).

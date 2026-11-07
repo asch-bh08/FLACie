@@ -16,8 +16,8 @@
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>1.0.118</Version>
-    <InformationalVersion>1.0 b118</InformationalVersion>
+    <Version>1.0.119</Version>
+    <InformationalVersion>1.0 b119</InformationalVersion>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 

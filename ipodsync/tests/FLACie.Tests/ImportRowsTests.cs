@@ -75,9 +75,29 @@ public class ImportHealTests
             new() { Artist = "C", Title = "Three", State = "done" }, new() { Artist = "D", Title = "Four", State = "done" },
             new() { Artist = "E", Title = "Five", State = "failed" }] };
 
-        Assert.Equal(2, ImportManager.Heal(s, list));
+        Assert.Equal(3, ImportManager.Heal(s, list));   // Two and Three in, Four after them
         Assert.Equal(["One", "Two", "Three", "Four"], s.Playlists.Single().Entries.Select(e => e.Title));
         Assert.Equal(0, ImportManager.Heal(s, list));   // nothing twice
+    }
+
+    // owner, 7 Nov: "make it exact like the spotify or any imports": "80s - 90s rally" has Holding Out for a Hero twice (98 of 99), and the songs
+    // downloaded during the import had been added at the end instead of in their place
+    [Fact]
+    public void An_imported_playlist_has_the_sources_order_and_its_repeats_and_keeps_the_persons_own_songs_last()
+    {
+        var s = new UserSession("local", null, null);
+        s.AddDownloaded([T("A", "One"), T("B", "Two"), T("C", "Three"), T("M", "Mine")]);
+        var pl = s.CreatePlaylist("Rally");
+        // as an import leaves it: what the library had first, the downloads after, a song repeated in the source only once; then one the person added
+        foreach (var (t, a) in new[] { ("Two", "B"), ("One", "A"), ("Three", "C"), ("Mine", "M") }) s.AddToPlaylist(pl.Id, s.Library.Find(t, a)!);
+        var list = new ImportList { Name = "Rally", PlaylistId = pl.Id, Items = [
+            new() { Artist = "A", Title = "One", State = "done" }, new() { Artist = "B", Title = "Two - Radio Edit", State = "owned" },
+            new() { Artist = "A", Title = "One", State = "done" }, new() { Artist = "C", Title = "Three", State = "done" },
+            new() { Artist = "E", Title = "Not Found", State = "failed" }] };
+
+        Assert.NotEqual(0, ImportManager.Heal(s, list));
+        Assert.Equal(["One", "Two", "One", "Three", "Mine"], s.Playlists.Single().Entries.Select(e => e.Title));
+        Assert.Equal(0, ImportManager.Heal(s, list));
     }
 
     [Fact]

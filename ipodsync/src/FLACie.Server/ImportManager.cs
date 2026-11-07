@@ -63,28 +63,36 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
     }
 
     /// <summary>
-    /// Songs of an import that are in the library but no longer in its playlist go back in, in the import's order (owner, 6 Nov: 25 of 99 dropped out of
-    /// "80s - 90s rally" when their files were swapped for Hi-Res copies). A playlist the person deleted is left deleted. Returns how many went back.
+    /// An imported playlist made exactly like its source: the source's songs in its order, a song it lists twice twice (owner, 7 Nov: "make it exact like
+    /// the spotify or any imports"), each one the playlist already had kept as it is, one the library has but the playlist lost put back (owner, 6 Nov: 25 of
+    /// 99 dropped out of "80s - 90s rally" after their Hi-Res swap). Songs the person added themselves stay, after the source's. A song not in the library
+    /// yet waits for its download. A playlist the person deleted is left deleted. Returns how many places changed (0: it was already exact).
     /// </summary>
     public static int Heal(UserSession s, ImportList list)
     {
         if (list.PlaylistId is not { } id || s.Playlists.FirstOrDefault(p => p.Id == id) is not { } pl) return 0;
-        var have = pl.Entries.Select(e => Matching.MatchKey(e.Title, e.Artist)).ToHashSet();
-        var healed = 0; var at = 0;
+        var left = pl.Entries.ToList();
+        var exact = new List<PlaylistEntry>();
         foreach (var item in list.Items)
         {
-            if (item.State is not ("owned" or "done")) continue;
-            var t = Have(s, item);
-            if (t is null) continue;
-            var key = Matching.MatchKey(t);
-            if (!have.Contains(key) && !have.Contains(Matching.MatchKey(item.Title, item.Artist)))
-            {
-                s.InsertIntoPlaylist(id, at, new PlaylistEntry(t.Path, t.Title, t.Artist));
-                have.Add(key); healed++;
-            }
-            at++;
+            var t = item.State is "owned" or "done" ? Have(s, item) : null;
+            var i = left.FindIndex(e => Same(s, e, item, t));
+            if (i >= 0) { exact.Add(left[i]); left.RemoveAt(i); }
+            else if (t is not null) exact.Add(new PlaylistEntry(t.Path, t.Title, t.Artist));
         }
-        return healed;
+        exact.AddRange(left);
+        var changed = Math.Max(0, pl.Entries.Count - exact.Count) + exact.Where((e, i) => i >= pl.Entries.Count || pl.Entries[i] != e).Count();
+        if (changed > 0) s.SetPlaylistEntries(id, exact);
+        return changed;
+    }
+
+    /// <summary>A playlist entry is this import song: the same file as its library copy, the same title and artist, or a copy of it by the import's loose match.</summary>
+    static bool Same(UserSession s, PlaylistEntry e, ImportItem item, Track? copy)
+    {
+        var key = Matching.MatchKey(e.Title, e.Artist);
+        if (copy is not null && (e.Path == copy.Path || key == Matching.MatchKey(copy))) return true;
+        if (key == Matching.MatchKey(item.Title, item.Artist)) return true;
+        return s.ResolveEntry(e) is { } r && (r.Path == copy?.Path || Matching.SameSongLoosely(item.Title, item.Artist, r));
     }
 
     /// <summary>After sign-in: every finished import's playlist is checked once (see <see cref="Heal(UserSession, ImportList)"/>) and saved when one changed.</summary>
@@ -93,10 +101,10 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
         for (var i = 0; i < 360 && (s.Loading || s.LoadedAt == default); i++) await Task.Delay(500);
         if (s.Library.Songs.Count == 0) return;
         var healed = 0; var checkedAny = false;
-        foreach (var job in states.For(s).Imports.Where(j => j.State == "done" && !j.Healed).ToList())
+        foreach (var job in states.For(s).Imports.Where(j => j.State == "done" && !(j.Healed && j.Mirrored)).ToList())
         {
             foreach (var l in job.Lists) healed += Heal(s, l);
-            job.Healed = true; checkedAny = true;
+            job.Healed = true; job.Mirrored = true; checkedAny = true;
         }
         if (checkedAny) states.Save(s);
         if (healed == 0) return;
@@ -172,6 +180,8 @@ public sealed class ImportManager(DownloadManager downloads, UserStateStore stat
             await FlushAsync(s, job);
         }
         if (ct.IsCancellationRequested) return;
+        // the first time it finishes, the playlist takes the source's order and repeats (the downloads were added as they came in, at the end)
+        if (!job.Mirrored) { foreach (var list in job.Lists) Heal(s, list); job.Mirrored = true; job.Healed = true; }
         await FlushAsync(s, job);
         job.State = "done";
         job.Note = job.Failed == 0 ? null : $"{job.Failed} song{(job.Failed == 1 ? "" : "s")} couldn't be found";

@@ -633,6 +633,19 @@ public sealed class UserSession
     }
 
 
+    /// <summary>The playlist's entries exactly as given: their order, and a song listed twice stays twice (an import mirroring its source).</summary>
+    public void SetPlaylistEntries(string id, IEnumerable<PlaylistEntry> entries)
+    {
+        lock (listLock)
+        {
+            if (FindPlaylist(id) is not { } o) return;
+            var arr = new JsonArray();
+            foreach (var e in entries) arr.Add(new JsonObject { ["p"] = e.Path, ["t"] = e.Title, ["a"] = e.Artist });
+            o["tracks"] = arr; o["m"] = Now();
+        }
+        Changed?.Invoke();
+    }
+
     /// <summary>Renames a playlist.</summary>
     public void RenamePlaylist(string id, string name)
     {

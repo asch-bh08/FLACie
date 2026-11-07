@@ -463,7 +463,8 @@ class AccountSync(private val app: App) {
         val snapshot = synchronized(ud) { ud.playlists.map { Triple(it, it.name, it.paths.toList()) } }
         var mirrored = 0
         for ((pl, name, paths) in snapshot) {
-            val ids = paths.mapNotNull { jellyfinIdFor(it) }.distinct()
+            // a song the playlist lists twice is in the Jellyfin copy twice: an imported playlist is exactly its source (owner, 7 Nov)
+            val ids = paths.mapNotNull { jellyfinIdFor(it) }
             try {
                 var jf = pl.jfId
                 if (jf != null) {

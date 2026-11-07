@@ -36,6 +36,9 @@ public sealed class ImportJob
     public bool Consolidated { get; set; }
     /// <summary>Its playlist was checked once for songs that dropped out (ImportManager.HealAsync): a song taken out by hand afterwards stays out.</summary>
     public bool Healed { get; set; }
+    /// <summary>Its playlist was made exactly like the source once (ImportManager.Heal: its order and its repeats; owner, 7 Nov), when the import first
+    /// finished or, for an older import, at the next sign-in. Once only: a song taken out or moved by hand afterwards stays as the person left it.</summary>
+    public bool Mirrored { get; set; }
     public DateTime Created { get; set; } = DateTime.UtcNow;
     /// <summary>running, waiting (for disk space), done, cancelled</summary>
     public string State { get; set; } = "running";

@@ -103,3 +103,32 @@ Done tonight (before the stop):
 ## 5. Log as you go
 
 Add a line per step to the Progress log in `docs/overnight-2026-11-07.md`, and commit and push after each item. When near the limit, update this file's §1 with what's done and what's next, so the next session can carry on.
+
+## 6. Traps learned the hard way (read before touching code)
+
+**Editing:**
+- **Python heredocs break `\n` and `\`** in Kotlin and C#: they come out as real newlines or single slashes. Use the Edit tool for any text with escapes. Check `git diff` after any scripted edit.
+- **Razor:** never `@{ … }` inside an `@if`/`@foreach` block (write `var x = …;` directly). Local names clash across the whole file (`listCount` and `p` already exist in some): pick unusual names. Put complex lambdas in a method or property, not inside an attribute.
+
+**Testing:**
+- **Web tests reuse running servers**, which keep their state, so a second run fails for no real reason. Use fresh ports (`MOCK_PORT=8396 WEB_PORT=5490 FM_PORT=8397`).
+- **A fake that answers instantly hides timing bugs.** The DJ's real voice takes 1.5–4.5 s. `dj-android.mjs` already waits 4.5 s; do the same for anything timed.
+- **Read the real data before guessing.** The phone's own log reaches frank: `/home/hms/docker/flacie-web/data/diag/<user>.jsonl`. It has "line dropped", "started (skip)", queue events and so on, and it found tonight's DJ bugs in minutes. Server logs: `docker logs --since 1h flacie-web`.
+- **Prove safety on real data, read-only.** Copy the library (`data/library/<user>.v2.json`), the profile (from the jellyfin.db copy) and the import lists to the scratchpad. Run the real code in a temporary xunit test (`TmpProbeTests.cs`, deleted afterwards). Tonight this proved 787 playlist entries stayed identical before the artist approval.
+
+**Playback (Android):**
+- **`onMediaItemTransition` fires inside `setMediaItems`**, before the shuffle order and the queue are set. Anything it triggers must be `handler.post`ed (that was the "playlist plays recommendations" bug).
+- **Queue generations** (`queueGen`, Autoplay `refill(seed, gen)`) stop old Autoplay results joining a new queue. Keep them if you touch play()/playFrom().
+- **The release APK is minified**, so the stand-in car test (`CarPlaylistTest`, androidTest) needs the **debug** APK plus its test APK.
+- **One heavy job at a time**: Gradle, the emulator, the web tests and `dotnet test` each load the PC. Run them one after another (`heavy.ps1` helps).
+
+**Server (frank):**
+- **`jellyfin.db` copies need the `-wal` file too**, or you read stale data. Jellyfin also has **old duplicate items** under lower-case `/media/movies/…` and `Music-pre2015`. FLACie's library doesn't include them; don't "fix" them.
+- **A Jellyfin song's artist on the phone and server** is the **first** of `Artists` (else AlbumArtist). Playlists, favourites, ratings and plays are keyed by item path or ID, not by name, so renaming artists is safe.
+- **Two things send phone notices.** FLACie's Notifier (web and phone plays, downloads, imports) and a separate service `/opt/ntfy-digest/digest.py`, which watches Jellyfin's own apps (systemd `ntfy-digest`, self-test `python3 digest.py --selftest`).
+- **`docker build` sometimes fails at apt-get** (a Debian mirror blip): just retry. A failed build leaves the running server untouched.
+
+**Process:**
+- **Release notes** go in `docs/private/release-bodies/`, which is gitignored on purpose (don't add it).
+- **`NoRealServerInTestsTests` fails the build** if a test file names frank, its Tailscale name or the owner's IPs. Every driver must call `requireMock`.
+- **The owner checks results on their Galaxy Z Fold7** and the web (Brave on Windows). Phone layouts must work folded and unfolded.

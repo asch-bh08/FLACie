@@ -51,7 +51,12 @@ test('"prodigy" puts The Prodigy on top with their top 5 songs beside it, then t
   await expect(page.getByRole('region', { name: 'Other artists' }).getByRole('link', { name: 'Prodigy', exact: true })).toBeVisible();
   // the rows come in this order
   const order = await page.locator('section.sr-section').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
-  expect(order).toEqual(['Top result', 'Playlists', 'Popular', 'Albums', 'Singles & EPs', 'Other artists']);   // the playlists straight under the Top result (Local, 5 Nov)
+  // under the Top result, the albums and the playlists side by side, half each (owner, 7 Nov: "fit albums here 50/50 with playlists")
+  expect(order).toEqual(['Top result', 'Albums', 'Playlists', 'Popular', 'Singles & EPs', 'Other artists']);
+  const al = (await page.getByRole('region', { name: 'Albums' }).boundingBox())!, pl = (await page.getByRole('region', { name: 'Playlists' }).boundingBox())!;
+  expect(Math.abs(al.y - pl.y)).toBeLessThan(4);
+  expect(pl.x).toBeGreaterThan(al.x + al.width - 1);
+  expect(Math.abs(al.width - pl.width)).toBeLessThan(40);
   expect(await noSideScroll(page)).toBe(true);
   await page.screenshot({ path: 'test-results/shots/search-prodigy-pc.png', fullPage: true });
 });

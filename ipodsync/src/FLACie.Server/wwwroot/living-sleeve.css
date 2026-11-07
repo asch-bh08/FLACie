@@ -453,6 +453,14 @@
 
 /* F26.1: an artist search's playlists, up to 15: two rows of cards on a wide screen */
 @media (min-width: 900px) { .sr-lists { grid-template-rows: repeat(2, auto); grid-auto-flow: column; row-gap: 22px; } }
+/* an artist search's albums and playlists side by side, half the width each (owner, 7 Nov); each half two rows of smaller cards when it has more than
+   four, scrolling sideways past that; one above the other on a narrower screen */
+@media (min-width: 900px) {
+  .sr-pair.both { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .sr-pair.both > .sr-section { min-width: 0; }
+  .sr-pair.both .row-scroll { grid-template-rows: auto; grid-auto-columns: minmax(132px, 150px); gap: 16px; }
+  .sr-pair.both .row-scroll.two-rows { grid-template-rows: repeat(2, auto); grid-auto-flow: column; row-gap: 20px; }
+}
 
 /* F26.5: the DJ bar just above the player bar: the DJ's state or words on one side, the downloads line beside it; gone when there is neither */
 .dj-bar { position: fixed; z-index: 31; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabs, 0px) + 12px + env(safe-area-inset-bottom, 0px));

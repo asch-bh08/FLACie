@@ -113,21 +113,41 @@
             <TrackList Tracks="artistPage.Top.ToList()" PlayContext="@ta.Name" Single="true" ThumbSize="40" />
         </div>
     </section>
-    @* the playlists straight under the Top result, before the albums (owner, 5 Nov: they were too far down) *@
-    @if (Made.Count + plays.Count > 0)
+    @* the albums and the playlists straight under the Top result, side by side, half each on a wide screen (owner, 7 Nov: "fit albums here 50/50 with
+       playlists"; 5 Nov: the playlists were too far down); one above the other on a phone *@
+    var pairLists = Made.Count + plays.Count;
+    @if (artistPage.Albums.Count + pairLists > 0)
     {
-        <section aria-label="Playlists" class="sr-section">
-            <h2 class="section"><i>Playlists</i></h2>
-            @* F26.1: up to 15 real lists: two rows of cards on a wide screen, one row to scroll on a phone *@
-            <div class="row-scroll sr-lists">
-                @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
-                @foreach (var p in plays)
-                {
-                    var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
-                }
-            </div>
-        </section>
+        <div class="sr-pair @(artistPage.Albums.Count > 0 && pairLists > 0 ? "both" : "")">
+            @if (artistPage.Albums.Count > 0)
+            {
+                <section aria-label="Albums" class="sr-section">
+                    <h2 class="section"><i>Albums</i></h2>
+                    <div class="row-scroll sr-albums @(artistPage.Albums.Count > 4 ? "two-rows" : "")">
+                        @foreach (var g in artistPage.Albums)
+                        {
+                            var gy = g.Tracks.Max(t => t.Year);
+                            <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@(gy > 0 ? gy.ToString() : "")@(gy > 0 ? " · " : "")Album</span></a>
+                        }
+                    </div>
+                </section>
+            }
+            @if (pairLists > 0)
+            {
+                <section aria-label="Playlists" class="sr-section">
+                    <h2 class="section"><i>Playlists</i></h2>
+                    @* F26.1: up to 15 real lists: two rows of cards on a wide screen, one row to scroll on a phone *@
+                    <div class="row-scroll sr-lists @(pairLists > 4 ? "two-rows" : "")">
+                        @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+                        @foreach (var p in plays)
+                        {
+                            var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
     }
     <ListsWithArtist Artist="@ta.Name" />
     @if (artistPage.Popular.Count > 0)
@@ -143,7 +163,7 @@
             </div>
         </section>
     }
-    @foreach (var (label, rows) in new[] { ("Albums", artistPage.Albums), ("Singles & EPs", artistPage.Singles) })
+    @foreach (var (label, rows) in new[] { ("Singles & EPs", artistPage.Singles) })
     {
         if (rows.Count == 0) continue;
         <section aria-label="@label" class="sr-section">

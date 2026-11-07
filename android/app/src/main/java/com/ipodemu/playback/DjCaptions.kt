@@ -1,7 +1,6 @@
 package com.ipodemu.playback
 
 import kotlin.math.abs
-import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -67,23 +66,31 @@ object DjCaptions {
         return -1
     }
 
-    /** The cue before the voice: a quarter-second swoosh of soft band-limited noise, made here (no recording, nothing to license), as 16-bit mono PCM. */
+    /**
+     * The cue before the voice: a soft rising whoosh, made here (no recording, nothing to license), as 16-bit mono PCM. Noise through a band-pass whose
+     * centre sweeps up from about 300 Hz to 3 kHz, swelling smoothly to its top at 60% and fading out to silence (the old one fell to nothing half-way and
+     * jumped back to full: a click; owner, 7 Nov: "it sounds bad"). Scaled so its loudest sample is [peak].
+     */
     fun swoosh(sampleRate: Int = 44_100, seed: Long = 7L, peak: Float = 0.18f): ShortArray {
-        val n = (sampleRate * 0.24).toInt()
+        val n = (sampleRate * 0.42).toInt()
         val rnd = java.util.Random(seed)
-        val out = ShortArray(n)
-        var lp = 0.0; var lp2 = 0.0
+        val raw = DoubleArray(n)
+        // a state-variable band-pass (Chamberlin), a gentle Q so it sounds like air, not a whistle
+        var low = 0.0; var band = 0.0
+        val damp = 1.0 / 1.6
         for (i in 0 until n) {
             val x = i.toDouble() / n
-            // a cutoff that rises through the swoosh (two one-pole stages: low rumble out, hiss softened)
-            val k = 0.05 + 0.45 * x
-            lp += k * (rnd.nextDouble() * 2 - 1 - lp)
-            lp2 += 0.02 * (lp - lp2)
-            val band = lp - lp2
-            val env = sin(Math.PI * min(1.0, x / 0.4)).let { if (x < 0.4) it else exp(-(x - 0.4) * 9) }
-            out[i] = (band * env * peak * 3 * Short.MAX_VALUE).coerceIn(-32767.0, 32767.0).toInt().toShort()
+            val hz = 300.0 * Math.pow(10.0, x)   // 300 Hz -> 3 kHz, evenly in pitch
+            val f = 2 * sin(Math.PI * hz / sampleRate)
+            val high = (rnd.nextDouble() * 2 - 1) - low - damp * band
+            band += f * high
+            low += f * band
+            // a raised-cosine swell to 60%, then a raised-cosine fade to exactly nothing
+            val env = if (x < 0.6) 0.5 - 0.5 * kotlin.math.cos(Math.PI * x / 0.6) else 0.5 + 0.5 * kotlin.math.cos(Math.PI * (x - 0.6) / 0.4)
+            raw[i] = band * env * env
         }
-        return out
+        val top = raw.maxOf { abs(it) }.takeIf { it > 0 } ?: 1.0
+        return ShortArray(n) { (raw[it] / top * peak * Short.MAX_VALUE).toInt().coerceIn(-32767, 32767).toShort() }
     }
 
     /** Equaliser levels (millibels, per band) that lift a voice over the music: the lowest band cut (below about 150 Hz), the band nearest 3 kHz lifted.

@@ -101,7 +101,15 @@ public static partial class DjWriter
             : picked && (req.SkippedRecently || !req.PrevPlayedOut) ? "the listener has just skipped a song" : "settled in, letting songs play";
         var why = string.Join("; ", DjWhy.Parts(req.Why));
         // loved or new: only what the account's listening says (DjRequest.Bond), never guessed from the recommender's words
-        var find = req.Bond switch { DjBond.NewFind => "a new find for the listener, never played before", DjBond.Loved => "a song the listener loves and plays a lot", _ => "" };
+        // a song in the listener's own playlist was put there by the listener, so it is never a new find, whatever the play count says (owner, 7 Nov:
+        // "it said a big one you haven't heard before but it's from playlist")
+        var find = req.Bond switch
+        {
+            DjBond.NewFind when !picked && req.PlaylistId is { Length: > 0 } => "",
+            DjBond.NewFind => "a new find for the listener, never played before",
+            DjBond.Loved => "a song the listener loves and plays a lot",
+            _ => "",
+        };
         var open = line.Slot == DjSlot.Open || (req.Prev is null && !req.QueueStart);
         // a queue that has just started from a playlist or album: the writer is told its name, and whether it is on shuffle
         var queue = req.QueueStart && DjText.Tidy(req.QueueName) is { Length: > 0 } qn && DjText.WordCount(qn) <= 8 && qn.Length <= 50 ? qn : "";
@@ -193,6 +201,13 @@ public static partial class DjWriter
         "i picked", "i've picked", "i chose", "i've chosen", "i swapped", "i've swapped", "i changed", "i've changed", "swapped", "swapping", "up next",
     ];
 
+    /// <summary>What the DJ never says about a song in the listener's own playlist: they put it there.</summary>
+    static readonly string[] NewToThem =
+    [
+        "haven't heard", "have not heard", "never heard", "not heard", "new to you", "new find", "fresh find", "first listen", "first time", "never played", "haven't played",
+        "discover", "discovery",
+    ];
+
     static string Bare(string w) => new string(w.Trim().Where(c => char.IsLetterOrDigit(c) || c is '\'' or '’' or '-' or '$' or '.').ToArray()).Trim('.', '\'', '’', '-');
 
     /// <summary>
@@ -231,6 +246,8 @@ public static partial class DjWriter
         {
             var names = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist }).ToLowerInvariant();
             if (OwnNever.Any(c => Word(low, c) && !Word(names, c))) return null;
+            // and a song from their own playlist is never new to them (owner, 7 Nov)
+            if (f.Source.Contains("playlist", StringComparison.Ordinal) && f.Find.Length == 0 && NewToThem.Any(c => Word(low, c) && !Word(names, c))) return null;
         }
         var own = string.Join(" \n ", new[] { f.Title, f.Artist, f.Album, f.PrevTitle, f.PrevArtist, f.QueueName }).ToLowerInvariant();
         // the listener is "you", never "they" (owner, 5 Nov: "next is Without Me from their playlist... like what?"); and mid-queue the playlist is not

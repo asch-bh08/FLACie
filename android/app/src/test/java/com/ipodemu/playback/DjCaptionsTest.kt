@@ -24,11 +24,25 @@ class DjCaptionsTest {
         assertEquals(text, p.joinToString(" ") { it.text })
     }
 
-    @Test fun `the cue sound is under 300 ms and never clips`() {
+    @Test fun `the cue sound is short and never clips`() {
         val pcm = DjCaptions.swoosh(44_100)
-        assertTrue(pcm.size * 1000 / 44_100 < 300)
+        assertTrue(pcm.size * 1000 / 44_100 in 300..500)
         assertTrue(pcm.any { it.toInt() != 0 })
         assertTrue(pcm.all { it.toInt() in -32767..32767 })
+    }
+
+    // "it sounds bad" (owner, 7 Nov): its loudness fell to nothing half-way and jumped back to full, a click in the middle
+    @Test fun `the cue sound swells once and fades out smoothly, with no click`() {
+        val pcm = DjCaptions.swoosh(44_100)
+        val win = 441   // 10 ms
+        val rms = (0 until pcm.size / win).map { w -> kotlin.math.sqrt((w * win until (w + 1) * win).sumOf { pcm[it].toDouble() * pcm[it] } / win) }
+        val top = rms.indices.maxBy { rms[it] }
+        // one swell: louder (give or take noise) up to the top, quieter after it
+        for (i in 1..top) if (rms[i - 1] > rms[top] * 0.05) assertTrue("no dip on the way up at ${i * 10} ms", rms[i] > rms[i - 1] * 0.6)
+        for (i in top + 1 until rms.size) assertTrue("no jump on the way down at ${i * 10} ms", rms[i] < rms[i - 1] * 1.4)
+        assertTrue(rms.first() < rms[top] * 0.2 && rms.last() < rms[top] * 0.1)
+        // it starts and ends at silence: no click at either end
+        assertTrue(kotlin.math.abs(pcm.first().toInt()) < 200 && kotlin.math.abs(pcm.last().toInt()) < 200)
     }
 
     @Test fun `the voice equaliser cuts the rumble and lifts the band nearest 3 kHz`() {

@@ -40,6 +40,18 @@ public class DjRoundTwoTests : IDisposable
         Assert.Contains("skipped", picked.User);
         Assert.Contains("Never say or suggest you chose", pl.System);
     }
+
+    // owner, 7 Nov: "a big one you haven't heard before" about a song in their own playlist
+    [Fact]
+    public void A_line_calling_a_playlist_song_new_to_the_listener_is_refused()
+    {
+        var f = DjWriter.FactsOf(Req(bond: DjBond.NewFind) with { PlaylistId = "pl-1" }, Template, now);
+        Assert.Null(DjWriter.Check("A big one you haven't heard before, Smack That by Akon.", f, []));
+        Assert.NotNull(DjWriter.Check("A big one now, Smack That by Akon.", f, []));
+        // a song the DJ picked may be new to them
+        var picked = DjWriter.FactsOf(Req(bond: DjBond.NewFind, why: "because you play Akon"), Template, now);
+        Assert.NotNull(DjWriter.Check("One you haven't heard before, Smack That by Akon.", picked, []));
+    }
     static readonly Vibe Big = new(0.85, 0.9, 120, 0.8), Calm = new(0.3, 0.4, 80, 0.3);
 
     static HttpResponseMessage Model(string line, int pin = 500, int pout = 30) =>
@@ -127,6 +139,10 @@ public class DjRoundTwoTests : IDisposable
             Assert.True(user.Contains(fact, StringComparison.OrdinalIgnoreCase), fact + " in " + user);
         Assert.DoesNotContain("Label", user);   // not known: never mentioned
         Assert.Contains("a new find", DjWriter.Prompt(DjWriter.FactsOf(Req(bond: DjBond.NewFind), Template, now), []).User);
+        // a song in the listener's own playlist was put there by the listener: never "one you haven't heard before" (owner, 7 Nov, shuffling 80s - 90s rally)
+        var mine = DjWriter.Prompt(DjWriter.FactsOf(Req(bond: DjBond.NewFind) with { PlaylistId = "pl1" }, Template, now), []).User;
+        Assert.DoesNotContain("new find", mine); Assert.DoesNotContain("never played", mine);
+        Assert.Contains("loves", DjWriter.Prompt(DjWriter.FactsOf(Req(bond: DjBond.Loved) with { PlaylistId = "pl1" }, Template, now), []).User);
         // the model may use them; they are respelt and said in words
         Assert.Equal("First out in 2005 as a single: Smack That, Akon with Eminem.", DjWriter.Check("First out in 2005 as a single: Smack That, Akon with Eminem.", f, []));
         Assert.Contains("two thousand and five", DjWriter.Speak("First out in 2005 as a single: Smack That, Akon with Eminem.", f, DjPronounce.Default));

@@ -71,7 +71,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
     private var sayIntoSong = 0L
     private var sayPlan = DjTimingPlan.NOW
     /** The clip starts (at once, or later in the song): after the cue sound when that is on. */
-    private val startClip = Runnable { if (line != null) { if (cueOn && swoosh()) handler.postDelayed(playClip, DjCaptions.CUE_LEAD_MS.toLong()) else playClip.run() } }
+    private val startClip = Runnable { line?.let { it.begins(SystemClock.uptimeMillis()); watch() }; if (line != null) { if (cueOn && swoosh()) handler.postDelayed(playClip, DjCaptions.CUE_LEAD_MS.toLong()) else playClip.run() } }
     private val playClip = Runnable { if (line != null) player().playWhenReady = true }
     /** The person's "Cue sound" and "Captions", read for every line. */
     private var cueOn = true
@@ -83,7 +83,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
         val l = line ?: return@Runnable
         val now = SystemClock.uptimeMillis()
         if (now < l.stopAt) { watch(); return@Runnable }
-        when (l.late(now)) {
+        when (l.late(now, ttsReady)) {
             DjLine.Late.PHONE -> { quietClip(); speak(l); watch() }
             DjLine.Late.WAIT -> watch()
             DjLine.Late.GIVE_UP -> { Diag.add("dj", "line dropped: its voice was not ready in time (clip ${if (exo?.playbackState == Player.STATE_READY) "ready" else "not loaded"}, phone voice ${if (ttsReady) "ready" else "not ready"})"); stop() }

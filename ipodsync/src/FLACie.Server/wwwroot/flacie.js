@@ -138,18 +138,22 @@ window.flacie = (() => {
       a.dataset.chain = "1"; djNodes = { highpass: hp, presence: pres, compressor: comp, lift, limiter: lim };
     } catch { }
   };
-  // the cue before the voice: a quarter-second swoosh of soft filtered noise made here (no recording, nothing to license), well under the voice
+  // the cue before the voice: a soft rising whoosh of filtered noise made here (no recording, nothing to license), well under the voice. A band-pass
+  // sweeping 300 Hz -> 3 kHz with a raised-cosine swell to its top at 0.25 s and a fade to nothing, as DjCaptions.swoosh on the phone (owner, 7 Nov:
+  // "it sounds bad")
   const djSwoosh = () => {
     const ctx = djContext(); if (!ctx) return false;
     try {
-      const len = Math.round(ctx.sampleRate * 0.24), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      const dur = 0.42, len = Math.round(ctx.sampleRate * dur), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
       const n = ctx.createBufferSource(); n.buffer = buf;
-      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 1.2;
-      const g = ctx.createGain(), t = ctx.currentTime, peak = Math.max(0.0001, 0.18 * clipVol());
-      bp.frequency.setValueAtTime(700, t); bp.frequency.exponentialRampToValueAtTime(3200, t + 0.22);
-      g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + 0.09); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
-      n.connect(bp); bp.connect(g); g.connect(ctx.destination); n.start(t); n.stop(t + 0.25);
+      const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.Q.value = 0.8;
+      const g = ctx.createGain(), t = ctx.currentTime, peak = Math.max(0.0001, 0.3 * clipVol());
+      bp.frequency.setValueAtTime(300, t); bp.frequency.exponentialRampToValueAtTime(3000, t + dur);
+      const curve = new Float32Array(64);
+      for (let i = 0; i < 64; i++) { const x = i / 63, e = x < 0.6 ? 0.5 - 0.5 * Math.cos(Math.PI * x / 0.6) : 0.5 + 0.5 * Math.cos(Math.PI * (x - 0.6) / 0.4); curve[i] = peak * e * e; }
+      g.gain.setValueCurveAtTime(curve, t, dur);
+      n.connect(bp); bp.connect(g); g.connect(ctx.destination); n.start(t); n.stop(t + dur + 0.01);
       djSwooshes++;
       return true;
     } catch { return false; }
@@ -1468,7 +1472,7 @@ window.flacie = (() => {
       djAudio = a; a.volume = clipVol();
       djChain(a);
       const mine = () => tok === djTok;
-      let started = false, over = false, songAt = 0, dueAt = 0, holding = false, heldSrc = "";   // songAt / dueAt: when the song began to play / the clip was due (performance.now())
+      let started = false, over = false, songAt = 0, dueAt = 0, holding = false, heldSrc = "", cued = 0;   // songAt / dueAt: when the song began to play / the clip was due (performance.now())
       const letGo = () => {
         if (!holding) return;
         holding = false; if (djLetGo === letGo) djLetGo = null;
@@ -1482,7 +1486,7 @@ window.flacie = (() => {
         if (!mine() || over) return;
         if (started) { done(); return; }
         over = true; djAudio = null; letGo();
-        if (backup && text && (!dueAt || performance.now() - dueAt < 6000)) window.flacie.djSay(text);
+        if (backup && text && (!dueAt || performance.now() - dueAt < 10000)) window.flacie.djSay(text);
         else duckTo(1, 600);   // (nothing was ducked by this clip; this undoes one left over from a line it replaced)
       };
       // F17: the caption is shown from this moment, when the voice is really heard
@@ -1497,7 +1501,7 @@ window.flacie = (() => {
         const go = () => { if (mine() && !over) a.play().catch((e) => { if (e && e.name === "AbortError") return; failed(); }); };
         // the swoosh only once the clip can really play: on a slow connection it sounded and then no voice came (owner, 30 Oct). Not loaded within the
         // 1.5 s the line has, it is dropped with no swoosh at all (the watch below)
-        const cueThenGo = () => { if (!mine() || over) return; if (djCueOn && djSwoosh()) setTimeout(go, DJ_CUE_LEAD_MS); else go(); };
+        const cueThenGo = () => { if (!mine() || over) return; cued = performance.now(); if (djCueOn && djSwoosh()) setTimeout(go, DJ_CUE_LEAD_MS); else go(); };
         if (a.readyState >= 3) cueThenGo(); else a.addEventListener("canplay", cueThenGo, { once: true });
       };
       // counted from when the song is really playing (it may still be loading when this is called)
@@ -1508,13 +1512,16 @@ window.flacie = (() => {
           holding = true; heldSrc = audio.src; djLetGo = letGo; duckTo(0, 0);
           setTimeout(() => { if (mine()) letGo(); }, songDelay);
         }
-        // a clip still loading 1.5 s in (a weak signal) is read by the device's voice when Backup voice allows it, else waited for until 4 s in; the DJ
-        // used to go quiet instead (owner, 1 Nov: two lines in a whole session). As on Android (DjLine.late)
+        // a clip the server is still making (1.5-4.5 s after a skip) is waited for until 7 s in, then read by the device's voice when Backup voice allows
+        // it, else waited for until 10 s in; one whose swoosh has played gets 1.5 s more to sound. It was dropped at 1.5 s / 4 s, often just after its
+        // swoosh (owner, 7 Nov: "it made the noise but it didn't speak"). As on Android (DjLine.late)
+        const giveUp = () => { if (!mine() || over || started) return; if (cued && performance.now() - cued < 1500) setTimeout(giveUp, 1500 - (performance.now() - cued)); else djHalt(true); };
         const watch = () => setTimeout(() => {
           if (!mine() || over || started) return;
+          if (cued) { giveUp(); return; }
           if (backup && text) { try { a.pause(); } catch { } failed(); }
-          else setTimeout(() => { if (mine() && !over && !started) djHalt(true); }, 2500);
-        }, 1500);
+          else setTimeout(giveUp, 3000);
+        }, 7000);
         if (clipAt > 0) setTimeout(() => { startClip(); watch(); }, Math.max(0, (clipAt - audio.currentTime * 1000) / (audio.playbackRate || 1)));
         else { dueAt = songAt; watch(); }
       };

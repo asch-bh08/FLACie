@@ -214,24 +214,37 @@ class DjLine private constructor(val cue: DjCue, private val songAt: Long, phone
         return true
     }
 
+    /** When its clip was set going (the cue sound first), or -1. */
+    private var beginsAt = -1L
+
     enum class Late { PHONE, WAIT, GIVE_UP }
-    /** Its time ran out at [now]. Not heard yet: a slow clip (a weak signal) is read by the phone's voice when the cue allows it ([PHONE]), else waited for
-     *  until [SLOW_CLIP_MS] into the song ([WAIT]); a line already heard, or past that, stops ([GIVE_UP]). */
-    fun late(now: Long): Late = when {
-        heard || phoneVoice -> Late.GIVE_UP
-        clipFailed(now) -> Late.PHONE
-        now - songAt < SLOW_CLIP_MS -> { stopAt = songAt + SLOW_CLIP_MS; Late.WAIT }
-        else -> Late.GIVE_UP
+    /** Its time ran out at [now]. Not heard yet: a clip the server is still making (1.5-4.5 s after a skip) is waited for until [CLIP_WAIT_MS] into the
+     *  song; then the phone's voice reads it when the cue allows that and the voice is awake ([phoneReady]: [PHONE]), else the clip is waited for until
+     *  [SLOW_CLIP_MS] ([WAIT]). A clip set going (its swoosh has played) is given [START_WITHIN_MS] to sound. A line already heard, or past all that,
+     *  stops ([GIVE_UP]). */
+    fun late(now: Long, phoneReady: Boolean = true): Late {
+        if (heard || phoneVoice) return Late.GIVE_UP
+        if (beginsAt >= 0 && now < beginsAt + START_WITHIN_MS) { stopAt = beginsAt + START_WITHIN_MS; return Late.WAIT }
+        val into = now - songAt
+        if (into < CLIP_WAIT_MS) { stopAt = songAt + CLIP_WAIT_MS; return Late.WAIT }
+        if (phoneReady && clipFailed(now)) return Late.PHONE
+        if (into < SLOW_CLIP_MS) { stopAt = songAt + SLOW_CLIP_MS; return Late.WAIT }
+        return Late.GIVE_UP
     }
+
+    /** Its clip is set going at [at] (the cue sound, then the voice). */
+    fun begins(at: Long) { beginsAt = at; if (stopAt < at + START_WITHIN_MS) stopAt = at + START_WITHIN_MS }
 
     /** It is sounding from [now]. */
     fun heard(now: Long) { heard = true; stopAt = now + if (phoneVoice) speechMs(cue.text) else CLIP_MAX_MS }
 
     companion object {
         const val START_WITHIN_MS = 1_500L
-        const val BACKUP_WITHIN_MS = 6_000L
+        const val BACKUP_WITHIN_MS = 10_000L
+        /** How long into the song a clip still being made is waited for before the phone's voice may stand in. */
+        const val CLIP_WAIT_MS = 7_000L
         /** The latest a slow clip may still start when the phone's voice can't stand in. */
-        const val SLOW_CLIP_MS = 4_000L
+        const val SLOW_CLIP_MS = 10_000L
         const val CLIP_MAX_MS = 20_000L
         const val SPEECH_SLACK_MS = 3_000L
         /** How fast a line is read out, for its time limit (the server's estimate for the voice's cost too). */

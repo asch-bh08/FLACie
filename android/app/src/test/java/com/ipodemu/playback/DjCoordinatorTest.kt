@@ -253,7 +253,7 @@ class DjLineTest {
     @Test fun aClipThatFailsBeforeItIsHeardIsSaidByThePhoneWhileTheSongIsYoung() {
         val l = DjLine.start(clip, 10_000, clipFailed = false)!!
         assertTrue("a 404 half a second in", l.clipFailed(10_500))
-        assertTrue(l.phoneVoice); assertEquals("the phone's voice must be sounding 6 s into the song", 16_000L, l.stopAt)
+        assertTrue(l.phoneVoice); assertEquals("the phone's voice must be sounding 10 s into the song", 20_000L, l.stopAt)
         assertFalse("only once", l.clipFailed(10_600))
     }
 
@@ -269,14 +269,34 @@ class DjLineTest {
     // a weak signal: the clip is still on its way when the song has started; the DJ used to say nothing (owner, 1 Nov: it spoke twice in a whole session)
     @Test fun aSlowClipIsReadByThePhonesVoiceInstead() {
         val l = DjLine.start(clip, 0, false)!!
-        assertEquals(DjLine.Late.PHONE, l.late(DjLine.START_WITHIN_MS))
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.START_WITHIN_MS, phoneReady = true))
+        assertEquals(DjLine.Late.PHONE, l.late(DjLine.CLIP_WAIT_MS, phoneReady = true))
         assertTrue(l.phoneVoice)
+    }
+
+    // the server makes a line's voice in 1.5-4.5 s after a skip or a new queue: the line was dropped at 1.5 s for a phone voice that was not awake, or at
+    // 4 s just after its swoosh (owner, 7 Nov: "it made the noise but it didn't speak", and nothing on the first song)
+    @Test fun aClipStillBeingMadeIsWaitedForAndNeverDroppedForAPhoneVoiceThatIsNotAwake() {
+        val l = DjLine.start(clip, 0, false)!!
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.START_WITHIN_MS, phoneReady = false))
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.CLIP_WAIT_MS, phoneReady = false)); assertFalse(l.phoneVoice)
+        assertEquals(DjLine.Late.GIVE_UP, l.late(DjLine.SLOW_CLIP_MS, phoneReady = false))
+    }
+
+    @Test fun aLineWhoseSwooshHasPlayedIsGivenTimeToSpeak() {
+        val l = DjLine.start(clip.copy(backup = false), 0, false)!!
+        l.late(DjLine.START_WITHIN_MS, phoneReady = false)
+        l.begins(DjLine.SLOW_CLIP_MS - 200)
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.SLOW_CLIP_MS, phoneReady = false))
+        assertEquals(DjLine.SLOW_CLIP_MS - 200 + DjLine.START_WITHIN_MS, l.stopAt)
+        assertEquals(DjLine.Late.GIVE_UP, l.late(l.stopAt, phoneReady = false))
     }
 
     @Test fun aSlowClipWithoutBackupVoiceIsWaitedForAFewSecondsMore() {
         val l = DjLine.start(clip.copy(backup = false), 0, false)!!
-        assertEquals(DjLine.Late.WAIT, l.late(DjLine.START_WITHIN_MS)); assertEquals(DjLine.SLOW_CLIP_MS, l.stopAt)
-        assertEquals(DjLine.Late.GIVE_UP, l.late(DjLine.SLOW_CLIP_MS))
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.START_WITHIN_MS, phoneReady = true)); assertEquals(DjLine.CLIP_WAIT_MS, l.stopAt)
+        assertEquals(DjLine.Late.WAIT, l.late(DjLine.CLIP_WAIT_MS, phoneReady = true)); assertEquals(DjLine.SLOW_CLIP_MS, l.stopAt)
+        assertEquals(DjLine.Late.GIVE_UP, l.late(DjLine.SLOW_CLIP_MS, phoneReady = true))
         val heard = DjLine.start(clip, 0, false)!!.also { it.heard(800) }
         assertEquals("a line that started and never ended just stops", DjLine.Late.GIVE_UP, heard.late(30_000))
     }

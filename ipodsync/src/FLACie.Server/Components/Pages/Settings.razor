@@ -48,6 +48,17 @@
             }
         </div>
     </div>
+    @* the phone's "Volume limit", kept in this browser (owner, 7 Nov: everything on the phone on the web too) *@
+    <div class="set-row sound-limit">
+        <span><b>Volume limit</b><small>The volume never goes above this in this browser, whatever the slider says</small></span>
+        <div class="seg" role="group" aria-label="Volume limit">
+            @foreach (var pc in new[] { 100, 85, 70, 50 })
+            {
+                var lim = pc;
+                <button type="button" class="@(volLimit == lim ? "sel" : "")" aria-pressed="@(volLimit == lim ? "true" : "false")" @onclick="() => SetLimit(lim)">@(lim == 100 ? "Off" : lim + "%")</button>
+            }
+        </div>
+    </div>
 </section>
 
 @* the AI DJ: on or off, how chatty, where, the sound and the device voice (hidden where there is no DJ) *@
@@ -176,6 +187,8 @@
 
     // ---- look and feel: kept in this browser (localStorage, applied by flacie.js on every page) ----
     [Inject] IJSRuntime Js { get; set; } = default!;
+    int volLimit = 100;
+    async Task SetLimit(int p) { try { volLimit = await Js.InvokeAsync<int>("flacie.volumeLimit", p); } catch (Exception) { volLimit = p; } }
     sealed record Look(string Accent, bool Compact, bool Badges, bool Motion, bool ArtBg, string Theme = "dark");
     Look look = new("", false, true, true, true);
     static readonly (string Id, string Name)[] Themes = [("dark", "Dark"), ("light", "Light"), ("system", "System")];
@@ -185,7 +198,9 @@
     {
         if (!firstRender) return;
         // Even out volume and the fade are read from this browser when a song starts: read them now so a fresh page shows what was chosen
-        await Player.LoadSoundAsync(); StateHasChanged();
+        await Player.LoadSoundAsync();
+        try { volLimit = await Js.InvokeAsync<int>("flacie.volumeLimit"); } catch (Exception) { }
+        StateHasChanged();
         try
         {
             if (System.Text.Json.Nodes.JsonNode.Parse(await Js.InvokeAsync<string>("flacieUi.get")) is { } j)

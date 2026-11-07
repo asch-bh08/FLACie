@@ -15,7 +15,10 @@ window.flacie = (() => {
   let baseVolume = 1, fadeGain = 1, loudGain = 1, xfadeGain = 1, xfadeSecs = 0, xfadeIn = false, xfadeOut = false, xfadeRaf = 0;
   // duckGain: the music under the DJ's clip (djPlay, djSay), applied after the rest is capped so the music always goes down by the same share
   let duckGain = 1;
-  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, baseVolume * fadeGain * loudGain * xfadeGain)) * duckGain; };
+  // "Volume limit" (as on the phone): the volume never goes above this share, whatever the slider says; 1 = off, kept in this browser
+  let volLimit = 1;
+  try { const l = parseFloat(localStorage.getItem("flacie.volLimit")); if (l > 0 && l <= 1) volLimit = l; } catch { }
+  const applyVol = () => { audio.volume = Math.min(1, Math.max(0, Math.min(baseVolume, volLimit) * fadeGain * loudGain * xfadeGain)) * duckGain; };
   // fade between songs: the end fades out and the start fades in (not across the tracks of one album); the same arithmetic as the app: cosine, over at most a third of the song
   const cosFade = (rem, f) => rem >= f ? 1 : rem <= 0 ? 0 : 0.5 - 0.5 * Math.cos(Math.PI * rem / f);
   const xfadeStep = () => {
@@ -1422,6 +1425,13 @@ window.flacie = (() => {
       xfadeSecs = Math.max(0, Number(secs) || 0); xfadeIn = !!fin; xfadeOut = !!fout;
       if (xfadeSecs <= 0) { xfadeGain = 1; applyVol(); } else if (!xfadeRaf) xfadeRaf = requestAnimationFrame(xfadeStep);
       return xfadeGain;
+    },
+    // the volume limit in percent (100 = off); no argument: the current one
+    volumeLimit(p) {
+      if (p === undefined || p === null) return Math.round(volLimit * 100);
+      volLimit = Math.min(1, Math.max(0.05, (Number(p) || 100) / 100)); applyVol();
+      try { localStorage.setItem("flacie.volLimit", String(volLimit)); } catch { }
+      return Math.round(volLimit * 100);
     },
     // even out volume: the song's own gain as a multiplier (1 = untouched)
     loud(f) { if (f === undefined || f === null) return audio.volume; loudGain = Math.min(4, Math.max(0, Number(f) || 1)); applyVol(); return audio.volume; },

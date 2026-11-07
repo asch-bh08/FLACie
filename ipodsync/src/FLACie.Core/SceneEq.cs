@@ -34,6 +34,14 @@ public static class SceneEq
         return [.. Presets[(at + 1) % Presets.Count].Bands];
     }
 
+    /// <summary>A preset's name as a word, for the full-screen player's Equaliser menu ("BASS" is "Bass boost"); the displays keep the capitals.</summary>
+    public static string Word(string name) => name switch
+    {
+        "CLASSIC" => "Classical",
+        "BASS" => "Bass boost",
+        _ => name.Length == 0 ? name : name[0] + name[1..].ToLowerInvariant(),
+    };
+
     static Preset? Find(IReadOnlyList<int> bands) => Presets.FirstOrDefault(p => p.Bands.SequenceEqual(bands));
     static int IndexOf(Preset p) { for (var i = 0; i < Presets.Count; i++) if (ReferenceEquals(Presets[i], p)) return i; return -1; }
 }

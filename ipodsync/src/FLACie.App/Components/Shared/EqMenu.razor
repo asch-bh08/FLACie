@@ -1,0 +1,55 @@
+@inherits UserComponent
+@using FLACie.Core
+@* The equaliser in the full-screen player (owner, 7 Nov: "EQ back, make it obvious"): a pill that says EQ (and the preset when one is on), opening the
+   presets as words and a slider per band. It sets the player's own five-band EQ (flacie.eq), the one the Retro scenes' preamp, sliders and EQ keys set, so
+   all of them agree; the browser keeps it for next time. *@
+<div class="eq-menu">
+    <ChipMenu Label="Equaliser" Text="@PillText" IconName="sliders" Active="@(!flat)" CloseOnChoice="false" Class="eq-pop">
+        <div class="seg eq-presets" role="group" aria-label="Presets">
+            @foreach (var p in SceneEq.Presets)
+            {
+                var pp = p; var on = SceneEq.NameOf(bands) == pp.Name;
+                <button type="button" class="@(on ? "sel" : "")" aria-pressed="@(on ? "true" : "false")" @onclick="() => Set(pp.Bands)">@SceneEq.Word(pp.Name)</button>
+            }
+        </div>
+        <div class="eq-bands">
+            @for (var i = 0; i < Names.Length; i++)
+            {
+                var ii = i;
+                <label class="eq-band">
+                    <span>@Names[ii]<small>@Hz[ii]</small></span>
+                    <input type="range" min="-12" max="12" step="1" value="@bands[ii]" aria-label="@(Names[ii] + " (" + Hz[ii] + ")")" aria-valuetext="@Db(bands[ii])" style="--fill:@((bands[ii] + 12) * 100 / 24)%" @oninput="e => Band(ii, e)" />
+                    <b>@Db(bands[ii])</b>
+                </label>
+            }
+        </div>
+    </ChipMenu>
+</div>
+@code {
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    static readonly string[] Names = ["Bass", "Low mids", "Mids", "Presence", "Treble"];
+    static readonly string[] Hz = ["100 Hz", "400 Hz", "1 kHz", "3 kHz", "8 kHz"];
+    int[] bands = [0, 0, 0, 0, 0];
+    bool flat => bands.All(b => b == 0);
+    string PillText => flat ? "EQ" : "EQ · " + SceneEq.Word(SceneEq.NameOf(bands));
+    static string Db(int v) => v == 0 ? "0 dB" : (v > 0 ? "+" : "−") + Math.Abs(v) + " dB";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        try { if (await Js.InvokeAsync<int[]>("flacie.eqGet") is { Length: 5 } b) { bands = b; StateHasChanged(); } } catch (Exception) { }
+    }
+
+    async Task Set(int[] next)
+    {
+        bands = [.. next];
+        try { if (await Js.InvokeAsync<int[]>("flacie.eq", bands) is { Length: 5 } got) bands = got; } catch (Exception) { }
+    }
+
+    Task Band(int i, ChangeEventArgs e)
+    {
+        if (!int.TryParse(e.Value?.ToString(), out var v)) return Task.CompletedTask;
+        var next = (int[])bands.Clone(); next[i] = v;
+        return Set(next);
+    }
+}

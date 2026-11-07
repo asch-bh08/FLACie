@@ -42,6 +42,8 @@
             </div>
         </ChipMenu>
 
+        <EqMenu />
+
         @if (SpeedPolicy.ShowLongItemControls(t.Genre, t.DurationMs, Player.Speed))
         {
             <button class="icon-btn lg skip" @onclick="() => Player.SkipByAsync(-10)" aria-label="Back 10 seconds" title="Back 10 seconds"><span>−10</span></button>

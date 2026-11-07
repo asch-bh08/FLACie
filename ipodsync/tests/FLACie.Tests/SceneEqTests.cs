@@ -24,6 +24,16 @@ public class SceneEqTests
         Assert.Equal("FLAT", SceneEq.NameOf([0, 0]));
     }
 
+    [Fact] public void TheFullScreenPlayerShowsPresetNamesAsWords()
+    {
+        // the dot-matrix names are capitals; Now Playing's Equaliser menu says them as words (owner, 7 Nov: "EQ back, make it obvious")
+        Assert.Equal("Flat", SceneEq.Word("FLAT"));
+        Assert.Equal("Classical", SceneEq.Word("CLASSIC"));
+        Assert.Equal("Bass boost", SceneEq.Word("BASS"));
+        Assert.Equal("Custom", SceneEq.Word(SceneEq.Custom));
+        Assert.Equal("Rock", SceneEq.Word("ROCK"));
+    }
+
     [Fact] public void EachPressGoesOnToTheNextPresetAndRoundToFlat()
     {
         var at = new[] { 0, 0, 0, 0, 0 };

@@ -23,3 +23,9 @@ The owner asked for all of FLACie to be tested as if nothing were fixed: phone, 
 - 04:35 **Fixed: the DJ was off for the first song after a fresh sign-in** (its settings were only fetched when a queue started): the account sync fetches them as soon as it learns FLACie Web's address.
 - 04:55 **Web parity: search groups the catalogue's versions of one song** into one row with "+N versions" (expands in place), as the phone does. Search web specs 40/40.
 - 05:30 **b120 released** (https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b120): release smoke 23/23, DJ (now also the first song after a fresh sign-in), search 9/9, playlists 23/23 + car 8/8. Server deployed (rollback tag flacie-web:rollback-b119), healthy, 0 errors, 0 restarts.
+- 05:50 Stand-in car: Home's Favourites plays the favourites (seeded in the test profile), then Autoplay after them. Phone 23/23, car 9/9.
+
+## Where things stand (morning)
+- Released: **b119** and **b120** (b120 is the one to install). Server deployed with b120.
+- New tests to run on any change to playback: `playlists-android.mjs` (phone + stand-in car, debug APK + androidTest APK), `search-android.mjs`, `dj-android.mjs`, plus the old `smoke-android.mjs`. All via run-android.ps1 under heavy.ps1, emulator only.
+- Not covered tonight: Jam / Connect, offline downloads on the phone, Alexa, the Windows app at run time (it builds), a real car (the stand-in uses the same Media3 browser path; Android Auto's own screens are not exercised).

@@ -147,6 +147,21 @@ class CarPlaylistTest {
         assertEquals("no song twice in six", 6, heard.size)
     }
 
+    @Test fun favourites_on_home_play_the_favourites_and_recent_plays_what_was_played() {
+        val home = children(BrowseTree.HOME)
+        val fav = home.firstOrNull { it.mediaMetadata.title.toString() == "Favourites" }
+        assertNotNull("Home has Favourites", fav)
+        val favSongs = children(fav!!.mediaId).filter { it.mediaId.startsWith("s:") }.map { it.mediaMetadata.title.toString() }
+        assertEquals("the five favourites (songs 21-25)", listOf("Song 21", "Song 22", "Song 23", "Song 24", "Song 25").sorted(), favSongs.sorted())
+        val (now, queue) = press("all:${fav.mediaId}")
+        assertEquals(favSongs.first(), now)
+        assertEquals("the favourites, then (only five) Autoplay's", favSongs, queue.take(favSongs.size))
+        // something was played: Recently played names it
+        val recent = home.firstOrNull { it.mediaMetadata.title.toString().startsWith("Recent") } ?: return
+        val recentSongs = children(recent.mediaId).map { it.mediaMetadata.title.toString() }
+        assertTrue("Recently played lists \"$now\": $recentSongs", recentSongs.isEmpty() || now in recentSongs || recent.mediaMetadata.isPlayable == true)
+    }
+
     @Test fun a_song_tapped_in_the_playlist_plays_the_playlist_from_that_song() {
         val (a, aSongs) = playlist("Car Test A")
         val songId = children(a).filter { it.mediaId.startsWith("s:") }[4].mediaId

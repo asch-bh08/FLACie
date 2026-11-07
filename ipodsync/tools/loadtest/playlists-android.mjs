@@ -42,7 +42,9 @@ async function main() {
   // songs whose files moved: the saved paths name ids the server no longer has, the titles and artists are right (the artist-name fixes renamed files)
   const S = Array.from({ length: 8 }, (_, i) => ({ ...song(i + 45), p: `${PHONE_BASE}/Audio/${'f'.repeat(31)}${i}/stream?static=true` }));
   const pl = (id, n, tracks) => ({ id, n, m: Date.now(), jf: null, tracks });
-  const profile = { v: 2, updated: Date.now(), services: {}, playlists: [pl('cartesta', 'Car Test A', A), pl('cartestb', 'Car Test B', B), pl('cartests', 'Car Test Moved', S)] };
+  // five favourites (songs 21-25), for the car's Favourites
+  const favorites = Array.from({ length: 5 }, (_, i) => ({ ...song(i + 20), w: Date.now() - i * 1000 }));
+  const profile = { v: 2, updated: Date.now(), services: {}, favorites, playlists: [pl('cartesta', 'Car Test A', A), pl('cartestb', 'Car Test B', B), pl('cartests', 'Car Test Moved', S)] };
   const seed = await fetch(`${MOCK}/DisplayPreferences/ipodplayer?userId=x&client=ipodplayer`, { method: 'POST', headers: AUTH, body: JSON.stringify({ CustomPrefs: { 'ipodplayer.profile': JSON.stringify(profile) }, Client: 'ipodplayer' }) });
   if (!seed.ok) throw new Error('profile not seeded: HTTP ' + seed.status);
 

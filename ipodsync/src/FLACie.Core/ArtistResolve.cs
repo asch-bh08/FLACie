@@ -2,9 +2,10 @@ using System.Text.RegularExpressions;
 
 namespace FLACie.Core;
 
-/// <summary>One proposed fix of a song's artists in Jellyfin (F24): its old and new Artists and AlbumArtist, and why.</summary>
+/// <summary>One proposed fix of a song's artists in Jellyfin (F24): its old and new Artists and AlbumArtist, and why. [NewTitle]: the song's new title when
+/// its title and artist were swapped (null: the title stays).</summary>
 public sealed record ArtistChange(string ItemId, string Path, string Title, string Album, IReadOnlyList<string> OldArtists, string OldAlbumArtist,
-    IReadOnlyList<string> NewArtists, string NewAlbumArtist, string Why);
+    IReadOnlyList<string> NewArtists, string NewAlbumArtist, string Why, string? NewTitle = null);
 
 /// <summary>
 /// F24: artist names fixed per song, never by merging names. A song tagged "X" goes to "The X" when The X also has its album or its title in the
@@ -49,12 +50,21 @@ public static partial class ArtistResolve
         var names = songs.Select(t => t.Artist).Concat(songs.Select(t => t.AlbumArtist)).Where(n => n.Length > 0)
             .GroupBy(Key).ToDictionary(g => g.Key, g => g.GroupBy(n => n).OrderByDescending(x => x.Count()).First().Key);
         var byArtist = songs.GroupBy(t => Key(t.Artist)).ToDictionary(g => g.Key, g => g.ToList());
+        var swapped = Swapped(songs);
         var changes = new List<ArtistChange>();
         foreach (var t in songs.Where(t => (t.JellyfinId ?? "").Length > 0))
         {
             var artist = t.Artist.Trim(); var k = Key(artist);
             var albumArtist = t.AlbumArtist.Length > 0 ? t.AlbumArtist : artist;
-            // title and artist swapped (the song "Goldfrapp" by "rocket"): for a person to look at, not this check (owner, 6 Nov)
+            // 0. title and artist swapped (the song "Goldfrapp" by "rocket", filed as "10 - rocket - Goldfrapp.mp3"): swapped back, the song in capitals
+            // (owner, 7 Nov: "make the rules fix all them")
+            if (swapped.Contains(t))
+            {
+                var who = names.TryGetValue(Key(t.Title), out var named) && named.Any(char.IsUpper) ? named : t.Title.Trim();
+                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [who], who, $"the title and the artist are swapped (the file is \"{System.IO.Path.GetFileNameWithoutExtension(t.FilePath ?? t.Path).Trim()}\")", Capitals(artist)));
+                continue;
+            }
+            // a song whose title is an artist's name with three songs here, not proven swapped by its files: for a person to look at, not this check
             if (byArtist.TryGetValue(Key(t.Title), out var titled) && titled.Count >= 3) continue;
             // 1. "X" that is The X's song
             // (not when MusicBrainz credits the album to X itself: Hotel California is Eagles', not The Eagles'; owner, 6 Nov)
@@ -140,7 +150,8 @@ public static partial class ArtistResolve
         // a broken character, or a song's title in the artist tag ("The Way You Move - Outkast Featuring Sleepy Brown"): for the owner to look at
         if (s.Contains('\uFFFD') || s.Contains(" - ")) return null;
         // a stand-in, not a name ("no artist", "Unknown Artist"): left alone
-        if (Regex.IsMatch(s, @"^\W*(?:no artist|unknown(?: artist)?|artist|untitled|none|n/?a)\W*$", RegexOptions.IgnoreCase)) return null;
+        // ("various" too: the real artists are not in the tag, so there is nothing to fix it to; owner, 7 Nov)
+        if (Regex.IsMatch(s, @"^\W*(?:no artist|unknown(?: artist)?|artist|untitled|none|n/?a|various(?: artists?)?|va)\W*$", RegexOptions.IgnoreCase)) return null;
         var names = namesOf.GetValue(songs, l => new Names(l));
         string Clean(string n)
         {
@@ -165,9 +176,14 @@ public static partial class ArtistResolve
         List<string> Commas(string n) => Regex.Split(n, @"\s*,\s*") is var p && p.Length > 1 && Known(p[0]) ? List(p) : Pair(n);
         var (lead, rest) = Feat().Match(s) is { Success: true } f ? (f.Groups[1].Value, f.Groups[2].Value) : (s, "");
         var leads = Slashes(lead).SelectMany(x => Regex.Split(x, @"\s*;\s*")).SelectMany(Commas);
-        var featured = rest.Length == 0 ? [] : Slashes(rest).SelectMany(x => List(Regex.Split(x, @"\s*(?:[;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase)));
+        // after feat. a lone "A & B" is two names like the last of a list ("Noname feat. Raury & Cam O'Bi"; owner, 7 Nov), unless it is an act here
+        // (two one-word names nobody here knows apart stay one, like KC And Jojo)
+        List<string> Featured(string[] items) => items.Length < 2 ? Last(items[0]) : List(items);
+        var featured = rest.Length == 0 ? [] : Slashes(rest).SelectMany(x => Featured(Regex.Split(x, @"\s*(?:[;,]|\s+x\s+|\b(?:feat\.?|ft\.?|featuring)\s)\s*", RegexOptions.IgnoreCase)));
         // one artist written two ways in one tag ("JAŸ-Z; JAY-Z", "Ms. Lauryn Hill; Lauryn Hill") is one artist
         var parts = leads.Concat(featured).Select(Clean).Where(x => x.Length > 0).DistinctBy(x => Key(Fold(Honorific().Replace(x, "")))).ToList();
+        // a label beside real names is not an artist ("Aqualung/Lucy Schwartz/Original Soundtrack")
+        if (parts.Count > 1 && parts.Any(x => !Label().IsMatch(x))) parts.RemoveAll(x => Label().IsMatch(x));
         if (parts.Any(x => x.Count(char.IsLetterOrDigit) < 3 && !Known(x))) return null;
         // an act whose album is credited to exactly this name ("Eric B &amp; Rakim" on Paid In Full, "Panda Bear and Sonic Boom" on Reset) is one name
         // (owner, 6 Nov); a list with ";" or "/" or "," or "feat." is never a name
@@ -177,6 +193,39 @@ public static partial class ArtistResolve
     }
 
     [GeneratedRegex(@"^(?:ms|mr|mrs|miss)\.?\s+", RegexOptions.IgnoreCase)] private static partial Regex Honorific();
+    [GeneratedRegex(@"^(?:(?:the\s+)?original(?:\s+motion\s+picture)?\s+(?:soundtrack|score|cast(?:\s+recording)?)|soundtrack|various(?:\s+artists?)?|ost)$", RegexOptions.IgnoreCase)] private static partial Regex Label();
+
+    /// <summary>
+    /// Songs whose title and artist tags are the wrong way round: three or more songs with no album share one "title" under different "artists", and
+    /// most of their files name that title beside the artist tag ("01 - ooh la la - Goldfrapp .mp3"). Three songs called "Intro" by three artists, each
+    /// filed under its own artist, are not.
+    /// </summary>
+    static HashSet<Track> Swapped(IReadOnlyList<Track> songs)
+    {
+        var res = new HashSet<Track>();
+        foreach (var g in songs.Where(t => t.Album.Trim().Length == 0 && t.Title.Trim().Length > 0 && t.Artist.Trim().Length > 0).GroupBy(t => Key(t.Title)))
+        {
+            var list = g.ToList();
+            if (list.Count < 3 || list.Select(t => Key(t.Artist)).Distinct().Count() < 3) continue;
+            bool Filed(Track t)
+            {
+                var file = Key(System.IO.Path.GetFileNameWithoutExtension(t.FilePath ?? t.Path));
+                return file.Contains(g.Key) && file.Contains(Key(t.Artist));
+            }
+            if (list.Count(Filed) * 2 > list.Count) res.UnionWith(list);
+        }
+        return res;
+    }
+
+    /// <summary>A song's title written all in small letters given capitals ("ooh la la" is Ooh La La, "a&amp;e" A&amp;E); one with capitals stays as it is.</summary>
+    static string Capitals(string s)
+    {
+        s = s.Trim();
+        if (s.Any(char.IsUpper)) return s;
+        var c = s.ToCharArray();
+        for (var i = 0; i < c.Length; i++) if (i == 0 || c[i - 1] is ' ' or '&' or '(' or '-' or '/') c[i] = char.ToUpperInvariant(c[i]);
+        return new string(c);
+    }
 
     /// <summary>Small words made small after the first word ("Kings Of Leon" is Kings of Leon, "Panic! At The Disco" is Panic! at the Disco); every
     /// other word kept exactly as it is written.</summary>

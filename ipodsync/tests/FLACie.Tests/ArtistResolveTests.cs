@@ -58,13 +58,62 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Equal(["Eminem", "Dr. Dre"], For(amp, "Guilty Conscience", "Eminem & Dr. Dre").NewArtists);
     }
 
+    // owner, 7 Nov: "make the rules fix all them": the Goldfrapp singles are tagged with the song as the artist and "Goldfrapp" as the title
+    static Track Swapped(string song, int no) =>
+        new($"/m/{++n}", "Goldfrapp", song, "", song, 0, 0, 200_000, 0, null, 0, TrackSource.Jellyfin, FilePath: $"/media/music/Goldfrapp - The Singles/{no:00} - {song} - Goldfrapp .mp3", JellyfinId: "id" + n);
+
+    [Fact]
+    public void A_title_and_artist_swapped_are_swapped_back_with_the_song_in_capitals()
+    {
+        var plan = ArtistResolve.Plan([.. Library(), Swapped("ooh la la", 1), Swapped("a&e", 6), Swapped("strict machine", 3)]);
+        var c = plan.Single(x => x.OldArtists[0] == "ooh la la");
+        Assert.Equal(["Goldfrapp"], c.NewArtists); Assert.Equal("Goldfrapp", c.NewAlbumArtist); Assert.Equal("Ooh La La", c.NewTitle);
+        Assert.Contains("swapped", c.Why);
+        Assert.Equal("A&E", plan.Single(x => x.OldArtists[0] == "a&e").NewTitle);
+        // three songs called "Intro" by three artists, filed under their own names, are not swapped
+        Assert.DoesNotContain(ArtistResolve.Plan([T("Intro", "Drake", ""), T("Intro", "The xx", ""), T("Intro", "Alt-J", "")]), x => x.NewTitle is not null);
+    }
+
+    [Fact]
+    public void Various_is_not_an_artist_and_a_soundtrack_label_is_not_one_of_the_artists()
+    {
+        Assert.Null(ArtistResolve.Split("various", _ => false, Library()));
+        Assert.Null(ArtistResolve.Split("Various Artists", _ => false, Library()));
+        Assert.Equal(["Aqualung", "Lucy Schwartz"], ArtistResolve.Split("Aqualung/Lucy Schwartz/Original Soundtrack", _ => false, Library()));
+    }
+
+    [Fact]
+    public void After_feat_two_names_joined_by_and_are_two_artists_unless_they_are_an_act_here()
+    {
+        Assert.Equal(["Noname", "Raury", "Cam O'Bi"], ArtistResolve.Split("Noname feat. Raury & Cam O'Bi", _ => false, Library()));
+        Assert.Equal(["Eminem", "Simon & Garfunkel"], ArtistResolve.Split("Eminem feat. Simon & Garfunkel", _ => true, Library()));
+    }
+
     sealed class Jellyfin : IArtistWriter
     {
         public Dictionary<string, (IReadOnlyList<string> Artists, string AlbumArtist)> Items = [];
+        public Dictionary<string, string> Titles = [];
         public List<string> Writes = [];
-        public Task<(IReadOnlyList<string> Artists, string AlbumArtist)?> ReadAsync(string id, CancellationToken ct) =>
-            Task.FromResult<(IReadOnlyList<string>, string)?>(Items.TryGetValue(id, out var v) ? v : null);
-        public Task<bool> WriteAsync(string id, IReadOnlyList<string> artists, string albumArtist, CancellationToken ct) { Writes.Add(id); Items[id] = (artists, albumArtist); return Task.FromResult(true); }
+        public Task<(IReadOnlyList<string> Artists, string AlbumArtist, string Title)?> ReadAsync(string id, CancellationToken ct) =>
+            Task.FromResult<(IReadOnlyList<string>, string, string)?>(Items.TryGetValue(id, out var v) ? (v.Artists, v.AlbumArtist, Titles.GetValueOrDefault(id, "")) : null);
+        public Task<bool> WriteAsync(string id, IReadOnlyList<string> artists, string albumArtist, string? title, CancellationToken ct)
+        {
+            Writes.Add(id); Items[id] = (artists, albumArtist); if (title is not null) Titles[id] = title; return Task.FromResult(true);
+        }
+    }
+
+    [Fact]
+    public async Task A_swap_writes_the_title_too_and_undo_puts_it_back()
+    {
+        var song = Swapped("ooh la la", 1); List<Track> lib = [song, Swapped("number 1", 2), Swapped("utopia", 5)];
+        var jf = new Jellyfin();
+        foreach (var t in lib) { jf.Items[t.JellyfinId!] = ([t.Artist], t.AlbumArtist); jf.Titles[t.JellyfinId!] = t.Title; }
+        var svc = new ArtistResolveService(Path.Combine(dir, "swap.json"), () => DateTime.UtcNow);
+        await svc.PlanAsync(lib, (_, _, _) => Task.FromResult<bool?>(false), default);
+        Assert.Equal(3, await svc.ApproveAsync(jf, default));
+        Assert.Equal("Ooh La La", jf.Titles[song.JellyfinId!]); Assert.Equal(["Goldfrapp"], jf.Items[song.JellyfinId!].Artists);
+        await svc.UndoAsync(jf, song.JellyfinId, default);
+        Assert.Equal("Goldfrapp", jf.Titles[song.JellyfinId!]); Assert.Equal(["ooh la la"], jf.Items[song.JellyfinId!].Artists);
     }
 
     [Fact]
@@ -161,9 +210,13 @@ public sealed class ArtistResolveTests : IDisposable
         var w = new JellyfinArtistWriter(new JellyfinClient(new HttpClient(h), "test"), new JellyfinAccount("http://jf.test", "u1", "tester", "tok"));
         var r = (await w.ReadAsync("id9", default))!.Value;
         Assert.Equal(["Prodigy"], r.Artists); Assert.Equal("Prodigy", r.AlbumArtist);
-        Assert.True(await w.WriteAsync("id9", ["The Prodigy"], "The Prodigy", default));
+        Assert.Equal("Breathe", r.Title);
+        Assert.True(await w.WriteAsync("id9", ["The Prodigy"], "The Prodigy", null, default));
         Assert.Equal("/Items/id9", h.PostedTo);
         var o = System.Text.Json.Nodes.JsonNode.Parse(h.Posted!)!;
+        Assert.Equal("Breathe", (string?)o["Name"]);                                 // no new title: the title stays
+        Assert.True(await w.WriteAsync("id9", ["Goldfrapp"], "Goldfrapp", "Ooh La La", default));
+        Assert.Equal("Ooh La La", (string?)System.Text.Json.Nodes.JsonNode.Parse(h.Posted!)!["Name"]);
         Assert.Equal("The Prodigy", (string?)o["Artists"]![0]);
         Assert.Equal("The Prodigy", (string?)o["AlbumArtist"]);
         Assert.Equal("The Prodigy", (string?)o["AlbumArtists"]![0]!["Name"]);

@@ -4,27 +4,28 @@ using FLACie.Core;
 
 namespace FLACie.Server;
 
-/// <summary>Reads and writes a song's Artists and AlbumArtist where they live (Jellyfin's own metadata; a fake in the tests).</summary>
+/// <summary>Reads and writes a song's Artists, AlbumArtist and title where they live (Jellyfin's own metadata; a fake in the tests). [title] null: left as it is.</summary>
 public interface IArtistWriter
 {
-    Task<(IReadOnlyList<string> Artists, string AlbumArtist)?> ReadAsync(string itemId, CancellationToken ct);
-    Task<bool> WriteAsync(string itemId, IReadOnlyList<string> artists, string albumArtist, CancellationToken ct);
+    Task<(IReadOnlyList<string> Artists, string AlbumArtist, string Title)?> ReadAsync(string itemId, CancellationToken ct);
+    Task<bool> WriteAsync(string itemId, IReadOnlyList<string> artists, string albumArtist, string? title, CancellationToken ct);
 }
 
 /// <summary>Jellyfin's item update: the item as Jellyfin has it, with Artists, ArtistItems, AlbumArtist and AlbumArtists replaced, posted back to
 /// /Items/{id} (an administrator's account). The music files are not touched.</summary>
 public sealed class JellyfinArtistWriter(JellyfinClient jf, JellyfinAccount a) : IArtistWriter
 {
-    public async Task<(IReadOnlyList<string> Artists, string AlbumArtist)?> ReadAsync(string itemId, CancellationToken ct)
+    public async Task<(IReadOnlyList<string> Artists, string AlbumArtist, string Title)?> ReadAsync(string itemId, CancellationToken ct)
     {
         if (await jf.GetAsync(a, $"/Users/{a.UserId}/Items/{itemId}", ct) is not JsonObject o) return null;
         var artists = (o["Artists"] as JsonArray)?.Select(x => x?.GetValue<string>() ?? "").Where(x => x.Length > 0).ToList() ?? [];
-        return (artists, o["AlbumArtist"]?.GetValue<string>() ?? "");
+        return (artists, o["AlbumArtist"]?.GetValue<string>() ?? "", o["Name"]?.GetValue<string>() ?? "");
     }
 
-    public async Task<bool> WriteAsync(string itemId, IReadOnlyList<string> artists, string albumArtist, CancellationToken ct)
+    public async Task<bool> WriteAsync(string itemId, IReadOnlyList<string> artists, string albumArtist, string? title, CancellationToken ct)
     {
         if (await jf.GetAsync(a, $"/Users/{a.UserId}/Items/{itemId}", ct) is not JsonObject o) return false;
+        if (title is not null) o["Name"] = title;
         o["Artists"] = new JsonArray(artists.Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
         o["ArtistItems"] = new JsonArray(artists.Select(x => (JsonNode?)new JsonObject { ["Name"] = x }).ToArray());
         o["AlbumArtist"] = albumArtist;
@@ -42,7 +43,7 @@ public sealed class JellyfinArtistWriter(JellyfinClient jf, JellyfinAccount a) :
 /// </summary>
 public sealed class ArtistResolveService(string? file, Func<DateTime> now)
 {
-    public sealed record Applied(ArtistChange Change, IReadOnlyList<string> BackupArtists, string BackupAlbumArtist, DateTime AtUtc, bool Undone = false);
+    public sealed record Applied(ArtistChange Change, IReadOnlyList<string> BackupArtists, string BackupAlbumArtist, DateTime AtUtc, bool Undone = false, string? BackupTitle = null);
     sealed class State
     {
         public List<ArtistChange> Pending { get; set; } = [];
@@ -170,8 +171,8 @@ public sealed class ArtistResolveService(string? file, Func<DateTime> now)
         {
             var before = await writer.ReadAsync(c.ItemId, ct);
             if (before is not { } b) continue;
-            if (!await writer.WriteAsync(c.ItemId, c.NewArtists, c.NewAlbumArtist, ct)) continue;
-            lock (state) state.Done.Add(new(c, b.Artists, b.AlbumArtist, now()));
+            if (!await writer.WriteAsync(c.ItemId, c.NewArtists, c.NewAlbumArtist, c.NewTitle, ct)) continue;
+            lock (state) state.Done.Add(new(c, b.Artists, b.AlbumArtist, now(), BackupTitle: c.NewTitle is null ? null : b.Title));
             n++;
         }
         return n;
@@ -184,7 +185,7 @@ public sealed class ArtistResolveService(string? file, Func<DateTime> now)
         var n = 0;
         foreach (var d in todo)
         {
-            if (!await writer.WriteAsync(d.Change.ItemId, d.BackupArtists, d.BackupAlbumArtist, ct)) continue;
+            if (!await writer.WriteAsync(d.Change.ItemId, d.BackupArtists, d.BackupAlbumArtist, d.BackupTitle, ct)) continue;
             lock (state) { var i = state.Done.IndexOf(d); if (i >= 0) state.Done[i] = d with { Undone = true }; }
             n++;
         }

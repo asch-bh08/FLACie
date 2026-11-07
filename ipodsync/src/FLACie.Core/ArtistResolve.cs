@@ -77,6 +77,8 @@ public static partial class ArtistResolve
                     : catalogSays?.Invoke(t.Title, theName) == true ? $"the catalog lists {t.Title} by {theName}" : null;
                 if (why is not null)
                 {
+                    // written as the rest of The X's songs will be ("The Future Sound Of London" with "The Future Sound of London" here: one spelling; owner, 7 Nov)
+                    theName = Split(theName, _ => true, songs, null, spelling) is [var one] ? one : theName;
                     changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [theName], Key(albumArtist) == k ? theName : albumArtist, why));
                     continue;
                 }
@@ -93,7 +95,8 @@ public static partial class ArtistResolve
                 // the album artist leads when the tag names them ("Free; Pras; Queen; Wyclef Jean" on Queen's Greatest Hits III is Queen's; owner, 6 Nov)
                 if (parts.FindIndex(x => Key(x) == Key(albumArtist)) is > 0 and var ai) { var a = parts[ai]; parts.RemoveAt(ai); parts.Insert(0, a); }
                 var leadName = parts[0];
-                var why = parts.Count == 1 ? $"the tag \"{artist}\" is written \"{leadName}\""
+                var why = parts.Count == 1 && Regex.Split(artist, @"\s*[;/,]\s*").FirstOrDefault(x => Label().IsMatch(x.Trim())) is { } label ? $"\"{label.Trim()}\" is the soundtrack's label, not an artist"
+                    : parts.Count == 1 ? $"the tag \"{artist}\" is written \"{leadName}\""
                     : Feat().IsMatch(artist) ? $"{leadName} with {string.Join(", ", parts.Skip(1))} featured"
                     : $"the tag lists {parts.Count} artists: {string.Join(", ", parts)}";
                 changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, parts, Key(albumArtist) == k ? leadName : albumArtist, why));
@@ -251,7 +254,8 @@ public static partial class ArtistResolve
         var res = new List<string>();
         foreach (var b in bits)
         {
-            static bool Short(string x) => x.Trim().TakeWhile(c => c != ',' && c != ';').Count(char.IsLetterOrDigit) < 3 || x.TrimEnd().Reverse().TakeWhile(c => c != ',' && c != ';' && c != ' ').Count(char.IsLetterOrDigit) < 3;
+            // (a country or number in brackets after a name is not its last word: "GAZZ (UK)" is a name of its own; owner, 7 Nov)
+            static bool Short(string x) { x = Regex.Replace(x, @"\s*\([^)]*\)\s*$", ""); return x.Trim().TakeWhile(c => c != ',' && c != ';').Count(char.IsLetterOrDigit) < 3 || x.TrimEnd().Reverse().TakeWhile(c => c != ',' && c != ';' && c != ' ').Count(char.IsLetterOrDigit) < 3; }
             if (res.Count > 0 && (Short(b) || Short(res[^1]))) res[^1] += "/" + b; else res.Add(b);
         }
         return res.Select(x => x.Trim()).ToList();

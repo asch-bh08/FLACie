@@ -80,6 +80,21 @@ public sealed class ArtistResolveTests : IDisposable
         Assert.Null(ArtistResolve.Split("various", _ => false, Library()));
         Assert.Null(ArtistResolve.Split("Various Artists", _ => false, Library()));
         Assert.Equal(["Aqualung", "Lucy Schwartz"], ArtistResolve.Split("Aqualung/Lucy Schwartz/Original Soundtrack", _ => false, Library()));
+        var c = ArtistResolve.Plan([T("Endtapes", "Original Soundtrack/The Joy Formidable", "Breaking Dawn")]).Single();
+        Assert.Equal(["The Joy Formidable"], c.NewArtists); Assert.Contains("soundtrack", c.Why, StringComparison.OrdinalIgnoreCase);
+    }
+
+    // owner's second list, 7 Nov
+    [Fact]
+    public void A_country_after_a_name_does_not_glue_two_names_together()
+        => Assert.Equal(["DJ S.K.T", "DJ Rae", "GAZZ (UK)"], ArtistResolve.Split("DJ S.K.T/DJ Rae/GAZZ (UK)", _ => false, Library()));
+
+    [Fact]
+    public void A_song_moved_to_The_X_gets_the_same_spelling_as_The_Xs_other_songs()
+    {
+        var plan = ArtistResolve.Plan([T("Papua New Guinea", "The Future Sound Of London", "Accelerator"), T("Lifeforms", "The Future Sound of London", "Lifeforms"),
+            T("papua new guinea", "Future Sound Of London", "")]);
+        Assert.Equal(["The Future Sound of London"], plan.Single(x => x.OldArtists[0] == "Future Sound Of London").NewArtists);
     }
 
     [Fact]

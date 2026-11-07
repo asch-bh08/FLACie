@@ -216,7 +216,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
             val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
             Diag.add("queue", "car: ${id.take(60)} -> ${r?.tracks?.size ?: 0} songs (library ${if (App.of(ctx).library.loaded) "loaded" else "NOT loaded"})")
-            if (r != null) handler.post { play(r.tracks, r.index, shuffle = if (BrowseTree.shuffles(id)) true else null, context = name, contextId = key) }
+            if (r != null) handler.post { play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key) }
         }
         return true
     }
@@ -890,8 +890,12 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     /** The songs Autoplay put in this queue, so the log can tell them from the playlist's own (owner, 6 Nov: "playlists not playing the songs from the playlist"). */
     private val autoplayPaths = HashSet<String>()
-    /** Autoplay's songs go on the end of the queue. */
-    fun appendAutoplay(list: List<Track>) {
+    /** Counts the queues started (a playlist, an album, a search, the car): Autoplay's songs chosen for one queue never join the next (owner, 6 Nov: a
+     *  playlist started while Autoplay was still choosing for the song before got its recommendations mixed in). */
+    var queueGen = 0; private set
+    /** Autoplay's songs go on the end of the queue they were chosen for ([gen]: its [queueGen]); a queue started since gets none of them. */
+    fun appendAutoplay(list: List<Track>, gen: Int = queueGen) {
+        if (gen != queueGen) { Diag.add("queue", "Autoplay's ${list.size} for the queue before were dropped: a new queue started"); return }
         // Repeat switched on while Autoplay was choosing (or a song it asked for landed later): the playlist starts again instead, nothing is added
         if (list.isEmpty() || !hasQueue || !RepeatCycle.autoplayMayAdd(prefs.repeat)) return
         Diag.add("queue", "Autoplay added ${list.size} after \"${current?.title}\" (${QueueEdit.upcoming(playOrderNow(), exo.currentMediaItemIndex, false).size} still to come of ${exo.mediaItemCount})")
@@ -1195,7 +1199,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (list.isEmpty()) return
         queue = list
         // a new queue: the DJ's "this queue" switch goes back to untouched, and nothing from the old queue is said
-        this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); autoplayPaths.clear()
+        this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); autoplayPaths.clear(); queueGen++
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), 0L)
         // on shuffle: the chosen song first, then every other song (the player's own order for new items put the first song anywhere, skipping the
@@ -1223,7 +1227,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun playFrom(list: List<Track>, index: Int, positionMs: Long, paused: Boolean = false) {
         if (list.isEmpty()) return
         queue = list
-        contextId = null; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon()
+        contextId = null; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); queueGen++
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), positionMs.coerceAtLeast(0))
         if (exo.shuffleModeEnabled) setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex)))
         exo.prepare(); if (paused) exo.pause() else exo.play()

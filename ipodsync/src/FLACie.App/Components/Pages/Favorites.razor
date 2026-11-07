@@ -10,7 +10,7 @@
         <h1><i>Favourites</i></h1>
         <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")</p>
         <div class="chips">
-            <button class="btn primary pl-play" @onclick='() => Player.Play(tracks, 0, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+            <button class="btn primary pl-play" @onclick='() => Player.PlayInOrder(tracks, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
             <button class="btn pl-shuffle" @onclick='() => Player.ShuffleAll(tracks, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
             @if (Session.Favorites.Count > 0)
             {

@@ -140,6 +140,9 @@ object BrowseTree {
     }
     /** A "Shuffle" row of a list: its songs are played on shuffle. */
     fun shuffles(mediaId: String) = mediaId.startsWith("shuf:")
+    /** The shuffle mode a car tile sets: Shuffle on, Play all off (in order, as its name says: owner, 6 Nov, Play all after a shuffle played shuffled),
+     *  anything else (a song in a list, Shuffle all, a station) leaves it as it is (null) or is shuffled by its own songs. */
+    fun shuffleFor(mediaId: String): Boolean? = when { mediaId.startsWith("shuf:") -> true; mediaId.startsWith("all:") -> false; else -> null }
     fun albumId(key: String) = "al:$key"
     fun artistId(name: String) = "ar:$name"
 

@@ -17,7 +17,7 @@ else
             <h1>@Title(name)</h1>
             <p class="detail-facts">@Facts(songs)</p>
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => Player.Play(songs, 0, name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="detail-play" @onclick="() => Player.PlayInOrder(songs, name)"><Icon Name="play" Size="22" />Play</button>
                 <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 <ShareButton Title="@name" Songs="songs" />
             </div>

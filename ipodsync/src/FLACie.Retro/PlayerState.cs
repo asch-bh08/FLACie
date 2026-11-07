@@ -335,6 +335,14 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await Load(!paused, positionMs / 1000.0);
     }
 
+    /// <summary>A page's Play button: the list in order from its first song, shuffle off (Shuffle beside it is <see cref="ShuffleAll"/>). With shuffle left on,
+    /// Play played the playlist shuffled (owner, 6 Nov).</summary>
+    public Task PlayInOrder(IReadOnlyList<Track> list, string? context = null, string? contextId = null)
+    {
+        if (Interceptor is null) Shuffle = false;
+        return Play(list, 0, context, contextId);
+    }
+
     public async Task ShuffleAll(IReadOnlyList<Track> list, string? context = null, string? contextId = null, string? listenContext = null)
     {
         Shuffle = true;

@@ -128,13 +128,15 @@ class CarPlaylistTest {
         val songs = children(album.mediaId).filter { it.mediaId.startsWith("s:") }.map { it.mediaMetadata.title.toString() }
         assertTrue(songs.isNotEmpty())
         val (now, queue) = press("all:${album.mediaId}")
-        assertEquals(songs.first(), now); assertEquals(songs, queue)
+        // a short album is topped up by Autoplay after its songs
+        assertEquals(songs.first(), now); assertEquals(songs, queue.take(songs.size))
         val artist = children(BrowseTree.ARTISTS).first { it.mediaMetadata.isBrowsable == true }
         val name = artist.mediaMetadata.title.toString()
-        val (_, aq) = press("shuf:${artist.mediaId}")
-        val lib = onMain { app.player.queue }
-        assertTrue("every song is by $name", lib.isNotEmpty() && lib.all { it.artist.contains(name, ignoreCase = true) || it.albumArtist.contains(name, ignoreCase = true) })
-        assertEquals(aq.size, lib.size)
+        press("shuf:${artist.mediaId}")
+        val by = onMain { app.library.songs().count { it.artist.equals(name, ignoreCase = true) || it.albumArtist.equals(name, ignoreCase = true) } }
+        val q = onMain { app.player.queue }
+        // the artist's songs, then (an artist with few songs) Autoplay's
+        assertTrue("the first $by songs are all by $name: ${q.map { it.artist }}", by > 0 && q.size >= by && q.take(by).all { it.artist.equals(name, ignoreCase = true) || it.albumArtist.equals(name, ignoreCase = true) })
     }
 
     @Test fun shuffle_all_on_home_plays_from_the_whole_library() {

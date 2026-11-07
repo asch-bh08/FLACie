@@ -22,7 +22,9 @@ class Autoplay(private val app: App) {
     private val main = Handler(Looper.getMainLooper())
     private val related = HashMap<String, Pair<Long, List<WebCatalog.Song>>>()
     private val waiting = LinkedHashMap<String, WebCatalog.Song>() // requested songs, by matchKey, to join the queue when they land
-    @Volatile private var working = false
+    private val waitGen = HashMap<String, Int>() // the queue (PlayerController.queueGen) each was asked for
+    /** The queue (PlayerController.queueGen) Autoplay is choosing for now, -1 = none: a new queue starts its own choice instead of waiting. */
+    @Volatile private var working = -1
     /** Paths of the songs Autoplay itself put in the queue (Up next draws a divider above the first of them). */
     private val added = HashSet<String>()
     /** Changes whenever the set of requested suggestions changes (Up next redraws). */
@@ -33,20 +35,22 @@ class Autoplay(private val app: App) {
 
     /** The suggestions asked for and not yet in the queue, in the order they were chosen (= the order they will play); Up next shows them, display only. */
     fun pending(): List<UpNextMerge.Pending> = if (!app.prefs.autoplay) emptyList() else synchronized(waiting) {
-        waiting.map { (k, s) -> UpNextMerge.Pending(k, s.title, s.artist, s.album, s.durationMs, s.artUrl) }
+        // only those asked for this queue: a song fetched for the queue before stays in the library but is not "up next" here
+        waiting.filter { (k, _) -> (waitGen[k] ?: app.player.queueGen) == app.player.queueGen }.map { (k, s) -> UpNextMerge.Pending(k, s.title, s.artist, s.album, s.durationMs, s.artUrl) }
     }
 
     /** The player calls this as a song starts when little is left after it. */
     fun queueLow() {
-        if (!app.prefs.autoplay || working || app.player.interceptor != null) return
+        if (!app.prefs.autoplay || working == app.player.queueGen || app.player.interceptor != null) return
         val seed = app.player.current ?: return
-        working = true
+        val gen = app.player.queueGen
+        working = gen
         scope.launch {
-            try { refill(seed) } catch (e: Exception) { android.util.Log.w("FLACie", "autoplay failed: ${e.message}", e) } finally { working = false }
+            try { refill(seed, gen) } catch (e: Exception) { android.util.Log.w("FLACie", "autoplay failed: ${e.message}", e) } finally { if (working == gen) working = -1 }
         }
     }
 
-    private suspend fun refill(seed: Track) {
+    private suspend fun refill(seed: Track, gen: Int) {
         val lib = app.library
         val queued = withContext(Dispatchers.Main) { app.player.queueTracks() }
         val seen = HashSet<String>()
@@ -64,8 +68,8 @@ class Autoplay(private val app: App) {
             if (plan != null) {
                 val tracks = plan.tracks.filter { it.isMusic }.take(6)
                 synchronized(reasons) { tracks.forEach { t -> plan.why[t.path]?.let { reasons[t.path] = it } } }
-                val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (tracks.isNotEmpty()) { mark(tracks); app.player.appendAutoplay(tracks) }; n + tracks.size }
-                if (app.prefs.autoplayFetch && lib.downloadsConfigured()) request(plan.fresh.take(5).map { it.song() }, ahead)
+                val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (tracks.isNotEmpty() && gen == app.player.queueGen) { mark(tracks) }; if (tracks.isNotEmpty()) app.player.appendAutoplay(tracks, gen); n + tracks.size }
+                if (app.prefs.autoplayFetch && lib.downloadsConfigured() && gen == app.player.queueGen) request(plan.fresh.take(5).map { it.song() }, ahead, gen)
                 return
             }
         }
@@ -93,18 +97,18 @@ class Autoplay(private val app: App) {
         take(mates.shuffled().asSequence(), 3)
         if (seed.genre.isNotEmpty()) take(songs.asSequence().filter { it.genre.equals(seed.genre, true) }.shuffled(), 3)
         take(songs.asSequence().shuffled(), 6)
-        val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (pick.isNotEmpty()) { mark(pick); app.player.appendAutoplay(pick) }; n + pick.size }
+        val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (pick.isNotEmpty() && gen == app.player.queueGen) { mark(pick) }; if (pick.isNotEmpty()) app.player.appendAutoplay(pick, gen); n + pick.size }
 
         // songs the library lacks: ask for the next few now so they are there in time
-        if (app.prefs.autoplayFetch && lib.downloadsConfigured())
-            request(suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).toList(), ahead)
+        if (app.prefs.autoplayFetch && lib.downloadsConfigured() && gen == app.player.queueGen)
+            request(suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).toList(), ahead, gen)
     }
 
     /** [songsAhead] = songs between the one playing and the first of [songs] in the queue: each one further back is asked of FLACie Web for Hi-Res from the third place on (see SmartDownload.modeFor). */
-    private fun request(songs: List<WebCatalog.Song>, songsAhead: Int = 0) {
+    private fun request(songs: List<WebCatalog.Song>, songsAhead: Int = 0, gen: Int = app.player.queueGen) {
         for ((i, s) in songs.withIndex()) {
             val k = matchKey(s.title, s.artist)
-            val fresh = synchronized(waiting) { if (waiting.containsKey(k)) false else { waiting[k] = s; true } }
+            val fresh = synchronized(waiting) { if (waiting.containsKey(k)) false else { waiting[k] = s; waitGen[k] = gen; true } }
             if (!fresh) continue
             // the tag (and the Up next row) is there at once, before the job's first status arrives
             app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, placesAhead = songsAhead + i + 1)
@@ -137,11 +141,13 @@ class Autoplay(private val app: App) {
     fun downloaded(e: DownloadEntry) {
         val k = matchKey(e.title, e.artist)
         val was = synchronized(waiting) { waiting[k] } ?: return
+        val gen = synchronized(waiting) { waitGen[k] } ?: app.player.queueGen
         if (!app.prefs.autoplay) { synchronized(waiting) { waiting.remove(k) }; rev++; return }
         fun attempt(left: Int) {
             val t = app.library.findSong(was.title, was.artist)
             if (t != null) {
-                if (t.matchKey !in app.player.queueTracks().map { it.matchKey }) { mark(listOf(t)); app.player.appendAutoplay(listOf(t)) }
+                // fetched for a queue that has since been replaced: kept in the library, not put in this queue
+                if (gen == app.player.queueGen && t.matchKey !in app.player.queueTracks().map { it.matchKey }) { mark(listOf(t)); app.player.appendAutoplay(listOf(t), gen) }
                 synchronized(waiting) { waiting.remove(k) }
                 rev++
             } else if (left > 0) main.postDelayed({ attempt(left - 1) }, 1500) else { synchronized(waiting) { waiting.remove(k) }; rev++ }

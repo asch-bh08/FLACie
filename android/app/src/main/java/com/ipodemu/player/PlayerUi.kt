@@ -1397,8 +1397,9 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
             if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
             if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
         }
+        // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, null, title, djKey) })
+            if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, false, title, djKey) })
             if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
         }
     } else {
@@ -1412,7 +1413,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     }
     // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlossPill("Play", { app.player.play(tracks, 0, null, title, djKey) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
+        GlossPill("Play", { app.player.play(tracks, 0, false, title, djKey) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
     }

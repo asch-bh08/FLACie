@@ -30,7 +30,7 @@ else
             <h1>@head<i>@last</i></h1>
             <p class="sub pl-facts">@(sh.Entries.Count == 1 ? "1 song" : sh.Entries.Count + " songs")@(Session.Loading ? " · finding them in your library…" : missing.Count > 0 ? $" · {found.Count} in your library" : "")</p>
             <div class="chips">
-                <button class="btn primary pl-play" @onclick="() => Player.Play(found, 0, sh.Name)" disabled="@(found.Count == 0)"><Icon Name="play" Size="18" />Play</button>
+                <button class="btn primary pl-play" @onclick="() => Player.PlayInOrder(found, sh.Name)" disabled="@(found.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 @if (found.Count > 1) { <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(found, sh.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button> }
                 @if (sh.Kind != "song" || found.Count > 0)
                 {

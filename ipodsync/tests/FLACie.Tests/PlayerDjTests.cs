@@ -512,6 +512,20 @@ public class PlayerDjTests
         Assert.DoesNotContain(dj.Asked, r => r.QueueStart);
     }
 
+    // owner, 6 Nov: Play after a Shuffle played the playlist shuffled; Play is the list in order
+    [Fact]
+    public async Task Play_on_a_page_plays_the_list_in_order_after_a_shuffle()
+    {
+        var (p, _, _) = Player();
+        var songs = Songs(6);
+        await p.ShuffleAll(songs, "Pop", "pl-pop");
+        Assert.True(p.Shuffle);
+        await p.PlayInOrder(songs, "Pop", "pl-pop");
+        Assert.False(p.Shuffle);
+        Assert.Equal(songs[0].Path, p.Current!.Path);
+        Assert.Equal(songs.Skip(1).Select(s => s.Path), p.UpNext(10).Select(u => u.Track.Path));
+    }
+
     [Fact]
     public async Task Only_a_shuffled_start_from_a_named_playlist_with_the_DJ_on_is_announced()
     {

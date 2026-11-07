@@ -368,4 +368,11 @@ class BrowseTreeTest {
         assertEquals(360, BrowseTree.resolve("shuf:pl:aa", src)!!.tracks.size)
         assertEquals(360, BrowseTree.resolve("all:pl:aa", src)!!.tracks.size)
     }
+
+    // owner, 6 Nov: Play all after a shuffle played the playlist shuffled
+    @Test fun play_all_plays_in_order_and_shuffle_shuffles() {
+        assertEquals(false, BrowseTree.shuffleFor("all:pl:abc"))
+        assertEquals(true, BrowseTree.shuffleFor("shuf:pl:abc"))
+        assertEquals(null, BrowseTree.shuffleFor("s:pl:abc/x"))
+    }
 }

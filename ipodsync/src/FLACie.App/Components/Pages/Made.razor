@@ -23,7 +23,7 @@ else
                 <p class="detail-facts made-missing" role="status">@(web.Tracks.Count - songs.Count) more @(web.Tracks.Count - songs.Count == 1 ? "song is" : "songs are") @(Downloads.Ready(Session) ? "being fetched; they join the list as they arrive" : "not in your library")</p>
             }
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => { Played(); return Player.Play(songs, 0, m.Name); }"><Icon Name="play" Size="22" />Play</button>
+                <button class="detail-play" @onclick="() => { Played(); return Player.PlayInOrder(songs, m.Name); }"><Icon Name="play" Size="22" />Play</button>
                 <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, m.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 @if (savedId is { } sid)
                 {

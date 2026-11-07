@@ -662,17 +662,30 @@ public sealed class UserSession
 
     /// <summary>A song swapped for a better copy (the upgrade worker): every playlist entry of that song now names the new copy, so a player that knows
     /// songs by their path does not lose it (owner, 6 Nov: 25 songs dropped out of a playlist on the phone and in Jellyfin). Returns how many changed.</summary>
-    public int RepointPlaylists(Track now)
+    /// <paramref name="oldFile"/>: the file it replaced ("music/Gala/Gala - Freed From Desire.flac"); an entry naming it follows too, whatever the new copy's
+    /// tags call it ("Freed From Desire - Radio Edit" swapped for a "Freed From Desire" played nothing: owner, 6 Nov).
+    public int RepointPlaylists(Track now, string? oldFile = null)
     {
         var key = Matching.MatchKey(now); var n = 0;
         lock (listLock)
         {
             foreach (var o in (Profile["playlists"] as JsonArray ?? []).OfType<JsonObject>())
                 foreach (var x in (o["tracks"] as JsonArray ?? []).OfType<JsonObject>())
-                    if (S(x, "p") != now.Path && Matching.MatchKey(S(x, "t"), S(x, "a")) == key) { x["p"] = now.Path; o["m"] = Now(); n++; }
+                    if (S(x, "p") != now.Path && (Matching.MatchKey(S(x, "t"), S(x, "a")) == key || NamesFile(S(x, "p"), oldFile))) { x["p"] = now.Path; o["m"] = Now(); n++; }
         }
         if (n > 0) Changed?.Invoke();
         return n;
+    }
+
+    /// <summary>A path is the file mover's address of [file] (its path= query, URL-encoded with + or %20 for spaces) or ends with it.</summary>
+    static bool NamesFile(string path, string? file)
+    {
+        if (string.IsNullOrEmpty(file) || string.IsNullOrEmpty(path)) return false;
+        var f = file.Replace('\\', '/').TrimStart('/');
+        string Decode(string s) { try { return Uri.UnescapeDataString(s.Replace('+', ' ')); } catch (UriFormatException) { return s; } }
+        var q = path.IndexOf("path=", StringComparison.Ordinal);
+        var named = q >= 0 ? Decode(path[(q + 5)..].Split('&')[0]) : Decode(path);
+        return named.Replace('\\', '/').TrimStart('/').EndsWith(f, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Takes a song back out (the Undo after an add).</summary>

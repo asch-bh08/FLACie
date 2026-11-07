@@ -112,6 +112,39 @@ class CarPlaylistTest {
         assertTrue("shuffle is on", onMain { app.player.exo.shuffleModeEnabled || app.prefs.shuffle })
     }
 
+    @Test fun previous_goes_back_through_the_playlist() {
+        val (a, aSongs) = playlist("Car Test A")
+        press("all:$a")
+        next(); next()
+        ins.runOnMainSync { browser.seekToPrevious() }
+        // Previous within the first seconds of a song goes to the song before; later it restarts the song
+        val until = System.currentTimeMillis() + 10_000
+        while (System.currentTimeMillis() < until && onMain { app.player.current?.title } == aSongs[2]) Thread.sleep(100)
+        assertEquals(aSongs[1], onMain { app.player.current?.title })
+    }
+
+    @Test fun an_album_plays_in_track_order_and_an_artist_plays_their_songs() {
+        val album = children(BrowseTree.ALBUMS).first { it.mediaMetadata.isBrowsable == true }
+        val songs = children(album.mediaId).filter { it.mediaId.startsWith("s:") }.map { it.mediaMetadata.title.toString() }
+        assertTrue(songs.isNotEmpty())
+        val (now, queue) = press("all:${album.mediaId}")
+        assertEquals(songs.first(), now); assertEquals(songs, queue)
+        val artist = children(BrowseTree.ARTISTS).first { it.mediaMetadata.isBrowsable == true }
+        val name = artist.mediaMetadata.title.toString()
+        val (_, aq) = press("shuf:${artist.mediaId}")
+        val lib = onMain { app.player.queue }
+        assertTrue("every song is by $name", lib.isNotEmpty() && lib.all { it.artist.contains(name, ignoreCase = true) || it.albumArtist.contains(name, ignoreCase = true) })
+        assertEquals(aq.size, lib.size)
+    }
+
+    @Test fun shuffle_all_on_home_plays_from_the_whole_library() {
+        val (now, queue) = press(BrowseTree.SHUFFLE)
+        assertTrue(now.isNotEmpty())
+        assertTrue("the queue is the library (${queue.size} songs)", queue.size >= 50)
+        val heard = mutableSetOf(now); repeat(5) { heard += next() }
+        assertEquals("no song twice in six", 6, heard.size)
+    }
+
     @Test fun a_song_tapped_in_the_playlist_plays_the_playlist_from_that_song() {
         val (a, aSongs) = playlist("Car Test A")
         val songId = children(a).filter { it.mediaId.startsWith("s:") }[4].mediaId

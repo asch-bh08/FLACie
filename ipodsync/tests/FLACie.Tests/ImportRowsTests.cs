@@ -108,6 +108,21 @@ public class PlaylistRepointTests
         Assert.Equal(["/p/other", now.Path], s.Playlists.Single(p => p.Name == "Rally").Entries.Select(e => e.Path));
         Assert.Equal([now.Path], s.Playlists.Single(p => p.Name == "Pop").Entries.Select(e => e.Path));
     }
+
+    // owner's phone log, 6 Nov: "Freed From Desire - Radio Edit" 404'd after its swap; the Hi-Res copy is tagged "Freed From Desire", so the title match missed it
+    [Fact]
+    public void An_entry_naming_the_old_file_follows_the_swap_whatever_the_new_copy_is_called()
+    {
+        var s = new UserSession("local", null, null);
+        var old = new Track("https://nas.example.ts.net/filemove/file?path=music%2FGala%2FGala+-+Freed+From+Desire.flac", "Freed From Desire - Radio Edit", "Gala", "Alb", "Gala", 1, 1, 1000, 1996, null, 0, TrackSource.Jellyfin);
+        var remix = new Track("/p/remix", "Freed From Desire (Remix)", "Gala", "Alb", "Gala", 1, 1, 1000, 1996, null, 0, TrackSource.Jellyfin);
+        s.AddDownloaded([old, remix]);
+        var a = s.CreatePlaylist("Rally"); s.AddToPlaylist(a.Id, old); s.AddToPlaylist(a.Id, remix);
+        var now = new Track("/file?path=music%2FGala%2FGala%20-%20Freed%20From%20Desire%20%5BHi-Res%5D.flac", "Freed From Desire", "Gala", "Alb", "Gala", 1, 1, 1000, 1996, null, 0, TrackSource.Jellyfin);
+
+        Assert.Equal(1, s.RepointPlaylists(now, "music/Gala/Gala - Freed From Desire.flac"));
+        Assert.Equal([now.Path, "/p/remix"], s.Playlists.Single(p => p.Name == "Rally").Entries.Select(e => e.Path));
+    }
 }
 
 public class ImportSweepTests

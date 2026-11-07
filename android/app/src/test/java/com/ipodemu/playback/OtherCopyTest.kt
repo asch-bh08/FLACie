@@ -19,4 +19,14 @@ class OtherCopyTest {
         assertEquals(now.path, OtherCopy.of(gone, listOf(gone, clip, other, now))?.path)
         assertNull(OtherCopy.of(gone, listOf(gone, other)))
     }
+
+    // owner's log, 6 Nov: "Freed From Desire - Radio Edit" 404'd after the Hi-Res swap and nothing played: the new file is tagged "Freed From Desire"
+    @Test fun noExactCopyTheSameSongWithoutItsVersionNoteIsTaken() {
+        val gone = t("http://mover/file?path=music%2FGala%2FGala+-+Freed+From+Desire.flac", "Freed From Desire - Radio Edit", "Gala", 211_000)
+        val hiRes = t("http://jf/Audio/" + "e".repeat(32) + "/stream?static=true", "Freed From Desire", "Gala", 212_000)
+        val remix = t("http://jf/Audio/" + "f".repeat(32) + "/stream?static=true", "Freed From Desire (Remix)", "Gala", 300_000)
+        val cover = t("http://jf/Audio/" + "a".repeat(32) + "/stream?static=true", "Freed From Desire", "Somebody Else", 200_000)
+        assertEquals(hiRes.path, OtherCopy.of(gone, listOf(gone, remix, cover, hiRes))?.path)
+        assertNull("a remix or another artist's song is not the same song", OtherCopy.of(gone, listOf(gone, remix, cover)))
+    }
 }

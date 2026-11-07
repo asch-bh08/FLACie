@@ -57,6 +57,16 @@ private val nonAlnum = Regex("""[^\p{L}\p{N}]+""")
 /** The song's own name for matching: "Song - Single Version", "Song (From X)" and "Song" are one; "Song (Remix)" is not (WebCatalog.baseTitle). */
 fun baseTitleKey(s: String): String = normTitle(WebCatalog.baseTitle(s))
 
+/** The artist whose folder the file is in (".../The Free/The Free - Lover On The Line.flac" -> "free"), as [primaryArtist] spells it, or "": a download filed
+ * under its artist whose tag names a compilation ("90's Eurodance") is still that artist's song (owner, 7 Nov). Same rule as FLACie Web's Matching.FolderArtist. */
+fun folderArtist(t: Track): String {
+    val p = t.filePath.ifEmpty {
+        t.path.substringAfter("/file?path=", "").let { try { java.net.URLDecoder.decode(it, "UTF-8") } catch (_: Exception) { it } }
+    }
+    val parts = p.replace('\\', '/').split('/').filter { it.isNotEmpty() }
+    return if (parts.size < 2) "" else primaryArtist(parts[parts.size - 2])
+}
+
 fun normTitle(s: String): String = s.replace(featParen, "").replace(featTail, "").lowercase().replace(nonAlnum, " ").trim()
 /** Just the lead artist: "Lady Gaga; Colby O'Donis", "Lady Gaga Feat. Colby O'Donis" and "Lady Gaga" all -> "lady gaga". */
 // "The Black Eyed Peas" and "Black Eyed Peas" are one artist (taggers disagree on the article)

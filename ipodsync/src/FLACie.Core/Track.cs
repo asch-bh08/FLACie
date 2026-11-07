@@ -71,6 +71,14 @@ public static partial class Matching
     }
 
     [GeneratedRegex(@"[(\[][^)\]]*[)\]]")] private static partial Regex Bracketed();
+
+    /// <summary>The artist whose folder the file is in ("…/The Free/The Free - Lover On The Line.flac" -> "free"), as <see cref="PrimaryArtist"/> spells it,
+    /// or "": a download filed under its artist whose tag names a compilation ("90's Eurodance") is still that artist's song (owner, 7 Nov).</summary>
+    public static string FolderArtist(Track t)
+    {
+        var parts = (t.FilePath ?? "").Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length < 2 ? "" : PrimaryArtist(parts[^2]);
+    }
     /// <summary>Worked out once per song and remembered (a song never changes; `with` makes a new one): Home asked for it tens of thousands of times each
     /// time it opened, and with the owner's 11,000 songs that alone was most of the 1-2 s Home took.</summary>
     public static string MatchKey(Track t) => matchKeys.GetValue(t, x => MatchKey(x.Title, x.Artist));

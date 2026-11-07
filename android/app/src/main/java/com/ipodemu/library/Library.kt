@@ -446,7 +446,7 @@ class Library(ctx: Context, val art: ArtCache) {
         // matched by path took 3 s to open (owner, 1 Nov)
         val d = derive()
         val byTitle = looseIndex?.takeIf { it.first === d }?.second ?: d.songs.groupBy { normTitle(it.title) }.also { looseIndex = d to it }
-        val sameArtist = { t: Track -> primaryArtist(t.artist).let { a -> a.isEmpty() || a == "unknown artist" || a == "unknown" || (pa.isNotEmpty() && (a.contains(pa) || pa.contains(a))) } }
+        val sameArtist = { t: Track -> primaryArtist(t.artist).let { a -> a.isEmpty() || a == "unknown artist" || a == "unknown" || (pa.isNotEmpty() && (a.contains(pa) || pa.contains(a) || folderArtist(t) == pa)) } }
         byTitle[nt].orEmpty().firstOrNull { t -> normTitle(t.title) == nt && sameArtist(t) }?.let { return it }
         // then the song's own name on both sides: Spotify's "More And More - Single Version" is the "More And More" downloaded for it (owner, 5 Nov:
         // shown as missing in the playlist); a remix keeps its word

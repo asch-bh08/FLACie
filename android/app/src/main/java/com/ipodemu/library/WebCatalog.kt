@@ -135,7 +135,7 @@ object WebCatalog {
     // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
     private val versionWord = Regex("""\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b""", RegexOption.IGNORE_CASE)
     private val partMarker = Regex("""^\s*(pt|part)\b""", RegexOption.IGNORE_CASE)
-    private val dashNote = Regex("""\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|radio edit)[^-]*$""", RegexOption.IGNORE_CASE)
+    private val dashNote = Regex("""\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|(?:radio|video|single|short) (?:edit|version))[^-]*$""", RegexOption.IGNORE_CASE)
 
     /**
      * The song's own name, for searching and matching file names: "Song (feat. X)", "Song (From "Some Movie")", "Song (Remastered 2011)",
@@ -144,6 +144,8 @@ object WebCatalog {
      */
     fun baseTitle(t: String): String {
         var s = t.replace(Regex("""\s*[(\[](feat|ft|with|featuring)[^)\]]*[)\]]""", RegexOption.IGNORE_CASE), "").trim()
+        // the dash note first as well: "My Heart Beats Like A Drum (Dam Dam Dam) - Radio Edit" then loses its bracket like the file's own title does
+        s = dashNote.replace(s, "").trim()
         repeat(4) {
             val m = trailingGroup.find(s) ?: return@repeat
             if (m.range.first == 0 || versionWord.containsMatchIn(m.groupValues[1]) || partMarker.containsMatchIn(m.groupValues[1])) return@repeat

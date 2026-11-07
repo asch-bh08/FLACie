@@ -138,7 +138,7 @@ public sealed class WebCatalog(HttpClient http)
     // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
     static readonly Regex VersionWord = new(@"\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore|piano|orchestral|stripped|lullaby|tribute|reprise|string|strings)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     static readonly Regex PartMarker = new(@"^\s*(pt|part)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    static readonly Regex DashNote = new(@"\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|radio edit)[^-]*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    static readonly Regex DashNote = new(@"\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|(?:radio|video|single|short) (?:edit|version))[^-]*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     /// <summary>The song's own name, for searching and matching file names: "Song (feat. X)", "Song (From "Some Movie")", "Song (Remastered 2011)",
     /// "Song - Remastered" and "Song [Deluxe]" all become "Song". A trailing "(Live)", "(Remix)", "(Acoustic)", "(Part 2)" ... is a different
@@ -146,6 +146,8 @@ public sealed class WebCatalog(HttpClient http)
     public static string BaseTitle(string t)
     {
         var s = Regex.Replace(t, @"\s*[(\[](feat|ft|with|featuring)[^)\]]*[)\]]", "", RegexOptions.IgnoreCase).Trim();
+        // the dash note first as well: "My Heart Beats Like A Drum (Dam Dam Dam) - Radio Edit" then loses its bracket like the file's own title does
+        s = DashNote.Replace(s, "").Trim();
         for (var i = 0; i < 4; i++)
         {
             var m = TrailingGroup.Match(s);

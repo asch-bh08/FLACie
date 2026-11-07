@@ -72,7 +72,7 @@ public sealed class Library
         bool SameArtist(Track t)
         {
             var a = Matching.PrimaryArtist(t.Artist);
-            return a.Length == 0 || a is "unknown artist" or "unknown" || (pa.Length > 0 && (a.Contains(pa) || pa.Contains(a)));
+            return a.Length == 0 || a is "unknown artist" or "unknown" || (pa.Length > 0 && (a.Contains(pa) || pa.Contains(a) || Matching.FolderArtist(t) == pa));
         }
         if ((byNormTitle.GetValueOrDefault(nt) ?? []).FirstOrDefault(SameArtist) is { } hit) return hit;
         // then the song's own name on both sides: Spotify lists "More And More - Single Version", "Freed From Desire - Radio Edit", "Scatman

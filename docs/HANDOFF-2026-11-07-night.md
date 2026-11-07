@@ -20,7 +20,12 @@ In priority order:
    - Not everything square: circles for artists and round buttons, squares where they fit (album covers).
    - **Fluid, smooth animations.** More than fades: shared-element style moves, springy sheets, smooth list changes. Keep the performance rules in §3.
    - The sidebar, Settings, the Home page's menus and style (the content is fine), and **the pages that never got attention**: go through all of them.
-7. **Release a beta** (Android APK + Windows MSI + web deploy) once the tests and the emulator smoke pass.
+7. **Release a beta** (Android APK + Windows MSI + web deploy) **only when every check below passes on the final build.** If any fail and you can't fix them, **don't release**: write in the log what failed, and leave b121 as the current beta. A broken beta is worse than none.
+   - Server tests (1,945; a single known flake may pass on a rerun).
+   - The web tests for every page you changed, plus `1i-download-tags`, `1r-search-artist`, `1z-settings-sound` and `1q-dj`.
+   - Android unit tests.
+   - All four emulator drivers on the release APK (debug + test APK for playlists): `smoke-android.mjs` 23/23, `playlists-android.mjs` 23/23 plus the stand-in car 9/9, `search-android.mjs` 9/9, `dj-android.mjs` 3/3.
+   - Look at a screenshot of each changed screen, on the phone (emulator) and the web.
 
 Done tonight (before the stop):
 

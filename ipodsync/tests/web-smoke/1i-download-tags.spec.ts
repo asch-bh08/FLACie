@@ -75,6 +75,11 @@ const server = http.createServer((req, res) => {
       if (/report me/i.test(q)) return json(200, { data: [deezerSong('Report Me', 'Aurora Vale', 99)] });
       return json(200, { data: state.suggest.map((t, i) => deezerSong(t, titleCase(q.trim()), i)) });
     }
+    // an album to preview before downloading (owner, 7 Nov): its search and its songs
+    if (p === '/api.deezer.com/search/album' && /preview/i.test(u.searchParams.get('q') ?? ''))
+      return json(200, { data: [{ id: 4242, title: 'Preview Album', artist: { name: 'Aurora Vale' }, cover_xl: '', nb_tracks: 2, record_type: 'album' }] });
+    if (p === '/api.deezer.com/album/4242/tracks')
+      return json(200, { data: [{ id: 1, title: 'Preview One', duration: 201, track_position: 1, disk_number: 1, artist: { name: 'Aurora Vale' } }, { id: 2, title: 'Preview Two', duration: 202, track_position: 2, disk_number: 1, artist: { name: 'Aurora Vale' } }] });
     if (p.startsWith('/api.deezer.com/')) return json(200, { data: [] });
     if (p.startsWith('/musicbrainz.org/')) return json(200, { artists: [] });
     if (p === '/itunes.apple.com/search') return json(200, { results: [] });
@@ -422,6 +427,34 @@ test.describe.serial('download tags', () => {
     await live('/search?q=' + encodeURIComponent('Report Me'));
     await expect(page.locator('ol.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) }).locator('.badge.cloud')).toHaveText('Streaming', { timeout: 20_000 });
     await expect(page.locator('ul.tracks li.track', { has: page.locator('.track-title', { hasText: /^Report Me$/ }) })).toHaveCount(0);
+  });
+
+  // ---- More music: a song or album opens full screen first, nothing fetched until Download (owner, 7 Nov) ----
+
+  test('More music: an album and a song open full screen first, with their songs or versions, and nothing downloads until Download', async () => {
+    const fetchesBefore = state.queued.length;
+    await live('/search?q=' + encodeURIComponent('Preview'));
+    await page.getByRole('button', { name: 'Open Preview Album' }).click({ timeout: 20_000 });
+    const sheet = page.getByRole('dialog', { name: 'Preview Album' });
+    await expect(sheet).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Preview Album' })).toBeVisible();
+    await expect(sheet.getByText('Aurora Vale').first()).toBeVisible();
+    await expect(sheet.locator('.tracks .track-title')).toHaveText(['Preview One', 'Preview Two'], { timeout: 15_000 });
+    await expect(sheet.getByRole('button', { name: /^Download album$/ })).toBeVisible();
+    expect(state.queued.length).toBe(fetchesBefore);   // opening it fetched nothing
+    await page.keyboard.press('Escape');
+    await expect(sheet).toHaveCount(0);
+    // a song the library lacks (the same search's songs): its page, Download, and back
+    const first = page.locator('ul.tracks .open-song').first();
+    await expect(first).toBeVisible({ timeout: 20_000 });
+    const name = (await first.textContent())!.trim();
+    await first.click();
+    const song = page.getByRole('dialog', { name });
+    await expect(song.getByRole('heading', { name })).toBeVisible();
+    await expect(song.getByRole('button', { name: /^Download$/ })).toBeVisible();
+    await expect(song.getByRole('link', { name: 'Find on YouTube' })).toBeVisible();
+    await song.getByRole('button', { name: 'Close' }).click();
+    await expect(song).toHaveCount(0);
   });
 
   // ---- Autoplay: suggestions being fetched have rows of their own, then they are ordinary tagged rows ----

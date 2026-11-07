@@ -58,7 +58,8 @@ else
                 {
                     var ja = Downloads.JobFor(Session, a.Artist, a.CleanTitle);
                     <div class="card">
-                        <Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="square" />
+                        @* a tap on the cover or the names opens the album full screen first (its songs, Download album), as on the phone *@
+                        <button type="button" class="card-open" aria-label="Open @a.CleanTitle" @onclick="() => { preSong = null; preAlbum = a; }"><Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="square" /></button>
                         <span class="card-title">@a.CleanTitle</span>
                         <span class="card-sub">@a.Artist · @a.Kind</span>
                         @if (ja is not null) { <span class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message@(ja.Current is { } ca && !ja.Finished ? " · " + OpenSourceSettings.Name(ca) : ja.Source is { } sa ? " · from " + OpenSourceSettings.Name(sa) : "")</span> }
@@ -66,6 +67,10 @@ else
                     </div>
                 }
             </div>
+        }
+        @if (preAlbum is not null || preSong is not null)
+        {
+            <CatalogPreview Album="preAlbum" Song="preSong" Versions="@(preSong is { } ps ? webSongs.Where(x => VersionKey(x) == VersionKey(ps)).ToList() : [])" OnClose="() => { preAlbum = null; preSong = null; }" />
         }
         @if (webSongs.Count > 0)
         {
@@ -77,8 +82,8 @@ else
                     var inLib = Lib.Find(s.Title, s.Artist) is not null;
                     <li class="track @(hiAsk == hiKey ? "asking" : "")">
                         <span class="track-main">
-                            <Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" />
-                            <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")@if (MoreVersions(s) is > 0 and var more) { <text> · </text><button type="button" class="link-btn versions" aria-expanded="false" @onclick="() => openVersions.Add(VersionKey(s))">+@more version@(more == 1 ? "" : "s")</button> }</span>@if (jb is { Stage: DownloadStage.Failed }) { <span class="track-dl bad"><i aria-hidden="true"></i>@jb.Message</span> } else { <DownloadTag Session="Session" Artist="@s.Artist" Title="@s.Title" /> }</span>
+                            <button type="button" class="card-open" aria-label="Open @s.Title" @onclick="() => { preAlbum = null; preSong = s; }"><Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" /></button>
+                            <span class="track-text"><button type="button" class="track-title link-btn open-song" @onclick="() => { preAlbum = null; preSong = s; }">@s.Title</button><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")@if (MoreVersions(s) is > 0 and var more) { <text> · </text><button type="button" class="link-btn versions" aria-expanded="false" @onclick="() => openVersions.Add(VersionKey(s))">+@more version@(more == 1 ? "" : "s")</button> }</span>@if (jb is { Stage: DownloadStage.Failed }) { <span class="track-dl bad"><i aria-hidden="true"></i>@jb.Message</span> } else { <DownloadTag Session="Session" Artist="@s.Artist" Title="@s.Title" /> }</span>
                         </span>
                         <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
                         <span class="track-actions">
@@ -112,6 +117,7 @@ else
     [Inject] IServiceProvider Provider { get; set; } = default!;
     bool isAdmin => AdminAccess.Is(Session, Conf);
     string q = ""; string? hiAsk, dlMenu;
+    CatalogAlbum? preAlbum; CatalogSong? preSong;
     // the catalogue's many versions of one song are one row, "+N versions" shows the rest (as on the phone, and Spotify: owner, 6 Nov)
     readonly HashSet<string> openVersions = [];
     static string VersionKey(CatalogSong s) => Matching.PrimaryArtist(s.Artist) + "|" + Matching.NormTitle(WebCatalog.BaseTitle(s.Title));
@@ -197,7 +203,7 @@ else
         if (next == q) return;
         q = next;
         pending?.Cancel();
-        webSongs = []; webAlbums = []; webPaused = false; openVersions.Clear();
+        webSongs = []; webAlbums = []; webPaused = false; openVersions.Clear(); preAlbum = null; preSong = null;
         if (q.Length < 2) { webBusy = false; lists = []; return; }
         lists = Made();
         // one online catalog search per keystroke: past the account's "search" limit a minute (typing flat out for a whole minute stays under it) the online

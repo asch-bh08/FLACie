@@ -458,7 +458,8 @@
 @media (min-width: 900px) {
   .sr-pair.both { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
   .sr-pair.both > .sr-section { min-width: 0; }
-  .sr-pair.both .row-scroll { grid-template-rows: auto; grid-auto-columns: minmax(132px, 150px); gap: 16px; }
+  /* exactly four whole cards across each half, the rest scrolled to (a card cut in half at the edge looked broken: owner, 7 Nov) */
+  .sr-pair.both .row-scroll { grid-template-rows: auto; grid-auto-columns: calc((100% - 48px) / 4); gap: 16px; }
   .sr-pair.both .row-scroll.two-rows { grid-template-rows: repeat(2, auto); grid-auto-flow: column; row-gap: 20px; }
 }
 
@@ -498,3 +499,15 @@ body.np-open .dj-bar { display: none; }
 .imp-dl-row.failed .imp-dl-state { color: var(--danger, #d0573f); }
 .imp-dl-why { grid-column: 1 / -2; }
 @media (max-width: 640px) { .imp-dl-row { grid-template-columns: minmax(0, 1fr) auto; } .imp-dl-src, .imp-dl-why { grid-column: 1 / -1; } }
+
+/* Search's song or album not in the library, full screen before downloading (owner, 7 Nov; the phone's song and album pages) */
+.cat-preview { position: fixed; inset: 0; z-index: 92; overflow-y: auto; background: var(--bg); padding: 56px max(16px, calc((100vw - 1100px) / 2)) 120px; outline: none; }
+.cat-preview .detail-head { margin-top: 0; }
+.cat-preview .cat-close { position: fixed; top: 14px; right: 16px; z-index: 1; width: 44px; height: 44px; border-radius: 50%; background: var(--surface-2); }
+.cat-preview .detail-actions a.detail-shuffle { text-decoration: none; display: inline-flex; align-items: center; }
+.cat-preview .tracks .track-main { padding-left: 4px; }
+/* the cover and title of a song or album in More music open it */
+.card-open { display: block; padding: 0; border: 0; background: none; cursor: pointer; border-radius: inherit; }
+.card .card-open { width: 100%; }
+.track-title.open-song { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
+.track-title.open-song:hover { text-decoration: underline; }

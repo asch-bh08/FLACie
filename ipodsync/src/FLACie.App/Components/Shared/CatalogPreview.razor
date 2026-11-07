@@ -1,0 +1,95 @@
+@inherits UserComponent
+@* Search's song or album that is not in the library, full screen before anything is fetched (as on the phone, owner 7 Nov: "where's the full screen preview
+   before downloading on web"): its cover, names and facts, Download, and the album's songs or the song's other versions. Nothing downloads until Download. *@
+<div class="cat-preview" role="dialog" aria-modal="true" aria-label="@(Album?.CleanTitle ?? Song?.Title)" tabindex="-1" @ref="box" @onkeydown="Key">
+    <button class="cat-close icon-btn" aria-label="Close" @onclick="OnClose"><Icon Name="x" Size="22" /></button>
+    @if (Album is { } a)
+    {
+        var ja = Downloads.JobFor(Session, a.Artist, a.CleanTitle);
+        <header class="detail-head">
+            <Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="detail-cover" />
+            <div class="detail-text">
+                <p class="eyebrow">@a.Kind · not in your library</p>
+                <h1>@a.CleanTitle</h1>
+                <p class="detail-artist">@a.Artist</p>
+                <p class="detail-facts">@Facts(a)</p>
+                @if (ja is not null) { <p class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message</p> }
+                @if (Downloads.Allowed)
+                {
+                    <div class="detail-actions">
+                        <button class="detail-play" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="20" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download " + a.Kind.ToLowerInvariant())</button>
+                    </div>
+                }
+            </div>
+        </header>
+        <h2 class="section">Songs</h2>
+        @if (tracks is null) { <p class="status">Loading the songs…</p> }
+        else if (tracks.Count == 0) { <p class="status">The catalogue didn't list this album's songs.</p> }
+        else { <ul class="tracks">@foreach (var s in tracks) { @Row(s) }</ul> }
+    }
+    else if (Song is { } so)
+    {
+        <header class="detail-head">
+            <Cover ArtKey="@(so.ArtUrl is null ? null : Art.ExternalKey(so.ArtUrl))" Class="detail-cover" />
+            <div class="detail-text">
+                <p class="eyebrow">Song · not in your library</p>
+                <h1>@so.Title</h1>
+                <p class="detail-artist">@so.Artist</p>
+                <p class="detail-facts">@(so.Album.Length > 0 ? so.Album + " · " : "")@Time(so.DurationMs)</p>
+                <DownloadTag Session="Session" Artist="@so.Artist" Title="@so.Title" />
+                @if (Downloads.Allowed)
+                {
+                    var js = Downloads.JobFor(Session, so.Artist, so.Title); var have = Lib.Find(so.Title, so.Artist) is not null;
+                    <div class="detail-actions">
+                        <button class="detail-play" disabled="@(!Session.Services.Any || js is { Finished: false } || have)" @onclick="() => Downloads.Song(Session, so)"><Icon Name="download" Size="20" />@(js is { Finished: false } ? "Downloading…" : have ? "In your library" : js is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button>
+                        <a class="detail-shuffle" href="https://www.youtube.com/results?search_query=@Uri.EscapeDataString(so.Artist + " " + so.Title)" target="_blank" rel="noopener">Find on YouTube</a>
+                    </div>
+                }
+            </div>
+        </header>
+        @if (Versions.Where(v => v != so).ToList() is { Count: > 0 } others)
+        {
+            <h2 class="section">Other versions</h2>
+            <ul class="tracks">@foreach (var s in others) { @Row(s) }</ul>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public CatalogAlbum? Album { get; set; }
+    [Parameter] public CatalogSong? Song { get; set; }
+    /// <summary>The catalogue's versions of the song (the one shown among them).</summary>
+    [Parameter] public IReadOnlyList<CatalogSong> Versions { get; set; } = [];
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Inject] IDownloads Downloads { get; set; } = default!;
+    [Inject] WebCatalog Catalog { get; set; } = default!;
+    List<CatalogSong>? tracks; CatalogAlbum? loadedFor; ElementReference box;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Album is not { } a || ReferenceEquals(a, loadedFor)) return;
+        loadedFor = a; tracks = null;
+        try { tracks = await Catalog.TracksAsync(a); } catch (Exception e) when (e is not OperationCanceledException) { tracks = []; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool first) { if (first) try { await box.FocusAsync(); } catch (Exception) { } }
+
+    Task Key(KeyboardEventArgs e) => e.Key == "Escape" ? OnClose.InvokeAsync() : Task.CompletedTask;
+
+    static string Facts(CatalogAlbum a) => string.Join(" · ", new[] { a.Kind, a.Year, a.TrackCount > 0 ? $"{a.TrackCount} {(a.TrackCount == 1 ? "song" : "songs")}" : "" }.Where(x => x.Length > 0));
+    static string Time(long ms) => ms <= 0 ? "" : TimeSpan.FromMilliseconds(ms).ToString(ms >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
+
+    RenderFragment Row(CatalogSong s) => __builder =>
+    {
+        var jb = Downloads.JobFor(Session, s.Artist, s.Title); var have = Lib.Find(s.Title, s.Artist) is not null;
+        <li class="track">
+            <span class="track-main">
+                <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist@(s.Album.Length > 0 && Album is null ? " · " + s.Album : "")</span><DownloadTag Session="Session" Artist="@s.Artist" Title="@s.Title" /></span>
+            </span>
+            <span class="track-time">@Time(s.DurationMs)</span>
+            <span class="track-actions">
+                @if (Downloads.Allowed) { <button class="btn" aria-label="Download @s.Title" disabled="@(!Session.Services.Any || jb is { Finished: false } || have)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : have ? "In your library" : "Download")</button> }
+            </span>
+        </li>
+    };
+}

@@ -269,6 +269,10 @@ else
             <label class="check-chip"><input type="checkbox" @bind="cfg.Downloads" /><span>Someone downloads music</span></label>
             <label class="check-chip"><input type="checkbox" @bind="cfg.JellyfinPlays" /><span>Also plays through Jellyfin (live, with playlist name)</span></label>
         </div>
+        @* plays left out for some people (owner, 7 Nov: their own plays); their downloads, imports and the rest are still sent *@
+        <div class="form">
+            <label for="nq">Don't announce plays by <span class="opt">(user names, separated by commas; their downloads and imports are still sent)</span></label><input id="nq" @bind="QuietText" placeholder="e.g. hms" autocomplete="off" />
+        </div>
         <div class="row-actions">
             <button class="btn primary" @onclick="SaveNotify">Save</button>
             <button class="btn" @onclick="TestNotify" disabled="@testing">@(testing ? "Sending…" : "Send a test")</button>
@@ -555,6 +559,7 @@ else
         sessionsAt = DateTime.MinValue; await Task.Delay(500); await Refresh2();
     }
 
+    string QuietText { get => string.Join(", ", cfg.QuietPlays); set => cfg.QuietPlays = (value ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(); }
     void SaveNotify() { Notify.Save(cfg, token.Length > 0 ? token : null); token = ""; notifyMsg = "Saved."; }
     async Task TestNotify()
     {

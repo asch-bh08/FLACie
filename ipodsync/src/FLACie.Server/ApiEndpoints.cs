@@ -208,6 +208,7 @@ public static class ApiEndpoints
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
             if (r.Via is not ("NAS" or "direct" or "Jellyfin") || string.IsNullOrEmpty(r.Key) || r.Key.Length > 600 || r.Event is not ("start" or "progress" or "stop")) return Results.BadRequest();
             if (r.Via == "Jellyfin" && !notify.Current.JellyfinPlays) return Results.NoContent();   // the Jellyfin watcher announces those
+            if (notify.PlaysQuietFor(s.DisplayName)) return Results.NoContent();   // this person's plays are not announced
             var key = "phone:" + r.Key;
             var device = string.IsNullOrWhiteSpace(r.Device) ? "phone" : r.Device.Trim()[..Math.Min(r.Device.Trim().Length, 40)];
             string Cut(string? x, int n) => (x ?? "").Trim() is var y && y.Length > n ? y[..n] : y;

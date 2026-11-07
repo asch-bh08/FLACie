@@ -43,7 +43,7 @@ public static class MediaEndpoints
             using var prio = JellyfinGate.Use(early || quiet ? GatePriority.Prefetch : GatePriority.Playing);   // and the song being played goes to the front of every queue
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
             // NAS files and the file mover's direct fallback (a song Jellyfin has not scanned yet) are ever reported as "music played"
-            if (!early && !quiet) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
+            if (!early && !quiet && !notify.PlaysQuietFor(s.DisplayName)) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
             async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true, bool keepHead = false)
             {
                 if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString(), PrefetchBytesFor(t)) : ctx.Request.Headers.Range.ToString());

@@ -21,6 +21,8 @@ public sealed class NotifyConfig
     public bool Plays { get; set; } = true;       // someone plays music that Jellyfin does not already announce (NAS, direct fallback)
     public bool Downloads { get; set; } = true;   // a user's downloads finished (batched into one message)
     public bool JellyfinPlays { get; set; } = true;   // also announce plays that go through Jellyfin from FLACie Web (the Jellyfin watcher must ignore the device "FLACie Web", or every song is announced twice)
+    /// <summary>People whose plays are never announced (their user name, any case); everything else about them still is (owner, 7 Nov: "I know what I'm playing").</summary>
+    public List<string> QuietPlays { get; set; } = [];
 }
 
 /// <summary>Sends notifications to an ntfy server (https://ntfy.sh/ or your own). Nothing is sent unless an admin has set it up and turned it on.</summary>
@@ -64,6 +66,9 @@ public sealed class Notifier
             try { Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllText(file, JsonSerializer.Serialize(cfg)); } catch (Exception e) { log.LogWarning(e, "Saving notification settings failed"); }
         }
     }
+
+    /// <summary>[user]'s plays are not announced (see <see cref="NotifyConfig.QuietPlays"/>).</summary>
+    public bool PlaysQuietFor(string? user) => user is { Length: > 0 } u && Current.QuietPlays.Any(q => string.Equals(q.Trim(), u.Trim(), StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Sends if this kind of notification is switched on. Never throws.</summary>
     public Task NotifyAsync(string kind, string title, string message, int priority = 3, string? tags = null)

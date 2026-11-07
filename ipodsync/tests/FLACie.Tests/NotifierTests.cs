@@ -103,4 +103,16 @@ public class NotifierTests : IDisposable
         var (n2, _, _) = Make(_ => Status(HttpStatusCode.OK), new() { ["FLACIE_NTFY_TOPIC"] = "owner-topic" });
         Assert.Equal("mine", n2.Current.Topic);
     }
+
+    // owner, 7 Nov: "turn off playback notifications just for my user (hms), because I know what I'm playing; keep downloads, imports etc."
+    [Fact]
+    public void Plays_are_not_announced_for_the_people_on_the_quiet_list_and_everything_else_still_is()
+    {
+        var (n, _, _) = Make(_ => Status(HttpStatusCode.OK));
+        n.Save(new NotifyConfig { Url = "https://ntfy.example", Topic = "t", Enabled = true, QuietPlays = ["hms"] }, null);
+        Assert.True(n.PlaysQuietFor("hms")); Assert.True(n.PlaysQuietFor("HMS"));
+        Assert.False(n.PlaysQuietFor("Fam")); Assert.False(n.PlaysQuietFor(""));
+        Assert.True(n.Current.Plays); Assert.True(n.Current.Downloads); Assert.True(n.Current.Imports);
+        Assert.Equal(["hms"], n.Current.QuietPlays);   // kept with the rest
+    }
 }

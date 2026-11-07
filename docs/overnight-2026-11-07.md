@@ -21,3 +21,4 @@ The owner is away overnight and wants a beta in the morning with fixes and new t
 
 (newest last)
 - 23:20 — the session stopped at the owner's request (limits). Handoff: docs/HANDOFF-2026-11-07-night.md. None of items 1–7 above are started yet.
+- 23:55 — **Item 1 done (EQ on web).** Now Playing's bottom bar has an "EQ" pill (phone: in Options) with presets as words (Flat, Rock, Pop, Jazz, Classical, Vocal, Bass boost) and five sliders; same EQ as the Retro scenes. Tests: SceneEqTests 7/7, web 1z-eq + 1j-speed-sleep 8/8. The phone already had its own Equalizer sheet.

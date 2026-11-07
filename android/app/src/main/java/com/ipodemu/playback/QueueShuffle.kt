@@ -17,6 +17,14 @@ object QueueShuffle {
         return order
     }
 
+    /** A new queue started on shuffle at [first]: that song, then every other one shuffled ([first] outside the queue: all shuffled). The player's own
+     *  order put [first] anywhere, so the songs before it never played and Autoplay took over early. */
+    fun start(count: Int, first: Int, random: kotlin.random.Random = kotlin.random.Random.Default): IntArray {
+        if (first !in 0 until count) return IntArray(count) { it }.also { it.shuffle(random) }
+        val rest = (0 until count).filter { it != first }.shuffled(random)
+        return (listOf(first) + rest).toIntArray()
+    }
+
     /** The original order back, and where the song at [pos] of [order] now is (-1 when [pos] is outside it). */
     fun off(order: IntArray, pos: Int): Pair<IntArray, Int> = IntArray(order.size) { it } to (if (pos in order.indices) order[pos] else -1)
 }

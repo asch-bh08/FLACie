@@ -41,4 +41,15 @@ class ShuffleTest {
         assertEquals(-1, QueueShuffle.off(o, 10).second)
         assertEquals(-1, QueueShuffle.off(o, -1).second)
     }
+
+    // owner, 6 Nov: Shuffle on a playlist, then Next played recommendations. The player's own order for a new queue put the first song anywhere in it,
+    // so the songs before it were never played, the queue "ended" early and Autoplay's songs came next
+    @Test fun a_queue_started_on_shuffle_plays_its_first_song_then_every_other_one() {
+        val o = QueueShuffle.start(20, 7, Random(3))
+        assertEquals(7, o[0])
+        assertEquals((0 until 20).toList(), o.sorted())
+        assertNotEquals((0 until 20).filter { it != 7 }, o.drop(1).toList())
+        assertArrayEquals(intArrayOf(0), QueueShuffle.start(1, 0))
+        assertEquals("a start outside the queue: all shuffled", (0 until 5).toList(), QueueShuffle.start(5, -1).sorted())
+    }
 }

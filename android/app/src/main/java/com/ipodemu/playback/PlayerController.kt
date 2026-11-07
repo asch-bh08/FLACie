@@ -830,7 +830,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             contextId = null; dj.newQueue()
             lastStarted = s.tracks[s.index]   // a restore is not a new play (no history entry, no plays report)
             exo.setMediaItems(s.tracks.map(::item), s.index, s.positionMs)
-            s.shuffleOrder?.let { setShuffleOrderQuiet(it) }
+            // no order saved (or it no longer fits): the songs after this one shuffled, never the player's own order that can put this one last
+            setShuffleOrderQuiet(s.shuffleOrder ?: QueueShuffle.on(s.tracks.size, s.index))
             exo.playWhenReady = false
             ensureService()   // a paused session, so the media buttons and the notification reach the restored queue
         } catch (_: Exception) {}
@@ -1197,6 +1198,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); autoplayPaths.clear()
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), 0L)
+        // on shuffle: the chosen song first, then every other song (the player's own order for new items put the first song anywhere, skipping the
+        // songs before it, and Autoplay's recommendations came after a few Nexts: owner, 6 Nov)
+        if (exo.shuffleModeEnabled) setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex)))
         exo.prepare()
         exo.play()
         djAsk()
@@ -1221,6 +1225,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         queue = list
         contextId = null; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon()
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), positionMs.coerceAtLeast(0))
+        if (exo.shuffleModeEnabled) setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex)))
         exo.prepare(); if (paused) exo.pause() else exo.play()
         djAsk()
         ctx.startService(Intent(ctx, PlaybackService::class.java))

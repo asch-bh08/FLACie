@@ -15,6 +15,8 @@ object Diag {
     fun add(kind: String, text: String, at: Long = System.currentTimeMillis()) = synchronized(pending) {
         pending.addLast(JSONObject().put("at", at).put("kind", kind).put("text", text.take(300)))
         while (pending.size > MAX) pending.removeFirst()
+        // in logcat too, so an emulator run shows the same steps (unit tests have no Log)
+        try { android.util.Log.i("FLACieDiag", "$kind: ${text.take(300)}") } catch (_: Throwable) { }
     }
 
     /** Up to [BATCH] events as a request body, taken out of the queue; null when there are none. */

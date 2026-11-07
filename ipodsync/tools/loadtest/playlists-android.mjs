@@ -73,9 +73,11 @@ async function main() {
   const press = async (button) => {
     const u = await waitUi((n) => n.some((x) => label(x) === button), 10000, 800);
     const b = u?.find((x) => label(x) === button); if (!b) return null;
+    // what played before is still PLAYING for a moment: wait for the new queue's song (a different title, or the same one from a fresh start)
+    const was = mediaSession();
     tapNode(b);
-    for (let i = 0; i < 40; i++) { const m = mediaSession(); if (m.state === 3) return titleOf(m.description); await sleep(500); }
-    return null;
+    for (let i = 0; i < 40; i++) { await sleep(500); const m = mediaSession(); if (m.state === 3 && (titleOf(m.description) !== titleOf(was.description) || m.position < 1500 && was.position > 3000)) return titleOf(m.description); }
+    const m = mediaSession(); return m.state === 3 ? titleOf(m.description) : null;
   };
   const nextSong = async () => { const was = titleOf(mediaSession().description); key('KEYCODE_MEDIA_NEXT'); for (let i = 0; i < 20; i++) { await sleep(400); const t = titleOf(mediaSession().description); if (t && t !== was) return t; } return titleOf(mediaSession().description); };
   const titles = (l) => l.map((s) => s.t);

@@ -185,10 +185,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val browseExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "browse-play").also { it.isDaemon = true } }
     private fun isBrowseId(id: String) = BrowseTree.isPlayId(id) || BrowseTree.parseAsk(id) != null
     /** A controller (Android Auto, a head unit, a voice command) asked to play browse items: the songs of the list they come from are queued here with the normal player, so the queue, history and everything else behave as if it was played in the app. */
-    internal fun playBrowse(items: List<MediaItem>): Boolean {
-        val id = items.firstOrNull()?.mediaId ?: return false
+    /** [done]: called once the new queue is in the player (or nothing will be), so the car is told about the new queue only when it is there. */
+    internal fun playBrowse(items: List<MediaItem>, done: () -> Unit = {}): Boolean {
+        val id = items.firstOrNull()?.mediaId ?: return false.also { done() }
         // the queue of last time, put back paused; the play that follows carries on with it
-        if (id == BrowseTree.RESUME) { restoreQueue(); return true }
+        if (id == BrowseTree.RESUME) { restoreQueue(); done(); return true }
         // a car voice request: the DJ understands it; when FLACie Web can't be reached, the first song that matches, as before
         BrowseTree.parseAsk(id)?.let { q ->
             askDj(BrowseTree.askWords(q)) { a ->
@@ -197,14 +198,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     if (r != null) handler.post { play(r.tracks, r.index) }
                 }
             }
+            done()
             return true
         }
         // a song the car's search found in the online catalog: downloaded the normal way, and played the moment it lands
         BrowseTree.parseDownload(id)?.let { c ->
             App.of(ctx).library.requestDownload(c.artist, c.title, c.album, c.durationMs) { t -> play(listOf(t), 0) }
+            done()
             return true
         }
-        if (!isBrowseId(id)) return false
+        if (!isBrowseId(id)) return false.also { done() }
         browseExec.execute {
             // a car that started FLACie cold: wait for the library (as its lists do) before turning a playlist into songs. Asked at once, only the
             // songs a playlist had saved enough about survived: Shuffle on a 54-song playlist queued 20 (owner, 2 Nov)
@@ -216,7 +219,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
             val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
             Diag.add("queue", "car: ${id.take(60)} -> ${r?.tracks?.size ?: 0} songs (library ${if (App.of(ctx).library.loaded) "loaded" else "NOT loaded"})")
-            if (r != null) handler.post { play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key) }
+            handler.post { if (r != null) play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key); done() }
         }
         return true
     }
@@ -686,7 +689,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                 // a metadata-only swap (refreshArtwork) also reports a transition; that's not a new play
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { if (!quietTransition && (it !== lastStarted || reason != Player.MEDIA_ITEM_TRANSITION_REASON_PLAYLIST_CHANGED)) { beginPlay(it); onTrackStarted?.invoke(it) }; lastStarted = it }
                 refreshArtwork()
-                checkQueueLow()
+                // looked at once the change is complete: this runs inside setMediaItems, before play() puts in the shuffle order, and the player's own
+                // order then often looked nearly over, so Autoplay added its songs to a playlist that had just started (owner, 6 Nov)
+                handler.post { checkQueueLow() }
                 (mediaItem?.localConfiguration?.tag as? Track)?.let { startedItem(it) }
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && (sleepMode == SleepMode.END_OF_TRACK || sleepMode == SleepMode.END_OF_ALBUM)) sleepFired()
                 reviewQuality(); adaptUpcoming(); schedulePrefetch(); freePlayed()
@@ -936,6 +941,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private var quietTransition = false
 
     /** A pending skip burst is settled first, so the edit works on the song that is really playing. */
+    private fun dropBurst() { handler.removeCallbacks(commitBurst); burst.reset() }
     private fun settleBurst() { if (burstTarget >= 0) { handler.removeCallbacks(commitBurst); commitBurst.run() } }
 
     private fun trackAt(i: Int): Track? = if (i in 0 until exo.mediaItemCount) exo.getMediaItemAt(i).localConfiguration?.tag as? Track else null
@@ -1198,13 +1204,16 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
         queue = list
+        // Next presses still settling belong to the old queue: they would land in the middle of this one (the car's Next then a playlist)
+        dropBurst()
         // a new queue: the DJ's "this queue" switch goes back to untouched, and nothing from the old queue is said
         this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); autoplayPaths.clear(); queueGen++
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), 0L)
         // on shuffle: the chosen song first, then every other song (the player's own order for new items put the first song anywhere, skipping the
         // songs before it, and Autoplay's recommendations came after a few Nexts: owner, 6 Nov)
-        if (exo.shuffleModeEnabled) setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex)))
+        // (what is fetched ahead was planned inside setMediaItems on the player's own order: planned again on this one)
+        if (exo.shuffleModeEnabled) { setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex))); adaptUpcoming(); schedulePrefetch() }
         exo.prepare()
         exo.play()
         djAsk()
@@ -1227,6 +1236,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     fun playFrom(list: List<Track>, index: Int, positionMs: Long, paused: Boolean = false) {
         if (list.isEmpty()) return
         queue = list
+        dropBurst()
         contextId = null; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); queueGen++
         exo.setMediaItems(list.map(::item), index.coerceIn(0, list.lastIndex), positionMs.coerceAtLeast(0))
         if (exo.shuffleModeEnabled) setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex)))

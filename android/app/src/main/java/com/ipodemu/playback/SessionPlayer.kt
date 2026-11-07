@@ -121,7 +121,15 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs, p
     override fun handleSetPlaybackParameters(playbackParameters: PlaybackParameters): ListenableFuture<*> { c.setSpeed(playbackParameters.speed); return done }
 
     /** "Play this" from a browse list or by voice: the controller queues the list it came from. */
-    override fun handleSetMediaItems(mediaItems: List<MediaItem>, startIndex: Int, startPositionMs: Long): ListenableFuture<*> { c.playBrowse(mediaItems); return done }
+    // finished only once the queue is in the player: until then Media3 keeps showing the controller what it asked for, and the state it is sent next is the new
+    // queue (said "done" at once, the car was sent the old queue and then the new one, and a Media3 controller crashed merging them; 25 s at most)
+    override fun handleSetMediaItems(mediaItems: List<MediaItem>, startIndex: Int, startPositionMs: Long): ListenableFuture<*> {
+        val f = com.google.common.util.concurrent.SettableFuture.create<Any?>()
+        val give = Runnable { f.set(null) }
+        handler.postDelayed(give, 25_000L)
+        c.playBrowse(mediaItems) { handler.removeCallbacks(give); f.set(null) }
+        return f
+    }
 
     companion object {
         private val COMMANDS: Player.Commands = Player.Commands.Builder().addAll(

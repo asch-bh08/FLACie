@@ -27,7 +27,9 @@ In priority order:
    - All four emulator drivers on the release APK (debug + test APK for playlists): `smoke-android.mjs` 23/23, `playlists-android.mjs` 23/23 plus the stand-in car 9/9, `search-android.mjs` 9/9, `dj-android.mjs` 3/3.
    - Look at a screenshot of each changed screen, on the phone (emulator) and the web.
 
-Done tonight (before the stop):
+**Status 8 Nov, 02:50: items 1–5 done, item 6 first pass done, b122 released** (https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b122, APK + MSI) and the web deployed. Details in `docs/overnight-2026-11-07.md`. **Next:** the rest of the UI overhaul (the sidebar, Home's style, the other pages; phone pages too), and the owner's "rows with only the label" screenshot, which could not be reproduced (test `1z-search-tags` guards it). Known test-order failures, not from tonight: 1-pages "Quick picks" and "bottom bar 375/320", 1q-dj "Aura-2 voices" (fail after other tests, pass alone; same on 93b7663a). Wrapping an emulator driver in heavy.ps1: the -Cmd must start with `powershell -File`, not the .ps1 itself (cmd opens it instead of running it); for the playlists driver's `--testapk` use an inner .ps1 with no arguments.
+
+Done before the stop on 7 Nov:
 
 - **b121 released**: playlist matching, DJ timing, swoosh, DJ playlist wording. https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b121
 - **Web**:

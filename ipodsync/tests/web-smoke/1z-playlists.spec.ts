@@ -47,6 +47,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       // add a song from the library, then look at the playlist
       await live(page, '/songs');
       await page.getByRole('button', { name: /^More for / }).first().click();
+      await page.getByRole('menuitem', { name: 'Add to playlist' }).first().click();
       await page.getByRole('menuitem', { name: 'Add to ' + plName }).click();
       await page.waitForTimeout(500);
 

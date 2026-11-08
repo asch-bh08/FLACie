@@ -259,11 +259,13 @@
     }
 
     // the "..." menu: closes on a click anywhere outside it or Escape (flacie.watchOutside calls Dismiss)
-    bool more, plOpen, opts; string moreAt = "w";
+    bool more, plOpen, nopeOpen, djOpen, opts; string moreAt = "w";
+    // one sub-menu open at a time, so the menu never grows past the screen
+    void Sub(ref bool which) { var was = which; plOpen = nopeOpen = djOpen = false; which = !was; }
     [JSInvokable] public void Dismiss() => InvokeAsync(() => { CloseMore(); StateHasChanged(); });
     async Task ToggleMore(string at)
     {
-        more = !(more && moreAt == at); moreAt = at; plOpen = false;
+        more = !(more && moreAt == at); moreAt = at; plOpen = nopeOpen = djOpen = false;
         if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more." + at, self); } catch (Exception) { } }
         else { try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
     }
@@ -278,7 +280,7 @@
         CloseMore();
         try { await Js.InvokeVoidAsync("flacie.npGo", DjSettingsUrl); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo(DjSettingsUrl); }
     }
-    void CloseMore() { more = false; plOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
+    void CloseMore() { more = false; plOpen = nopeOpen = djOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");
     // on a phone the first Back closes an open sheet (back to the cover), the next one closes the player
@@ -310,10 +312,12 @@
         <button class="ls-icon ls-more-btn" @onclick="() => ToggleMore(at)" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more && moreAt == at ? "true" : "false")"><Icon Name="more" Size="22" />@if (at == "p") { <span>More</span> }</button>
         @if (more && moreAt == at)
         {
+            @* nine words, in groups, and the rarer choices one tap further in (owner, 7 Nov: "menus are too complicated, Now Playing's … has 11 items");
+               Song info is the Info page beside the cover, so it is not here *@
             <div class="menu np-menu" role="menu">
                 <button role="menuitem" @onclick='() => Plain(() => Player.PlayNext(t), $"“{t.Title}” plays next")'>Play next</button>
                 <button role="menuitem" @onclick='() => Plain(() => Player.AddToQueue(t), $"Added “{t.Title}” to the queue")'>Add to queue</button>
-                <button role="menuitem" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => plOpen = !plOpen">Add to playlist <span aria-hidden="true">@(plOpen ? "▾" : "▸")</span></button>
+                <button role="menuitem" class="has-sub" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => Sub(ref plOpen)">Add to playlist <span aria-hidden="true" class="chev">›</span></button>
                 @if (plOpen)
                 {
                     @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
@@ -322,14 +326,23 @@
                         <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); CloseMore(); }">@p.Name</button>
                     }
                 }
+                <hr class="menu-sep" />
                 <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
                 @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
-                <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
                 <button role="menuitem" @onclick='async () => { CloseMore(); await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
-                <button role="menuitem" @onclick='() => { Open("info"); CloseMore(); }'>Song info</button>
-                <button role="menuitem" @onclick='() => Plain(() => Feedback.LessLikeThis(Session, t), $"Fewer songs like “{t.Title}”")'>Less like this</button>
-                <button role="menuitem" @onclick='() => Plain(() => _ = Feedback.ThumbDown(Session, t, Player), $"“{t.Title}” will not be picked for you again")'>Thumbs down</button>
-                <DjSongMenu Player="Player" Session="Session" Song="t" OnDone="CloseMore" />
+                <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(t.Path)" download="@FileName(t)" @onclick="CloseMore">Download</a>
+                <hr class="menu-sep" />
+                <button role="menuitem" class="has-sub" aria-expanded="@(nopeOpen ? "true" : "false")" @onclick="() => Sub(ref nopeOpen)">Not for me <span aria-hidden="true" class="chev">›</span></button>
+                @if (nopeOpen)
+                {
+                    <button role="menuitem" class="sub" @onclick='() => Plain(() => Feedback.LessLikeThis(Session, t), $"Fewer songs like “{t.Title}”")'>Less like this</button>
+                    <button role="menuitem" class="sub" @onclick='() => Plain(() => _ = Feedback.ThumbDown(Session, t, Player), $"“{t.Title}” will not be picked for you again")'>Never pick this song</button>
+                }
+                @if (Player.Dj is not null)
+                {
+                    <button role="menuitem" class="has-sub" aria-expanded="@(djOpen ? "true" : "false")" @onclick="() => Sub(ref djOpen)">The DJ and this song <span aria-hidden="true" class="chev">›</span></button>
+                    @if (djOpen) { <DjSongMenu Player="Player" Session="Session" Song="t" OnDone="CloseMore" /> }
+                }
             </div>
         }
     </div>;

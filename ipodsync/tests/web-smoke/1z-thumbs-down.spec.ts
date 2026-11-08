@@ -36,12 +36,14 @@ test('Thumbs down removes the row and is logged; Less like this is logged', asyn
   await expect(rows).toHaveCount(8, { timeout: 20_000 });
 
   await rows.nth(2).getByRole('button', { name: /^More for/ }).click();
+  await rows.nth(2).getByRole('menuitem', { name: 'Not for me' }).click();
   await rows.nth(2).getByRole('menuitem', { name: 'Less like this' }).click();
   await expect.poll(() => logged('LessLikeThis', 'Lab 3')).toBe(true);
   await expect(rows).toHaveCount(8);
 
   await rows.nth(4).getByRole('button', { name: /^More for/ }).click();
-  await rows.nth(4).getByRole('menuitem', { name: 'Thumbs down' }).click();
+  await rows.nth(4).getByRole('menuitem', { name: 'Not for me' }).click();
+  await rows.nth(4).getByRole('menuitem', { name: 'Never pick this song' }).click();
   await expect(rows).toHaveCount(7);
   await expect(page.locator('.tracks .track-title', { hasText: 'Lab 5' })).toHaveCount(0);
   await expect.poll(() => logged('ThumbDown', 'Lab 5')).toBe(true);
@@ -74,17 +76,18 @@ test('A song menu offers the DJ choices, ticks the current one and keeps it', as
   const rows = page.locator('.tracks .track');
   await expect(rows).toHaveCount(8, { timeout: 20_000 });
   const open = async () => { await rows.nth(1).getByRole('button', { name: /^More for/ }).click(); return rows.nth(1).locator('.menu'); };
-  let menu = await open();
+  const openDj = async () => { const m = await open(); await m.getByRole('menuitem', { name: 'The DJ and this song' }).click(); return m; };
+  let menu = await openDj();
   await expect(menu.getByRole('menuitemradio', { name: 'DJ: always introduce this song' })).toHaveAttribute('aria-checked', 'false');
   await expect(menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' })).toHaveAttribute('aria-checked', 'false');
   await expect(menu.getByRole('menuitemradio', { name: 'DJ: default' })).toHaveAttribute('aria-checked', 'true');
   await menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' }).click();
   await expect.poll(async () => Object.values(await djSongs())).toEqual(['never']);
-  menu = await open();
+  menu = await openDj();
   await expect(menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' })).toHaveAttribute('aria-checked', 'true');
   await menu.getByRole('menuitemradio', { name: 'DJ: always introduce this song' }).click();
   await expect.poll(async () => Object.values(await djSongs())).toEqual(['always']);
-  menu = await open();
+  menu = await openDj();
   await menu.getByRole('menuitemradio', { name: 'DJ: default' }).click();
   await expect.poll(async () => Object.keys(await djSongs()).length).toBe(0);
 });

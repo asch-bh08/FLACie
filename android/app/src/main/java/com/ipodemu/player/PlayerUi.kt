@@ -481,23 +481,15 @@ private fun swipeAction(code: Int, app: App, t: Track, fav: Boolean, ctx: androi
 }
 
 fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = emptyList()) {
+    // the everyday choices first, in words, and the rarer ones one tap further in (owner, 7 Nov: "menus are too complicated"); as on the web
     val ud = app.userData
     val items = ArrayList<SheetItem>()
     items += SheetItem("Play next", Glyph.PLAY) { app.player.addNext(t) }
     items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
-    items += SheetItem(if (ud.isFavorite(t)) "Remove from favorites" else "Add to favorites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
-    items += SheetItem("Add to playlist...", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
-    if (t.isMusic) {
-        items += SheetItem("Thumbs down", Glyph.CLOSE) { thumbsDown(app, t) }
-        items += SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("You'll hear less like \"${t.title}\"") }
-    }
-    // the DJ's choice for this song (kept on the account by title and artist): the one in force is ticked
-    if (t.isMusic && app.player.djAvailable && com.ipodemu.playback.DjRules.songKey(t.title, t.artist).isNotEmpty())
-        for ((label, choice, on) in com.ipodemu.playback.DjRules.songMenu(app.player.djSettings, t.title, t.artist))
-            items += SheetItem(label, Glyph.MORE, selected = on, group = "DJ") {
-                app.player.setDjSong(t.title, t.artist, choice) { app.ui.say("Couldn't save the DJ choice: $it") }
-                app.ui.say(when (choice) { true -> "The DJ will always introduce \"${t.title}\""; false -> "The DJ won't talk over \"${t.title}\""; null -> "The DJ treats \"${t.title}\" as usual" })
-            }
+    items += SheetItem("Add to playlist…", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
+    items += SheetItem(if (ud.isFavorite(t)) "Remove from favourites" else "Add to favourites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
+    if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
+    if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
     if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)
@@ -506,12 +498,30 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
             if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path)
         }
     }
-    items += SheetItem("Rate" + (app.userData.rating(t).takeIf { it > 0 }?.let { "  (" + RatingStore.label(it) + ")" } ?: "") + "...", Glyph.STAR) { nav.sheet = ratingSheet(app, t) }
-    if (t.isMusic) items += SheetItem("MusicBrainz match...", Glyph.INFO) { musicBrainzSheet(app, nav, t) }
-    if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
-    if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
     items += extra
-    // administrators only, kept quiet at the foot of the menu: a Hi-Res copy of a song already in the library (saved beside it; nothing is downloaded instead if none exists)
+    if (t.isMusic) items += SheetItem("Not for me…", Glyph.CLOSE) {
+        nav.sheet = SheetSpec("Not for me", t.title, listOf(
+            SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("You'll hear less like \"${t.title}\"") },
+            SheetItem("Never pick this song", Glyph.CLOSE) { thumbsDown(app, t) },
+        ))
+    }
+    items += SheetItem("More…", Glyph.MORE) { nav.sheet = trackMoreSheet(app, nav, t) }
+    nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
+}
+
+/** A song menu's rarer choices: the rating, the DJ's choice for it, its MusicBrainz match, and (administrators) a Hi-Res copy. */
+private fun trackMoreSheet(app: App, nav: PlayerNav, t: Track): SheetSpec {
+    val items = ArrayList<SheetItem>()
+    items += SheetItem("Rate" + (app.userData.rating(t).takeIf { it > 0 }?.let { "  (" + RatingStore.label(it) + ")" } ?: "") + "…", Glyph.STAR) { nav.sheet = ratingSheet(app, t) }
+    // the DJ's choice for this song (kept on the account by title and artist): the one in force is ticked
+    if (t.isMusic && app.player.djAvailable && com.ipodemu.playback.DjRules.songKey(t.title, t.artist).isNotEmpty())
+        for ((label, choice, on) in com.ipodemu.playback.DjRules.songMenu(app.player.djSettings, t.title, t.artist))
+            items += SheetItem(label, Glyph.MORE, selected = on, group = "DJ") {
+                app.player.setDjSong(t.title, t.artist, choice) { app.ui.say("Couldn't save the DJ choice: $it") }
+                app.ui.say(when (choice) { true -> "The DJ will always introduce \"${t.title}\""; false -> "The DJ won't talk over \"${t.title}\""; null -> "The DJ treats \"${t.title}\" as usual" })
+            }
+    if (t.isMusic) items += SheetItem("MusicBrainz match…", Glyph.INFO) { musicBrainzSheet(app, nav, t) }
+    // administrators only: a Hi-Res copy of a song already in the library (saved beside it; nothing is downloaded instead if none exists)
     if (app.ui.isAdmin && t.isMusic && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank() && !t.path.contains("[Hi-Res]", ignoreCase = true)) {
         items += SheetItem("✦ Hi-Res version…", Glyph.DOWN) {
             nav.sheet = SheetSpec("Get a Hi-Res copy?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.", listOf(
@@ -520,7 +530,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
             ))
         }
     }
-    nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
+    return SheetSpec(t.title, "More", items)
 }
 
 /**

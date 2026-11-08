@@ -1462,3 +1462,13 @@ html.buffering .play .ic { opacity: .55; }
 .eq-band small { color: var(--dim); font-size: 11px; }
 .eq-band b { font-size: 12px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; color: var(--dim); }
 .eq-band input[type=range] { width: 100%; accent-color: var(--accent); }
+
+/* song menus in groups (owner, 7 Nov: "menus are too complicated"): a thin line between groups, and a chevron that turns as a sub-menu opens */
+.menu .menu-sep { border: 0; border-top: 1px solid var(--line); margin: 4px 8px; }
+.menu .has-sub { display: flex; align-items: center; justify-content: space-between; }
+.menu .has-sub .chev { display: inline-block; font-size: 18px; line-height: 1; opacity: .6; transition: transform .22s cubic-bezier(.3, 1.4, .5, 1); }
+.menu .has-sub[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.menu button.sub, .menu .dj-song { animation: sub-in .22s cubic-bezier(.2, .9, .3, 1.1) backwards; }
+.menu button.sub:nth-of-type(2n) { animation-delay: .02s; }
+@keyframes sub-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .menu .has-sub .chev, .menu button.sub, .menu .dj-song { transition: none; animation: none; } }

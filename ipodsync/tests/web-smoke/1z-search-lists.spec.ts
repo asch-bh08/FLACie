@@ -27,6 +27,7 @@ test('a song search lists the playlist that holds it, saying so', async ({ page 
   await page.getByRole('link', { name: /Lab Album/ }).first().click();
   await expect(page.locator('.tracks .track')).toHaveCount(8, { timeout: 20_000 });
   await page.getByRole('button', { name: 'More for Lab 3' }).click();
+  await page.getByRole('menuitem', { name: 'Add to playlist' }).click();
   await page.getByRole('menuitem', { name: `Add to ${name}` }).click();
   await expect(page.locator('.toast')).toContainText('Added');
   await page.goto('/search?q=' + encodeURIComponent('Lab 3'));

@@ -114,6 +114,7 @@ for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', wi
     const url = page.url();
     await live(page, '/songs');
     await page.getByRole('button', { name: /^More for / }).first().click();
+    await page.getByRole('menuitem', { name: 'Add to playlist' }).click();
     await page.getByRole('menuitem', { name: 'Add to ' + name }).click();
     await page.waitForTimeout(500);
     await live(page, url);

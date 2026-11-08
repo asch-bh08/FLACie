@@ -28,6 +28,7 @@ test('removing from a playlist can be undone', async ({ page }) => {
   await expect(page.locator('.tracks .track')).toHaveCount(8, { timeout: 20_000 });
   for (const s of ['Lab 1', 'Lab 2', 'Lab 3']) {
     await page.getByRole('button', { name: `More for ${s}` }).click();
+    await page.getByRole('menuitem', { name: 'Add to playlist' }).click();
     await page.getByRole('menuitem', { name: `Add to ${name}` }).click();
     await expect(page.locator('.toast')).toContainText('Added');
   }

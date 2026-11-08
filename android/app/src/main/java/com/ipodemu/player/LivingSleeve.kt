@@ -895,8 +895,7 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
             val song = buildList {
                 if (t.isMusic && t.album.isNotEmpty()) add(MoreRow("Go to album", { GlyphIcon(Glyph.ALBUM, Modifier.size(24.dp), it) }, t.album, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }))
                 if (t.isMusic && t.artist.isNotEmpty()) add(MoreRow("Go to artist", { GlyphIcon(Glyph.ARTIST, Modifier.size(24.dp), it) }, t.artist, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }))
-                add(MoreRow("Song info", { GlyphIcon(Glyph.INFO, Modifier.size(24.dp), it) }, null, true, close { onOpen("info") }))
-                add(MoreRow("Lyrics", { GlyphIcon(Glyph.LYRICS, Modifier.size(24.dp), it) }, null, true, close { onOpen("lyrics") }))
+                // (Info and Lyrics are their own buttons under the cover, so they are not repeated here: owner, 7 Nov, "menus are too complicated")
                 add(MoreRow("Rate", { GlyphIcon(Glyph.STAR, Modifier.size(24.dp), it) }, app.userData.rating(t).takeIf { it > 0 }?.let { RatingStore.label(it) } ?: "None", true, close { nav.sheet = ratingSheet(app, t) }))
                 if (t.isMusic) add(MoreRow("MusicBrainz match", { GlyphIcon(Glyph.SEARCH, Modifier.size(24.dp), it) }, null, true, close { musicBrainzSheet(app, nav, t) }))
                 if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {

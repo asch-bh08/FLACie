@@ -29,26 +29,42 @@
             </span>
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
             <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
-            <button class="icon-btn" @onclick="() => menu = menu == idx ? -1 : idx" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")"><Icon Name="more" /></button>
+            <button class="icon-btn" @onclick="() => { menu = menu == idx ? -1 : idx; sub = string.Empty; }" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")"><Icon Name="more" /></button>
             @if (menu == idx)
             {
                 <div class="menu" role="menu">
                     <button role="menuitem" @onclick='() => { Player.PlayNext(t); Toast.Show($"“{t.Title}” plays next"); menu = -1; }'>Play next</button>
                     <button role="menuitem" @onclick='() => { Player.AddToQueue(t); Toast.Show($"Added “{t.Title}” to the queue"); menu = -1; }'>Add to queue</button>
-                    <button role="menuitem" @onclick="() => { menu = -1; StartSelecting(idx); }">Select</button>
-                    <button role="menuitem" @onclick='async () => { menu = -1; await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
-                    @foreach (var p in Session.Playlists)
+                    @* every playlist used to be listed here, one "Add to …" each: now one entry opens them (owner, 7 Nov: "menus are too complicated") *@
+                    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "pl" ? "true" : "false")" @onclick='() => Sub("pl")'>Add to playlist <span aria-hidden="true" class="chev">›</span></button>
+                    @if (sub == "pl")
                     {
-                        <button role="menuitem" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
+                        @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
+                        @foreach (var p in Session.Playlists)
+                        {
+                            <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
+                        }
                     }
                     @if (OnMove is not null)
                     {
                         <button role="menuitem" disabled="@(idx == 0)" @onclick="() => { OnMove(idx, idx - 1); menu = -1; }">Move up</button>
                         <button role="menuitem" disabled="@(idx == Tracks.Count - 1)" @onclick="() => { OnMove(idx, idx + 1); menu = -1; }">Move down</button>
                     }
-                    <button role="menuitem" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, t); Toast.Show($"Fewer songs like “{t.Title}”"); }'>Less like this</button>
-                    <button role="menuitem" @onclick='() => { menu = -1; gone.Add(t.Path); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }'>Thumbs down</button>
-                    <DjSongMenu Player="Player" Session="Session" Song="t" OnDone="() => menu = -1" />
+                    <hr class="menu-sep" />
+                    <button role="menuitem" @onclick='async () => { menu = -1; await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
+                    <button role="menuitem" @onclick="() => { menu = -1; StartSelecting(idx); }">Select songs</button>
+                    <hr class="menu-sep" />
+                    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "nope" ? "true" : "false")" @onclick='() => Sub("nope")'>Not for me <span aria-hidden="true" class="chev">›</span></button>
+                    @if (sub == "nope")
+                    {
+                        <button role="menuitem" class="sub" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, t); Toast.Show($"Fewer songs like “{t.Title}”"); }'>Less like this</button>
+                        <button role="menuitem" class="sub" @onclick='() => { menu = -1; gone.Add(t.Path); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }'>Never pick this song</button>
+                    }
+                    @if (Player.Dj is not null)
+                    {
+                        <button role="menuitem" class="has-sub" aria-expanded="@(sub == "dj" ? "true" : "false")" @onclick='() => Sub("dj")'>The DJ and this song <span aria-hidden="true" class="chev">›</span></button>
+                        @if (sub == "dj") { <DjSongMenu Player="Player" Session="Session" Song="t" OnDone="() => menu = -1" /> }
+                    }
                     @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
                     @if (admin && Downloads.Allowed && Session.Services.SoulseekReady &&!t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
                     {
@@ -106,6 +122,9 @@
     /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
     [Parameter] public Action<int, int>? OnMove { get; set; }
     int menu = -1, hiAsk = -1;
+    // the open sub-menu of a song's menu ("pl", "nope", "dj"): one at a time, so the menu never grows past the screen
+    string sub = "";
+    void Sub(string which) => sub = sub == which ? "" : which;
     // songs thumbed down here leave the list at once (the list itself is the page's, and stays as it was)
     readonly HashSet<string> gone = [];
 

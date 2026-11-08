@@ -26,19 +26,34 @@
             </span>
             <span class="track-time">@(row.T.DurationMs > 0 ? Time(row.T.DurationMs / 1000.0) : "")</span>
             <button class="icon-btn @(Session.IsFavorite(row.T) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, row.T); SaveProfile(); }" aria-label="@(Session.IsFavorite(row.T) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(row.T) ? "heart-fill" : "heart")" /></button>
-            <button class="icon-btn" @onclick="() => menu = menu == row.I ? -1 : row.I" aria-label="More for @row.T.Title" aria-expanded="@((menu == row.I) ? "true" : "false")"><Icon Name="more" /></button>
+            <button class="icon-btn" @onclick="() => { menu = menu == row.I ? -1 : row.I; sub = string.Empty; }" aria-label="More for @row.T.Title" aria-expanded="@((menu == row.I) ? "true" : "false")"><Icon Name="more" /></button>
             @if (menu == row.I)
             {
                 <div class="menu" role="menu">
                     <button role="menuitem" @onclick='() => { Player.PlayNext(row.T); Toast.Show($"“{row.T.Title}” plays next"); menu = -1; }'>Play next</button>
                     <button role="menuitem" @onclick='() => { Player.AddToQueue(row.T); Toast.Show($"Added “{row.T.Title}” to the queue"); menu = -1; }'>Add to queue</button>
-                    @foreach (var p in Session.Playlists)
+                    @* the same groups as every song menu (owner, 7 Nov: "menus are too complicated") *@
+                    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "pl" ? "true" : "false")" @onclick='() => Sub("pl")'>Add to playlist <span aria-hidden="true" class="chev">›</span></button>
+                    @if (sub == "pl")
                     {
-                        <button role="menuitem" @onclick="() => { Toast.Added(Session, p, row.T, SaveProfile); menu = -1; }">Add to @p.Name</button>
+                        @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
+                        @foreach (var p in Session.Playlists)
+                        {
+                            <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, row.T, SaveProfile); menu = -1; }">Add to @p.Name</button>
+                        }
                     }
-                    <button role="menuitem" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, row.T); Toast.Show($"Fewer songs like “{row.T.Title}”"); }'>Less like this</button>
-                    <button role="menuitem" @onclick='() => { menu = -1; ThumbDown(row.T); }'>Thumbs down</button>
-                    <DjSongMenu Player="Player" Session="Session" Song="row.T" OnDone="() => menu = -1" />
+                    <hr class="menu-sep" />
+                    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "nope" ? "true" : "false")" @onclick='() => Sub("nope")'>Not for me <span aria-hidden="true" class="chev">›</span></button>
+                    @if (sub == "nope")
+                    {
+                        <button role="menuitem" class="sub" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, row.T); Toast.Show($"Fewer songs like “{row.T.Title}”"); }'>Less like this</button>
+                        <button role="menuitem" class="sub" @onclick='() => { menu = -1; ThumbDown(row.T); }'>Never pick this song</button>
+                    }
+                    @if (Player.Dj is not null)
+                    {
+                        <button role="menuitem" class="has-sub" aria-expanded="@(sub == "dj" ? "true" : "false")" @onclick='() => Sub("dj")'>The DJ and this song <span aria-hidden="true" class="chev">›</span></button>
+                        @if (sub == "dj") { <DjSongMenu Player="Player" Session="Session" Song="row.T" OnDone="() => menu = -1" /> }
+                    }
                 </div>
             }
         </div>
@@ -47,6 +62,9 @@
 @code {
     record Row(Track T, int I);
     int menu = -1;
+    // the open sub-menu of a song's menu ("pl", "nope", "dj"): one at a time
+    string sub = "";
+    void Sub(string which) => sub = sub == which ? "" : which;
     List<Track> list = [];
     List<Row> rows = [];
     Library? built; int builtVersion = -1;

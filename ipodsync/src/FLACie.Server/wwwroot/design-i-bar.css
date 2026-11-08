@@ -106,3 +106,13 @@
 .dl-activity b, .dl-activity .icon { color: var(--accent, #ff9b6e); }
 body:has(.player) .dl-activity { bottom: calc(var(--tabs) + var(--bar) + 12px + env(safe-area-inset-bottom, 0px)); }
 body.np-open .dl-activity { display: none; }
+
+/* the bar's More (owner, 7 Nov: "icons nobody understands"): Retro and the mini player in words, each with a line saying what it is; opens upwards */
+.player .bar-more { position: relative; }
+.player .bar-menu { top: auto; bottom: calc(100% + 10px); right: 0; min-width: 260px; z-index: 60; animation-name: menu-in-up; transform-origin: bottom right; }
+.player .bar-menu [role=menuitem] { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 10px; color: var(--ink); text-decoration: none; background: none; border: 0; font: inherit; text-align: left; cursor: pointer; }
+.player .bar-menu [role=menuitem]:hover { background: var(--surface-3); }
+.player .bar-menu [role=menuitem] span { display: grid; gap: 2px; }
+.player .bar-menu [role=menuitem] b { font-size: 14px; font-weight: 600; }
+.player .bar-menu [role=menuitem] small { font-size: 12px; color: var(--dim); }
+.player .bar-menu [role=menuitem].on b { color: var(--accent-text); }

@@ -35,8 +35,17 @@
                 <DjMic Class="icon-btn" Size="20" />
                 <button class="icon-btn fav @(Session.IsFavorite(t) ? "on" : "")" data-pip="heart" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
                 @if (AppHost.DevicePicker is { } picker) { <DynamicComponent Type="picker" /> }
-                <a class="icon-btn retro-link" href="/retro" aria-label="Retro" title="Retro: music players, a car stereo, a hi-fi and more, playing this song" data-testid="bar-retro"><Icon Name="retro" /></a>
-                @if (pipOk) { <button class="icon-btn @(pipOn ? "on" : "")" @onclick="TogglePip" aria-label="Mini player (picture in picture)" title="Mini player: keeps the cover and controls on top when you switch tabs"><Icon Name="pip" /></button> }
+                @* Retro and the mini player, in words behind one More (owner, 7 Nov: "icons nobody understands") *@
+                <div class="bar-more">
+                    <button class="icon-btn" @onclick="ToggleBarMore" aria-label="More player options" aria-haspopup="menu" aria-expanded="@(barMore ? "true" : "false")" title="More"><Icon Name="more" /></button>
+                    @if (barMore)
+                    {
+                        <div class="menu bar-menu" role="menu">
+                            <a role="menuitem" class="retro-link" href="/retro" aria-label="Retro" data-testid="bar-retro" @onclick="() => barMore = false"><Icon Name="retro" Size="18" /><span><b>Retro</b><small>Music players, a car stereo, a hi-fi…</small></span></a>
+                            @if (pipOk) { <button role="menuitem" class="@(pipOn ? "on" : "")" @onclick="async () => { barMore = false; await TogglePip(); }" aria-label="Mini player (picture in picture)"><Icon Name="pip" Size="18" /><span><b>Mini player@(pipOn ? " (on)" : "")</b><small>Cover and controls on top of other tabs</small></span></button> }
+                        </div>
+                    }
+                </div>
                 <VolumeControl />
                 <button class="icon-btn" @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
                 <button class="icon-btn" @onclick="Player.StopAsync" aria-label="Stop playing and close the player" title="Stop playing"><Icon Name="x" /></button>
@@ -45,7 +54,16 @@
     </section>
 }
 @code {
-    bool open, volumeLoaded, pipOk, pipOn;
+    bool open, volumeLoaded, pipOk, pipOn, barMore;
+    // the bar's More menu closes on a click anywhere outside it or Escape (flacie.watchOutside calls DismissBarMore)
+    DotNetObjectReference<PlayerBar>? barSelf;
+    async Task ToggleBarMore()
+    {
+        barMore = !barMore;
+        barSelf ??= DotNetObjectReference.Create(this);
+        try { if (barMore) await PageJs.InvokeVoidAsync("flacie.watchOutside", ".bar-more", barSelf); else await PageJs.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { }
+    }
+    [JSInvokable] public void Dismiss() => InvokeAsync(() => { barMore = false; StateHasChanged(); });
     ElementReference barEl;
     [Inject] ITrackInfo Infos { get; set; } = default!;
     string? accentFor = "", chipFor, chip;

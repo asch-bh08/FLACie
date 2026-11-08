@@ -95,8 +95,10 @@ test.describe('on a PC', () => {
   test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: 1440, height: 900 }); await signIn(page); await play(page); });
 
   test('every control of today\'s bar is still there', async ({ page }) => {
+    // (Retro and the mini player are in the bar's More menu, in words: owner, 7 Nov)
+    await page.locator('.player').getByRole('button', { name: 'More player options' }).click();
     for (const label of [/^Shuffle/, 'Previous', /^(Pause|Play)$/, 'Next', /^Repeat/, 'Retro', 'Mute', 'Full screen player', 'Stop playing and close the player', 'Open Now Playing'])
-      await expect(page.locator('.player').getByRole(label === 'Retro' ? 'link' : 'button', { name: label }).first(), String(label)).toBeVisible();
+      await expect(page.locator('.player').getByRole(label === 'Retro' ? 'menuitem' : 'button', { name: label }).first(), String(label)).toBeVisible();
     await expect(page.locator('.player .seek input')).toBeVisible();
     await expect(page.locator('.player input[aria-label="Volume"]')).toBeVisible();
   });

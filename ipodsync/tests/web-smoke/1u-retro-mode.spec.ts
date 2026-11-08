@@ -81,6 +81,8 @@ test.describe.serial('Retro', () => {
       // the player bar (on a PC: design I's phone bar is the mini player, play and next, so a phone reaches Retro from the full-screen player and the menu)
       await play(page, w, h);
       if (w > 760) {
+        // Retro is in the bar's More menu, in words (owner, 7 Nov: "icons nobody understands")
+        await page.locator('.player').getByRole('button', { name: 'More player options' }).click();
         await expect(page.getByTestId('bar-retro')).toBeVisible();
         await expect(page.getByTestId('bar-retro')).toHaveAttribute('aria-label', 'Retro');
         await page.screenshot({ path: `test-results/retro-bar-${w}.png` });

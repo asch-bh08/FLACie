@@ -87,7 +87,7 @@
             @foreach (var p in plays)
             {
                 var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@PlaylistSub(p)</span></a>
             }
         </div>
     </section>
@@ -142,7 +142,7 @@
                         @foreach (var p in plays)
                         {
                             var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@PlaylistSub(p)</span></a>
                         }
                     </div>
                 </section>
@@ -294,7 +294,7 @@ else
             @foreach (var p in plays)
             {
                 var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">Playlist · @p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@PlaylistSub(p)</span></a>
             }
         </div>
     </section>
@@ -395,9 +395,19 @@ else
         _ => l,
     };
 
-    // playlists and genres whose name matches the search (and, with filter pills on, that hold something the filters allow); with no search, the first few
-    List<FLACie.Core.Playlist> FindPlaylists(IReadOnlyList<string> words) =>
-        Session.Playlists.Where(p => (words.Count == 0 || FLACie.Core.Matching.SearchHit(words, p.Name)) && (!X.AnyFilter || Session.Resolve(p.Entries).Any(X.Allows))).Take(12).ToList();
+    // the person's playlists for the search: named like it, then those holding a song or artist that matches (owner, 7 Nov: "dreamer" should show the
+    // playlists Dreamer is in), each saying what it holds; with filter pills on, only those holding something the filters allow; with no search, the first few
+    Dictionary<string, string> playlistHolds = [];
+    List<FLACie.Core.Playlist> FindPlaylists(IReadOnlyList<string> words)
+    {
+        bool allowed(FLACie.Core.Playlist p) => !X.AnyFilter || Session.Resolve(p.Entries).Any(X.Allows);
+        if (words.Count == 0) { playlistHolds = []; return Session.Playlists.Where(allowed).Take(12).ToList(); }
+        var hits = FLACie.Core.PlaylistHits.Find(Session.Playlists.Where(allowed), words);
+        playlistHolds = hits.Where(h => h.Holds is not null).ToDictionary(h => h.List.Id, h => h.Holds!);
+        return hits.Select(h => h.List).ToList();
+    }
+    string PlaylistSub(FLACie.Core.Playlist p) =>
+        playlistHolds.TryGetValue(p.Id, out var holds) ? "Your playlist · " + holds : $"Your playlist · {p.Entries.Count} {(p.Entries.Count == 1 ? "song" : "songs")}";
     List<string> FindGenres(IReadOnlyList<string> words) =>
         words.Count == 0
             ? Lib.Songs.Where(t => t.Genre.Trim().Length > 0 && X.Allows(t)).GroupBy(t => t.Genre.Trim(), StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(12).Select(g => g.Key).ToList()

@@ -1671,6 +1671,10 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (c.available) featuring = withContext(Dispatchers.IO) { try { c.featuring(name) } catch (e: Exception) { emptyList() } }
         }
         val restSongs = if (topSong != null) rankedSongs.drop(1) else rankedSongs
+        val byPath = remember(libRev) { app.library.byPath() }
+        val ownLists = remember(q, libRev, app.userData.rev) {
+            com.ipodemu.library.PlaylistHits.find(shownPlaylists(app), { it.name }, { pl -> pl.paths.mapNotNull { byPath[it] }.map { com.ipodemu.library.PlaylistHits.Song(it.title, it.artist) } }, q)
+        }
         var songsExpanded by remember(q) { mutableStateOf(false) }
         var albumsExpanded by remember(q) { mutableStateOf(false) }
         var webSongsExpanded by remember(q) { mutableStateOf(false) }
@@ -1725,6 +1729,21 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             fun shows(kind: String) = only == "" || only == kind
             val artistMode = artistTop != null && artistPage != null && only == "" && picks == null
+            // the person's own playlists holding what was typed, before anything recommended (owner, 7 Nov: "dreamer" should show the playlists Dreamer is in)
+            if (ownLists.isNotEmpty() && picks == null && (only == "" || only == "playlists")) {
+                item { SectionHeader("Your playlists") }
+                item(key = "ownlists") {
+                    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(ownLists, key = { "own" + it.list.id }) { h ->
+                            val pl = h.list
+                            val cover = remember(pl.id, libRev) { pl.paths.firstNotNullOfOrNull { byPath[it]?.artKey } }
+                            SearchCover(cover, pl.name, "Your playlist · " + (h.holds ?: "${pl.paths.size} ${if (pl.paths.size == 1) "song" else "songs"}"), "Open playlist ${pl.name}") {
+                                searchFocus.clearFocus(); nav.push(Screen.Detail(DetailKind.USER, pl.id))
+                            }
+                        }
+                    }
+                }
+            }
             // the web's Search playlists (6 Nov): ours, Spotify's, Deezer's and SoundCloud's, under the top of the results
             if (made.isNotEmpty() && only == "" && picks == null && !artistMode) {
                 item { SectionHeader("Playlists") }

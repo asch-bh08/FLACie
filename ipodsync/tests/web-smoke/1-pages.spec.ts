@@ -123,7 +123,9 @@ test('the player bar offers the mini player (picture in picture) where the brows
   await page.waitForTimeout(2000);
   await page.locator('button.track-main').first().click();
   await expect(page.locator('.player')).toBeVisible();
-  await expect(page.getByRole('button', { name: /Mini player/ })).toBeVisible({ timeout: 10_000 });
+  // in the bar's More menu, in words (owner, 7 Nov: "icons nobody understands")
+  await page.locator('.player').getByRole('button', { name: 'More player options' }).click();
+  await expect(page.getByRole('menuitem', { name: /Mini player/ })).toBeVisible({ timeout: 10_000 });
 });
 
 test('an Apple Lossless song plays: the server decodes it to WAV (browsers cannot play ALAC)', async ({ page }) => {

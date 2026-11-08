@@ -1472,3 +1472,28 @@ html.buffering .play .ic { opacity: .55; }
 .menu button.sub:nth-of-type(2n) { animation-delay: .02s; }
 @keyframes sub-in { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) { .menu .has-sub .chev, .menu button.sub, .menu .dj-song { transition: none; animation: none; } }
+
+/* ---- motion (owner, 7 Nov: "fluid, smooth animations, more than fades") ----
+   Only transform and opacity move, each once (nothing runs on its own), and the reduced-motion rule above stills all of it.
+   Menus and pop-ups spring open from the button that opened them, a little past their size and back; rows and cards flow in one after another
+   when a page or a result list arrives; covers press in under a finger. */
+@keyframes menu-in { 0% { opacity: 0; transform: translateY(-8px) scale(.9); } 60% { opacity: 1; transform: translateY(1px) scale(1.015); } 100% { transform: none; } }
+@keyframes menu-in-up { 0% { opacity: 0; transform: translateY(8px) scale(.9); } 60% { opacity: 1; transform: translateY(-1px) scale(1.015); } 100% { transform: none; } }
+.menu, .account-menu, .devpop { animation-duration: .26s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+@keyframes flow-in { from { opacity: 0; transform: translateY(12px) scale(.985); } }
+.tracks:not(.virtual) > .track:nth-child(-n+14), .row-scroll > .card:nth-child(-n+10), .grid > .card:nth-child(-n+16), .sr-section .card:nth-child(-n+10) {
+  animation: flow-in .42s cubic-bezier(.2, .9, .3, 1.05) backwards; }
+.tracks > .track:nth-child(2), .row-scroll > .card:nth-child(2), .grid > .card:nth-child(2) { animation-delay: .03s; }
+.tracks > .track:nth-child(3), .row-scroll > .card:nth-child(3), .grid > .card:nth-child(3) { animation-delay: .06s; }
+.tracks > .track:nth-child(4), .row-scroll > .card:nth-child(4), .grid > .card:nth-child(4) { animation-delay: .09s; }
+.tracks > .track:nth-child(5), .row-scroll > .card:nth-child(5), .grid > .card:nth-child(5) { animation-delay: .12s; }
+.tracks > .track:nth-child(6), .row-scroll > .card:nth-child(6), .grid > .card:nth-child(6) { animation-delay: .15s; }
+.tracks > .track:nth-child(7), .row-scroll > .card:nth-child(7), .grid > .card:nth-child(7) { animation-delay: .18s; }
+.tracks > .track:nth-child(n+8):nth-child(-n+14), .row-scroll > .card:nth-child(n+8):nth-child(-n+10), .grid > .card:nth-child(n+8):nth-child(-n+16) { animation-delay: .21s; }
+.card:active .cover, .pick:active .cover { transform: scale(.96); transition-duration: .1s; }
+/* the phone's lyrics / queue sheet springs up a touch past its place and settles */
+@media (max-width: 760px) { .ls.panel-open .ls-side { transition: transform .5s cubic-bezier(.3, 1.25, .45, 1); } }
+/* the long virtual song list reuses its rows as it scrolls: nothing flows in there */
+.tracks.virtual .track { animation: none; }
+/* the row that starts playing still flashes (its own animation wins over the flow-in) */
+.tracks:not(.virtual) > .track.now:nth-child(n), .tracks.virtual > .track.now { animation: row-pulse .9s ease-out; }

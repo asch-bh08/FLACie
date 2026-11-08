@@ -166,3 +166,6 @@ section.set[hidden] { display: none !important; }
 
 /* Search's Filters (ExploreBar Compact): a plain button above the results, not a floating panel round one button (owner, 5 Nov: "ugly") */
 .x-bar.compact { position: static; background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; padding: 0; margin: 0 0 10px; animation: none; }
+
+/* what each search result is (owner, 7 Nov: "a label or small symbol on every result, like Spotify"): a small word before the line under its title */
+.kind-tag { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--ink, #f4efe6) 12%, transparent); color: var(--ink, #f4efe6); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; line-height: 1.5; }

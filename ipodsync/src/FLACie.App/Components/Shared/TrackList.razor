@@ -19,7 +19,7 @@
                 else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">
                     <span class="track-title">@t.Title</span>
-                    <span class="track-sub">@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(t.Source)</span></span>
+                    <span class="track-sub">@if (KindTag is { Length: > 0 }) { <span class="kind-tag">@KindTag</span> }@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(t.Source)</span></span>
                     <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                 </span>
             </button>
@@ -100,6 +100,8 @@
     /// <summary>The playlist the list is (its DJ key), so the playlist's DJ switch counts for what plays from it.</summary>
     [Parameter] public string? PlayContextId { get; set; }
     [Parameter] public bool ShowAlbum { get; set; } = true;
+    /// <summary>A small word before the artist saying what the row is ("Song"), for search results that mix kinds (owner, 7 Nov: "a label like Spotify").</summary>
+    [Parameter] public string? KindTag { get; set; }
     [Parameter] public Action<int>? OnRemove { get; set; }
     /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
     [Parameter] public Action<int, int>? OnMove { get; set; }

@@ -378,7 +378,7 @@ fun TopBar(title: String, nav: PlayerNav?, showBack: Boolean, actions: @Composab
 fun TrackRow(
     t: Track, nav: PlayerNav, snap: PlayerSnap, onPlay: () -> Unit, modifier: Modifier = Modifier,
     showArt: Boolean = true, index: Int? = null, sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null,
-    picked: Boolean? = null, onPick: (() -> Unit)? = null,
+    picked: Boolean? = null, onPick: (() -> Unit)? = null, kind: String? = null,
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
@@ -439,7 +439,8 @@ fun TrackRow(
     ) { hi ->
         Column {
             Txt(t.title, size = 16f, weight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (isCurrent) sc.accent else sc.onBg)
-            val sub = remember(t.artist, t.album) { if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " · " + t.album }
+            // search rows say what they are first ("Song · …"), as on the web (owner, 7 Nov: "a label like Spotify")
+            val sub = remember(t.artist, t.album, kind) { (kind?.let { "$it · " } ?: "") + (if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " · " + t.album) }
             if (narrow && hiRes) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 HiResBadge(compact = true)
                 if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
@@ -1806,7 +1807,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     val more = w.versions[versionKey(s)].orEmpty()
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) }
-                        ?: ("${s.artist} · ${s.album}" + if (more.isNotEmpty()) " · +${more.size} version${if (more.size == 1) "" else "s"}" else ""), s.artUrl, owned, status,
+                        ?: ("Song · ${s.artist} · ${s.album}" + if (more.isNotEmpty()) " · +${more.size} version${if (more.size == 1) "" else "s"}" else ""), s.artUrl, owned, status,
                         onOpen = { searchFocus.clearFocus(); nav.push(Screen.CatalogSong(s, more)) },
                         onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
@@ -1837,7 +1838,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t ->
                     val id = "L" + t.path
                     TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
-                        picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) })
+                        picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) }, kind = "Song")
                 }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }
@@ -1847,7 +1848,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 items(shownAlbums, key = { "b" + it.tracks.first().albumKey }) { g ->
                     IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
                         trailing = { OwnedTag() }) { hi ->
-                        Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt(g.tracks.firstOrNull()?.artist ?: "", size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
+                        Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt("Album · " + (g.tracks.firstOrNull()?.artist ?: ""), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
                     }
                 }
                 if (!albumsExpanded && only != "albums" && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
@@ -2095,7 +2096,7 @@ private fun TopResultCard(t: Track, onPlay: () -> Unit) {
         else ArtImage(t.artKey, Modifier.size(64.dp), thumb = true, corner = 10.dp)
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Txt(t.title, size = 18f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 1)
-            Txt(t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
+            Txt("Song · " + t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
             DownloadTagLine(t, size = 12f, compact = true, showNew = !(Tweaks.badges && LocalApp.current.library.mixedSources))
             Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
         }

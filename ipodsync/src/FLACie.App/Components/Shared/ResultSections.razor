@@ -83,11 +83,11 @@
         <h2 class="section"><i>Playlists</i>@(X.Genre.Length > 0 ? " · " + X.Genre : "")@(X.Decade.Length > 0 ? " · " + X.Decade : "")</h2>
         @if (AllLists.Count + plays.Count == 0) { <p class="status">No playlists for this yet.</p> }
         <div class="grid">
-            @foreach (var m in AllLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+            @foreach (var m in AllLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
             @foreach (var p in plays)
             {
                 var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@PlaylistSub(p)</span></a>
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@PlaylistSub(p)</span></a>
             }
         </div>
     </section>
@@ -110,7 +110,7 @@
         </div>
         <div class="sr-top-songs" aria-label="Top songs">
             <h2 class="section"><i>Songs</i></h2>
-            <TrackList Tracks="artistPage.Top.ToList()" PlayContext="@ta.Name" Single="true" ThumbSize="40" />
+            <TrackList Tracks="artistPage.Top.ToList()" PlayContext="@ta.Name" Single="true" ThumbSize="40" KindTag="Song" />
         </div>
     </section>
     @* the albums and the playlists straight under the Top result, side by side, half each on a wide screen (owner, 7 Nov: "fit albums here 50/50 with
@@ -127,7 +127,7 @@
                         @foreach (var g in artistPage.Albums)
                         {
                             var gy = g.Tracks.Max(t => t.Year);
-                            <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@(gy > 0 ? gy.ToString() : "")@(gy > 0 ? " · " : "")Album</span></a>
+                            <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub"><span class="kind-tag">Album</span>@(gy > 0 ? gy.ToString() : "")</span></a>
                         }
                     </div>
                 </section>
@@ -138,11 +138,11 @@
                     <h2 class="section"><i>Playlists</i></h2>
                     @* F26.1: up to 15 real lists: two rows of cards on a wide screen, one row to scroll on a phone *@
                     <div class="row-scroll sr-lists @(pairLists > 4 ? "two-rows" : "")">
-                        @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+                        @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
                         @foreach (var p in plays)
                         {
                             var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@PlaylistSub(p)</span></a>
+                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@PlaylistSub(p)</span></a>
                         }
                     </div>
                 </section>
@@ -195,7 +195,7 @@ else
     <section class="made-row" aria-label="Playlists for you">
         <h2 class="section">Playlists for you</h2>
         <div class="row-scroll">
-            @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub">@m.Subtitle</span></a> }
+            @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
         </div>
     </section>
 }
@@ -252,7 +252,7 @@ else
 {
     <section aria-label="Songs" class="sr-section">
         <h2 class="section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
-        <TrackList Tracks="songs.Take(shown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" />
+        <TrackList Tracks="songs.Take(shown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" KindTag="@(ranked ? "Song" : null)" />
         @if (songs.Count > shown)
         {
             @if (!string.IsNullOrEmpty(SeeAllHref)) { <a class="btn ghost sr-more" href="@SeeAllHref">See all @songs.Count @(songs.Count == 1 ? "song" : "songs")</a> }
@@ -269,7 +269,7 @@ else
             @foreach (var g in albums)
             {
                 var gy = g.Tracks.Max(t => t.Year); var ga = g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist;
-                <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub">@ga@(gy > 0 ? " · " + gy : "")</span></a>
+                <a class="card" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Class="square" /><span class="card-title">@g.Name</span><span class="card-sub"><span class="kind-tag">Album</span>@ga@(gy > 0 ? " · " + gy : "")</span></a>
             }
         </div>
     </section>
@@ -281,7 +281,7 @@ else
         <div class="row-scroll">
             @foreach (var a in artists)
             {
-                <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">Artist · @Count(a) @(Count(a) == 1 ? "song" : "songs")</span></a>
+                <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub"><span class="kind-tag">Artist</span>@Count(a) @(Count(a) == 1 ? "song" : "songs")</span></a>
             }
         </div>
     </section>
@@ -294,7 +294,7 @@ else
             @foreach (var p in plays)
             {
                 var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@PlaylistSub(p)</span></a>
+                <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@PlaylistSub(p)</span></a>
             }
         </div>
     </section>
@@ -407,7 +407,7 @@ else
         return hits.Select(h => h.List).ToList();
     }
     string PlaylistSub(FLACie.Core.Playlist p) =>
-        playlistHolds.TryGetValue(p.Id, out var holds) ? "Your playlist · " + holds : $"Your playlist · {p.Entries.Count} {(p.Entries.Count == 1 ? "song" : "songs")}";
+        playlistHolds.TryGetValue(p.Id, out var holds) ? "Yours · " + holds : $"Yours · {p.Entries.Count} {(p.Entries.Count == 1 ? "song" : "songs")}";
     List<string> FindGenres(IReadOnlyList<string> words) =>
         words.Count == 0
             ? Lib.Songs.Where(t => t.Genre.Trim().Length > 0 && X.Allows(t)).GroupBy(t => t.Genre.Trim(), StringComparer.OrdinalIgnoreCase).OrderByDescending(g => g.Count()).Take(12).Select(g => g.Key).ToList()

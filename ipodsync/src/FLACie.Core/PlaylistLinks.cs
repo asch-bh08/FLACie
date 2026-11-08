@@ -50,6 +50,28 @@ public static partial class PlaylistLinks
     private static partial Regex NextData();
 
     /// <summary>What [url] points at, or null for a link this can't read.</summary>
+    /// <summary>One song at a link (owner, 8 Nov): [Url] is the clean address the yt-dlp service fetches, [Service] "SoundCloud" or "YouTube".</summary>
+    public sealed record Song(string Url, string Service);
+
+    [GeneratedRegex(@"^https://(?:www\.|m\.)?soundcloud\.com/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)/?(?:[?#].*)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex SoundCloudTrack();
+    [GeneratedRegex(@"^https://(?:(?:www\.|m\.|music\.)?youtube\.com/watch\?(?:[^#]*&)?v=|youtu\.be/)([A-Za-z0-9_-]{11})(?:[?&#].*)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex YouTubeVideo();
+    static readonly HashSet<string> NotTracks = new(StringComparer.OrdinalIgnoreCase) { "sets", "tracks", "albums", "reposts", "likes", "followers", "following", "popular-tracks", "comments" };
+
+    /// <summary>A SoundCloud track or a YouTube video (not a set, a playlist or a profile), else null.</summary>
+    public static Song? SongLink(string? text)
+    {
+        var u = (text ?? "").Trim();
+        if (u.Length == 0 || u.Contains(' ')) return null;
+        if (SoundCloudTrack().Match(u) is { Success: true } sc && !NotTracks.Contains(sc.Groups[2].Value) && !NotTracks.Contains(sc.Groups[1].Value)
+            && sc.Groups[1].Value.ToLowerInvariant() is not ("discover" or "search" or "you" or "stream" or "charts"))
+            return new($"https://soundcloud.com/{sc.Groups[1].Value}/{sc.Groups[2].Value}", "SoundCloud");
+        if (YouTubeVideo().Match(u) is { Success: true } y && !u.Contains("list=", StringComparison.OrdinalIgnoreCase))
+            return new($"https://www.youtube.com/watch?v={y.Groups[1].Value}", "YouTube");
+        return null;
+    }
+
     public static Link? Recognise(string? url)
     {
         if (string.IsNullOrWhiteSpace(url)) return null;

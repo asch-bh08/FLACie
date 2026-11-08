@@ -41,6 +41,16 @@
 }
 else
 {
+    @* a SoundCloud or YouTube song link pasted into search (owner, 8 Nov): get just that song *@
+    @if (PlaylistLinks.SongLink(q) is { } songLink && Downloads.Allowed)
+    {
+        <section class="song-link-card" aria-label="Song link" data-testid="song-link">
+            <Icon Name="download" Size="22" />
+            <span><b>A @songLink.Service song</b><small>@songLink.Url.Replace("https://", "")</small></span>
+            @if (linkAsked == songLink.Url) { <span class="hint" role="status">Getting it: it shows under Downloads above and joins your library when it's done.</span> }
+            else { <button class="btn primary" disabled="@(!Session.Services.Any)" @onclick="() => { linkAsked = songLink.Url; Downloads.Link(Session, songLink.Url); }">Get this song</button> }
+        </section>
+    }
     <ExploreBar Compact="true" Changed="OnFilters" />
     @* F26.3: Playlists is one of the kind chips (one choice) and shows only playlists; genre and decade come from the Filters panel above *@
     <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ListsKind="true" AllLists="@filterLists" OnKind="KindPicked" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
@@ -109,6 +119,7 @@ else
     }
 }
 @code {
+    string? linkAsked;
     [Parameter, SupplyParameterFromQuery(Name = "q")] public string? Q { get; set; }
     [Inject] WebCatalog Catalog { get; set; } = default!;
     [Inject] IDownloads Downloads { get; set; } = default!;

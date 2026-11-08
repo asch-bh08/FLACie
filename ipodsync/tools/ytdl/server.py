@@ -281,6 +281,75 @@ def fetch_best(artist, title, dur, dest_noext, source="youtube"):
     raise RuntimeError(last)
 
 
+SAFE = re.compile(r'[\\/:*?"<>|\x00-\x1f]')
+TITLE_NOISE = re.compile(r"\s*[(\[](?:official\s*(?:music\s*)?(?:video|audio)|lyrics?(?:\s*video)?|audio|hd|hq|free download|out now)[)\]]", re.I)
+
+
+def clean_name(s):
+    return SAFE.sub(" ", s or "").strip().strip(".")[:120].strip() or "Unknown"
+
+
+def split_title(title, uploader):
+    """"Artist - Title (Remix)" names the artist; otherwise the uploader is the artist (a producer's own remix on their SoundCloud)."""
+    t = TITLE_NOISE.sub("", title or "").strip()
+    m = re.match(r"^(.+?)\s+[-–—]\s+(.+)$", t)
+    if m:
+        return m.group(1).strip(), m.group(2).strip()
+    return re.sub(r"\s*-\s*Topic$|VEVO$", "", uploader or "", flags=re.I).strip() or "Unknown", t or "Unknown"
+
+
+def fetch_url(url, to_dir):
+    """POST /ytdl {"url", "toDir"} (owner, 8 Nov): exactly the song at a SoundCloud or YouTube link, filed as Artist/Artist - Title (SoundCloud|YouTube).ext
+    under [to_dir]. Answers the artist and title it was filed under and its path from the library root."""
+    if not playlist_allowed(url):
+        raise ValueError("only https SoundCloud and YouTube links")
+    p = subprocess.run(["yt-dlp", "--no-warnings", "--no-playlist", "-J", url], capture_output=True, text=True, timeout=60)
+    if p.returncode != 0:
+        raise LookupError((p.stderr or "could not read that link").strip().splitlines()[-1][:200] if (p.stderr or "").strip() else "could not read that link")
+    info = json.loads(p.stdout)
+    sc = "soundcloud.com" in (urllib.parse.urlparse(url).hostname or "")
+    artist, title = split_title(info.get("title") or "", info.get("artist") or info.get("uploader") or info.get("channel") or "")
+    a = clean_name(artist)
+    rel = "/".join(x for x in [to_dir.strip("/"), a, f"{a} - {clean_name(title)} ({'SoundCloud' if sc else 'YouTube'})"] if x)
+    dest_noext = resolve(rel)
+    for ext in ("m4a", "opus", "mp3", "webm", "wav", "flac", "aiff"):
+        if os.path.exists(f"{dest_noext}.{ext}"):
+            return {"ok": True, "ext": ext, "existing": True, "artist": artist, "title": title, "path": f"{rel}.{ext}", "durationSec": int(info.get("duration") or 0)}
+    tmp = tempfile.mkdtemp(prefix="ytdl-")
+    try:
+        d = subprocess.run(["yt-dlp", "--no-warnings", "--no-playlist", "-f", "download/bestaudio" if sc else "bestaudio[ext=m4a]/bestaudio", "--max-filesize", "80M",
+                            "-o", os.path.join(tmp, "a.%(ext)s"), url], capture_output=True, text=True, timeout=170)
+        files = [f for f in os.listdir(tmp) if f.startswith("a.")]
+        if d.returncode != 0 or not files:
+            raise RuntimeError((d.stderr or "").strip().splitlines()[-1][:200] if (d.stderr or "").strip() else "download failed")
+        src = os.path.join(tmp, files[0])
+        ext = files[0].rsplit(".", 1)[-1]
+        if ext == "webm":
+            ext = "opus"
+        tagged = os.path.join(tmp, "t." + ext)
+        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", src, "-vn", "-c:a", "copy", "-metadata", f"title={title}", "-metadata", f"artist={artist}", tagged],
+                           capture_output=True, text=True, timeout=120)
+        final = tagged if r.returncode == 0 and os.path.getsize(tagged) > 10_000 else src
+        size = os.path.getsize(final)
+        if size < 10_000 or size > MAX_BYTES:
+            raise RuntimeError("file size out of range")
+        real = real_seconds(final)
+        if preview(real, info.get("duration") or 0):
+            raise RuntimeError(f"only a {int(real)} s preview is public")
+        dest = f"{dest_noext}.{ext}"
+        os.makedirs(os.path.dirname(dest), exist_ok=True)
+        try:
+            shutil.copyfile(final, dest + ".part")  # no copystat: the NAS filesystem refuses to take over permissions
+            os.replace(dest + ".part", dest)
+        except Exception:
+            if os.path.exists(dest + ".part"):
+                os.remove(dest + ".part")
+            raise
+        return {"ok": True, "ext": ext, "artist": artist, "title": title, "path": f"{rel}.{ext}", "bytes": size, "durationSec": int(real) or int(info.get("duration") or 0)}
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 class Handler(http.server.BaseHTTPRequestHandler):
     def _reply(self, code, obj):
         body = json.dumps(obj).encode()
@@ -319,6 +388,19 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._reply(404, {"error": "not found"})
         try:
             body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+        except Exception as e:
+            return self._reply(400, {"error": str(e)})
+        if body.get("url"):
+            with GATE:
+                try:
+                    return self._reply(200, fetch_url(str(body["url"]), str(body.get("toDir") or "")))
+                except ValueError as e:
+                    return self._reply(400, {"error": str(e)})
+                except LookupError as e:
+                    return self._reply(404, {"error": str(e)})
+                except Exception as e:
+                    return self._reply(502, {"error": str(e)})
+        try:
             artist, title = str(body["artist"]).strip(), str(body["title"]).strip()
             if not artist or not title:
                 raise ValueError("artist and title are required")

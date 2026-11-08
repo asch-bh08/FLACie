@@ -265,6 +265,18 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
             (c, on) => hiRes ? c.DownloadHiResAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on, default, fallbackToNormal) : c.DownloadAsync(song.Artist, song.Title, song.Album, song.ArtUrl, song.DurationMs, on));
     }
 
+    /// <summary>The song at a SoundCloud or YouTube link (owner, 8 Nov), as a Search download; its artist and title come from the page.</summary>
+    public void Link(UserSession s, string url) => StartLink(s, url);
+
+    /// <summary>As <see cref="Link"/>, answering the job (null when downloads are off or it isn't a song link): the phone follows it by id.</summary>
+    public DownloadJob? StartLink(UserSession s, string url)
+    {
+        if (!Allowed || PlaylistLinks.SongLink(url) is not { } link) return null;
+        var job = Add(s, $"Song from {link.Service} · {link.Url.Replace("https://", "")}", null, "Search", "", link.Url);
+        Run(s, job, (c, on) => c.DownloadLinkAsync(link.Url, on));
+        return job;
+    }
+
     public void Album(UserSession s, CatalogAlbum album)
     {
         if (!Allowed) return;

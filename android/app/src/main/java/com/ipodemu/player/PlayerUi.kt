@@ -3,6 +3,9 @@ package com.ipodemu.player
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.graphics.toArgb
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -1566,6 +1569,33 @@ private fun OwnedTag() {
 }
 
 @Composable
+private fun SongLinkCard(link: com.ipodemu.library.SongLinks.Song) {
+    val app = LocalApp.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var said by remember(link.url) { mutableStateOf<String?>(null) }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).clip(RoundedCornerShape(18.dp)).background(LocalScheme.current.onBg.copy(alpha = .07f)).padding(14.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f)) {
+            Txt("A ${link.service} song", size = 16f, weight = FontWeight.Bold)
+            Txt(said ?: link.url.removePrefix("https://"), size = 13f, color = LocalScheme.current.onBg.copy(alpha = .65f), maxLines = 3)
+        }
+        if (said == null) Box(Modifier.heightIn(min = 48.dp).clip(RoundedCornerShape(24.dp)).background(LocalScheme.current.accent)
+            .semantics { role = androidx.compose.ui.semantics.Role.Button }.clickable {
+            said = "Asking FLACie Web…"
+            scope.launch {
+                said = try {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ipodemu.library.FlacieWebClient(app.prefs).startLink(link.url) }
+                    "Getting it on FLACie Web: it joins your library when it's done."
+                } catch (e: com.ipodemu.library.FlacieWebClient.Refused) { e.message ?: "FLACie Web said no" }
+                catch (e: Exception) { "Couldn't reach FLACie Web. Try again in a moment." }
+            }
+        }.padding(horizontal = 18.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+            Txt("Get this song", size = 14f, weight = FontWeight.Bold, color = Color(DesignColour.readableOn(LocalScheme.current.accent.toArgb())))
+        }
+    }
+}
+
+@Composable
 private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     val appR = LocalApp.current
     // remembered once the person stops typing for a moment
@@ -1726,6 +1756,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         }
         else Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (picks != null) 150.dp else 24.dp)) {
+            // a SoundCloud or YouTube song link pasted into search (owner, 8 Nov): FLACie Web gets just that song
+            com.ipodemu.library.SongLinks.of(query)?.let { link -> item(key = "songlink") { SongLinkCard(link) } }
             // Show only: All, Songs or Albums (as on the web), when there are both
             val hasSongs = w.songs.isNotEmpty() || rankedSongs.isNotEmpty(); val hasAlbums = w.albums.isNotEmpty() || r.albums.isNotEmpty()
             if (hasSongs && picks == null && only != "playlists") item(key = "select") {

@@ -20,6 +20,8 @@ public interface IDownloads
     /// <summary>[kind] "Playlist": asked for as interest shows (F23), not by the person: kept out of Search's Downloads panel and the done digest.</summary>
     void Song(UserSession s, CatalogSong song, bool hiRes = false, bool fallbackToNormal = true, string kind = "Search");
     void Album(UserSession s, CatalogAlbum album);
+    /// <summary>The song at a SoundCloud or YouTube link (<see cref="PlaylistLinks.SongLink"/>), fetched as it is.</summary>
+    void Link(UserSession s, string url);
     Task FetchSongAsync(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct = default);
     /// <summary>This server downloads music at all (the Dashboard's "Allow downloads", see <see cref="DownloadPolicy"/>). When false the pages show no
     /// download buttons and no "set up downloads" hints: to the person using it, FLACie is simply a player of the music they have.</summary>

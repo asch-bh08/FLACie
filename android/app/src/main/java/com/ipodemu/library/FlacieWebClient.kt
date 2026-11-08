@@ -110,6 +110,22 @@ class FlacieWebClient(private val prefs: Prefs) {
         } finally { c.disconnect() }
     }
 
+    /** Asks FLACie Web for the song at a SoundCloud or YouTube link (`POST /api/download {url}`, owner 8 Nov); returns the job id. Throws [Refused] on a no. */
+    fun startLink(url: String): String {
+        val c = open("/api/download", "POST")
+        c.connectTimeout = 6_000; c.readTimeout = 20_000
+        try {
+            val b = JSONObject().put("url", url).toString().toByteArray()
+            c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)
+            c.outputStream.use { it.write(b) }
+            val code = c.responseCode
+            val text = (if (code in 200..299) c.inputStream else c.errorStream)?.bufferedReader()?.use { it.readText() } ?: ""
+            if (code in 400..499) throw Refused(try { JSONObject(text).optString("error") } catch (_: Exception) { "" }.ifBlank { "FLACie Web said no (HTTP $code)" })
+            if (code !in 200..299) throw java.io.IOException("HTTP $code")
+            return parseStarted(text)
+        } finally { c.disconnect() }
+    }
+
     /** How the job stands now; throws [JobGone] when the server doesn't know it. */
     fun downloadStatus(id: String): JobStatus {
         val c = open("/api/download/" + java.net.URLEncoder.encode(id, "UTF-8"), "GET")

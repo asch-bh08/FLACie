@@ -229,6 +229,42 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         catch (Exception) { return false; }
     }
 
+    /// <summary>Exactly the song at a SoundCloud or YouTube link (owner, 8 Nov: "import single songs from a link, like SoundCloud remixes"): the yt-dlp
+    /// service reads the page, names the artist and title, and files it under the library folder.</summary>
+    public async Task DownloadLinkAsync(string url, Action<DownloadStatus> on, CancellationToken ct = default)
+    {
+        if (PlaylistLinks.SongLink(url) is not { } link) { on(new(DownloadStage.Failed, "That isn't a SoundCloud or YouTube song link")); return; }
+        if (cfg.FileMoverUrl.Length == 0) { on(new(DownloadStage.Failed, "Song links need FLACie's download services (the file mover) set up in Server admin")); return; }
+        var tag = link.Service == "SoundCloud" ? SoundCloud.Id : "ytdl";
+        on(new(DownloadStage.Searching, $"Waiting for {link.Service}'s turn...", tag));
+        await YtdlTurn.WaitAsync(ct);
+        try
+        {
+            on(new(DownloadStage.Downloading, $"Getting it from {link.Service}...", tag));
+            using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(240));
+            using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
+            { Content = new StringContent(new JsonObject { ["url"] = link.Url, ["toDir"] = cfg.NasFolder.Trim('/') }.ToJsonString(), Encoding.UTF8, "application/json") };
+            req.Headers.TryAddWithoutValidation("X-Api-Key", cfg.FileMoverKey);
+            try
+            {
+                using var res = await (longHttp ?? http).SendAsync(req, limit.Token);
+                var j = JsonNode.Parse(await res.Content.ReadAsStringAsync(limit.Token));
+                if (res.IsSuccessStatusCode && j?["ok"]?.GetValue<bool>() == true && j["path"]?.GetValue<string>() is { Length: > 0 } path)
+                {
+                    var artist = j["artist"]?.GetValue<string>() ?? ""; var title = j["title"]?.GetValue<string>() ?? "";
+                    var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
+                    on(new(DownloadStage.Done, $"\"{title}\" by {artist} is ready to play", tag, [OpenTrack(path, title, artist, "", null, secs * 1000L)]));
+                    return;
+                }
+                var said = j?["error"]?.GetValue<string>() ?? "";
+                on(new(DownloadStage.Failed, (int)res.StatusCode == 404 ? $"{link.Service} couldn't find a song at that link. Is it public?" : $"{link.Service} failed: " + (said.Length > 0 ? said : "HTTP " + (int)res.StatusCode)));
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested) { on(new(DownloadStage.Failed, link.Service + " took too long")); }
+            catch (HttpRequestException e) { on(new(DownloadStage.Failed, link.Service + " service unreachable: " + e.Message)); }
+        }
+        finally { YtdlTurn.Release(); }
+    }
+
     Track OpenTrack(string dest, string title, string artist, string album, string? artUrl, long durationMs) =>
         new($"{cfg.FileMoverUrl.TrimEnd('/')}/file?path={Uri.EscapeDataString(dest)}", title, artist, album, artist, 0, 0, durationMs, 0,
             artUrl is null ? Art.LookupKey(artist, album, title) : Art.ExternalKey(artUrl), DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), TrackSource.Cloud);

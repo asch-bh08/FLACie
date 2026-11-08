@@ -1516,3 +1516,8 @@ html.buffering .play .ic { opacity: .55; }
 .graph-play svg { fill: currentColor; }
 .graph-box:fullscreen .graph-head, .graph-box.full .graph-head { flex-wrap: wrap; row-gap: 8px; }
 .graph-box:fullscreen .graph-hint, .graph-box.full .graph-hint { margin: 0; }
+/* a song link pasted into Search (owner, 8 Nov) */
+.song-link-card { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; padding: 14px 16px; border-radius: 18px; background: var(--surface-2, rgba(255,255,255,.06)); }
+.song-link-card > span:first-of-type { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.song-link-card small { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 600px) { .song-link-card { flex-wrap: wrap; } .song-link-card .btn { width: 100%; } }

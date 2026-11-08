@@ -41,11 +41,14 @@ for (const [name, size] of [['phone', { width: 375, height: 812 }], ['pc', { wid
     await page.locator('.imp-switch').click();
     await expect(page.getByTestId('import-replace')).toBeChecked();
     // the service's mark appears as the link is recognised
-    const box = page.getByRole('textbox', { name: 'Playlist link' });
+    const box = page.getByRole('textbox', { name: 'Playlist or song link' });
     await box.fill('https://music.apple.com/us/playlist/todays-hits/pl.f4d106fed2bd41149aaacabb233eb5eb');
     await expect(page.getByTestId('import-service')).toHaveText('Apple Music');
     await box.fill('https://soundcloud.com/the-prodigy/sets/the-fat-of-the-land-6');
     await expect(page.getByTestId('import-service')).toHaveText('SoundCloud');
+    // one song (owner, 8 Nov: a SoundCloud remix): named as a song, not a playlist
+    await box.fill('https://soundcloud.com/someproducer/dreamer-remix');
+    await expect(page.getByTestId('import-service')).toHaveText('SoundCloud song');
     await box.fill('https://tidal.com/browse/playlist/1');
     await expect(page.getByTestId('import-service')).toHaveText('');
     expect(await noSideScroll(page), 'no sideways scroll with a link typed').toBe(true);
@@ -65,4 +68,19 @@ test('a file import shows as one compact row: name, source, how many added, date
   await expect(row.locator('.imp-mark')).toHaveText('File');
   await expect(row.locator('small')).toContainText(/\d+ of 2 added · \d+ \w{3}/);
   expect(await noSideScroll(page)).toBe(true);
+});
+
+test('a SoundCloud song link pasted into Search offers to get just that song', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await signIn(page);
+  await page.goto('/search?q=' + encodeURIComponent('https://soundcloud.com/someproducer/dreamer-remix?si=abc'));
+  const card = page.getByTestId('song-link');
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await expect(card).toContainText('A SoundCloud song');
+  await expect(card).toContainText('soundcloud.com/someproducer/dreamer-remix');
+  await expect(card.getByRole('button', { name: 'Get this song' })).toBeVisible();
+  // a set is a playlist, not one song: no card
+  await page.goto('/search?q=' + encodeURIComponent('https://soundcloud.com/someproducer/sets/summer'));
+  await page.waitForTimeout(1500);
+  await expect(page.getByTestId('song-link')).toHaveCount(0);
 });

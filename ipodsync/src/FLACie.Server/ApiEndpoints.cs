@@ -238,6 +238,12 @@ public static class ApiEndpoints
             catch (Microsoft.AspNetCore.Http.BadHttpRequestException) { return Results.Json(new { error = "That report is too big." }, statusCode: 413); }
             if (body is null) return Results.BadRequest(new { error = "Send a JSON object." });
             string? Str(string k, int max) => body[k] is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var x) && x.Trim() is { Length: > 0 } t ? (t.Length > max ? t[..max] : t) : null;
+            // {"url"}: the song at a SoundCloud or YouTube link (owner, 8 Nov), named from its page
+            if (Str("url", 600) is { } songUrl)
+            {
+                if (PlaylistLinks.SongLink(songUrl) is null) return Results.BadRequest(new { error = "That isn't a SoundCloud or YouTube song link." });
+                return downloads.StartLink(s, songUrl) is { } lj ? Results.Json(new { id = lj.Id }) : Results.Json(new { error = DownloadManager.OffMessage }, statusCode: 403);
+            }
             var artist = Str("artist", 200); var title = Str("title", 200);
             if (artist is null || title is null) return Results.BadRequest(new { error = "Say which song: artist and title." });
             var album = Str("album", 200) ?? "";

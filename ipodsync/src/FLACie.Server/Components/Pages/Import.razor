@@ -3,6 +3,7 @@
 @implements IDisposable
 @inherits UserComponent
 @inject PlaylistLinkReader Links
+@inject IDownloads SongDl
 <PageTitle>Import playlists · FLACie</PageTitle>
 @* F25.2 (owner, 5 Nov: "this page is ugly"): the new look. One paste box first (the service's mark shows as the link is recognised), a smaller file
    drop second, Replace as a real switch, readable text that wraps at every width, and past imports listed compactly with the old ones folded away. *@
@@ -18,14 +19,16 @@ else
 {
     <section class="imp-card" aria-label="Paste a link">
         <h2 class="imp-title">Paste a playlist link</h2>
-        <p class="imp-text">From Spotify, Apple Music, YouTube, SoundCloud or Deezer: any playlist or album anyone can open (Share, then Copy link). Songs you have are added at once; the rest are found and downloaded on this server in the background.</p>
+        <p class="imp-text">From Spotify, Apple Music, YouTube, SoundCloud or Deezer: any playlist or album anyone can open (Share, then Copy link). A link to one SoundCloud or YouTube song (a remix, say) gets just that song. Songs you have are added at once; the rest are found and downloaded on this server in the background.</p>
         <form class="imp-link" @onsubmit="FromLink" @onsubmit:preventDefault>
             @{ var seen = PlaylistLinks.Recognise(link); }
-            <span class="imp-mark @(seen is null ? "" : "on " + Key(seen.Service))" data-testid="import-service" aria-live="polite">@(seen is null ? "" : Name(seen.Service))</span>
-            <input type="url" aria-label="Playlist link" placeholder="Paste a playlist link" @bind="link" @bind:event="oninput" />
+            @{ var oneSong = seen is null ? PlaylistLinks.SongLink(link) : null; }
+            <span class="imp-mark @(seen is null ? (oneSong is null ? "" : "on " + oneSong.Service.ToLowerInvariant()) : "on " + Key(seen.Service))" data-testid="import-service" aria-live="polite">@(seen is null ? (oneSong is null ? "" : oneSong.Service + " song") : Name(seen.Service))</span>
+            <input type="url" aria-label="Playlist or song link" placeholder="Paste a playlist or song link" @bind="link" @bind:event="oninput" />
             <button class="btn primary" type="submit" disabled="@(busy || string.IsNullOrWhiteSpace(link))">@(busy ? "Reading…" : "Import")</button>
         </form>
         @if (error is not null) { <p class="form-error" role="alert">@error</p> }
+        @if (songNote is not null) { <p class="hint" role="status" data-testid="import-song-note">@songNote</p> }
         <label class="switch-row imp-switch">
             <span><b>Replace playlists with the same name</b><small>An existing playlist of that name (a tag like "(FLAC)" is ignored) is made to hold exactly the imported songs</small></span>
             <input type="checkbox" role="switch" data-testid="import-replace" checked="@replace" @onchange="e => replace = (bool)(e.Value ?? false)" /><i class="switch" aria-hidden="true"></i>
@@ -95,12 +98,20 @@ else
         tick = new Timer(_ => InvokeAsync(StateHasChanged), null, 2000, 2000);
     }
 
-    string link = "";
+    string link = ""; string? songNote;
     async Task FromLink()
     {
-        busy = true; error = null;
+        busy = true; error = null; songNote = null;
         try
         {
+            // one SoundCloud or YouTube song (owner, 8 Nov): fetched as it is, into the library and Search's Downloads
+            if (PlaylistLinks.Recognise(link) is null && PlaylistLinks.SongLink(link) is { } one)
+            {
+                if (!SongDl.Ready(Session)) { error = "Downloads aren't set up on this server, so a song link can't be fetched."; return; }
+                SongDl.Link(Session, one.Url); link = "";
+                songNote = $"Getting the song from {one.Service}. It shows in Search's Downloads, and joins your library when it's done.";
+                return;
+            }
             await Imports.StartLinkAsync(Session, Links, link, replace);
             link = "";
         }

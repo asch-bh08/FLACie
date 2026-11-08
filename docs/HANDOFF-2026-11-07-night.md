@@ -1,5 +1,17 @@
 # Handoff, 7 Nov 2026 night: read this first
 
+## 0a. Queue after b123 (8 Nov, midday): do these next, in this order
+
+**b123 holds** (on top of b122): Web A on the PC full-screen player (tiles Add · Lyrics · More | transport | Fav · EQ · Sound; Sound pops up on hover with a tall volume bar, moving bars, even out, fade; rating, speed, sleep in More; `SoundTile.razor`); on phones DJ and mic back in Now Playing's top bar at 52 dp (`LivingSleeve.kt` `SleeveTopBar`, web `.ls-phone-top`); every live graph in the Info tab opens full screen (button or a tap; Android `FullGraph` in `InfoPanel.kt`, web `flacie.graphFull`).
+
+Queued (the owner asked for these and they are not done):
+1. **The rest of the UI overhaul**, web + phone (+ Windows via web): the sidebar, Home's menus and style, Albums/Artists/Genres/Explore, Favourites, Playlists, Downloads, Dashboard, Account, Settings; the same on the phone's pages; fewer icons with words; circles for artists and round buttons, squares for covers; fluid motion (shared-element moves, springy sheets, smooth list changes) within the performance rules. Start with a page sweep at 1440 and 390 px.
+2. **Fix the test-order failures** so the suite runs clean: 1-pages "Quick picks learn…", 1-pages "bottom bar at 375/320px", 1q-dj "Aura-2 voices", 1x-new-look "the next two songs get their shapes…", and check 1z-dj-ask "endpoint understands requests" + 1z-dj-bar "Listening… then its words" (failed 8 Nov; not checked whether they fail without b123's changes).
+3. **Search rows with only the label** ("Song"/"Album"/"Playlist", no title): not reproduced; ask the owner for the page address.
+4. **Parity leftovers** (`docs/parity-2026-11-07.md`): the Alexa link on the phone, the Charts page on the phone.
+5. **Web A on narrow PCs**: the tiles shrink to 62 px at 761–1100 px; check 761–900 px against the transport and the Sound pop-up there.
+6. **Tests gotcha:** Playwright reuses a server already on WEB_PORT; after changing Razor/CSS, stop the old server (or pick new ports) or the run tests the old build.
+
 ## 0. Take over here (8 Nov, morning)
 
 **Done and released as b122** (https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b122, APK + Windows MSI, commit d812b66c). Web deployed to frank (rollback tag `rollback-b122a`). Both branches pushed.

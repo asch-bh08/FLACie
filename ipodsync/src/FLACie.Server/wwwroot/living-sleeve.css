@@ -593,3 +593,14 @@ body.np-open .dj-bar { display: none; }
   .ls-transport.has-dj .ls-plain, .ls-transport.has-dj:has(.dj-mic) .ls-plain { width: 44px; }
   .ls-transport.has-dj .ls-pillbtn, .ls-transport.has-dj:has(.dj-mic) .ls-pillbtn { width: 58px; }
 }
+/* PC (owner, 8 Nov): the bar's tiles come in from the edges, the left ones lined up with the title above (the title block is 560px wide, centred in the left
+   column of a body padded 32px with a 32px gap), the right ones the same distance in; the title, its line and the chips are bigger */
+@media (min-width: 761px) {
+  .ls-dock { --dock-in: calc(32px + max(0px, ((100vw - 96px) / 2 - 560px) / 2)); padding-left: var(--dock-in); padding-right: var(--dock-in); }
+  .ls-names h2 { font-size: clamp(40px, 6vh, 62px); }
+  .ls-names h2.long { font-size: clamp(32px, 4.6vh, 46px); }
+  .ls-artist { font-size: 19px; }
+  .ls-chips { gap: 8px; margin-top: 12px; }
+  .ls-chip { padding: 6px 11px; border-radius: 10px; font-size: 13px; }
+}
+@media (min-width: 761px) and (max-width: 1100px) { .ls-dock { --dock-in: 24px; } }

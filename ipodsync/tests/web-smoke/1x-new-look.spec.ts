@@ -259,6 +259,10 @@ test.describe('the full-screen player bar on a PC', () => {
     const tr = (await page.locator('.ls-transport').boundingBox())!;
     const left = (await page.locator('.ls-dock-l').boundingBox())!, right = (await page.locator('.ls-tiles').boundingBox())!;
     expect(left.x + left.width).toBeLessThan(tr.x); expect(right.x).toBeGreaterThan(tr.x + tr.width);
+    // the left tiles line up with the title above them; the right ones are as far in from the right edge
+    const title = (await page.locator('.ls-names h2').boundingBox())!;
+    expect(Math.abs(left.x - title.x)).toBeLessThanOrEqual(3);
+    expect(Math.abs((1440 - (right.x + right.width)) - left.x)).toBeLessThanOrEqual(3);
     await page.screenshot({ path: 'test-results/web-a-bar.png' });
     // Sound: hidden until hovered, then the volume slider moves the player's volume
     const pop = page.locator('.ls-sound-pop');

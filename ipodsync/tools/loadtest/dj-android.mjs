@@ -89,6 +89,10 @@ async function main() {
   log('Next pressed twice'); sh('input keyevent KEYCODE_MEDIA_NEXT', { quiet: true }); await sleep(1500); sh('input keyevent KEYCODE_MEDIA_NEXT', { quiet: true });
   // two more songs heard through (45 s each), so the DJ asks about the next and says it
   await sleep(100000);
+  // a picture of Now Playing with the DJ on, for a person to look at: its row of seven controls (owner, 7 Nov: DJ on the left, the mic on the right)
+  // (the mini player's title, just above the tab bar)
+  const mini = (dump() ?? []).filter((n) => /^Song \d+$/.test(label(n)) && n.cy > 1900 && n.cy < 2200).pop();
+  if (mini) { tapNode(mini); await sleep(2500); step('now-playing'); sh('input keyevent KEYCODE_BACK', { quiet: true }); }
 
   // 5. what happened
   const diag = path.join(data, 'diag'); const files = fs.existsSync(diag) ? fs.readdirSync(diag) : [];

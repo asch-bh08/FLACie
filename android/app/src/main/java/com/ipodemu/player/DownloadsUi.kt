@@ -209,7 +209,8 @@ fun DownloadActivityBar(onOpenOffline: () -> Unit) {
             val m = app.offline
             val left = try { m.pendingCount } catch (_: Exception) { 0 }
             val pc = if (left > 0) m.entries.firstOrNull { it.state == com.ipodemu.library.offline.OfflineState.DOWNLOADING }?.let { (it.progress * 100).toInt() } ?: -1 else -1
-            value = com.ipodemu.library.DownloadActivity.line(fetching, left, pc)?.let { it to fetching.isNotEmpty() }
+            val admin = app.ui.isAdmin && !app.ui.guest
+            value = com.ipodemu.library.DownloadActivity.line(fetching, left, pc, admin)?.let { it to (admin && fetching.isNotEmpty()) }
             delay(1000)
         }
     }

@@ -1,6 +1,8 @@
 @inherits UserComponent
 @inject IDownloads Dls
-@* what is downloading right now, one line above the player bar, wherever you are (owner, 1 Nov: it took ten menus to find out); as on Android *@
+@inject IConfiguration Conf
+@* what is downloading right now, one line above the player bar, wherever you are (owner, 1 Nov: it took ten menus to find out); as on Android. For admins
+   only (owner, 7 Nov): what the server fetches is theirs to watch *@
 @if (Line() is { } line)
 {
     <a class="dl-activity" href="/downloads" aria-live="polite"><Icon Name="download" Size="16" /><span>@line</span><b>See</b></a>
@@ -19,7 +21,7 @@
         tick ??= new Timer(_ => { if (Running().Count > 0) _ = InvokeAsync(StateHasChanged); }, null, 2000, 2000);
     }
 
-    List<DownloadJob> Running() => Session is null || !Dls.Allowed ? [] : Dls.JobsOf(Session).Where(j => !j.Finished).OrderBy(j => j.At).ToList();
+    List<DownloadJob> Running() => Session is null || !Dls.Allowed || !AdminAccess.Is(Session, Conf) ? [] : Dls.JobsOf(Session).Where(j => !j.Finished).OrderBy(j => j.At).ToList();
 
     string? Line()
     {

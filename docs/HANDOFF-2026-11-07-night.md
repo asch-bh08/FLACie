@@ -1,6 +1,8 @@
 # Handoff, 7 Nov 2026 night: read this first
 
-## 0a. Queue after b123 (8 Nov, midday): do these next, in this order
+## 0a. Queue after b123 (8 Nov): do these next, in this order
+
+**Released 8 Nov 23:20:** https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b123 (APK + MSI). Web deployed (rollback `flacie-web:rollback-b123a`); flacie-ytdl redeployed with song links (backup `server.py.bak-20261108-songlink`, image `flacie-ytdl:rollback-20261108`). Also in b123: one song from a SoundCloud/YouTube link (web Search + Import, phone search; `PlaylistLinks.SongLink`, `DownloadCoordinator.DownloadLinkAsync`, `POST /api/download {url}`, ytdl `fetch_url`), play/pause in full-screen graphs, volume bar press/drag/wheel (`flacie.volPtr`), Share tile instead of Lyrics, PC bar tiles lined up under the title. Not tested live: a real SoundCloud song end to end.
 
 **b123 holds** (on top of b122): Web A on the PC full-screen player (tiles Add · Lyrics · More | transport | Fav · EQ · Sound; Sound pops up on hover with a tall volume bar, moving bars, even out, fade; rating, speed, sleep in More; `SoundTile.razor`); on phones DJ and mic back in Now Playing's top bar at 52 dp (`LivingSleeve.kt` `SleeveTopBar`, web `.ls-phone-top`); every live graph in the Info tab opens full screen (button or a tap; Android `FullGraph` in `InfoPanel.kt`, web `flacie.graphFull`).
 

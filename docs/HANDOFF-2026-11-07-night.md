@@ -1,5 +1,25 @@
 # Handoff, 7 Nov 2026 night: read this first
 
+## 0. Take over here (8 Nov, morning)
+
+**Done and released as b122** (https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b122, APK + Windows MSI, commit d812b66c). Web deployed to frank (rollback tag `rollback-b122a`). Both branches pushed.
+
+1. EQ back on the web: an "EQ" pill in Now Playing's bottom bar (presets + five sliders), `EqMenu.razor`, `SceneEq.Word`.
+2. Even controls, web and phone: DJ · shuffle · prev | PLAY | next · repeat · mic (`NowPlaying.razor`, `LivingSleeve.kt` `SleeveControls`).
+3. The "Getting N songs" line is admins only (web `DownloadActivity.razor`; phone `DownloadActivity.kt`, offline saving still shown to all).
+4. Search shows your playlists holding the song/artist, "Has “X”" / "N songs by Y" (`FLACie.Core/PlaylistHits.cs` + Kotlin twin, "Your playlists" row on the phone).
+5. Kind label on every search result (web SONG/ALBUM/ARTIST/PLAYLIST tags; phone "Song · …").
+6. UI overhaul, **first pass only**: song menus grouped on web and phone (Add to playlist ›, Not for me ›, The DJ and this song ›; phone rarer items under More…); web bar's Retro + Mini player in a worded More menu; springy web menus and flowing rows/cards; Settings' Volume limit styled; Devices/Jam text in sans; phone Home lost its duplicate Settings cog.
+
+**Not done (pick up here):**
+- The rest of the UI overhaul: the sidebar, Home's menus and style, the pages that never got attention (Albums/Artists/Genres/Explore, Favourites, Playlists, Downloads, Dashboard, Account), the same pass on the phone's pages, and more shared-element style motion. Screens to compare against: run a page sweep at 1440 and 390 px (a throwaway spec that screenshots each route).
+- The owner's screenshot of search rows showing only "Song"/"Album"/"Playlist" with no title: not reproduced on web or phone. `1z-search-tags.spec.ts` fails if any result loses its title. Ask the owner for the page address if it comes back.
+- Pre-existing test-order failures (also fail on 93b7663a, pass alone): 1-pages "Quick picks learn…", 1-pages "bottom bar at 375/320px" (rail shows 7 links after earlier tests), 1q-dj "Aura-2 voices". Worth fixing so the suite runs clean.
+- `1x-new-look` "the next two songs get their shapes…" fails on 93b7663a too (wave asked twice).
+
+**Traps found tonight:** in `heavy.ps1 -Cmd`, start with `powershell -NoProfile -ExecutionPolicy Bypass -File …` (a bare .ps1 is opened by cmd, not run); for the playlists driver's `--testapk`, call an inner .ps1 with no arguments. Playwright wipes `test-results/` on every run: read screenshots before the next run.
+
+
 The last session stopped at about 80% of the weekly limit, at the owner's request ("pass it all to another session"). This file is all you need. The previous session's memory files may not be available to you, so the owner's preferences are written out here.
 
 Branch `ui/living-sleeve`, mirrored to `main`. Push both: `git push origin ui/living-sleeve && git push origin ui/living-sleeve:main`.

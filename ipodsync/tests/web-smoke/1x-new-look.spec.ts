@@ -251,6 +251,12 @@ test.describe('the full-screen player bar on a PC', () => {
     await expect(pop).toHaveCSS('opacity', '0');
     await page.locator('.ls-sound > .ls-tile').hover();
     await expect(pop).toHaveCSS('opacity', '1');
+    // everything in it, the switch too, sits inside the pop-up
+    const pb = (await pop.boundingBox())!;
+    for (const el of await pop.locator('.switch, .seg, .ls-vol-track, .ls-mute').all()) {
+      const b = (await el.boundingBox())!;
+      expect(b.x).toBeGreaterThanOrEqual(pb.x); expect(b.x + b.width).toBeLessThanOrEqual(pb.x + pb.width);
+    }
     await page.screenshot({ path: 'test-results/web-a-sound.png' });
     await page.locator('.ls-vol').fill('40');
     await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 40%');

@@ -408,6 +408,13 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         if (sleepLeft != null) SleepChip(sleepLeft) { nav.sheet = sleepSheet(app) }
         // the speed is shown when it is not normal, for the same reason
         if (snap.speed != 1f) SText(com.ipodemu.playback.SpeedPolicy.label(snap.speed), Modifier.padding(end = 6.dp).clickable { nav.sheet = speedSheet(app) }, size = 13f, weight = FontWeight.Bold, color = p.main.value)
+        // the DJ and the mic, back up here and bigger than before b122 (owner, 8 Nov): white when off, the cover's colour when on
+        snap.dj?.let { dj ->
+            DjPlainButton(dj, { djTap(app) }, { openDjSettings(nav) }, p.main.value, 52.dp, glass = true)
+            Spacer(Modifier.width(8.dp))
+            DjMicButton(52.dp, tint = Color.White, glass = Glass, lit = p.main.value)
+            Spacer(Modifier.width(8.dp))
+        }
         GlassButton("Options", onOptions) { SlidersIcon(Color.White) }
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
         Spacer(Modifier.width(10.dp))
@@ -472,14 +479,11 @@ private fun rememberWaveShape(t: Track): State<IntArray?> {
 @Composable
 private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, nav: PlayerNav) {
     val app = LocalApp.current
-    // DJ, shuffle, previous | play | next, repeat, mic in one row, so it balances round play (owner, 7 Nov: "the DJ button on the left"), as on the web.
-    // Play is a plain rounded square in the cover's colour. Without FLACie Web there is no DJ or mic, and the row is the five in the middle
+    // shuffle, previous | play | next, repeat. Play is a plain rounded square in the cover's colour
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
-        val dj = snap.dj
-        // seven buttons need about 410 dp at full size: a narrower phone draws them a little smaller, so all seven always fit
-        val k = if (dj == null) 1f else (maxWidth / 410.dp).coerceIn(.72f, 1f)
+        // the DJ and the mic are in the top bar (owner, 8 Nov), so these five are always full size
+        val k = (maxWidth / 330.dp).coerceIn(.8f, 1f)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            if (dj != null) DjPlainButton(dj, { djTap(app) }, { openDjSettings(nav) }, p.main.value, 48.dp * k)
             IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() },
                 tint = if (snap.shuffle) p.main.value else InkDim, size = 48.dp * k, iconScale = .48f, dot = snap.shuffle)
             SleevePillButton(Glyph.PREV, "Previous", p, k) { app.player.prev() }
@@ -488,8 +492,6 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
             // off, all (the queue starts again at its end, Autoplay adds nothing), one; a short note says which, as the glyph alone did not
             IconAction(if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, RepeatCycle.label(snap.repeat),
                 { repeatTap(app) }, tint = if (snap.repeat != RepeatCycle.OFF) p.main.value else InkDim, size = 48.dp * k, iconScale = .48f, dot = snap.repeat != RepeatCycle.OFF)
-            // talk to the DJ: at the other end of the row from the DJ button
-            if (dj != null) DjMicButton(44.dp * k, tint = InkDim, glass = Color.Transparent, lit = p.main.value)
         }
     }
 }
@@ -497,13 +499,13 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
 /** The DJ button at the left of the controls: the icon in the cover's colour while the DJ is on for this queue, dim when off; a long press opens its settings. */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun DjPlainButton(on: Boolean, onClick: () -> Unit, onLong: () -> Unit, accent: Color, size: Dp) {
+private fun DjPlainButton(on: Boolean, onClick: () -> Unit, onLong: () -> Unit, accent: Color, size: Dp, glass: Boolean = false) {
     Box(
-        Modifier.size(size).clip(CircleShape).focusRing(CircleShape)
+        Modifier.size(size).clip(CircleShape).background(if (glass) Glass else Color.Transparent).focusRing(CircleShape)
             .semantics { contentDescription = djLabel(on); role = Role.Button; stateDescription = if (on) "On" else "Off" }
             .combinedClickable(onClick = onClick, onLongClick = onLong),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(Glyph.DJ, Modifier.size(size * .48f), if (on) accent else InkDim) }
+    ) { GlyphIcon(Glyph.DJ, Modifier.size(size * .48f), if (on) accent else if (glass) Color.White else InkDim) }
 }
 
 /** Previous and next: a tinted pill in the cover's tone. */

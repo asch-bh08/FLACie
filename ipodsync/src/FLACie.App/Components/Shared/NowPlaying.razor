@@ -21,6 +21,13 @@
         <div class="ls-tools">
             @if (t is not null)
             {
+                @* on a phone the DJ and the mic sit up here, big, as on Android (owner, 8 Nov); on a PC they stay in the transport *@
+                @if (Player.Dj is not null)
+                {
+                    var djTop = Player.DjOn;
+                    <button class="ls-icon ls-glass ls-dj ls-phone-top @(djTop ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djTop ? "true" : "false")" title="@(djTop ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="24" /></button>
+                }
+                <span class="ls-phone-top ls-top-mic"><DjMic Class="ls-icon ls-glass" Size="24" /></span>
                 <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
             }
             <a class="ls-icon ls-tint np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a>

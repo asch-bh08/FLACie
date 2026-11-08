@@ -565,7 +565,7 @@ body.np-open .dj-bar { display: none; }
   .ls-sound-opts { display: flex; flex-direction: column; justify-content: center; gap: 16px; }
   .ls-sound-opts .sound-fade { display: flex; flex-direction: column; gap: 8px; }
   .ls-sound-opts { min-width: 0; }
-  .ls-sound-opts .switch-row { width: 100%; box-sizing: border-box; margin: 0; padding: 0; background: none; gap: 12px; }
+  .ls-sound-opts .switch-row { width: 100%; min-width: 0; box-sizing: border-box; margin: 0; padding: 0; background: none; gap: 12px; }
   .ls-sound-opts .switch-row span { flex: 1; min-width: 0; }
   .ls-sound-opts .switch { background: color-mix(in srgb, var(--ink) 18%, transparent); }
   .ls-sound-opts .switch-row input:checked ~ .switch { background: var(--np-accent); }
@@ -579,4 +579,16 @@ body.np-open .dj-bar { display: none; }
   .ls-dock .ls-tile-eq .chipbtn { height: 64px; margin: 0; border: 0; letter-spacing: 0; font-size: 12px; }
   .ls-dock .ls-tile-eq .chipbtn svg { width: 22px; height: 22px; }
   .ls-dock .ls-tile-eq .chip-pop { right: 0 !important; left: auto !important; transform: none !important; }
+}
+/* phone: the DJ and the mic are in the top bar, big (owner, 8 Nov, as on Android); the transport keeps shuffle, prev, play, next, repeat */
+.ls-phone-top { display: none; }
+@media (max-width: 760px) {
+  .ls-phone-top { display: grid; }
+  .ls-top .ls-phone-top.ls-icon, .ls-top-mic .dj-mic { width: 52px; height: 52px; }
+  .ls-transport .ls-dj, .ls-transport .dj-mic { display: none; }
+  .ls-transport.has-dj, .ls-transport.has-dj:has(.dj-mic) { gap: 14px; justify-content: center; margin: 0; }
+}
+@media (max-width: 760px) {
+  .ls-transport.has-dj .ls-plain, .ls-transport.has-dj:has(.dj-mic) .ls-plain { width: 44px; }
+  .ls-transport.has-dj .ls-pillbtn, .ls-transport.has-dj:has(.dj-mic) .ls-pillbtn { width: 58px; }
 }

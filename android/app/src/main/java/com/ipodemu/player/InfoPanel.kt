@@ -325,6 +325,17 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                     if (dx < -60f && i < graphs.lastIndex) onMode(graphs[i + 1].first) else if (dx > 60f && i > 0) onMode(graphs[i - 1].first)
                 }) { c, d -> c.consume(); dx += d }
             }) { LiveGraph(mode, analysis, playing, maxHeight, accent, tone, ground) }
+            // previous, play / pause and next, so the music can be stopped without leaving the graph
+            val app = LocalApp.current
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+                for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
+                    val big = label == "Pause" || label == "Play"
+                    Box(Modifier.size(if (big) 76.dp else 60.dp, if (big) 58.dp else 50.dp).clip(RoundedCornerShape(if (big) 20.dp else 25.dp)).background(if (big) accent else tone)
+                        .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable { act() }, contentAlignment = Alignment.Center) {
+                        GlyphIcon(g, Modifier.size(if (big) 28.dp else 22.dp), if (big) Color(DesignColour.readableOn(accent.toArgb())) else InfoInk)
+                    }
+                }
+            }
             Txt(hint(mode, sampleRate), size = 12.5f, color = InfoDim, maxLines = 3)
         }
     }
@@ -555,7 +566,7 @@ private class Gfx(
                 d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid - py)); d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid + py))
             }
         }
-        text("BASS", 0f, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("BASS", 0f, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     // spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays
@@ -597,7 +608,7 @@ private class Gfx(
             text(hzLabel(k), x0 - 8 * dp, min(y1 - 1 * dp, max(y0 + 10 * dp, y + 4 * dp)), color = if (key2) ink else dim, align = Paint.Align.RIGHT)
             k += stepHz
         }
-        text("${(pw / speed).toInt()} S AGO", x0, h - 4 * dp); text("NOW", x1, h - 4 * dp, align = Paint.Align.RIGHT)
+        text("${(pw / speed).toInt()} S AGO", x0, h - 4 * dp); text("NOW", x1 - 4 * dp, h - 4 * dp, align = Paint.Align.RIGHT)
     }
 
     private fun X(db: Float) = ((db + 60f) / 60f).coerceIn(0f, 1f)
@@ -615,7 +626,7 @@ private class Gfx(
         text(num, 0f, 34 * dp, ink, 34f)
         paint.textSize = 34 * dp; val tw = paint.measureText(num)
         text("DB AVERAGE NOW", tw + 10 * dp, 32 * dp, dim, 11f)
-        text("PEAK ${if (st.peakHold <= -89) "−∞" else "%.1f".format(st.peakHold)} DB", w, 32 * dp, ink, 11f, Paint.Align.RIGHT)
+        text("PEAK ${if (st.peakHold <= -89) "−∞" else "%.1f".format(st.peakHold)} DB", w - 4 * dp, 32 * dp, ink, 11f, Paint.Align.RIGHT)
         // the meter: capsules that light up to the level; the last few turn warm near 0 dB
         val my = 48 * dp; val mh = 14 * dp; val n = max(20, (w / (9 * dp)).toInt()); val cw = w / n
         val lit = X(st.avg) * n; val pki = min(n - 1, (X(st.peakHold) * n).toInt())
@@ -635,7 +646,7 @@ private class Gfx(
             d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .6f), accent.copy(alpha = 0f)), startY = hy0, endY = hy1))
             glow(Path().apply { moveTo(xs[0], ys[0]); for (i in 1 until n2) lineTo(xs[i], ys[i]) }, 2.5f * dp)
         }
-        text("10 S AGO", 0f, h - 4 * dp); text("NOW", w, h - 4 * dp, align = Paint.Align.RIGHT)
+        text("10 S AGO", 0f, h - 4 * dp); text("NOW", w - 4 * dp, h - 4 * dp, align = Paint.Align.RIGHT)
     }
 
     // stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side

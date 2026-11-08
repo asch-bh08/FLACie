@@ -536,7 +536,7 @@ body.np-open .dj-bar { display: none; }
   .ls-tile:active, .ls-dock .np-more.d .ls-more-btn:active { transform: scale(.95); }
   .ls-tile.on, .ls-dock .ls-tile-eq .chip-menu.on > .chipbtn { color: var(--np-accent); }
   .ls-dock .ls-tile-eq .chipbtn { width: auto; min-width: 76px; padding: 0 12px; }
-  .ls-tile-eq .chipbtn span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ls-tile-eq .chipbtn span { max-width: 96px; white-space: normal; text-align: center; line-height: 1.15; }
   .ls-dock .menu-val { margin-left: auto; padding-left: 12px; opacity: .65; font-size: 12px; }
   .ls-dock .np-menu .stars.sub { display: flex; gap: 2px; padding: 4px 12px 8px; }
 
@@ -558,7 +558,8 @@ body.np-open .dj-bar { display: none; }
   .ls-vol-track { grid-row: 1; position: relative; width: 34px; height: 150px; border-radius: 17px; overflow: hidden; background: color-mix(in srgb, var(--ink) 14%, transparent); }
   .ls-vol-track i { position: absolute; left: 0; right: 0; bottom: 0; height: var(--fill); background: var(--np-accent); border-radius: 0 0 17px 17px; transition: height .12s; }
   .ls-vol-track:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; }
-  .ls-vol { position: absolute; left: 50%; top: 50%; width: 150px; height: 34px; margin: -17px 0 0 -75px; transform: rotate(-90deg); opacity: 0; cursor: pointer; }
+  .ls-vol-track { cursor: ns-resize; touch-action: none; }
+  .ls-vol { position: absolute; left: 50%; top: 50%; width: 150px; height: 34px; margin: -17px 0 0 -75px; transform: rotate(-90deg); opacity: 0; pointer-events: none; }
   .ls-vol-num { grid-column: 2; font-size: 15px; font-variant-numeric: tabular-nums; }
   .ls-mute { grid-column: 1 / -1; display: grid; place-items: center; width: 40px; height: 32px; border: 0; border-radius: 16px; background: var(--tone); color: var(--tonefg); cursor: pointer; }
   .ls-mute.on { color: var(--np-accent); }
@@ -573,7 +574,7 @@ body.np-open .dj-bar { display: none; }
   .ls-sound-opts .seg button { flex: 1; height: 30px; padding: 0; border: 0; border-radius: 13px; background: none; color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
   .ls-sound-opts .seg button.sel { background: var(--np-accent); color: #1a120c; }
 }
-@media (min-width: 761px) and (max-width: 1100px) { .ls-tile, .ls-dock .np-more.d .ls-more-btn { width: 62px; } .ls-dock-l, .ls-tiles { gap: 6px; } .ls-tile-eq .chipbtn span { max-width: 60px; } }
+@media (min-width: 761px) and (max-width: 1100px) { .ls-tile, .ls-dock .np-more.d .ls-more-btn { width: 62px; } .ls-dock-l, .ls-tiles { gap: 6px; } .ls-tile-eq .chipbtn span { max-width: 70px; } }
 @media (prefers-reduced-motion: reduce) { .ls-sound-pop, .ls-tile { transition: none !important; } .ls-eqbars b { animation: none !important; } }
 @media (min-width: 761px) {
   .ls-dock .ls-tile-eq .chipbtn { height: 64px; margin: 0; border: 0; letter-spacing: 0; font-size: 12px; }

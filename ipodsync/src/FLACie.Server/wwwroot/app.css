@@ -1510,3 +1510,9 @@ html.buffering .play .ic { opacity: .55; }
 .graph-box:fullscreen .graph-full-btn svg, .graph-box.full .graph-full-btn svg { display: none; }
 .graph-box:fullscreen .graph-full-btn, .graph-box.full .graph-full-btn { width: 48px; height: 48px; border-radius: 24px; background: color-mix(in srgb, var(--ink, #fff) 14%, transparent); }
 .graph-box:fullscreen .graph-full-btn::before, .graph-box.full .graph-full-btn::before { content: "✕"; font-size: 20px; font-weight: 700; }
+.graph-transport { display: none; }
+.graph-box:fullscreen .graph-transport, .graph-box.full .graph-transport { display: flex; align-items: center; gap: 6px; margin-left: 16px; }
+.graph-play { display: grid; place-items: center; width: 64px; height: 48px; border: 0; border-radius: 18px; background: var(--np-accent, var(--accent)); color: #1a120c; cursor: pointer; }
+.graph-play svg { fill: currentColor; }
+.graph-box:fullscreen .graph-head, .graph-box.full .graph-head { flex-wrap: wrap; row-gap: 8px; }
+.graph-box:fullscreen .graph-hint, .graph-box.full .graph-hint { margin: 0; }

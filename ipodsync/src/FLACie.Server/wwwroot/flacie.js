@@ -346,7 +346,7 @@ window.flacie = (() => {
       g.fillStyle = grad; g.beginPath(); g.roundRect(x, mid - bh, bw, bh * 2, bw / 2); g.fill();
       if (vp[i] > .03) { g.fillStyle = c.ink; const py = vp[i] * half + 4 * dpr; g.beginPath(); g.arc(x + bw / 2, mid - py, bw / 2.4, 0, 7); g.arc(x + bw / 2, mid + py, bw / 2.4, 0, 7); g.fill(); }
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 0, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 0, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 4 * dpr, h - 3 * dpr);
   };
 
   // ---- spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays ----
@@ -374,7 +374,7 @@ window.flacie = (() => {
     g.restore();
     labelFont(f); g.textAlign = "right"; g.textBaseline = "middle";
     for (let k = 0; k <= maxHz; k += stepHz) { const y = y1 - k / maxHz * ph; g.fillStyle = k === 16000 || k === 20000 ? c.ink : c.dim; g.fillText(hzLabel(k), x0 - 8 * dpr, Math.min(y1 - 5 * dpr, Math.max(y0 + 6 * dpr, y))); }
-    g.textBaseline = "alphabetic"; g.fillStyle = c.dim; g.textAlign = "left"; g.fillText(`${Math.round(pw / speed)} S AGO`, x0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", x1, h - 4 * dpr);
+    g.textBaseline = "alphabetic"; g.fillStyle = c.dim; g.textAlign = "left"; g.fillText(`${Math.round(pw / speed)} S AGO`, x0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", x1 - 4 * dpr, h - 4 * dpr);
   };
 
   // ---- loudness: the level right now as a big number and a row of lit capsules with a peak tick, then the last ten seconds as a soft hill ----
@@ -393,7 +393,7 @@ window.flacie = (() => {
     g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = c.ink; g.font = `500 ${34 * dpr}px 'DM Mono', ui-monospace, monospace`;
     g.fillText(num, 0, 34 * dpr); const tw = g.measureText(num).width;
     labelFont(f, 11); g.fillText("DB AVERAGE NOW", tw + 10 * dpr, 32 * dpr);
-    g.textAlign = "right"; g.fillStyle = c.ink; g.fillText(`PEAK ${vs.ph <= -89 ? "−∞" : vs.ph.toFixed(1)} DB`, w, 32 * dpr);
+    g.textAlign = "right"; g.fillStyle = c.ink; g.fillText(`PEAK ${vs.ph <= -89 ? "−∞" : vs.ph.toFixed(1)} DB`, w - 4 * dpr, 32 * dpr);
     // meter: capsules that light up to the level; the last few turn warm near 0 dB
     const my = 48 * dpr, mh = 14 * dpr, n = Math.max(20, Math.floor(w / (9 * dpr))), cw = w / n, lit = X(vs.r) * n, pki = Math.min(n - 1, Math.floor(X(vs.ph) * n));
     for (let i = 0; i < n; i++) {
@@ -409,7 +409,7 @@ window.flacie = (() => {
       g.beginPath(); g.moveTo(px(0), hy1); for (let i = 0; i < hist.length; i++) g.lineTo(px(i), py(i)); g.lineTo(px(hist.length - 1), hy1); g.closePath(); g.fillStyle = gr; g.fill();
       g.save(); g.shadowColor = c.accent; g.shadowBlur = 10 * dpr; g.beginPath(); for (let i = 0; i < hist.length; i++) i ? g.lineTo(px(i), py(i)) : g.moveTo(px(i), py(i)); g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; g.lineJoin = "round"; g.stroke(); g.restore();
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w, h - 4 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w - 4 * dpr, h - 4 * dpr);
   };
 
   // ---- stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side ----
@@ -1745,3 +1745,25 @@ flacie.graphFull = (box, onlyOpen) => {
   const esc = (e) => { if (e.key === "Escape") { box.classList.remove("full"); removeEventListener("keydown", esc); } };
   addEventListener("keydown", esc);
 };
+
+// The Sound pop-up's tall volume bar: a press sets the volume where the pointer is and a drag follows it; the wheel nudges it 5 at a time. Each change goes
+// through the unseen range input inside, so Blazor's @oninput sets the player's volume.
+(() => {
+  const put = (track, pct) => {
+    const inp = track.querySelector("input"); if (!inp) return;
+    pct = Math.max(0, Math.min(100, Math.round(pct)));
+    if (String(pct) === inp.value) return;
+    inp.value = String(pct); track.style.setProperty("--fill", pct + "%");
+    inp.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  const at = (track, y) => { const r = track.getBoundingClientRect(); return (r.bottom - y) / r.height * 100; };
+  flacie.volPtr = (e, track) => {
+    e.preventDefault(); track.querySelector("input")?.focus({ preventScroll: true });
+    try { track.setPointerCapture(e.pointerId); } catch { }
+    put(track, at(track, e.clientY));
+    const move = (m) => put(track, at(track, m.clientY));
+    const up = () => { track.removeEventListener("pointermove", move); track.removeEventListener("pointerup", up); track.removeEventListener("pointercancel", up); };
+    track.addEventListener("pointermove", move); track.addEventListener("pointerup", up); track.addEventListener("pointercancel", up);
+  };
+  flacie.volWheel = (e, track) => { e.preventDefault(); const inp = track.querySelector("input"); put(track, Number(inp?.value || 0) + (e.deltaY < 0 ? 5 : -5)); };
+})();

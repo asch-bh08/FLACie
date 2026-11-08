@@ -150,6 +150,12 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await page.screenshot({ path: `test-results/graph-full-${page.viewportSize()!.width}.png` });
       await page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrum' }).click();
       await expect(page.locator('#viz.curve')).toBeVisible();
+      // play / pause without leaving the graph
+      await page.locator('.graph-play').click();
+      await expect(page.locator('.graph-play')).toHaveAttribute('aria-label', 'Play');
+      await page.locator('.graph-play').click();
+      await expect(page.locator('.graph-play')).toHaveAttribute('aria-label', 'Pause');
+      await expect(page.locator('.graph-play')).toBeInViewport();
       await page.locator('.graph-full-btn').click();
       await expect.poll(() => page.locator('#viz').evaluate((c) => c.getBoundingClientRect().height)).toBeLessThan(page.viewportSize()!.height * .5);
     });
@@ -227,7 +233,7 @@ test.describe('the full-screen player bar on a PC', () => {
     const bar = (await page.locator('.ls-dock').boundingBox())!;
     expect(bar.y + bar.height).toBeGreaterThanOrEqual(898);
     // Web A (owner, 8 Nov): Add, Lyrics, More on the left; Fav, EQ, Sound on the right
-    for (const sel of ['.ls-transport', '.ls-dock-l button[aria-label="Add to playlist"]', '.ls-dock-l button[aria-label="Lyrics"]', '.ls-dock .np-more', '.ls-tiles .ls-dock-heart', '.ls-tiles .eq-menu .chipbtn', '.ls-sound > .ls-tile']) {
+    for (const sel of ['.ls-transport', '.ls-dock-l button[aria-label="Add to playlist"]', '.ls-dock-l button[aria-label="Share"]', '.ls-dock .np-more', '.ls-tiles .ls-dock-heart', '.ls-tiles .eq-menu .chipbtn', '.ls-sound > .ls-tile']) {
       const b = (await page.locator(sel).first().boundingBox())!;
       expect(b.y, sel).toBeGreaterThanOrEqual(bar.y - 1); expect(b.y + b.height, sel).toBeLessThanOrEqual(bar.y + bar.height + 1);
     }
@@ -268,6 +274,15 @@ test.describe('the full-screen player bar on a PC', () => {
     await page.screenshot({ path: 'test-results/web-a-sound.png' });
     await page.locator('.ls-vol').fill('40');
     await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 40%');
+    // a press near the top of the bar turns it up there, a drag down follows the pointer, the wheel nudges it
+    const tb = (await page.locator('.ls-vol-track').boundingBox())!;
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * .1); await page.mouse.down();
+    await expect.poll(() => page.locator('.ls-vol').inputValue()).toBe('90');
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * .7, { steps: 5 }); await page.mouse.up();
+    await expect.poll(() => page.locator('.ls-vol').inputValue()).toBe('30');
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.mouse.wheel(0, -100);
+    await expect.poll(() => page.locator('.ls-vol').inputValue()).toBe('35');
+    await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 35%');
     await expect(pop.getByRole('switch', { name: 'Even out volume' })).toBeVisible();
     // More holds the rating, speed and the sleep timer (paused first: the test songs are 3 s long and a new music track starts at 1x)
     await page.mouse.move(10, 10);

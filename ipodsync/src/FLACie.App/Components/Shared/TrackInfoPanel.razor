@@ -1,6 +1,7 @@
 @* The file behind a song: format and quality at a glance, then a graph for whatever you pick. Every graph but the bit rate is live: it moves with the song as it plays. *@
 @implements IAsyncDisposable
 @inject IJSRuntime Js
+@inject PlayerState Player
 @if (Loading) { <p class="hint">Reading the file…</p> }
 else if (Info is null) { <p class="hint">No details available for this song.</p> }
 else
@@ -22,6 +23,12 @@ else
                 {
                     <span class="tag live"><i aria-hidden="true"></i>Live</span>
                     @* the graph on the whole screen (owner, 8 Nov): this button or a click on the graph; Esc, ✕ or the button again closes it *@
+                    @* in full screen: previous, play/pause and next beside the name, so the music can be stopped without leaving the graph *@
+                    <span class="graph-transport">
+                        <button type="button" class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
+                        <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
+                        <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
+                    </span>
                     <button type="button" class="icon-btn graph-full-btn" onclick="flacie.graphFull(this.closest('.graph-box'))" aria-label="Full screen" title="Full screen"><Icon Name="expand" Size="20" /></button>
                 }
             </div>
@@ -184,7 +191,12 @@ else
     }
 
     static async Task Safe(Func<Task> f) { try { await f(); } catch (Exception) { } }
-    public async ValueTask DisposeAsync() => await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask());
+    // the play button in full screen follows the player (only a change of playing / paused redraws the panel)
+    bool wasPlaying;
+    protected override void OnInitialized() { wasPlaying = Player.Playing; Player.Changed += OnPlayer; }
+    void OnPlayer() { if (Player.Playing == wasPlaying) return; wasPlaying = Player.Playing; _ = InvokeAsync(StateHasChanged); }
+    public async ValueTask DisposeAsync() { Player.Changed -= OnPlayer; await DisposeViz(); }
+    async ValueTask DisposeViz() => await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask());
 
     IEnumerable<(string Name, int V, bool Me)> RateBars()
     {

@@ -206,7 +206,8 @@
                sleep timer are in More *@
             <div class="ls-dock-l">
                 <button class="ls-tile" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist"><Icon Name="plus" Size="22" /><span>Add</span></button>
-                <button class="ls-tile @(tab == "lyrics" ? "on" : "")" @onclick='() => Show("lyrics")' aria-label="Lyrics"><Icon Name="lyrics" Size="22" /><span>Lyrics</span></button>
+                @* Share, where Lyrics was: the lyrics are already a tab of the panel beside the cover (owner, 8 Nov: "replace it with something relevant") *@
+                <button class="ls-tile" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share"><Icon Name="share" Size="22" /><span>Share</span></button>
                 @MoreMenu("d", t)
             </div>
             @* the room the transport takes in the middle of the bar (it is placed over this from the page), so the two sides never reach under it *@

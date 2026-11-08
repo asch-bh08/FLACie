@@ -7,8 +7,8 @@
     <div class="ls-sound-pop @(Player.Playing ? "live" : "")" role="dialog" aria-label="Sound">
         <div class="ls-sound-level">
             <i class="ls-eqbars" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></i>
-            @* a tall bar filled in the cover's colour; the real slider lies over it turned upright, unseen, so dragging, the wheel and the arrow keys all work *@
-            <span class="ls-vol-track" style="--fill:@Pct%"><i></i><input class="ls-vol" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%" @oninput="OnVolume" /></span>
+            @* a tall bar filled in the cover's colour: a press or drag on it sets the volume where the pointer is, the wheel nudges it (flacie.volPtr / volWheel); the unseen slider inside is for the arrow keys and screen readers *@
+            <span class="ls-vol-track" style="--fill:@Pct%" onpointerdown="flacie.volPtr(event, this)" onwheel="flacie.volWheel(event, this)"><i></i><input class="ls-vol" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%" @oninput="OnVolume" /></span>
             <b class="ls-vol-num">@Pct</b>
             <button class="ls-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : "volume-2")" Size="18" /></button>
         </div>

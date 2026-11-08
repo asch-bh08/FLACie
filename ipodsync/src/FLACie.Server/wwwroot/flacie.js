@@ -1733,3 +1733,15 @@ window.flacieUi = (() => {
     }
   }).observe(document.documentElement, { childList: true, subtree: true });
 })();
+
+// A graph of the Info tab on the whole screen (owner, 8 Nov): the browser's own full screen where it has one (Esc closes it), else the box fills the window.
+// [onlyOpen]: a click on the graph opens it but never closes it.
+flacie.graphFull = (box, onlyOpen) => {
+  if (!box) return;
+  const on = document.fullscreenElement === box || box.classList.contains("full");
+  if (on) { if (onlyOpen) return; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); box.classList.remove("full"); return; }
+  if (box.requestFullscreen) box.requestFullscreen({ navigationUI: "hide" }).catch(() => box.classList.add("full"));
+  else box.classList.add("full");
+  const esc = (e) => { if (e.key === "Escape") { box.classList.remove("full"); removeEventListener("keydown", esc); } };
+  addEventListener("keydown", esc);
+};

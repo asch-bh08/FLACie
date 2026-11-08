@@ -144,6 +144,14 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrogram' }).click();
       await expect(page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrogram' })).toHaveAttribute('aria-selected', 'true');
       await expect(page.locator('#viz.wall')).toBeVisible();
+      // the graph on the whole screen (owner, 8 Nov): fills the screen, the tabs still switch it, and its ✕ closes it (Esc too, in a real browser)
+      await page.locator('.graph-full-btn').click();
+      await expect.poll(() => page.locator('#viz').evaluate((c) => c.getBoundingClientRect().height)).toBeGreaterThan(page.viewportSize()!.height * .5);
+      await page.screenshot({ path: `test-results/graph-full-${page.viewportSize()!.width}.png` });
+      await page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrum' }).click();
+      await expect(page.locator('#viz.curve')).toBeVisible();
+      await page.locator('.graph-full-btn').click();
+      await expect.poll(() => page.locator('#viz').evaluate((c) => c.getBoundingClientRect().height)).toBeLessThan(page.viewportSize()!.height * .5);
     });
 
     test('a press on the frame seeks: the middle of its right side is a quarter of the song', async ({ page }) => {

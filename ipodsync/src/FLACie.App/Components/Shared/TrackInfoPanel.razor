@@ -18,7 +18,12 @@ else
             <div class="graph-head">
                 <h4>@Title</h4>
                 @if (mode == "rate") { <span class="tag">From the file</span> }
-                else { <span class="tag live"><i aria-hidden="true"></i>Live</span> }
+                else
+                {
+                    <span class="tag live"><i aria-hidden="true"></i>Live</span>
+                    @* the graph on the whole screen (owner, 8 Nov): this button or a click on the graph; Esc, ✕ or the button again closes it *@
+                    <button type="button" class="icon-btn graph-full-btn" onclick="flacie.graphFull(this.closest('.graph-box'))" aria-label="Full screen" title="Full screen"><Icon Name="expand" Size="20" /></button>
+                }
             </div>
             @if (mode == "rate")
             {
@@ -31,7 +36,7 @@ else
             }
             else if (unavailable) { <p class="viz-off">The live graphs aren't available in this browser.</p> }
             else if (onData && !allowData) { <p class="viz-off">The live graphs are paused on mobile data: they stream a second copy of the song, about as much data again. <button type="button" class="btn ghost" @onclick="ShowAnyway">Show anyway</button></p> }
-            else { <canvas id="viz" class="viz @mode @(Info.HiRes ? "tall" : "")" role="img" aria-label="@Title"></canvas> }
+            else { <canvas id="viz" class="viz @mode @(Info.HiRes ? "tall" : "")" role="img" aria-label="@Title" onclick="flacie.graphFull(this.closest('.graph-box'), true)"></canvas> }
             <p class="graph-hint">@Hint</p>
         </div>
 

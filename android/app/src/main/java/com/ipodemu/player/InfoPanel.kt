@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -197,6 +199,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
     val toneC = tone ?: Color(0xFF24525A)
     val groundC = ground ?: Color(0xFF101416)
     var mode by rememberSaveable { mutableStateOf("curve") }
+    var full by rememberSaveable { mutableStateOf(false) }
     val info = rememberAudioInfo(app, t)
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val analysis = remember {
@@ -230,8 +233,14 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
                     Box(Modifier.clip(RoundedCornerShape(50)).background(if (mode == "rate") Color(0x1FFFFFFF) else accent.copy(alpha = .2f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
                         MonoLabel(if (mode == "rate") "From the file" else "● Live", size = 10.5f, color = if (mode == "rate") InfoDim else accent)
                     }
+                    // the graph on the whole screen (owner, 8 Nov): this button, or a tap on the graph
+                    if (mode != "rate") {
+                        Spacer(Modifier.width(8.dp))
+                        Box(Modifier.size(44.dp).clip(CircleShape).background(InfoInk.copy(alpha = .14f)).semantics { contentDescription = "Full screen"; role = androidx.compose.ui.semantics.Role.Button }
+                            .clickable { full = true }, contentAlignment = Alignment.Center) { ExpandIcon(InfoInk) }
+                    }
                 }
-                Box(Modifier.pointerInput(mode) {
+                Box(Modifier.clickable(enabled = mode != "rate", onClickLabel = "Full screen") { full = true }.pointerInput(mode) {
                     // a sideways swipe on the graph moves to the next or previous graph (and keeps the player's own pages from moving)
                     var dx = 0f
                     detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
@@ -285,6 +294,49 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
                 "Playback" to playbackLine(ctx, info),
             ), "File", toneC)
         }
+    }
+    if (full) FullGraph(graphs.filter { it.first != "rate" }, mode, { mode = it }, { full = false }, analysis, snap.playing, accent, toneC, groundC, info.sampleRate)
+}
+
+/** One live graph on the whole screen, any phone and either way round: its name and Live at the top, the other graphs as tabs (or swipe), ✕ or Back to close. */
+@Composable
+private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: (String) -> Unit, onClose: () -> Unit, analysis: LiveAnalysis, playing: Boolean, accent: Color, tone: Color, ground: Color, sampleRate: Int) {
+    androidx.compose.ui.window.Dialog(onClose, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(ground).systemBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                SerifTitle(graphTitle(mode), Modifier.weight(1f), size = 32f, color = InfoInk)
+                Box(Modifier.clip(RoundedCornerShape(50)).background(accent.copy(alpha = .2f)).padding(horizontal = 10.dp, vertical = 4.dp)) { MonoLabel("● Live", size = 10.5f, color = accent) }
+                Spacer(Modifier.width(10.dp))
+                Box(Modifier.size(48.dp).clip(CircleShape).background(InfoInk.copy(alpha = .14f)).semantics { contentDescription = "Close full screen"; role = androidx.compose.ui.semantics.Role.Button }
+                    .clickable(onClick = onClose), contentAlignment = Alignment.Center) { Txt("✕", size = 20f, weight = FontWeight.SemiBold, color = InfoInk) }
+            }
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for ((id, label) in graphs) {
+                    val on = mode == id; val shape = RoundedCornerShape(12.dp)
+                    Box(Modifier.height(44.dp).clip(shape).background(if (on) InfoInk else Color.Transparent).border(1.dp, if (on) InfoInk else InfoInk.copy(alpha = .28f), shape)
+                        .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Tab; selected = on }.clickable { onMode(id) }.padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.Center) { Txt(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) InfoOnMain else InfoInk) }
+                }
+            }
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(tone.copy(alpha = .45f)).padding(12.dp).pointerInput(mode) {
+                var dx = 0f
+                detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
+                    val i = graphs.indexOfFirst { it.first == mode }
+                    if (dx < -60f && i < graphs.lastIndex) onMode(graphs[i + 1].first) else if (dx > 60f && i > 0) onMode(graphs[i - 1].first)
+                }) { c, d -> c.consume(); dx += d }
+            }) { LiveGraph(mode, analysis, playing, maxHeight, accent, tone, ground) }
+            Txt(hint(mode, sampleRate), size = 12.5f, color = InfoDim, maxLines = 3)
+        }
+    }
+}
+
+/** Four corner arrows, the full-screen icon. */
+@Composable
+private fun ExpandIcon(tint: Color) {
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width; val k = w * .34f; val st = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.2f * density, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        for ((x, y, sx, sy) in listOf(listOf(0f, 0f, 1f, 1f), listOf(w, 0f, -1f, 1f), listOf(0f, w, 1f, -1f), listOf(w, w, -1f, -1f)))
+            drawPath(Path().apply { moveTo(x + sx * k, y); lineTo(x, y); lineTo(x, y + sy * k) }, tint, style = st)
     }
 }
 

@@ -126,28 +126,18 @@ test.describe.serial('the DJ', () => {
     for (const w of ['Phone', 'Android Auto', 'Web', 'Windows']) await pressed(seg(page, w), true);
   });
 
-  // in the top bar, before Options, on the same glass as the other top buttons: as on the phone (owner, 2 Nov: "I like the Android one better")
-  test('the DJ button in the top bar flips the DJ for this queue only, and a new queue starts on what Settings say', async ({ page }) => {
+  // first in the row of controls, left of shuffle, so the row balances (owner, 7 Nov: "the DJ button on the left"); as on the phone
+  test('the DJ button at the left of the controls flips the DJ for this queue only, and a new queue starts on what Settings say', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await reset(page);   // DJ off in Settings
     await playLab(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
-    const top = page.locator('.ls-top');
-    const btn = top.getByRole('button', { name: 'DJ', exact: true });
+    const btn = page.locator('.ls-transport').getByRole('button', { name: 'DJ', exact: true });
     await expect(btn).toBeVisible({ timeout: 20_000 });
-    await expect(btn).not.toHaveClass(/on/); await pressed(btn, false);
+    await expect(btn).not.toHaveClass(/on/); await pressed(btn, false);
     await expect(btn).toHaveAttribute('title', /Settings → DJ/);
-    await expect(page.locator('.ls-transport').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
-    // before Retro, on the same line (Options sits between them on a phone; on a wide screen it lives in the bar at the bottom)
-    const rects = () => top.evaluate((t) => [t.querySelector('button[aria-label="DJ"]')!, t.querySelector('[data-testid="np-retro"]')!]
-      .map((e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; }));
-    let last = -1;
-    await expect.poll(async () => { const y = (await rects())[0].y, still = Math.abs(y - last) < 0.5; last = y; return still; }, { intervals: [150] }).toBe(true);
-    const [b, retro] = await rects();
-    expect(Math.abs((b.y + b.height / 2) - (retro.y + retro.height / 2))).toBeLessThanOrEqual(2);
-    expect(b.x).toBeLessThan(retro.x);
-    expect(await btn.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)');
+    await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
     await btn.click();
     await expect(btn).toHaveClass(/\bon\b/); await pressed(btn, true);
     await btn.click();
@@ -166,17 +156,28 @@ test.describe.serial('the DJ', () => {
     await expect(btn).not.toHaveClass(/\bon\b/);
   });
 
-  for (const [w, h] of [[360, 780], [390, 844]]) {
-    test(`on a ${w}px phone the controls (five, or six with the mic) and the top bar with the DJ fit across the screen`, async ({ page }) => {
+  for (const [w, h] of [[360, 780], [390, 844], [1280, 720]]) {
+    test(`at ${w}px the controls are even: DJ, shuffle, prev | PLAY | next, repeat (and the mic), all on screen and none on another`, async ({ page }) => {
       test.setTimeout(120_000);
       await page.setViewportSize({ width: w, height: h });
       await signIn(page);
       await playLab(page);
       await page.getByRole('button', { name: 'Open Now Playing' }).click();
       const tr = page.locator('.ls-transport');
-      await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
+      // owner, 7 Nov: "the DJ button on the left", so the row balances round the play button
+      await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
+      await expect(tr.locator(':scope > :first-child')).toHaveClass(/ls-dj/);
       const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }));
-      expect(boxes).toHaveLength(await tr.locator(".dj-mic").count() ? 6 : 5);
+      const withMic = await tr.locator(".dj-mic").count() > 0;
+      expect(boxes).toHaveLength(withMic ? 7 : 6);
+      // the play button (the ring) is the middle of the row: as much on its left as on its right
+      const ring = await tr.locator('.ls-ring').evaluate((e) => { const r = e.getBoundingClientRect(); return (r.left + r.right) / 2; });
+      const mid = (boxes[0].l + boxes[boxes.length - 1].r) / 2;
+      if (withMic) expect(Math.abs(ring - mid)).toBeLessThanOrEqual(6);
+      // on a PC nothing in the bar under the row reaches it
+      const others = await page.evaluate(() => [...document.querySelectorAll('.ls-dock-l > *, .ls-dock-r .ls-toolset button, .ls-dock-r .vol')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => ({ l: r.left, r: r.right })));
+      for (const o of others) expect(o.r <= boxes[0].l + 0.5 || o.l >= boxes[boxes.length - 1].r - 0.5, 'a bar button under the controls').toBe(true);
       // the top bar: Close, DJ, Options and Retro all on screen, none on another
       const top = await page.locator('.ls-top').evaluate((el) => [...el.querySelectorAll('button, a')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => ({ l: r.left, r: r.right })));
       for (const x of top) { expect(x.l).toBeGreaterThanOrEqual(0); expect(x.r).toBeLessThanOrEqual(w); }

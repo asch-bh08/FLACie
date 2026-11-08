@@ -19,13 +19,6 @@
         <button class="ls-icon ls-glass" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
         <span class="ls-where">@(t is null ? "" : WhereLine(t))</span>
         <div class="ls-tools">
-            @* the DJ for this queue only (a new queue starts on what Settings and the playlist say), in the top bar as on the phone (owner, 2 Nov: "I like the
-               Android one better"): white when off, the cover's colour when on; right-click (or press and hold) opens the DJ settings *@
-            @if (t is not null && Player.Dj is not null)
-            {
-                var djOn = Player.DjOn;
-                <button class="ls-icon ls-glass ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
-            }
             @if (t is not null)
             {
                 <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
@@ -69,6 +62,14 @@
                 <div class="ls-bar">
                     <div class="ls-times"><span>@Time(Player.Position)</span> <span class="ls-dur">/ @Time(Player.Duration)</span></div>
                     <div class="ls-transport @(Player.Dj is null ? "" : "has-dj")">
+                        @* the DJ for this queue only (a new queue starts on what Settings and the playlist say): first in the row, so the row balances round
+                           the play button with the mic at the other end (owner, 7 Nov: "the DJ button on the left"); as on the phone. White when off, the
+                           cover's colour when on; right-click (or press and hold) opens the DJ settings *@
+                        @if (Player.Dj is not null)
+                        {
+                            var djOn = Player.DjOn;
+                            <button class="ls-plain ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
+                        }
                         <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
                         <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="24" /></button>
                         @* the seek bar is a ring: the song's own loudness as bars round the play button (flacie.npWave draws it and turns a press or drag on it into a
@@ -79,9 +80,9 @@
                             <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
                         </div>
                         <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="24" /></button>
-                        @* talk to the DJ: on the other side of the controls from the DJ button *@
-                        <DjMic />
                         <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
+                        @* talk to the DJ: at the other end of the row from the DJ button *@
+                        <DjMic />
                     </div>
                 </div>
                 @* the first few times on a phone: the pages and the buttons below are there (owner, 1 Nov: his dad never knew about lyrics or swiping); as on Android *@

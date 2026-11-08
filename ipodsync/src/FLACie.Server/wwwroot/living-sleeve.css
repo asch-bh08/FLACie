@@ -38,7 +38,7 @@
 .ls-icon:hover { background: var(--glass); }
 .ls-glass, .ls-tint { background: #00000047; color: #fff; }
 .ls-glass:hover, .ls-tint:hover { background: #00000066; }
-.ls-glass.ls-dj.on { color: var(--np-accent); }
+.ls-glass.ls-dj.on, .ls-plain.ls-dj.on { color: var(--np-accent); }
 .ls-toolset { display: flex; align-items: center; gap: 2px; }
 .ls-toolset .speed-sleep { display: flex; align-items: center; gap: 2px; }
 .ls-toolset .icon-btn { color: var(--ink); }
@@ -343,7 +343,7 @@
 @media (min-width: 761px) {
   .ls-dock { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; height: 92px; padding: 0 28px; position: relative; z-index: 3;
     background: linear-gradient(to bottom, transparent, #00000059); }
-  .ls-dock-c { display: block; width: 420px; height: 1px; }
+  .ls-dock-c { display: block; width: 450px; height: 1px; }
   /* the bar is a backdrop: only its own buttons take clicks, so the transport placed over its middle always gets them */
   .ls-dock { pointer-events: none; } .ls-dock-l, .ls-dock-r { pointer-events: auto; }
   .ls-dock-l { display: flex; align-items: center; gap: 8px; }
@@ -360,6 +360,8 @@
   .ls-title .np-more, .ls-title .ls-heart { display: none; }
 }
 @media (min-width: 761px) and (max-width: 1100px) { .ls-dock .ls-volume { display: none; } }
+/* a laptop-wide bar: the volume is its mute button only (the system's own volume does the rest), so the bar's right never reaches under the controls */
+@media (min-width: 1101px) and (max-width: 1440px) { .ls-dock .ls-volume .vol input { display: none; } }
 
 /* Up next's head: where it plays from, and Save (the queue as a playlist) at the right */
 .np.ls .q-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; }
@@ -400,7 +402,15 @@
   .ls-transport.has-dj:has(.dj-mic) .ls-plain { width: 38px; }
   .ls-transport.has-dj:has(.dj-mic) .ls-pillbtn { width: 46px; }
 }
-@media (min-width: 761px) { .ls-transport.has-dj:has(.dj-mic) { gap: 7px; } }
+@media (min-width: 761px) { .ls-transport.has-dj:has(.dj-mic) { gap: 10px; } }
+/* seven in the row (owner, 7 Nov: DJ, shuffle, prev | PLAY | next, repeat, mic): on a narrow phone the ring draws in a little so all seven fit */
+@media (max-width: 420px) {
+  .ls-transport.has-dj:has(.dj-mic) { gap: 0; justify-content: space-between; margin: 0 -8px; }
+  .ls-transport.has-dj:has(.dj-mic) .ls-plain { width: 38px; }
+  .ls-transport.has-dj:has(.dj-mic) .ls-pillbtn { width: 42px; }
+  .ls-transport.has-dj:has(.dj-mic) .ls-ring { --ring: 124px; }
+  .ls-transport.has-dj:has(.dj-mic) .ls-play { width: 70px; height: 56px; margin: -28px 0 0 -35px; }
+}
 
 /* the DJ's words while it talks (DjCaption.razor): over the foot of the cover, faded in and out by opacity only */
 .np-dj-caption { display: none; }

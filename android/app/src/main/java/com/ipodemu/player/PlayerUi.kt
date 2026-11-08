@@ -784,7 +784,7 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
                     GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), Color.White.copy(alpha = .8f))
                     Txt("Search songs, albums, artists", Modifier.padding(start = 10.dp), size = 14f, color = Color.White.copy(alpha = .7f), maxLines = 1)
                 }
-                IconAction(Glyph.GEAR, "Settings", { nav.push(Screen.Settings) }, tint = Color.White)
+                // (no Settings cog here: Settings is always a tab at the bottom, and two cogs on one screen was one icon too many: owner, 7 Nov)
                 account()
             }
             Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp)) {

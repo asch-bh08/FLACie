@@ -98,3 +98,8 @@
 
 /* "Experimental" beside the DJ heading (owner, 30 Oct) */
 .set-head h2 .badge.exp { vertical-align: middle; margin-left: 8px; font-size: 11px; }
+
+/* the pages that never got much attention (owner, 7 Nov): Devices' and Jam's sentences read in the app's own sans, not the typewriter face kept for
+   short captions; the Headphone test's spectrum takes less room on a phone while nothing plays */
+.sp > .hint, .sp .panel p { font-family: var(--sans); font-size: 14.5px; line-height: 1.55; letter-spacing: 0; }
+@media (max-width: 760px) { .hp-scope { height: 96px; } }

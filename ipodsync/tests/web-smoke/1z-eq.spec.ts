@@ -20,11 +20,11 @@ async function playLab(page: Page) {
   await page.locator('.tracks .track-main').first().click();
   await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
-  await expect(page.locator('#speed-sleep')).toBeVisible({ timeout: 20_000 });
+  await expect(page.locator('.ls-tiles .eq-menu')).toBeVisible({ timeout: 20_000 });
 }
 
 const bands = (page: Page) => page.evaluate(() => (window as any).flacie.eqGet() as number[]);
-const eqPill = (page: Page) => page.locator('#speed-sleep .eq-menu .chipbtn');
+const eqPill = (page: Page) => page.locator('.ls-tiles .eq-menu .chipbtn');
 
 test.describe.serial('equaliser', () => {
   test('a pill that says EQ opens presets and five sliders; a preset sets the player EQ, a slider makes it Custom, Flat resets', async ({ page }) => {
@@ -35,7 +35,7 @@ test.describe.serial('equaliser', () => {
     await expect(eqPill(page)).toBeVisible();
     await expect(eqPill(page)).toContainText('EQ');
     await eqPill(page).click();
-    const pop = page.locator('#speed-sleep .eq-menu .chip-pop');
+    const pop = page.locator('.ls-tiles .eq-menu .chip-pop');
     await expect(pop).toBeVisible();
     await expect(pop.locator('input[type=range]')).toHaveCount(5);
     await pop.getByRole('button', { name: 'Bass boost' }).click();

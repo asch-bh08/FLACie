@@ -20,7 +20,10 @@ async function playLab(page: Page) {
   await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
   await expect(page.locator('.ls-title')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: 'Options', exact: true }).click();
 }
+// on a phone, where the stars are in the Options pop-up (on a PC, Web A puts them in More: 1x-new-look)
+test.use({ viewport: { width: 390, height: 844 } });
 const btn = (page: Page) => page.locator('.ls-toolset button[aria-label^="Rating:"]');
 
 test.describe.serial('ratings', () => {

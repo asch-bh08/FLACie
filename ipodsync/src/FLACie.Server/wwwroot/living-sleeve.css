@@ -521,3 +521,62 @@ body.np-open .dj-bar { display: none; }
 .card .card-open { width: 100%; }
 .track-title.open-song { padding: 0; border: 0; background: none; color: inherit; font: inherit; font-weight: 600; text-align: left; cursor: pointer; }
 .track-title.open-song:hover { text-decoration: underline; }
+
+/* Web A (owner, 8 Nov): the PC bar's worded tiles, Add · Lyrics · More | transport | Fav · EQ · Sound, in the phone's slot style; rating, speed and the
+   sleep timer are in More. On a phone none of this is drawn (its Options pop-up keeps the toolset) */
+.ls-tiles, .ls-sound-pop { display: none; }
+@media (min-width: 761px) {
+  .ls-dock-r .ls-toolset, .ls-dock .ls-volume { display: none !important; }
+  .ls-dock-l, .ls-tiles { gap: 10px; }
+  .ls-tiles { display: flex; align-items: center; }
+  .ls-tile, .ls-dock .np-more.d .ls-more-btn, .ls-dock .ls-tile-eq .chipbtn { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    width: 76px; height: 64px; padding: 0; border: 0; border-radius: 18px; background: var(--tone); color: var(--tonefg); font: inherit; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: transform .15s cubic-bezier(.3, 1.4, .5, 1), background .2s; }
+  .ls-tile:hover, .ls-dock .np-more.d .ls-more-btn:hover, .ls-tile-eq .chipbtn:hover { transform: translateY(-2px); }
+  .ls-tile:active, .ls-dock .np-more.d .ls-more-btn:active { transform: scale(.95); }
+  .ls-tile.on, .ls-dock .ls-tile-eq .chip-menu.on > .chipbtn { color: var(--np-accent); }
+  .ls-dock .ls-tile-eq .chipbtn { width: auto; min-width: 76px; padding: 0 12px; }
+  .ls-tile-eq .chipbtn span { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ls-dock .menu-val { margin-left: auto; padding-left: 12px; opacity: .65; font-size: 12px; }
+  .ls-dock .np-menu .stars.sub { display: flex; gap: 2px; padding: 4px 12px 8px; }
+
+  /* Sound: hover (or click / Tab) opens the volume as a tall slider in the cover's colour beside bars that move with the music */
+  .ls-sound { position: relative; }
+  .ls-sound::before { content: ""; position: absolute; left: -20px; right: -20px; bottom: 100%; height: 16px; }   /* the gap the pointer crosses to reach the pop-up */
+  .ls-sound-pop { display: grid; grid-template-columns: auto 250px; gap: 20px; position: absolute; right: 0; bottom: calc(100% + 14px); padding: 18px; border-radius: 26px;
+    background: color-mix(in srgb, var(--ground) 82%, #000); box-shadow: 0 18px 50px #0008, 0 0 0 1px color-mix(in srgb, var(--np-accent) 22%, transparent), 0 0 60px -20px var(--np-accent);
+    opacity: 0; transform: translateY(10px) scale(.96); transform-origin: bottom right; pointer-events: none; z-index: 80;
+    transition: opacity .18s ease, transform .26s cubic-bezier(.3, 1.4, .5, 1); }
+  .ls-sound:hover .ls-sound-pop, .ls-sound:focus-within .ls-sound-pop, .ls-sound.open .ls-sound-pop { opacity: 1; transform: none; pointer-events: auto; }
+  .ls-sound-level { display: grid; grid-template-columns: auto auto; grid-template-rows: 1fr auto auto; justify-items: center; align-items: end; gap: 8px 10px; }
+  .ls-eqbars { grid-row: 1; display: flex; align-items: flex-end; gap: 3px; height: 150px; }
+  .ls-eqbars b { width: 5px; height: 18%; border-radius: 3px; background: color-mix(in srgb, var(--np-accent) 70%, transparent); transition: height .4s; }
+  .ls-sound-pop.live .ls-eqbars b { animation: ls-eqb 1s ease-in-out infinite alternate; }
+  .ls-sound-pop.live .ls-eqbars b:nth-child(2) { animation-duration: .7s; } .ls-sound-pop.live .ls-eqbars b:nth-child(3) { animation-duration: 1.2s; }
+  .ls-sound-pop.live .ls-eqbars b:nth-child(4) { animation-duration: .85s; } .ls-sound-pop.live .ls-eqbars b:nth-child(5) { animation-duration: 1.05s; }
+  @keyframes ls-eqb { from { height: 15%; } to { height: 95%; } }
+  .ls-vol-track { grid-row: 1; position: relative; width: 34px; height: 150px; border-radius: 17px; overflow: hidden; background: color-mix(in srgb, var(--ink) 14%, transparent); }
+  .ls-vol-track i { position: absolute; left: 0; right: 0; bottom: 0; height: var(--fill); background: var(--np-accent); border-radius: 0 0 17px 17px; transition: height .12s; }
+  .ls-vol-track:focus-within { outline: 2px solid var(--ink); outline-offset: 3px; }
+  .ls-vol { position: absolute; left: 50%; top: 50%; width: 150px; height: 34px; margin: -17px 0 0 -75px; transform: rotate(-90deg); opacity: 0; cursor: pointer; }
+  .ls-vol-num { grid-column: 2; font-size: 15px; font-variant-numeric: tabular-nums; }
+  .ls-mute { grid-column: 1 / -1; display: grid; place-items: center; width: 40px; height: 32px; border: 0; border-radius: 16px; background: var(--tone); color: var(--tonefg); cursor: pointer; }
+  .ls-mute.on { color: var(--np-accent); }
+  .ls-sound-opts { display: flex; flex-direction: column; justify-content: center; gap: 16px; }
+  .ls-sound-opts .sound-fade { display: flex; flex-direction: column; gap: 8px; }
+  .ls-sound-opts { min-width: 0; }
+  .ls-sound-opts .switch-row { width: 100%; box-sizing: border-box; margin: 0; padding: 0; background: none; gap: 12px; }
+  .ls-sound-opts .switch-row span { flex: 1; min-width: 0; }
+  .ls-sound-opts .switch { background: color-mix(in srgb, var(--ink) 18%, transparent); }
+  .ls-sound-opts .switch-row input:checked ~ .switch { background: var(--np-accent); }
+  .ls-sound-opts .seg { display: flex; flex-wrap: nowrap; gap: 4px; padding: 3px; border-radius: 16px; background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .ls-sound-opts .seg button { flex: 1; height: 30px; padding: 0; border: 0; border-radius: 13px; background: none; color: var(--ink-2); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .ls-sound-opts .seg button.sel { background: var(--np-accent); color: #1a120c; }
+}
+@media (min-width: 761px) and (max-width: 1100px) { .ls-tile, .ls-dock .np-more.d .ls-more-btn { width: 62px; } .ls-dock-l, .ls-tiles { gap: 6px; } .ls-tile-eq .chipbtn span { max-width: 60px; } }
+@media (prefers-reduced-motion: reduce) { .ls-sound-pop, .ls-tile { transition: none !important; } .ls-eqbars b { animation: none !important; } }
+@media (min-width: 761px) {
+  .ls-dock .ls-tile-eq .chipbtn { height: 64px; margin: 0; border: 0; letter-spacing: 0; font-size: 12px; }
+  .ls-dock .ls-tile-eq .chipbtn svg { width: 22px; height: 22px; }
+  .ls-dock .ls-tile-eq .chip-pop { right: 0 !important; left: auto !important; transform: none !important; }
+}

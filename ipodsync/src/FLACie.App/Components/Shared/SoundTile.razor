@@ -1,0 +1,39 @@
+@inherits UserComponent
+@* The full-screen player's Sound tile on a PC (owner, 8 Nov: "when you hover it pops up with the sound and it fits the vibe"): the volume as a tall slider in
+   the cover's colour beside bars that move with the music, and the two sound switches (even out volume, fade between songs). Hovering opens it, as does a
+   click or Tab (for touch screens and the keyboard); moving away or Escape closes it. *@
+<div class="ls-sound @(open ? "open" : "")" @onmouseleave="() => open = false" @onkeydown="Key">
+    <button class="ls-tile" @onclick="() => open = !open" aria-label="Sound: volume @Pct%" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" Size="22" /><span>Sound</span></button>
+    <div class="ls-sound-pop @(Player.Playing ? "live" : "")" role="dialog" aria-label="Sound">
+        <div class="ls-sound-level">
+            <i class="ls-eqbars" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></i>
+            @* a tall bar filled in the cover's colour; the real slider lies over it turned upright, unseen, so dragging, the wheel and the arrow keys all work *@
+            <span class="ls-vol-track" style="--fill:@Pct%"><i></i><input class="ls-vol" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%" @oninput="OnVolume" /></span>
+            <b class="ls-vol-num">@Pct</b>
+            <button class="ls-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : "volume-2")" Size="18" /></button>
+        </div>
+        <div class="ls-sound-opts">
+            <label class="switch-row sound-row">
+                <span><b>Even out volume</b><small>Loud songs down, quiet ones up</small></span>
+                <input type="checkbox" role="switch" aria-label="Even out volume" checked="@Player.LevelVolume" @onchange="e => Player.SetLevelVolumeAsync((bool)(e.Value ?? false))" />
+                <i class="switch" aria-hidden="true"></i>
+            </label>
+            <div class="sound-fade">
+                <b>Fade between songs</b>
+                <div class="seg" role="group" aria-label="Fade between songs">
+                    @foreach (var n in FadeBetween.Choices)
+                    {
+                        var nn = n;
+                        <button type="button" class="@(Player.FadeSecs == nn ? "sel" : "")" aria-pressed="@(Player.FadeSecs == nn ? "true" : "false")" @onclick="() => Player.SetFadeSecsAsync(nn)">@(nn == 0 ? "Off" : nn + " s")</button>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+@code {
+    bool open;
+    int Pct => (int)Math.Round(Player.Volume * 100);
+    Task OnVolume(ChangeEventArgs e) => int.TryParse(e.Value?.ToString(), out var v) ? Player.SetVolumeAsync(v / 100.0) : Task.CompletedTask;
+    void Key(KeyboardEventArgs e) { if (e.Key == "Escape") open = false; }
+}

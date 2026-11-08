@@ -158,7 +158,7 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       const tabs = await page.locator('.ls-seg [role=tab]').allInnerTexts();
       expect(tabs.map((t) => t.trim())).toEqual(['Up next', 'Lyrics', 'Info']);
       await expect(page.locator('.ls-seg [role=tab]').first()).toHaveAttribute('aria-selected', 'true');
-      await expect(page.locator('.ls-toolset button[aria-label^="Rating:"]')).toBeVisible();
+      await expect(page.locator('.ls-tiles .eq-menu .chipbtn')).toBeVisible();   // Web A: the options are the bar's tiles (rating, speed and sleep in More)
       await expect(page.getByRole('button', { name: 'Options', exact: true })).toBeHidden();
       // the lyrics are in the app's own bold sans, not the title serif
       expect(await page.locator('.ls').evaluate((el) => { const o = document.createElement('ol'); o.className = 'ls-lyrics'; el.appendChild(o); const f = getComputedStyle(o).fontFamily; o.remove(); return f; })).not.toContain('Instrument Serif');
@@ -218,7 +218,8 @@ test.describe('the full-screen player bar on a PC', () => {
     await signIn(page); await openPlayer(page);
     const bar = (await page.locator('.ls-dock').boundingBox())!;
     expect(bar.y + bar.height).toBeGreaterThanOrEqual(898);
-    for (const sel of ['.ls-transport', '.ls-dock .ls-heart', '.ls-dock .np-more', '.ls-toolset button[aria-label^="Rating:"]', '.ls-toolset button[aria-label^="Speed:"]', '.ls-dock .vol']) {
+    // Web A (owner, 8 Nov): Add, Lyrics, More on the left; Fav, EQ, Sound on the right
+    for (const sel of ['.ls-transport', '.ls-dock-l button[aria-label="Add to playlist"]', '.ls-dock-l button[aria-label="Lyrics"]', '.ls-dock .np-more', '.ls-tiles .ls-dock-heart', '.ls-tiles .eq-menu .chipbtn', '.ls-sound > .ls-tile']) {
       const b = (await page.locator(sel).first().boundingBox())!;
       expect(b.y, sel).toBeGreaterThanOrEqual(bar.y - 1); expect(b.y + b.height, sel).toBeLessThanOrEqual(bar.y + bar.height + 1);
     }
@@ -233,5 +234,38 @@ test.describe('the full-screen player bar on a PC', () => {
     const menu = (await page.locator('.ls-dock .np-menu').boundingBox())!;
     // above its button, fully on screen
     expect(menu.y).toBeGreaterThanOrEqual(0); expect(menu.y + menu.height).toBeLessThanOrEqual(mb.y + 1);
+  });
+
+  test('Web A: the left and right tiles sit evenly round the transport; the rest is in More; Sound pops up on hover with the volume', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page); await openPlayer(page);
+    await expect(page.locator('.ls-toolset')).toBeHidden();
+    await expect(page.locator('.ls-dock .vol')).toBeHidden();
+    const tr = (await page.locator('.ls-transport').boundingBox())!;
+    const left = (await page.locator('.ls-dock-l').boundingBox())!, right = (await page.locator('.ls-tiles').boundingBox())!;
+    expect(left.x + left.width).toBeLessThan(tr.x); expect(right.x).toBeGreaterThan(tr.x + tr.width);
+    await page.screenshot({ path: 'test-results/web-a-bar.png' });
+    // Sound: hidden until hovered, then the volume slider moves the player's volume
+    const pop = page.locator('.ls-sound-pop');
+    await expect(pop).toHaveCSS('opacity', '0');
+    await page.locator('.ls-sound > .ls-tile').hover();
+    await expect(pop).toHaveCSS('opacity', '1');
+    await page.screenshot({ path: 'test-results/web-a-sound.png' });
+    await page.locator('.ls-vol').fill('40');
+    await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 40%');
+    await expect(pop.getByRole('switch', { name: 'Even out volume' })).toBeVisible();
+    // More holds the rating, speed and the sleep timer (paused first: the test songs are 3 s long and a new music track starts at 1x)
+    await page.mouse.move(10, 10);
+    await page.locator('.ls-play[aria-label="Pause"]').click();
+    await page.locator('.ls-dock .np-more button').first().click();
+    const menu = page.locator('.ls-dock .np-menu');
+    await menu.getByRole('menuitem', { name: /^Speed/ }).click();
+    await menu.getByRole('menuitemradio', { name: '1.5x' }).click();
+    await page.locator('.ls-dock .np-more button').first().click();
+    await expect(menu.getByRole('menuitem', { name: /^Speed/ })).toContainText('1.5x');
+    await expect(menu.getByRole('menuitem', { name: /^Sleep timer/ })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: /^Rating/ })).toBeVisible();
+    await page.screenshot({ path: 'test-results/web-a-more.png' });
   });
 });

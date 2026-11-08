@@ -20,6 +20,7 @@ async function playLab(page: Page) {
   await page.locator('.tracks .track-main').first().click();
   await expect(page.getByRole('button', { name: 'Open Now Playing' })).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
+  await page.getByRole('button', { name: 'Options', exact: true }).click();
   await expect(page.locator('#speed-sleep')).toBeVisible({ timeout: 20_000 });
 }
 
@@ -35,25 +36,19 @@ async function pick(page: Page, label: string, option: string) {
   await page.locator('#speed-sleep .chip-pop button').filter({ hasText: new RegExp('^\\s*' + esc(option)) }).first().click();
 }
 
+// on a phone, where they are the Options pop-up's icons (on a PC, Web A puts speed and sleep in More and the sound in the Sound tile: 1x-new-look)
+test.use({ viewport: { width: 390, height: 844 } });
+
 test.describe.serial('speed and sleep', () => {
-  test('the controls are icon buttons in the bottom bar of the full-screen player, beside the heart and the transport, in the same style', async ({ page }) => {
+  test('the controls are icon buttons in the Options pop-up of the full-screen player, all one size', async ({ page }) => {
     test.setTimeout(120_000);
     await signIn(page);
     await playLab(page);
     for (const n of ['Speed', 'Sleep timer', 'Sound']) await expect(pill(page, n)).toBeVisible();
     await expect(page.locator('#speed-sleep .dd')).toHaveCount(0);
-    await page.waitForTimeout(1500);   // the format badges arrive and move the row: measure after they have
-    // all four rectangles read in one go (the row can still move between separate reads)
-    const r = await page.evaluate(() => {
-      const rect = (e: Element | null) => { const b = e!.getBoundingClientRect(); return { y: b.y, h: b.height }; };
-      // (on a PC the full-screen player keeps them in its now-playing bar along the bottom; measured against the bar's heart)
-      const heart = document.querySelector('.ls-dock .ls-heart');
-      return { heart: rect(heart!), others: ['Speed', 'Sleep timer', 'Sound'].map((n) => rect(document.querySelector('#speed-sleep button.chip-ico[aria-label^="' + n + ':"]'))) };
-    });
-    for (const o of r.others) {
-      expect(o.h, 'no bigger than the heart').toBeLessThanOrEqual(r.heart.h + 4);
-      expect(Math.abs((o.y + o.h / 2) - (r.heart.y + r.heart.h / 2)), 'on the bottom bar').toBeLessThanOrEqual(6);
-    }
+    // all in the Options pop-up, the same size as each other
+    const hs = await page.locator('.ls-toolset #speed-sleep button.chip-ico').evaluateAll((es) => es.map((e) => e.getBoundingClientRect().height));
+    expect(hs.length).toBeGreaterThanOrEqual(3); expect(Math.max(...hs) - Math.min(...hs)).toBeLessThanOrEqual(2);
     await says(page, 'Speed', '1x'); await says(page, 'Sleep timer', 'off'); await says(page, 'Sound', 'default');
     // pictures for a person to look at (test-results is not kept)
     await page.screenshot({ path: 'test-results/icons.png' });
@@ -120,10 +115,10 @@ test.describe.serial('speed and sleep', () => {
     const base = await page.evaluate(() => (window as any).flacie.volume() as number);
     await expect.poll(vol).toBeCloseTo(base, 3);   // off by default: untouched
     await open(page, 'Sound');
-    await page.locator('.sound-row').click();
+    await page.locator('#speed-sleep .sound-row').click();
     await expect.poll(vol).toBeCloseTo(base * 0.501, 2);   // -6 dB
     await says(page, 'Sound', 'even out');
-    await page.locator('.sound-row').click();
+    await page.locator('#speed-sleep .sound-row').click();
     await expect.poll(vol).toBeCloseTo(base, 3);
     await says(page, 'Sound', 'default');
   });
@@ -136,13 +131,13 @@ test.describe.serial('speed and sleep', () => {
     await page.evaluate(() => (window as any).flacie.seek(0.4));
     await expect.poll(gain, { timeout: 5_000 }).toBe(1);   // off by default: no fade
     await open(page, 'Sound');
-    await page.locator('.seg button').filter({ hasText: /^4 s$/ }).click();
+    await page.locator('#speed-sleep .seg button').filter({ hasText: /^4 s$/ }).click();
     await says(page, 'Sound', 'fade 4 s');
     await page.evaluate(() => (window as any).flacie.seek(0.4));
     await expect.poll(gain, { timeout: 10_000 }).toBeLessThan(0.9);   // the first track of an album fades in
     await page.evaluate(() => (window as any).flacie.seek(2));
     await expect.poll(gain, { timeout: 10_000 }).toBe(1);
-    await page.locator('.seg button').filter({ hasText: /^Off$/ }).click();
+    await page.locator('#speed-sleep .seg button').filter({ hasText: /^Off$/ }).click();
     await page.evaluate(() => (window as any).flacie.seek(0.4));
     await expect.poll(gain, { timeout: 10_000 }).toBe(1);
   });

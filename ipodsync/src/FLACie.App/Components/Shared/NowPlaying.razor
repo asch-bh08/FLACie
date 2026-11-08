@@ -195,15 +195,23 @@
         @* PC: one now-playing bar along the bottom holding every button (no seek bar or time: the frame round the cover is the seek bar); the transport sits in
            its middle. Phone: the bar is not drawn; its rating, speed, sleep and sound buttons open from the top bar's Options as before *@
         <footer class="ls-dock">
+            @* Web A (owner, 8 Nov): worded tiles round the transport. Add, Lyrics and More on the left; Fav, EQ and Sound on the right. Rating, speed and the
+               sleep timer are in More *@
             <div class="ls-dock-l">
-                <button class="ls-heart ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
+                <button class="ls-tile" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist"><Icon Name="plus" Size="22" /><span>Add</span></button>
+                <button class="ls-tile @(tab == "lyrics" ? "on" : "")" @onclick='() => Show("lyrics")' aria-label="Lyrics"><Icon Name="lyrics" Size="22" /><span>Lyrics</span></button>
                 @MoreMenu("d", t)
             </div>
             @* the room the transport takes in the middle of the bar (it is placed over this from the page), so the two sides never reach under it *@
             <div class="ls-dock-c" aria-hidden="true"></div>
             <div class="ls-dock-r">
+                @* the phone's Options pop-up (on a PC these sit in More and the tiles) *@
                 <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
-                <div class="ls-volume"><VolumeControl /></div>
+                <div class="ls-tiles">
+                    <button class="ls-tile ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /><span>Fav</span></button>
+                    <div class="ls-tile-eq"><EqMenu /></div>
+                    <SoundTile />
+                </div>
             </div>
         </footer>
     }
@@ -261,11 +269,20 @@
     // the "..." menu: closes on a click anywhere outside it or Escape (flacie.watchOutside calls Dismiss)
     bool more, plOpen, nopeOpen, djOpen, opts; string moreAt = "w";
     // one sub-menu open at a time, so the menu never grows past the screen
-    void Sub(ref bool which) { var was = which; plOpen = nopeOpen = djOpen = false; which = !was; }
+    bool rateOpen, speedOpen, sleepOpen;
+    void Sub(ref bool which) { var was = which; plOpen = nopeOpen = djOpen = rateOpen = speedOpen = sleepOpen = false; which = !was; }
+    async Task Sleep(Task work) { await work; CloseMore(); }
+    [Inject] JellyfinClient RateJf { get; set; } = default!;
+    // as RatingMenu: kept in the profile and written to Jellyfin when the song is a Jellyfin one (best effort)
+    void Rate(Track t, int stars)
+    {
+        Session.SetRating(t, stars); SaveProfile();
+        if (t.JellyfinId is { Length: > 0 } id && Session.Jellyfin is { } a) _ = Task.Run(async () => { try { await RateJf.SetRatingAsync(a, id, stars); } catch { } });
+    }
     [JSInvokable] public void Dismiss() => InvokeAsync(() => { CloseMore(); StateHasChanged(); });
     async Task ToggleMore(string at)
     {
-        more = !(more && moreAt == at); moreAt = at; plOpen = nopeOpen = djOpen = false;
+        more = !(more && moreAt == at); moreAt = at; plOpen = nopeOpen = djOpen = rateOpen = speedOpen = sleepOpen = false;
         if (more && self is not null) { try { await Js.InvokeVoidAsync("flacie.watchOutside", ".np-more." + at, self); } catch (Exception) { } }
         else { try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
     }
@@ -280,7 +297,7 @@
         CloseMore();
         try { await Js.InvokeVoidAsync("flacie.npGo", DjSettingsUrl); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo(DjSettingsUrl); }
     }
-    void CloseMore() { more = false; plOpen = nopeOpen = djOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
+    void CloseMore() { more = false; plOpen = nopeOpen = djOpen = rateOpen = speedOpen = sleepOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");
     // on a phone the first Back closes an open sheet (back to the cover), the next one closes the player
@@ -309,7 +326,7 @@
     public override void Dispose() { infoCts?.Cancel(); if (onDls is not null) Dls.Unsubscribe(Session, onDls); self?.Dispose(); _ = Js.InvokeVoidAsync("flacie.npWaveStop").AsTask().ContinueWith(_ => { }); _ = Js.InvokeVoidAsync("flacie.npReset").AsTask().ContinueWith(_ => { }); base.Dispose(); }
     /// <summary>The "..." menu: drawn beside the heart (PC) and in the phone's lower row; only one of the two is shown, and it opens where it was pressed.</summary>
     RenderFragment MoreMenu(string at, Track t) => @<div class="np-more @at">
-        <button class="ls-icon ls-more-btn" @onclick="() => ToggleMore(at)" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more && moreAt == at ? "true" : "false")"><Icon Name="more" Size="22" />@if (at == "p") { <span>More</span> }</button>
+        <button class="ls-icon ls-more-btn" @onclick="() => ToggleMore(at)" aria-label="More options" aria-haspopup="menu" aria-expanded="@(more && moreAt == at ? "true" : "false")"><Icon Name="more" Size="22" />@if (at is "p" or "d") { <span>More</span> }</button>
         @if (more && moreAt == at)
         {
             @* nine words, in groups, and the rarer choices one tap further in (owner, 7 Nov: "menus are too complicated, Now Playing's … has 11 items");
@@ -324,6 +341,44 @@
                     @foreach (var p in Session.Playlists)
                     {
                         <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); CloseMore(); }">@p.Name</button>
+                    }
+                }
+                @if (at == "d")
+                {
+                    <hr class="menu-sep" />
+                    var stars = Session.Rating(t);
+                    <button role="menuitem" class="has-sub" aria-expanded="@(rateOpen ? "true" : "false")" @onclick="() => Sub(ref rateOpen)">Rating <small class="menu-val">@Ratings.Label(stars)</small> <span aria-hidden="true" class="chev">›</span></button>
+                    @if (rateOpen)
+                    {
+                        <div class="stars sub" role="group" aria-label="Rate this song">
+                            @for (var i = 1; i <= 5; i++)
+                            {
+                                var n = i;
+                                <button type="button" class="star @(n <= stars ? "on" : "")" aria-label="@Ratings.Label(n)" aria-pressed="@(n == stars ? "true" : "false")" @onclick="() => Rate(t, n == stars ? 0 : n)"><Icon Name="@(n <= stars ? "star-fill" : "star")" Size="22" /></button>
+                            }
+                        </div>
+                    }
+                    <button role="menuitem" class="has-sub" aria-expanded="@(speedOpen ? "true" : "false")" @onclick="() => Sub(ref speedOpen)">Speed <small class="menu-val">@SpeedPolicy.Label(Player.Speed)</small> <span aria-hidden="true" class="chev">›</span></button>
+                    @if (speedOpen)
+                    {
+                        @foreach (var sp in SpeedPolicy.Steps)
+                        {
+                            var v = sp;
+                            <button role="menuitemradio" class="sub @(Math.Abs(v - Player.Speed) < 0.001 ? "sel" : "")" aria-checked="@(Math.Abs(v - Player.Speed) < 0.001 ? "true" : "false")" @onclick="async () => { await Player.SetSpeedAsync(v); CloseMore(); }">@SpeedPolicy.Label(v)</button>
+                        }
+                    }
+                    <button role="menuitem" class="has-sub" aria-expanded="@(sleepOpen ? "true" : "false")" @onclick="() => Sub(ref sleepOpen)">Sleep timer <small class="menu-val">@(Player.SleepMode == SleepMode.Off ? "off" : Player.SleepStatus())</small> <span aria-hidden="true" class="chev">›</span></button>
+                    @if (sleepOpen)
+                    {
+                        @if (Player.SleepMode != SleepMode.Off) { <button role="menuitem" class="sub" @onclick="() => Sleep(Player.ExtendSleepAsync())">Add @SleepPlan.ExtendMinutes minutes</button> }
+                        <button role="menuitem" class="sub" @onclick="() => Sleep(Player.SetSleepAsync(SleepMode.EndOfTrack))">End of this song</button>
+                        <button role="menuitem" class="sub" @onclick="() => Sleep(Player.SetSleepAsync(SleepMode.EndOfAlbum))">End of this album</button>
+                        @foreach (var m in new[] { 15, 30, 60, 90, 120 })
+                        {
+                            var mm = m;
+                            <button role="menuitem" class="sub" @onclick="() => Sleep(Player.SetSleepAsync(SleepMode.Minutes, mm))">@mm minutes</button>
+                        }
+                        @if (Player.SleepMode != SleepMode.Off) { <button role="menuitem" class="sub danger" @onclick="() => Sleep(Player.SetSleepAsync(SleepMode.Off))">Turn off</button> }
                     }
                 }
                 <hr class="menu-sep" />

@@ -6,8 +6,10 @@ namespace FLACie.Server;
 
 /// <summary>One open FLACie Web page (a browser tab): who is signed in there, what browser and computer it is, and its player. Jellyfin only sees one "FLACie Web" device per
 /// server, so this is how the admin dashboard tells two browsers (or a PC and a laptop) apart.</summary>
-public sealed class WebClient(string id, UserSession session, PlayerState player)
+public sealed class WebClient(string id, UserSession session, PlayerState player, CircuitPresence? presence = null)
 {
+    /// <summary>The page is connected now (not a closed or reloaded tab the server still holds in case it comes back).</summary>
+    public bool Online => presence?.Up ?? true;
     public string Id { get; } = id;
     public UserSession Session { get; } = session;
     public PlayerState Player { get; } = player;
@@ -43,12 +45,21 @@ public static class ClientLabel
     public static string Device(string device, bool isSelf, bool desktopShell) => desktopShell && isSelf && device == "FLACie Web" ? DesktopApp : device;
 }
 
+/// <summary>Keeps each page's <see cref="CircuitPresence"/> in step with its connection.</summary>
+public sealed class PresenceHandler(CircuitPresence presence) : Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler
+{
+    public override Task OnConnectionUpAsync(Microsoft.AspNetCore.Components.Server.Circuits.Circuit c, CancellationToken ct) { presence.Up = true; return Task.CompletedTask; }
+    public override Task OnConnectionDownAsync(Microsoft.AspNetCore.Components.Server.Circuits.Circuit c, CancellationToken ct) { presence.Up = false; return Task.CompletedTask; }
+}
+
 public sealed class ClientRegistry : IPlayerClients
 {
-    void IPlayerClients.Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language) =>
-        Add(new WebClient(id, s, player) { Ip = ip, Ua = ua, Browser = browser, Os = os, Screen = screen, Language = language });
+    void IPlayerClients.Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language, CircuitPresence? presence) =>
+        Add(new WebClient(id, s, player, presence) { Ip = ip, Ua = ua, Browser = browser, Os = os, Screen = screen, Language = language });
     readonly ConcurrentDictionary<string, WebClient> clients = new();
     public IReadOnlyCollection<WebClient> All => clients.Values.OrderBy(c => c.Since).ToList();
+    /// <summary>The pages connected now: what the dashboard shows.</summary>
+    public IReadOnlyCollection<WebClient> Open => clients.Values.Where(c => c.Online).OrderBy(c => c.Since).ToList();
     public void Add(WebClient c) { clients[c.Id] = c; _ = Task.Run(() => Resolve(c)); }
     public void Remove(string id) => clients.TryRemove(id, out _);
 

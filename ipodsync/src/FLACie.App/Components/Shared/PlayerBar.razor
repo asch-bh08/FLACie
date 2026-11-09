@@ -111,6 +111,7 @@
         catch (Exception) { }
     }
     [Inject] IPlayerClients Registry { get; set; } = default!;
+    [Inject] IServiceProvider Services { get; set; } = default!;
     [Inject] IJSRuntime PageJs { get; set; } = default!;
     sealed record ClientInfo(string Ip, string Ua, string Browser, string Os, string Screen, string Language);
     string? clientId;
@@ -120,7 +121,8 @@
         {
             var ci = await PageJs.InvokeAsync<ClientInfo>("flacie.clientInfo");
             clientId = Guid.NewGuid().ToString("N");
-            Registry.Add(clientId, Session, Player, ci.Ip, ci.Ua, ci.Browser, ci.Os, ci.Screen, ci.Language);
+            // the page's connection where the host keeps one (the server): the dashboard lists only pages connected now
+            Registry.Add(clientId, Session, Player, ci.Ip, ci.Ua, ci.Browser, ci.Os, ci.Screen, ci.Language, Services.GetService(typeof(CircuitPresence)) as CircuitPresence);
         }
         catch (Exception) { }
     }

@@ -32,10 +32,15 @@ public interface IDownloads
     bool MayBulk(UserSession s);
 }
 
+/// <summary>One page's connection, kept up to date by the server (owner, 9 Nov: Server admin showed three of him: two were closed tabs still held
+/// for 30 minutes in case they came back).</summary>
+public sealed class CircuitPresence { public volatile bool Up = true; }
+
 /// <summary>The player windows open on this account (the server lists them on the dashboard).</summary>
 public interface IPlayerClients
 {
-    void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language);
+    /// <summary>[presence]: whether the page is connected now (a closed or reloaded tab is kept a while in case it comes back).</summary>
+    void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language, CircuitPresence? presence = null);
     void Remove(string id);
 }
 

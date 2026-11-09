@@ -483,7 +483,8 @@ else
     {
         var list = new List<Card>();
         // browsers: every open FLACie Web page, told apart by browser, system and address
-        foreach (var w in Clients.All)
+        // only the pages connected now: a closed or reloaded tab is held for 30 minutes in case it comes back, and showed as another "you" (owner, 9 Nov)
+        foreach (var w in Clients.Open)
         {
             var t = w.Player.Current;
             var c = new Card

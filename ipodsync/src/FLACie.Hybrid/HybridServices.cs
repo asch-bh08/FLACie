@@ -127,7 +127,7 @@ public sealed class NoDownloads : IDownloads
 /// <summary>There is one player on the phone and no dashboard to list it on.</summary>
 public sealed class NoClients : IPlayerClients
 {
-    public void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language) { }
+    public void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language, CircuitPresence? presence = null) { }
     public void Remove(string id) { }
 }
 

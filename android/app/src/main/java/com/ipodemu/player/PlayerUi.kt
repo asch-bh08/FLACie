@@ -21,6 +21,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -1072,10 +1073,11 @@ internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, tar
 
 /**
  * The top of Playlists as on the web (Playlists.razor): a "New playlist name" field with Create beside it, then "Import a playlist", which sends a
- * playlist file to FLACie Web to find and fetch its songs (the Dashboard's import, one tap from here).
+ * playlist file to FLACie Web to find and fetch its songs (the Dashboard's import, one tap from here). Without [withField] only the import buttons:
+ * the Playlists grid has the name field in its first tile instead (NewPlaylistTile).
  */
 @Composable
-private fun NewPlaylistRow(nav: PlayerNav) {
+private fun NewPlaylistRow(nav: PlayerNav, withField: Boolean = true) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val ctx = androidx.compose.ui.platform.LocalContext.current
@@ -1094,7 +1096,7 @@ private fun NewPlaylistRow(nav: PlayerNav) {
     }
     fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = "" } }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (withField) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             androidx.compose.foundation.text.BasicTextField(
                 name, { name = it }, singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = 16.sp, fontFamily = DesignFonts.sans),
@@ -1132,8 +1134,125 @@ private fun NewPlaylistRow(nav: PlayerNav) {
     }
 }
 
+/**
+ * The first tile of the Playlists grid, as on the web (Playlists.razor: "a new playlist is the first tile, where the playlists are", owner, overhaul
+ * 9 Nov): an outlined square with a plus where a cover would be, then the name field as a round pill and Create under it. A tap on the square puts
+ * the cursor in the field.
+ */
+@Composable
+private fun NewPlaylistTile() {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    var name by remember { mutableStateOf("") }
+    val fr = remember { androidx.compose.ui.focus.FocusRequester() }
+    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = "" } }
+    Column(Modifier.padding(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).border(1.5.dp, sc.onBg.copy(alpha = .28f), RoundedCornerShape(12.dp))
+                .clickable { try { fr.requestFocus() } catch (_: Exception) {} },
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(Glyph.PLUS, Modifier.size(34.dp), sc.onBgDim) }
+        androidx.compose.foundation.text.BasicTextField(
+            name, { name = it }, singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = 14.sp, fontFamily = DesignFonts.sans),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(sc.accent),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { create() }),
+            modifier = Modifier.fillMaxWidth().height(44.dp).focusRequester(fr).semantics { contentDescription = "New playlist name" },
+            decorationBox = { inner ->
+                Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(50)).padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) {
+                    if (name.isEmpty()) Txt("New playlist name", size = 14f, color = sc.onBgDim)
+                    inner()
+                }
+            },
+        )
+        Box(
+            Modifier.height(44.dp).clip(RoundedCornerShape(50)).background(if (name.isBlank()) sc.accent.copy(alpha = .35f) else sc.accent)
+                .semantics { contentDescription = "Create" }.clickable(enabled = name.isNotBlank()) { create() }.padding(horizontal = 20.dp),
+            contentAlignment = Alignment.Center,
+        ) { Txt("Create", size = 15f, weight = FontWeight.SemiBold, color = if (name.isBlank()) sc.onBg.copy(alpha = .5f) else sc.accent.readableInk()) }
+    }
+}
+
+/** A playlist in the grid: its cover as a rounded square (a heart for Favourites), the name and the song count; a long press opens its menu. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun PlaylistCard(name: String, sub: String, art: String?, modifier: Modifier = Modifier, heart: Boolean = false, onLong: (() -> Unit)? = null,
+                         mark: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+    val sc = LocalScheme.current
+    Column(modifier.clip(RoundedCornerShape(14.dp)).semantics(mergeDescendants = true) { contentDescription = "$name, $sub" }
+        .combinedClickable(onClick = onClick, onLongClick = onLong).padding(4.dp)) {
+        if (heart) Box(
+            Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFE5486B), Color(0xFF9E2A4A)))),
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(Glyph.HEART_FILLED, Modifier.fillMaxSize(.34f), Color.White) }
+        else ArtImage(art, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp), thumb = true, corner = 12.dp)
+        Txt(name, Modifier.padding(top = 8.dp), size = 14f, weight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Txt(sub, Modifier.weight(1f, fill = false), size = 12f, color = sc.onBgDim)
+            mark?.invoke()
+        }
+    }
+}
+
+/** A playlist's long-press menu: share it with someone on the same Jellyfin, or delete it (asked first). */
+private fun playlistSheet(app: com.ipodemu.App, nav: PlayerNav, p: com.ipodemu.library.UserPlaylist): SheetSpec {
+    val ud = app.userData
+    return SheetSpec(p.name, songCount(p.paths.size), listOfNotNull(
+        // share the Jellyfin copy with someone else on the same server (it then shows in their Jellyfin and FLACie)
+        p.jfId?.takeIf { app.prefs.signedIn }?.let { jf -> SheetItem("Share with...", Glyph.ARTIST) {
+            val toast = { m: String -> android.widget.Toast.makeText(app, m, android.widget.Toast.LENGTH_LONG).show() }
+            app.account.otherUsers { users, err ->
+                if (err != null || users.isEmpty()) toast(err ?: "No other users on this server")
+                else nav.sheet = SheetSpec("Share \"${p.name}\"", "They can play it; only you can change it", users.map { (uid, name) ->
+                    SheetItem(name, Glyph.ARTIST) { app.account.sharePlaylist(jf, uid, false) { m -> toast(if (m == "Shared") "Shared \"${p.name}\" with $name" else m) } }
+                })
+            }
+        } },
+        SheetItem("Delete playlist", Glyph.CLOSE) {
+            nav.sheet = SheetSpec("Delete \"${p.name}\"?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
+                SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Cancel", Glyph.BACK) {}))
+        },
+    ))
+}
+
+/**
+ * Playlists in design I as a grid of covers, as on the web: the New playlist tile first, then Favourites, your playlists and the folder playlists.
+ * The import buttons stay above the grid. The cards rise in one after another as the page opens.
+ */
+@Composable
+private fun PlaylistsGrid(nav: PlayerNav) {
+    val app = LocalApp.current
+    val ud = app.userData
+    ud.rev
+    val lib = app.library
+    val entrance = rememberEntrance()
+    Column(Modifier.fillMaxSize()) {
+        NewPlaylistRow(nav, withField = false)
+        LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            item(key = "new") { Box(Modifier.entranceRise(entrance, 0)) { NewPlaylistTile() } }
+            item(key = "favs") {
+                PlaylistCard("Favourites", songCount(ud.favorites.size), null, Modifier.entranceRise(entrance, 1), heart = true) { nav.push(Screen.Detail(DetailKind.FAVORITES)) }
+            }
+            androidx.compose.foundation.lazy.grid.itemsIndexed(shownPlaylists(app), key = { _, p -> p.id }) { i, p ->
+                val by = lib.byPath()
+                val keys = p.paths.asSequence().take(20).mapNotNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }.toList()
+                // a cover already on disk, else one a server can supply; a local key with no file behind it shows nothing
+                val first = keys.firstOrNull { app.art.has(it) } ?: keys.firstOrNull { it.startsWith("jf") || it.startsWith("px") || it.startsWith("it") }
+                PlaylistCard(p.name, songCount(p.paths.size), first, Modifier.entranceRise(entrance, i + 2), onLong = { nav.sheet = playlistSheet(app, nav, p) },
+                    mark = { DownloadedListMark(p.paths) }) { nav.push(Screen.Detail(DetailKind.USER, p.id)) }
+            }
+            items(shownFolderPlaylists(app), key = { "f" + it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
+                PlaylistCard(g.name, songCount(g.tracks.size), g.artKey, mark = { DownloadedListMark(remember(g) { g.tracks.map { it.path } }) }) { nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun PlaylistsList(nav: PlayerNav) {
+    if (LocalStyle.current.modern) { PlaylistsGrid(nav); return }
     val app = LocalApp.current
     val sc = LocalScheme.current
     val ud = app.userData

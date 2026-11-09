@@ -7,7 +7,7 @@
 <MusicTabs Active="Artists" />
 <ExploreBar Tab="Artists" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Artists.Count > 0) { <p class="status">Nothing matches these filters.</p> }
+@if (list.Count == 0 && Lib.Artists.Count > 0) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
 <div class="grid">
     @foreach (var a in list)
     {
@@ -19,6 +19,7 @@
     Library? built; int builtVersion = -1;
     void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Artists(Lib); }
     void Refresh() { Build(); StateHasChanged(); }
+    void ClearFilters() { X.Clear(); Refresh(); }
     protected override void OnParametersSet() => Build();
     protected override bool ShouldRender() { Build(); return true; }
 }

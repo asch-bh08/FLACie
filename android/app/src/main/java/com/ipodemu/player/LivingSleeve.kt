@@ -392,9 +392,16 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
     val ctx = LocalContext.current
     app.userData.rev
     val sleepLeft = rememberSleepLeft(app)
-    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    // on a narrow phone (360 dp) the close button, the DJ, the mic, Options and Retro at 52 dp with 8-10 dp gaps took more than the width, so the
+    // last button was pushed off the right edge; there they are 44 dp (still a full touch target) with smaller gaps (owner, 9 Nov: nothing may
+    // hang off). The bar stays one row of fixed height, so the cover below it never moves under the buttons.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    val narrow = maxWidth < 400.dp
+    val big = if (narrow) 44.dp else 52.dp
+    val gap = if (narrow) 4.dp else 8.dp
+    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = if (narrow) 10.dp else 14.dp), verticalAlignment = Alignment.CenterVertically) {
         GlassButton("Close Now Playing", { nav.nowPlaying = false }) { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), Color.White) }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(gap + 2.dp))
         val fallback = app.player.contextName ?: com.ipodemu.library.SourceLabel.line(t.source)
         // the pill takes what it needs from the space left (up to all of it), and the buttons stay against the right edge
         Box(Modifier.weight(1f).padding(end = 8.dp)) {
@@ -410,15 +417,16 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         if (snap.speed != 1f) SText(com.ipodemu.playback.SpeedPolicy.label(snap.speed), Modifier.padding(end = 6.dp).clickable { nav.sheet = speedSheet(app) }, size = 13f, weight = FontWeight.Bold, color = p.main.value)
         // the DJ and the mic, back up here and bigger than before b122 (owner, 8 Nov): white when off, the cover's colour when on
         snap.dj?.let { dj ->
-            DjPlainButton(dj, { djTap(app) }, { openDjSettings(nav) }, p.main.value, 52.dp, glass = true)
-            Spacer(Modifier.width(8.dp))
-            DjMicButton(52.dp, tint = Color.White, glass = Glass, lit = p.main.value)
-            Spacer(Modifier.width(8.dp))
+            DjPlainButton(dj, { djTap(app) }, { openDjSettings(nav) }, p.main.value, big, glass = true)
+            Spacer(Modifier.width(gap))
+            DjMicButton(big, tint = Color.White, glass = Glass, lit = p.main.value)
+            Spacer(Modifier.width(gap))
         }
         GlassButton("Options", onOptions) { SlidersIcon(Color.White) }
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(gap + 2.dp))
         GlassButton("Retro", { openRetro(ctx) }) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) }
+    }
     }
 }
 

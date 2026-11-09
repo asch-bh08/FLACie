@@ -12,7 +12,7 @@
 <MusicTabs Active="Songs" />
 <ExploreBar Tab="Songs" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Songs.Count > 0) { <p class="status">Nothing matches these filters.</p> }
+@if (list.Count == 0 && Lib.Songs.Count > 0) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
 <div class="tracks virtual">
     <Virtualize Items="rows" Context="row" ItemSize="60">
         <div class="track @(Player.Current?.Path == row.T.Path ? "now" : "")">
@@ -73,6 +73,7 @@
     readonly HashSet<string> gone = [];
     void ThumbDown(Track t) { gone.Add(t.Path); list = list.Where(x => x.Path != t.Path).ToList(); rows = list.Select((x, i) => new Row(x, i)).ToList(); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }
     void Refresh() { Build(); StateHasChanged(); }
+    void ClearFilters() { X.Clear(); Refresh(); }
     protected override void OnParametersSet() => Build();
     protected override bool ShouldRender() { Build(); return true; }
 }

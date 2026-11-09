@@ -26,7 +26,7 @@
 </header>
 @if (tracks.Count == 0)
 {
-    <p class="status">Tap the heart on a song to keep it here.</p>
+    <div class="empty-state"><p class="status">No favourites yet.<small>Tap the heart beside any song and it waits for you here.</small></p><a class="btn" href="/songs">Browse songs</a></div>
 }
 <TrackList Tracks="tracks" PlayContext="Favourites" />
 @code {

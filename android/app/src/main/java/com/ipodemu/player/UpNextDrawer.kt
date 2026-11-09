@@ -128,7 +128,7 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
                     Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
                 }
                 // Save: the queue, in play order, as a new playlist
-                if (cur != null && next.isNotEmpty()) IconAction(Glyph.PLUS, "Save the queue as a playlist", { saveQueueAsPlaylist(app) }, tint = sc.onBg)
+                if (cur != null && next.isNotEmpty()) DesignChip("Save as playlist", false, { saveQueueAsPlaylist(app) }, icon = Glyph.PLUS)   // a word with the plus: a bare + read as "add a song" (owner, 9 Nov: fewer bare icons)
             }
         }
         item {
@@ -210,7 +210,7 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
         if (onMore != null) Box(
             Modifier.size(48.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More for ${t.title}" }.clickable(onClick = onMore),
             contentAlignment = Alignment.Center,
-        ) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
+        ) { GlyphIcon(Glyph.MORE, Modifier.size(18.dp), sc.onBgDim.copy(alpha = sc.onBgDim.alpha * .7f)) }   // quieter than the song itself (owner, 9 Nov: the row buttons were too loud)
     }
 }
 

@@ -1,0 +1,16 @@
+# Release b124: what the next local session does (written 9 Nov, local at 96% weekly)
+
+State: `ui/living-sleeve` has the cloud's first batch merged and the version at 1.0 b124 (Android 139). The cloud's branch `claude/exciting-ride-2qa9ry` has more on top: the keyboard test fix, the "old server" guard for web tests, the music pages, the phone's Playlists/Settings/Now Playing changes, and the stable phone address (FLACIE_PUBLIC_URL > Server admin "FLACie's address" > first Tailscale address). Nothing of b124 is deployed or released. frank runs b123 + the DJ name fixes (rollback tag `flacie-web:rollback-b123djnames`).
+
+Steps (recipes in `docs/HANDOFF-2026-11-07-night.md` §2; preferences §3):
+1. `git fetch && git checkout ui/living-sleeve && git merge origin/claude/exciting-ride-2qa9ry`. Check the version is still 1.0 b124 in the six places.
+2. Server tests: `cd ipodsync && dotnet test tests/FLACie.Tests -v q --nologo` (1999 expected).
+3. Android: `heavy.ps1` gradle `:app:testDebugUnitTest :app:assembleRelease :app:assembleDebug`. If PlayerUi.kt fails on `itemsIndexed`, it needs both `import androidx.compose.foundation.lazy.itemsIndexed` and `import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed` (fixed once in 9e…; the cloud's merge may undo it).
+4. Emulator smoke (never the owner's phone): `ANDROID_SERIAL=emulator-5554`, from `ipodsync/tools/loadtest`: `powershell -NoProfile -ExecutionPolicy Bypass -File run-android.ps1 -Apk <release apk> -Label b124 -Profile fast -Port 8297 -Driver smoke-android.mjs`. Needs 23/23; a playback fail once was a flake (rerun). Don't run web tests at the same time.
+5. Web tests: FIRST stop anything on ports 5490/8396/8397 (Playwright reuses an old server). Run the files changed since b123 plus 1x-new-look, 1d-g2, 1-pages: `MOCK_PORT=8396 WEB_PORT=5490 FM_PORT=8397 npx playwright test <files>`. Known order-only failure: 1q-dj "Aura-2 voices" (passes alone). Paste any failure's error lines into docs/waves/team-log.md for the cloud.
+6. MSI: `powershell -ExecutionPolicy Bypass -File ipodsync/tools/build-installer.ps1 -Out C:/FLACie-handoff/msi-b124`. Check its server hidden (the owner dislikes the app window popping up): run `app-windows/flacie-web/FLACie.Server.exe` with `ASPNETCORE_URLS=http://127.0.0.1:5297`, curl /healthz, stop it.
+7. Deploy web to frank (§2 recipe): tag `flacie-web:rollback-b124pre`, delete the oldest of the 3 rollback tags, build, `docker compose up -d --force-recreate`, prune at nice/ionice, curl /healthz.
+8. Release notes in `docs/private/release-bodies/v1.0.0-b124.md` (what changed from the cloud's reports in team-log.md; Tested / Not tested), copy the APK to `C:/FLACie-handoff/FLACie-1.0-b124.apk`, then `gh release create v1.0.0-b124 --repo asch-bh08/FLACie --prerelease --target <sha> --title "FLACie 1.0 b124" --notes-file … <apk> <msi>`. Pre-releases are allowed without asking once tests + smoke pass; web deploys were OK'd by the owner for this release.
+9. Log each step in docs/waves/team-log.md and push after each. Tell the cloud (team-log) what failed, if anything.
+
+Talking to the cloud: it reads and writes `docs/waves/team-log.md` on its branch; it cannot run the emulator, Windows, or touch frank.

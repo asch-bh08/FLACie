@@ -288,3 +288,6 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 ## 2026-11-09 Local: cloud branch merged, b124 NOT released
 - Merged claude/exciting-ride-2qa9ry into ui/living-sleeve; fixed missing itemsIndexed imports (PlayerUi.kt); version bumped to 1.0 b124 (Android 139). Server 1994/1994, Android unit + release build OK, emulator smoke 23/23 on rerun (first run: 2 playback fails, likely the new row entrance animation vs the driver tap).
 - Web: 105 passed, 5 failed, and still failing when rerun alone: 1d-g2 keyboard (Space/N), 1q-dj Aura-2 voices, 1z-discman-fit (1024x768), 1z-dj-ask endpoint, 1z-dj-mic-twice. Cloud: fix these, push; local releases b124 after the weekly reset (11 Nov 18:00). Nothing deployed.
+
+## 2026-11-09 Local (96% weekly): handing the b124 release to a new local session
+- Read docs/HANDOFF-b124-release.md: merge the cloud branch again (its last batch), build, smoke, web tests, MSI, deploy, release.

@@ -889,7 +889,7 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
                     header = {
                         ShuffleHeader(songs, nav, SORTS[sort]) { sort = (sort + 1) % SORTS.size }
                         SourceFilterChips(allSongs, sourceFilter) { sourceFilter = it }
-                        if (app.offline.doneCount > 0) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { DesignChip("Offline only", offlineOnly, { offlineOnly = !offlineOnly }, icon = Glyph.DOWN) }
+                        if (app.offline.doneCount > 0) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { DesignChip("Offline only", offlineOnly, { offlineOnly = !offlineOnly }, icon = Glyph.DOWNLOADED) }
                     })
             }
             LibKind.MEMOS -> { val memos = lib.memos; SongList(memos, nav, snap, showArt = false) }
@@ -984,7 +984,7 @@ fun SongList(
         if (missing.isNotEmpty()) {
             item { SectionHeader("Not in your library") }
             item {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWN, height = 34.dp) }
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
             }
             itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { _, (t, a) ->
                 val st = app.library.downloads[app.library.songKey(a, t)]
@@ -1017,7 +1017,7 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, al
                 if (songs.isEmpty()) return@DesignChip
                 val k = app.offline.keep(songs, com.ipodemu.library.offline.OfflineReason.MANUAL)
                 app.ui.say(if (k > 0) PickSet.summary(k, 0) else "Already on this phone, or not downloadable", warn = k == 0); done()
-            }, icon = Glyph.DOWN)
+            }, icon = Glyph.DOWNLOADED)
             DesignChip("Play next", false, { if (songs.isNotEmpty()) { songs.asReversed().forEach { app.player.addNext(it) }; app.ui.say("${n(songs.size)} play next"); done() } })
             DesignChip("Add to queue", false, { if (songs.isNotEmpty()) { songs.forEach { app.player.addToQueue(it) }; app.ui.say("Added ${n(songs.size)} to the queue"); done() } })
             DesignChip("Add to playlist", false, {
@@ -1282,12 +1282,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     val missing = if (userId != null) userSongs.second else emptyList()
+    // kept here, outside the list, so the cover and title rise in once as the page opens and not again when scrolled back to
+    val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER)
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
-            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey) }
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance) }
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(when (d.kind) {
                 DetailKind.FAVORITES -> "Tap the heart on a song to add it here"
                 DetailKind.RECENT -> "Songs you play show up here"
@@ -1303,14 +1305,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs)
                 }
             } else {
                 SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                 })
             }
@@ -1348,7 +1350,7 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
                             busy -> Txt(com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(status!!.stage, status.message)), size = 14f, color = sc.onBgDim)
                             else -> GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download", {
                                 app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…")
-                            }, icon = Glyph.DOWN, height = 40.dp)
+                            }, icon = Glyph.DOWNLOADED, height = 40.dp)
                         }
                     }
                 }
@@ -1397,7 +1399,7 @@ private fun CatalogAlbumScreen(d: Screen.CatalogAlbum, nav: PlayerNav, snap: Pla
                         if (busy) Txt(status!!.message, size = 14f, color = sc.onBgDim)
                         else GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download ${a.kind.lowercase()}", {
                             app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…")
-                        }, icon = Glyph.DOWN, height = 40.dp)
+                        }, icon = Glyph.DOWNLOADED, height = 40.dp)
                     }
                 }
             }
@@ -1473,24 +1475,25 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
 }
 
 @Composable
-private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null) {
+private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null, since: Long = 0L) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     if (LocalStyle.current.modern) {
         // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
         // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
         val cols = rememberCoverColours(art)
-        // an artist gets a round picture, as on the web; everything else the rounded cover
-        if (kind == "Artist") ArtImage(art, Modifier.fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp)
-        else ArtImage(art, Modifier.fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // an artist gets a round picture, as on the web; everything else the rounded square cover. The cover, the words and the buttons rise in
+        // one after another as the page opens ([since]: when it opened; 0 leaves them still)
+        if (kind == "Artist") ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp, circle = true)
+        else ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
+        Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (kind.isNotEmpty()) MonoLabel(kind)
             SerifTitle(title, size = if (title.length > SleeveText.LONG_TITLE) 34f else 42f, maxLines = 3)
             if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
             if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
         }
         // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, false, title, djKey) })
             if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
         }
@@ -2066,7 +2069,7 @@ private fun SearchSelectBar(count: Int, allPicked: Boolean, modifier: Modifier, 
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Cancel", false, onCancel)
             DesignChip(if (allPicked) "Select none" else "Select all", false, onAll)
-            if (count > 0) DesignChip(PickSet.downloadLabel(count), true, onDownload, icon = Glyph.DOWN)
+            if (count > 0) DesignChip(PickSet.downloadLabel(count), true, onDownload, icon = Glyph.DOWNLOADED)
         }
     }
 }

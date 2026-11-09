@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 Cloud (evening)
+- Test-order failures fixed (Sonnet agent, merged): 1-pages Quick picks (reopens Home; checks the artist's songs are in the row, a weaker claim than "come first": owner/Local please confirm), 1x-new-look (shapes stored first; frame tests wait for drawing), 1z-dj-ask (stand-in replaces unprefixed SpeechRecognition; waits), 1q-dj phone layout (DJ+mic in top bar). Real app fix: flacie.js seek-frame bars of a silent song draw as short dashes (min 4.5). 1q-dj "Aura-2 voices" never failed here. Combined run of 1-pages, 1q-dj, 1x-new-look, 1z-dj-ask, 1z-dj-bar, 1z-dj-mic-twice: 70 passed.
+- Also: Now Playing on phone-width web: the cover fits under the top bar (design-j.css). Retro/iPod agent still running.
+
 ## 2026-11-09 Cloud (overhaul started; state if this session stops)
 - Done + pushed (claude/exciting-ride-2qa9ry): design-j.css (frame + music pages: motion, quieter row badges, Up next arrange buttons on hover, Home hero without a cover), Explore pages keep the side menu (MainLayout), phone-width bottom bar = 4 places (rest in avatar menu), Server admin lists only connected pages, MeloTTS removed.
 - In progress: Playlists page (new playlist as the first tile; Playlists.razor + design-j.css), tests running. Two agents in worktrees: Sonnet = test-order failures; Opus = settings-type pages (design-j-settings.css). Their commits are NOT on the branch until merged.

@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 Cloud (overhaul started; state if this session stops)
+- Done + pushed (claude/exciting-ride-2qa9ry): design-j.css (frame + music pages: motion, quieter row badges, Up next arrange buttons on hover, Home hero without a cover), Explore pages keep the side menu (MainLayout), phone-width bottom bar = 4 places (rest in avatar menu), Server admin lists only connected pages, MeloTTS removed.
+- In progress: Playlists page (new playlist as the first tile; Playlists.razor + design-j.css), tests running. Two agents in worktrees: Sonnet = test-order failures; Opus = settings-type pages (design-j-settings.css). Their commits are NOT on the branch until merged.
+- Next: Retro/iPod overhaul (agent when one frees up), Search, Now Playing, phone pages (Kotlin; needs Local to build).
+- Gallery of "before" screens: https://claude.ai/artifact/4Dhs2zaXLXtju8hT6XQQsV
+
 ## 2026-11-09 Cloud (later): MeloTTS retired (before 20 Nov)
 - Request for Local (owner, 9 Nov: "every page, every iPod, every retro, every Discman... and mobile"): the web gallery is at https://claude.ai/artifact/4Dhs2zaXLXtju8hT6XQQsV (owner's account). Cloud can't run the emulator: please screenshot every phone app screen (each tab, Now Playing and its tabs, every sheet and menu, Settings sections, the Retro/iPod screens, folded and unfolded widths) and put them where the owner can see them, so the phone overhaul has its "before" set too.
 - Done: `CloudflareVoice` has no MeloTTS: unknown voices fall back to Aura-1 Helios (`NormVoice`); `ConfigVersion` 3 moves a saved "melotts" once (old default or chosen) to `kokoro:am_liam` when Kokoro's /healthz says "ok" on this server (1.5 s), else to Aura-1 Helios, and writes dj.json. Dashboard: MeloTTS gone from the Voice picker and the test buttons. MeloTTS-only branches dropped in DjClips/DjService. `@cf/qwen/qwq-32b` removed from `DjBudget.Weighed`. 7 test files updated + new migration tests; server 1994/1994.

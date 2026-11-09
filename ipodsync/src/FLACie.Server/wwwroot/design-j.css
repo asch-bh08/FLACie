@@ -60,6 +60,14 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
 .pl-new input { width: 100%; min-width: 0; box-sizing: border-box; height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .pl-new .btn { justify-self: start; }
 
+/* ---- Now Playing on a phone: the content was taller than short screens, so the cover was pushed up under the top bar's round buttons. The cover now takes
+   the room that is left once the top bar, the words, the buttons, the tiles and the empty bottom band (no main control in the bottom 94 px) have theirs,
+   about 530 px, never more than before. (living-sleeve.css loads after this sheet, hence the .ls in front.) ---- */
+@media (max-width: 760px) {
+  .ls .ls-frame { width: min(100cqw, 44dvh, max(120px, calc(100dvh - 530px))); }
+  .ls .ls-cover { width: calc(min(100cqw, 44dvh, max(120px, calc(100dvh - 530px))) - 2 * var(--frame)); }
+}
+
 /* Settings → Animations off, or a computer asking for less motion: nothing comes in, lifts or springs */
 :root.pref-calm main.content > *, :root.pref-calm .tracks > li, :root.pref-calm .grid > .card, :root.pref-calm .q-item { animation: none !important; }
 :root.pref-calm .grid > .card:hover .cover, :root.pref-calm .grid > .card:hover > img { transform: none; }

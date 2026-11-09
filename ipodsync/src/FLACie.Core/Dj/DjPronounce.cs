@@ -47,6 +47,12 @@ public sealed class DjPronounce
         new("Maneskin", Kind.Artist, "Mor-ness-kin", "mˈɔːnɛskɪn"),
         new("Ariana Grande", Kind.Artist, "Ariana Grandy", "ˌɑːɹiˈɑːnə ɡɹˈɑːndeɪ"),
         new("Kygo", Kind.Artist, "Kee-go", "kˈiːɡoʊ"),
+        // owner, 9 Nov: "the DJ has a stroke trying to say Katy Perry, and names like Bobo and Gaga"
+        new("Katy Perry", Kind.Artist, "Katie Perry", "kˈeɪti pˈɛɹi"),
+        new("Katy", Kind.Word, "Katie", "kˈeɪti"),
+        new("Lady Gaga", Kind.Artist, "Lady Gah-gah", "lˈeɪdi ɡˈɑːɡɑː"),
+        new("Gaga", Kind.Word, "Gah-gah", "ɡˈɑːɡɑː"),
+        new("Bobo", Kind.Word, "Boh-boh", "bˈoʊboʊ"),
         new("SZA", Kind.Artist, "Sizza", "sˈɪzə"),
         new("Kanye", Kind.Word, "Kahn-yay", "kˈɑːnjeɪ"),
         new("Shania", Kind.Word, "Shuh-nye-uh", "ʃənˈaɪə"),
@@ -65,7 +71,8 @@ public sealed class DjPronounce
 
     /// <summary>Changes whenever the sounds above do, so FLACie's voice makes its kept clips again (DjClips.Salt).</summary>
     /// "sounds-2": the voice reads lines with misaki, Kokoro's own reader, so every clip made the espeak way is made again (owner, 30 Oct: "jyz").
-    public const string SoundsVersion = "sounds-2";
+    /// "sounds-3": Katy Perry, Gaga and Bobo get their sounds (owner, 9 Nov), so clips that said them wrong are made again.
+    public const string SoundsVersion = "sounds-3";
 
     public static DjPronounce Default { get; } = new([]);
 

@@ -90,6 +90,10 @@
   .sp:has(> .acct-hero) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; align-items: start; }
   .sp:has(> .acct-hero) > * { grid-column: 1 / -1; max-width: none; }
   .sp:has(> .acct-hero) > .panel { grid-column: auto; }
+  /* Jam: Start a Jam and Join a Jam side by side */
+  .sp.sp-jam { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; align-items: start; }
+  .sp.sp-jam > * { grid-column: 1 / -1; }
+  .sp.sp-jam > .panel { grid-column: auto; max-width: none; }
   /* Devices: the "no other device" card a comfortable reading width rather than a narrow box */
   .sp:has(> .dev-grid) > .panel { max-width: 820px; }
 }

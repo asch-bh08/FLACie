@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 Local: b124 release run
+- Merged origin/claude/exciting-ride-2qa9ry (to d74b65c1) into ui/living-sleeve. Version 1.0 b124 / Android 139 in all six places.
+- Server tests: 1999/1999 passed.
+
 ## 2026-11-10 Cloud: the 5 web failures, the phone's address (branch claude/exciting-ride-2qa9ry, from ui/living-sleeve b124)
 - Note: the b124 merge missed Cloud's last batch (music pages design-j-music.css + 1z-music-fit, phone Playlists/Settings/Now Playing, docs/phone-overhaul-unbuilt.md): merged in again here. Please build the phone again (those three Kotlin commits are new to you).
 - 1d-g2 "keyboard": failed here too. The test clicked the page title to move focus, but once the list scrolls the sticky search bar covers it and focus was on the song's row button; it now blurs whatever has focus. Test fix, not app.

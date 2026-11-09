@@ -58,8 +58,8 @@ test.describe('phone (390 x 844)', () => {
     expect(await page.locator('.ls-play').evaluate((e) => getComputedStyle(e).borderRadius)).not.toBe('50%');
     const wave = page.locator('.ls-frame canvas');
     await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
-    const drawn = await wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-    expect(drawn).toBeGreaterThan(200);
+    // (the canvas is sized before the shape arrives from the server, or from the browser working it out, so wait for the bars to be drawn)
+    await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; }), { timeout: 20_000 }).toBeGreaterThan(200);
   });
 
   test('a tap on the frame seeks (the middle of its right side is a quarter of the song)', async ({ page }) => {
@@ -162,8 +162,8 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
 
     test('a press on the frame seeks: the middle of its right side is a quarter of the song', async ({ page }) => {
       const fr = (await page.locator('.ls-frame').boundingBox())!, input = page.locator('.ls-ring input[type=range]'), max = Number(await input.getAttribute('max'));
-      const drawn = await page.locator('.ls-frame canvas').evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-      expect(drawn).toBeGreaterThan(200);
+      // (the shape arrives after the canvas is sized, so wait for the bars to be drawn)
+      await expect.poll(() => page.locator('.ls-frame canvas').evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; }), { timeout: 20_000 }).toBeGreaterThan(200);
       await page.mouse.click(fr.x + fr.width - 14, fr.y + fr.height / 2);
       await expect.poll(async () => Math.abs(Number(await input.inputValue()) - max / 4), { timeout: 5_000 }).toBeLessThanOrEqual(1);
     });
@@ -199,6 +199,12 @@ test.describe('the shape is ready instantly', () => {
     const asked: string[] = [];
     page.on('request', (r) => { if (r.url().includes('/api/wave') && r.method() === 'GET') asked.push(waveP(r.url())); });
     await signIn(page);
+    // the server already keeps the album's shapes, as it does once anyone has played them (whether it does depends on which tests ran before: the page only
+    // looks ahead for shapes the server has, and asks for the rest when a song starts)
+    for (let i = 1; i <= 8; i++) {
+      const p = `http://127.0.0.1:${process.env.MOCK_PORT || 8196}/Audio/h${i}/stream?static=true`;
+      await expect.poll(async () => (await page.request.post('/api/wave?p=' + encodeURIComponent(p), { data: Array.from({ length: 200 }, (_, b) => 40 + (b % 50)) })).status(), { timeout: 20_000 }).toBe(204);
+    }
     await playAlbum(page);
     // the player is not even open: two upcoming songs are asked about
     await expect.poll(() => new Set(asked).size, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);

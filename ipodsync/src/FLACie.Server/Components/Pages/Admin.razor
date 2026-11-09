@@ -1,4 +1,5 @@
 @page "/dashboard"
+@inject PublicAddress Address
 @page "/admin"
 @attribute [Authorize]
 @implements IDisposable
@@ -251,6 +252,20 @@ else
         </ul>
     </section>
 
+    @* owner, 9 Nov: the phone's address followed whichever address this page was last opened at; one stable address now *@
+    <section class="admin-block panel set" id="address" aria-label="FLACie's address">
+        <div class="set-head"><h2>FLACie's address</h2><p class="hint">The address everyone's phone uses to reach this server, at home and away. Leave it empty and FLACie uses the first Tailscale address it was opened at.</p></div>
+        <div class="form">
+            <label for="public-address">Address</label>
+            <input id="public-address" @bind="addressText" placeholder="https://frank.your-tailnet.ts.net:8443" autocomplete="off" disabled="@Address.FromEnvironment" />
+        </div>
+        <div class="row-actions">
+            <button class="btn primary" @onclick="SaveAddress" disabled="@Address.FromEnvironment">Save address</button>
+            <span class="hint" id="public-address-msg" role="status">@addressMsg</span>
+        </div>
+        <p class="hint">Now: @(Address.Current is { } cur ? cur + " (" + Address.Source + ")" : "not known yet")@(Address.FromEnvironment ? ". Change FLACIE_PUBLIC_URL to change it." : "")</p>
+    </section>
+
     <section class="admin-block panel set" id="notify" aria-label="Notifications">
         <div class="set-head"><h2>Notifications</h2><p class="hint">Sends the events below to an <a href="https://ntfy.sh/" target="_blank" rel="noopener">ntfy</a> topic, so they reach your phone. Use your own ntfy server or ntfy.sh. Nothing is sent until you turn it on.</p></div>
         <label class="switch-row"><span><b>Send notifications</b><small>@(string.IsNullOrEmpty(Notify.LastResult) ? "Not sent anything yet" : "Last: " + Notify.LastResult + (Notify.LastAt is { } la ? " · " + Ago(la) : ""))</small></span><input type="checkbox" role="switch" @bind="cfg.Enabled" /><i class="switch" aria-hidden="true"></i></label>
@@ -362,6 +377,15 @@ else
 </div>
 
 @code {
+    // FLACie's address (the phone's way in): what is typed, and what happened on Save
+    string? addressText; string addressMsg = "";
+    void SaveAddress()
+    {
+        if (!Address.Set(addressText)) { addressMsg = "That isn't an address: it starts with http:// or https://"; return; }
+        addressText = Address.Current is { } c && !string.IsNullOrWhiteSpace(addressText) ? c : "";
+        addressMsg = "Saved. Phones pick it up the next time FLACie Web is opened.";
+    }
+
     // ---- F24: artist names ----
     bool fixBusy; string? fixNote;
     async Task PlanFixes()

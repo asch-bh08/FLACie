@@ -1,4 +1,5 @@
 @page "/settings"
+@inject PublicAddress Address
 @attribute [Authorize]
 @implements IDisposable
 @inherits UserComponent
@@ -165,7 +166,9 @@
     <div class="set-head"><h2>About</h2><p class="hint">What is running here.</p></div>
     <dl class="kv">
         <dt>Version</dt><dd id="about-version">@AppInfo.Version</dd>
-        <dt>Server</dt><dd id="about-server">@ServerUrl</dd>
+        <dt>You opened this page at</dt><dd id="about-server">@ServerUrl</dd>
+        @* the phone's address for this server (owner, 9 Nov: it used to follow whichever address this page was opened at) *@
+        <dt>Your phone uses</dt><dd id="about-phone">@(Address.Current is { } pa ? pa + " (" + Address.Source + ")" : "Not known yet: open FLACie Web once at its Tailscale address, or set it in Server admin")</dd>
         <dt>Data folder</dt><dd id="about-data">@DataFolder</dd>
         <dt>Licences</dt><dd><a href="/licenses" target="_blank" rel="noopener">Third-party licences</a></dd>
         <dt>Privacy</dt><dd><a href="/privacy" target="_blank" rel="noopener">What this server keeps and sends</a></dd>

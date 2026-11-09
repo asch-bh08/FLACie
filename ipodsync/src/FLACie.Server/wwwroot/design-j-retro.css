@@ -13,7 +13,6 @@
   font: 600 15px/1 var(--sans); letter-spacing: 0; text-decoration: none; transition: transform .18s var(--j-spring, ease), background-color .18s;
 }
 .ipod-exit { padding-left: 10px; }
-.ipod-gear:hover, .ipod-exit:hover { background: rgba(52,52,62,.94); }
 .ipod-gear:active, .ipod-exit:active { transform: scale(.95); }
 .ipod-gear:focus-visible, .ipod-exit:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 /* the word says it: Options opens the panel, Done puts it away */
@@ -44,7 +43,6 @@
 .dock-ctl { gap: 16px; }
 .dock-ctl button { width: 44px; height: 44px; background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--ink); transition: transform .18s var(--j-spring, ease), background-color .18s; }
 .dock-ctl button.big { width: 56px; height: 56px; background: var(--ink); color: var(--bg); }
-.dock-ctl button:hover { background: color-mix(in srgb, var(--ink) 16%, transparent); } .dock-ctl button.big:hover { background: var(--ink); opacity: .9; }
 .dock-ctl button:active { transform: scale(.92); }
 /* nothing playing: one plain sentence, the first words in the ink so it reads at a glance */
 .dock-empty { margin: 0; font-size: 14px; line-height: 1.5; color: var(--dim); }
@@ -56,7 +54,6 @@
   font: 500 15px/1.2 var(--sans); letter-spacing: 0; text-transform: none; white-space: nowrap; cursor: pointer;
   transition: transform .15s var(--j-spring, ease), background-color .15s, color .15s, border-color .15s;
 }
-.ipod-dock .ipod-chip:hover, .ipod-dock .dock-seg button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .ipod-dock .ipod-chip.on, .ipod-dock .dock-seg button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 700; }
 .ipod-dock .ipod-chip:active, .ipod-dock .dock-seg button:active { transform: scale(.96); }
 .ipod-dock .ipod-chip:focus-visible, .ipod-dock .dock-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -83,6 +80,13 @@
 .dock-help b { color: var(--ink); font-weight: 600; }
 .ipod-blurb { margin-top: 16px; font-size: 13px; line-height: 1.5; color: var(--dim); }
 
+/* ---- under a mouse only: the pills and buttons shade a little (a finger has no hover, so on a phone nothing waits for one) ---- */
+@media (hover: hover) {
+  .ipod-gear:hover, .ipod-exit:hover { background: rgba(52,52,62,.94); }
+  .dock-ctl button:hover { background: color-mix(in srgb, var(--ink) 16%, transparent); } .dock-ctl button.big:hover { background: var(--ink); opacity: .9; }
+  .ipod-dock .ipod-chip:not(.on):not(.swatch):hover, .ipod-dock .dock-seg button:not(.on):hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
+}
+
 /* ---- a wide window: the panel slides in from the right (it moves, the page does not stretch under it) and the scene or device takes the room
    left beside it in one step, fading back in so the change is soft ---- */
 @media (min-width: 860px) {
@@ -98,8 +102,8 @@
 @keyframes rj-settle-a { from { opacity: .4; } }
 @keyframes rj-settle-b { from { opacity: .4; } }
 
-/* ---- a phone or a narrow window: the panel is a sheet from the bottom, a little over half the screen, and the scene or device shrinks into
-   the space above it (a picture of it, so you see each choice as you make it); put the sheet away and it grows back ---- */
+/* ---- a phone or a narrow window: the panel is a sheet from the bottom, a little over half the screen, and the iPod shrinks into the space
+   above it and a scene slides up, so you see each choice as you make it; put the sheet away and it goes back ---- */
 @media (max-width: 859px) {
   .ipod-dock {
     height: 54dvh; max-height: none; padding: 18px 16px calc(28px + env(safe-area-inset-bottom, 0px)); border: 0; border-top: 1px solid var(--line);
@@ -111,11 +115,10 @@
   /* the device keeps clear of Back and Options at the top (a tall nano otherwise ran under them) */
   .ipod-stage > .ipod-area { margin-top: 64px; }
   .ipod-stage > :is(.retro, .desk, .ipod-area) { transition: transform .32s var(--rj-ease); }
-  .ipod-stage > :is(.retro, .desk) { transform-origin: 50% 64px; }
   .ipod-stage > .ipod-area { transform-origin: 50% 0; }
-  .ipod-stage.dock-open > :is(.retro, .desk, .ipod-area) { transform: scale(.38); }
-  /* the scene shrunk is a picture with round corners */
-  .ipod-stage.dock-open > :is(.retro, .desk) { border-radius: 40px; }
+  .ipod-stage.dock-open > .ipod-area { transform: scale(.38); }
+  /* a scene or the desk keeps its size (its knobs and words stay readable) and slides up, so its middle, where the player is, shows above the sheet */
+  .ipod-stage.dock-open > :is(.retro, .desk) { transform: translateY(-30dvh); }
   /* models: a little shorter list, so the colours below it show without much scrolling */
   .dock-models { max-height: 200px; }
 }
@@ -124,7 +127,8 @@
   .ipod-dock { height: 70dvh; }
   /* (there is no height to spare for a strip above the device here: Back and Options sit over the stage's corners as before) */
   .ipod-stage > .ipod-area { margin-top: 0; }
-  .ipod-stage.dock-open > :is(.retro, .desk, .ipod-area) { transform: scale(.24); }
+  .ipod-stage.dock-open > .ipod-area { transform: scale(.24); }
+  .ipod-stage.dock-open > :is(.retro, .desk) { transform: translateY(-20dvh); }
 }
 
 /* Settings → Animations off, or a computer asking for less motion: the panel and the scene change at once */

@@ -108,7 +108,9 @@ test.describe.serial('talk to the DJ', () => {
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
     await page.screenshot({ path: 'test-results/shots/dj-ask-now-playing.png' });
 
-    // a control: pause
+    // a control: pause (once the new queue is really playing: a press while it is still loading would find nothing to pause, and the song would start after "pause")
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 15_000 });
+    await page.waitForTimeout(1000);
     await page.evaluate(() => { (window as any).__said = 'pause'; });
     await mic.click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 10_000 });
@@ -210,7 +212,7 @@ test.describe.serial('talk to the DJ', () => {
     await newQueue(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-transport')).toBeVisible({ timeout: 20_000 });
-    await page.locator('.ls-dj').click({ button: 'right' });
+    await page.locator('.ls-transport .ls-dj').click({ button: 'right' });   // (the top bar has one too, shown on a phone only)
     await page.waitForURL(/\/settings#dj$/, { timeout: 15_000 });
     await expect(page.locator('.ls-transport')).toHaveCount(0, { timeout: 10_000 });
     await expect(page.locator('#dj')).toBeVisible();

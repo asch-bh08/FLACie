@@ -68,10 +68,8 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
   .ls .ls-cover { width: calc(min(100cqw, 44dvh, max(120px, calc(100dvh - 530px))) - 2 * var(--frame)); }
 }
 
-/* ---- the Sound pop-up's volume bar: no easing while a finger or the mouse drags it (the fill is where the pointer is), and the pop-up stays open
-   for the whole drag even when the pointer leaves it (flacie.volPtr sets data-drag) ---- */
-.ls-vol-track[data-drag] i { transition: none; }
-.ls-sound[data-drag] .ls-sound-pop { opacity: 1; transform: none; pointer-events: auto; }
+/* ---- the Sound pop-up's volume: a plain slider, standing up, in the cover's colour (owner, 9 Nov: "just make a volume bar") ---- */
+.ls-vol-bar { grid-row: 1; writing-mode: vertical-lr; direction: rtl; width: 34px; height: 150px; margin: 0; accent-color: var(--np-accent); cursor: pointer; }
 
 /* Settings → Animations off, or a computer asking for less motion: nothing comes in, lifts or springs */
 :root.pref-calm main.content > *, :root.pref-calm .tracks > li, :root.pref-calm .grid > .card, :root.pref-calm .q-item { animation: none !important; }

@@ -1457,9 +1457,6 @@ window.flacie = (() => {
     volume(v) {
       // the graphs read their own twin of the stream at full volume, so they look the same at any volume
       if (v === undefined || v === null) return baseVolume;
-      // while the volume bar is being dragged (and briefly after), the server's late echoes of earlier steps don't pull the sound back (flacie.volPtr)
-      const held = flacie._volHold;
-      if (held && performance.now() < held.until) v = held.v;
       const x = Math.min(1, Math.max(0, v));
       baseVolume = x; applyVol();
       if (djAudio) djAudio.volume = clipVol();
@@ -1777,53 +1774,3 @@ flacie.graphFull = (box, onlyOpen) => {
   addEventListener("keydown", esc);
 };
 
-// The Sound pop-up's tall volume bar: a press sets the volume where the pointer is and a drag follows it; the wheel nudges it 5 at a time. Each change goes
-// through the unseen range input inside, so Blazor's @oninput sets the player's volume.
-(() => {
-  // owner, 9 Nov: the bar "still is bad". Each step used to go to the server and back before anything changed, so on a slow line the bar lagged and jumped back
-  // under the pointer and the sound followed late. Now the sound and the bar follow the pointer here at once (the bar's fill is drawn from this page's own
-  // value until the server has caught up), and the server is told at most every 150 ms and once more at the end, so the player and its tile end up the same.
-  const send = (track) => {
-    const inp = track.querySelector("input"); if (!inp) return;
-    clearTimeout(track._sendT); track._sendT = 0; track._sentAt = performance.now();
-    inp.value = String(track._live); inp.dispatchEvent(new Event("input", { bubbles: true }));
-  };
-  const settle = (track) => {
-    clearTimeout(track._liveT);
-    // the page's own fill and value stay until the server has surely caught up, then the server's are shown again
-    track._liveT = setTimeout(() => { track._live = undefined; const i = track.querySelector("i"); if (i) i.style.height = ""; }, 2000);
-  };
-  const put = (track, pct) => {
-    const inp = track.querySelector("input"); if (!inp) return;
-    pct = Math.max(0, Math.min(100, Math.round(pct)));
-    if (pct === track._live) return;
-    track._live = pct;
-    const i = track.querySelector("i"); if (i) i.style.height = pct + "%";
-    flacie._volHold = null; flacie.volume(pct / 100);
-    flacie._volHold = { v: pct / 100, until: performance.now() + 1500 };
-    if (performance.now() - (track._sentAt || 0) >= 150) send(track);
-    else if (!track._sendT) track._sendT = setTimeout(() => send(track), 150);
-    settle(track);
-  };
-  const at = (track, y) => { const r = track.getBoundingClientRect(); return (r.bottom - y) / r.height * 100; };
-  flacie.volPtr = (e, track) => {
-    e.preventDefault(); track.querySelector("input")?.focus({ preventScroll: true });
-    try { track.setPointerCapture(e.pointerId); } catch { }
-    // the pop-up stays open while the drag goes on, even when the pointer leaves it (a data attribute: the page's own class list is redrawn by the server)
-    const pop = track.closest(".ls-sound"); if (pop) pop.dataset.drag = "1";
-    track.dataset.drag = "1";
-    put(track, at(track, e.clientY));
-    const move = (m) => put(track, at(track, m.clientY));
-    const up = () => {
-      track.removeEventListener("pointermove", move); track.removeEventListener("pointerup", up); track.removeEventListener("pointercancel", up);
-      if (pop) delete pop.dataset.drag; delete track.dataset.drag;
-      if (track._live !== undefined) send(track);
-    };
-    track.addEventListener("pointermove", move); track.addEventListener("pointerup", up); track.addEventListener("pointercancel", up);
-  };
-  flacie.volWheel = (e, track) => {
-    e.preventDefault();
-    const inp = track.querySelector("input");
-    put(track, (track._live ?? Number(inp?.value || 0)) + (e.deltaY < 0 ? 5 : -5));
-  };
-})();

@@ -150,14 +150,18 @@ test('an Apple Lossless song plays: the server decodes it to WAV (browsers canno
   expect(problems).toEqual([]);
 });
 
-test('Quick picks learn from what Jellyfin says was played: songs of that artist come first', async ({ page }) => {
+test('Quick picks learn from what Jellyfin says was played: songs of that artist are picked', async ({ page }) => {
   const problems = watch(page);
-  await page.goto('/');
-  // the picks are rebuilt once Jellyfin's play counts have been read (a moment after the page opens)
+  // Jellyfin's play counts are read a moment after Home opens (once the library is in), and the picks on screen never change under the person's pointer: the
+  // picks that learned from them show the next time Home opens. So open Home again until they do. (The account's seeded downloads and whatever earlier tests
+  // played also rank high, so the test looks for the counted artist's songs in the row, not for which song is first.)
   await expect(async () => {
+    await page.goto('/');
     const shelf = page.locator('section.shelf[aria-label="Quick picks"]');
-    await expect(shelf.locator('.pick').first()).toContainText('Aurora Vale', { timeout: 2500 });   // the songs Jellyfin counted lead the row
-  }).toPass({ timeout: 30_000 });
+    await expect(shelf.locator('.pick').first()).toBeVisible({ timeout: 2500 });
+    await expect(shelf.locator('.pick[aria-label$=" by Aurora Vale"]')).not.toHaveCount(0, { timeout: 2500 });
+    expect(await shelf.locator('.pick[aria-label$=" by Aurora Vale"]').count()).toBeGreaterThanOrEqual(3);   // the artist whose songs Jellyfin counted
+  }).toPass({ timeout: 40_000 });
   expect(problems).toEqual([]);
 });
 

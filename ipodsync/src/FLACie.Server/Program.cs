@@ -101,6 +101,7 @@ builder.Services.AddSingleton(sp => { var n = sp.GetRequiredService<Notifier>();
 builder.Services.AddHostedService<PlayTrackerSweeper>();
 builder.Services.AddSingleton<StorageService>();
 builder.Services.AddSingleton<DownloadLog>();
+builder.Services.AddSingleton<PublicAddress>();   // the one address the phone uses for this server (Server admin, FLACIE_PUBLIC_URL, or the first tailnet address seen)
 builder.Services.AddSingleton<DownloadPolicy>();   // the server-wide "Allow downloads" switch (off on a fresh install), checked by DownloadManager
 // smart downloads: songs that arrived below Hi-Res (data/upgrades.json), and the one worker that swaps them for verified Hi-Res copies in the background
 builder.Services.AddSingleton<UpgradeStore>();

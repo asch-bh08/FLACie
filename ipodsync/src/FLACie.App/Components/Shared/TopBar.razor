@@ -1,6 +1,7 @@
 @inherits UserComponent
 @inject IConfiguration Conf
 @inject IDownloads Dls
+@inject IServiceProvider TopServices
 @implements IDisposable
 @* Along the top, like YT Music: the logo, one search box that works from every page, and the account at the right. *@
 <header class="topbar">
@@ -64,12 +65,21 @@
         ShareAddress();
     }
 
-    // the phone app finds this server (to hand over playlist files) through the shared profile; a localhost address is no use to it
+    // the phone app finds this server (downloads, seek-bar shapes, share links, the DJ) through the shared profile. Owner, 9 Nov: it used to get the address
+    // this page happened to be opened at, so it flipped between frank's own and a proxy's; now it gets the one stable address (PublicAddress: Server admin,
+    // FLACIE_PUBLIC_URL, or the first tailnet address seen), and nothing at all while none is known. A host without PublicAddress (the Windows app) keeps the
+    // old way, never a localhost address.
     void ShareAddress()
     {
-        var origin = new Uri(Nav.BaseUri).GetLeftPart(UriPartial.Authority);
-        var host = new Uri(origin).Host;
-        if (host is "localhost" or "127.0.0.1" or "::1" or "[::1]" || host.EndsWith(".localhost")) return;
+        var pageOrigin = new Uri(Nav.BaseUri).GetLeftPart(UriPartial.Authority);
+        string? origin;
+        if (TopServices.GetService(typeof(PublicAddress)) is PublicAddress stable) origin = stable.Use(pageOrigin);
+        else
+        {
+            var host = new Uri(pageOrigin).Host;
+            origin = host is "localhost" or "127.0.0.1" or "::1" or "[::1]" || host.EndsWith(".localhost") ? null : pageOrigin;
+        }
+        if (origin is null) return;
         // never before the profile has been read: saving then would replace it with an empty one (tried again on every page change)
         if (!Session.ProfileLoaded) return;
         // (a profile with no services yet gets them here: the phone needs this address to share links and fetch seek-bar shapes)

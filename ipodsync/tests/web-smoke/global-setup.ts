@@ -12,6 +12,17 @@ export default async function globalSetup() {
   let isMock = false, why = '';
   try { const r = await fetch(`${mock}/__mock`, { signal: AbortSignal.timeout(5000) }); isMock = r.ok && (await r.json())?.mock === true; why = `HTTP ${r.status}`; } catch (e) { why = String((e as Error)?.message ?? e); }
   if (!isMock) throw new Error(`REFUSING TO RUN: the Jellyfin at ${mock} is not the mock (GET /__mock: ${why}). Tests must never talk to a real Jellyfin.`);
+  // the FLACie Web the run talks to must be this checkout's build. Playwright reuses any server already listening on WEB_PORT (an earlier run, or the
+  // Windows app's own copy), and an older build fails exactly the specs for the newest changes (9 Nov: five "failing alone" specs). Its page script and
+  // stylesheet must be these files, byte for byte.
+  const web = `http://127.0.0.1:${process.env.WEB_PORT || 5290}`;
+  const hash = (b: Buffer | Uint8Array) => crypto.createHash('sha256').update(b).digest('hex');
+  for (const f of ['flacie.js', 'app.css']) {
+    const mine = hash(fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'FLACie.Server', 'wwwroot', f)));
+    let served = '', what = '';
+    try { const r = await fetch(`${web}/${f}`, { signal: AbortSignal.timeout(10_000) }); what = `HTTP ${r.status}`; if (r.ok) served = hash(new Uint8Array(await r.arrayBuffer())); } catch (e) { what = String((e as Error)?.message ?? e); }
+    if (served !== mine) throw new Error(`REFUSING TO RUN: the FLACie Web at ${web} is not this checkout's build (its ${f} differs: ${what}). Playwright reuses a server already on WEB_PORT: stop it, or run on other ports (MOCK_PORT, WEB_PORT, FM_PORT).`);
+  }
   const id = crypto.createHash('sha256').update(`jf|${mock}|u1`).digest('hex').toUpperCase();
   const dir = path.join(__dirname, '.pub-smoke', '.data-smoke', 'downloads');
   fs.mkdirSync(dir, { recursive: true });

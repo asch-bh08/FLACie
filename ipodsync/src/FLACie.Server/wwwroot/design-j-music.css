@@ -1,0 +1,77 @@
+/* ==== Design J: the music pages (Home, Explore and its tabs, Favourites, and the album, artist, genre, playlist and made-playlist pages).
+   Loaded last, after design-j-retro.css. The same ideas as the Settings pages: one kind of round pill in the sans face, sentences in the sans
+   (mono only for short labels and numbers), round buttons, square covers and round artists, and motion that only moves and fades.
+   Colours come from the theme's variables, so light and dark both work. ==== */
+
+/* ---- pills: every chip on these pages is the same full pill in the sans face, like Explore's tabs. Before, Home's moods, Explore's tabs,
+   and the genre chips each had their own corners ---- */
+main.content .mood, main.content .sr-genres .chip {
+  display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; min-height: 40px; padding: 0 16px;
+  border: 1px solid var(--i-line); border-radius: 999px; font-family: var(--sans); font-size: 15px; font-weight: 500; letter-spacing: 0; line-height: 1.2; white-space: nowrap;
+}
+main.content .mood.on { font-weight: 700; }
+/* (the search and filter bar keeps its softer corners: it reads as a box of fields, not a row of choices) */
+/* the charts' own list (Top Songs, Pop, Rock…) sits under Explore's tabs: a size smaller, so the two rows don't read as one */
+main.content .mood-chips[aria-label="Charts"] .mood { min-height: 36px; padding: 0 14px; font-size: 14px; }
+main.content .mood-chips[aria-label="Charts"] { margin-top: -8px; }
+
+/* ---- the line under a shelf's title is a sentence ("Chosen for you from what you play…"): the sans, not small typewriter capitals ---- */
+main.content .shelf-head small { font-family: var(--sans); font-size: 14px; letter-spacing: 0; text-transform: none; color: var(--dim); line-height: 1.35; }
+main.content .shelf-head > div { min-width: 0; }
+/* a shelf's Play all is a round pill on one line; on a phone it used to break into "Play / all" */
+main.content .shelf-head .chip.small { border-radius: 999px; min-height: 36px; padding: 0 14px; white-space: nowrap; flex: none; }
+main.content .shelf-head .shelf-nav { flex: none; display: inline-flex; align-items: center; gap: 8px; }
+
+/* ---- covers lift a little under the pointer on Home's shelves and Explore's rows too (the grids already do) ---- */
+@media (hover: hover) and (pointer: fine) {
+  .row-scroll > .card .cover { transition: transform .22s var(--j-ease); }
+  .row-scroll > .card:hover .cover { transform: translateY(-3px) scale(1.02); }
+  main.content .pick { transition: background-color .16s; }
+}
+.row-scroll > .card:active .cover, .grid > .card:active .cover { transform: scale(.98); }
+
+/* ---- album, artist, genre and made pages: round Play, and on a phone the cover in the middle with Play, Shuffle and Share on one row ---- */
+main.content .detail-play { border-radius: 999px; }
+main.content .pl-hero .pl-play { border-radius: 999px; }
+@media (max-width: 760px) {
+  main.content .detail-head .cover.detail-cover { align-self: center; }
+  main.content .detail-actions { gap: 8px; }
+  main.content .detail-actions > .detail-play, main.content .detail-actions > .detail-shuffle { flex: 1 1 auto; height: 48px; padding: 0 14px; gap: 8px; font-size: 15px; }
+  /* a playlist's DJ, Share and More: three quiet words on one row under Play and Shuffle, instead of two rows */
+  main.content .pl-hero .chips { gap: 8px; }
+  main.content .pl-hero .pl-play, main.content .pl-hero .pl-shuffle { flex: 1 1 40%; height: 48px; }
+  main.content .pl-hero .chips > .btn.ghost, main.content .pl-hero .chips > .pl-more > .btn.ghost { padding: 0 10px; min-height: 40px; }
+}
+
+/* ---- song lists on a phone beside the A–Z strip: the page kept a wide band free for it and the rows another 16 px, so titles were cut
+   to a few letters. The rows now run up to the strip, and Explore's tabs stop short of it instead of sliding underneath. (On a short screen
+   the strip is hidden and app.css gives the page its usual margin back, so this only applies where the strip shows) ---- */
+@media (max-width: 760px) and (min-height: 481px) {
+  main.content:has(.az-rail) { padding-right: 38px; }
+  main.content:has(.az-rail) .tracks { padding-right: 0; }
+  main.content:has(.az-rail) .mood-chips { margin-right: 0; padding-right: 0; }
+}
+
+/* ---- empty pages: a friendly line in the sans and one clear thing to do next, instead of a grey sentence on its own ---- */
+.empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 28px 0 12px; max-width: 52ch; }
+.empty-state .status { margin: 0; padding: 0; font-family: var(--sans); font-size: 16px; line-height: 1.5; color: var(--ink); }
+.empty-state .status small { display: block; margin-top: 2px; font-size: 14px; color: var(--dim); }
+.empty-state .btn { min-height: 44px; padding: 0 20px; border-radius: 999px; font-family: var(--sans); font-size: 15px; font-weight: 600; text-decoration: none; }
+
+/* ---- Home on a phone: Quick picks as columns of four that slide sideways, like the shelves below, instead of twelve rows one under another ---- */
+@media (max-width: 760px) {
+  main.content .shelf .pick-grid {
+    grid-auto-flow: column; grid-template-rows: repeat(4, auto); grid-template-columns: none; grid-auto-columns: 84%; gap: 2px 12px;
+    overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain;
+    margin: 0 calc(-1 * clamp(16px, 4vw, 44px)); padding: 0 clamp(16px, 4vw, 44px); scroll-padding: 0 clamp(16px, 4vw, 44px);
+  }
+  main.content .shelf .pick-grid::-webkit-scrollbar { display: none; }
+  main.content .shelf .pick-grid > li { scroll-snap-align: start; min-width: 0; }
+}
+
+/* Settings → Animations off, or a computer asking for less motion: covers don't lift */
+:root.pref-calm .row-scroll > .card:hover .cover, :root.pref-calm .row-scroll > .card:active .cover, :root.pref-calm .grid > .card:active .cover { transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .row-scroll > .card .cover { transition: none; }
+  .row-scroll > .card:hover .cover, .row-scroll > .card:active .cover, .grid > .card:active .cover { transform: none; }
+}

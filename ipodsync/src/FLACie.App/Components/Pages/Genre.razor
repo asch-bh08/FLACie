@@ -4,7 +4,7 @@
 @{ var name = Uri.UnescapeDataString(Name); var songs = Lib.Songs.Where(t => t.Genre.Trim().Equals(name, StringComparison.OrdinalIgnoreCase)).ToList(); }
 @if (songs.Count == 0)
 {
-    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <p class="status">No songs with this genre.</p> }
+    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <div class="empty-state"><p class="status">No songs with this genre.</p><a class="btn" href="/genres">All genres</a></div> }
 }
 else
 {

@@ -136,7 +136,10 @@ test.describe('signed in', () => {
     await expect(page.locator('.player')).toBeVisible();
     await expect.poll(async () => (await page.locator('.player .seek span').first().innerText()), { timeout: 15_000 }).not.toBe('0:00');
     await expect(play).toHaveAttribute('aria-label', 'Pause');
-    await page.locator('h1').first().click();   // focus off the box
+    // focus off whatever has it (the search box, the song's row button), so Space reaches the page; not by clicking the page title: once the list has
+    // scrolled, the sticky search bar is over it
+    const blur = () => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await blur();
     await page.keyboard.press('Space');
     await expect(play).toHaveAttribute('aria-label', 'Play');
     await page.keyboard.press('Space');
@@ -146,7 +149,7 @@ test.describe('signed in', () => {
     await box.click(); await page.keyboard.press('Space'); await page.keyboard.press('n');
     await expect(play).toHaveAttribute('aria-label', 'Pause');
     const before = await page.locator('.bar-text b').innerText();
-    await page.locator('h1').first().click();
+    await blur();
     await page.keyboard.press('n');
     await expect(page.locator('.bar-text b')).not.toHaveText(before, { timeout: 10_000 });
   });

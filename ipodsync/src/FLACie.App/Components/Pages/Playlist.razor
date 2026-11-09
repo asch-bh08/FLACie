@@ -4,7 +4,7 @@
 @{ var p = Session.Playlists.FirstOrDefault(x => x.Id == Id); }
 @if (p is null)
 {
-    <p class="status">This playlist isn't there any more.</p>
+    <div class="empty-state"><p class="status">This playlist isn't there any more.<small>It may have been deleted on another device.</small></p><a class="btn" href="/playlists">Your playlists</a></div>
 }
 else
 {
@@ -78,7 +78,7 @@ else
         </div>
     </header>
     <div class="pl-main">
-    @if (tracks.Count == 0 && waiting is not { Count: > 0 }) { <p class="status">Nothing in this playlist yet. Use the ⋯ menu on any song and pick “Add to playlist”.</p> }
+    @if (tracks.Count == 0 && waiting is not { Count: > 0 }) { <div class="empty-state"><p class="status">Nothing in this playlist yet.<small>Use the ⋯ menu on any song and pick “Add to playlist”.</small></p><a class="btn" href="/songs">Find songs to add</a></div> }
     <TrackList Tracks="tracks" Waiting="waiting" OnRetry="Retry" PlayContext="@p.Name" PlayContextId="@DjSwitches.KeyOf(p)" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
     @{ var missing = imp is not null || Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
     @if (missing.Count > 0)

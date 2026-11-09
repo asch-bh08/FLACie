@@ -429,9 +429,16 @@ class Library(ctx: Context, val art: ArtCache) {
     }
 
     @Volatile private var matchCache: Pair<List<Track>, Map<String, Track>>? = null
-    /** This library's copy of a song by title and artist, whichever release it is on; null if it has none. */
-    fun findSong(title: String, artist: String): Track? {
+    @Volatile private var matchAll: Pair<List<Track>, Map<String, List<Track>>>? = null
+    /** This library's copy of a song by title and artist, the one on [album] when there is one (the DJ's "Out of Space" from the album, not the live
+     *  one of the same name, owner 9 Nov), else whichever release it is on; null if it has none. */
+    fun findSong(title: String, artist: String, album: String = ""): Track? {
         val s = derive().songs
+        if (album.isNotBlank()) {
+            val all = matchAll?.takeIf { it.first === s }?.second ?: s.groupBy { it.matchKey }.also { matchAll = s to it }
+            val want = album.lowercase().filter { it.isLetterOrDigit() }
+            all[matchKey(title, artist)]?.firstOrNull { it.album.lowercase().filter { c -> c.isLetterOrDigit() } == want }?.let { return it }
+        }
         val m = matchCache?.takeIf { it.first === s }?.second ?: HashMap<String, Track>().also { h -> s.forEach { h.putIfAbsent(it.matchKey, it) } }.also { matchCache = s to it }
         return m[matchKey(title, artist)]
     }

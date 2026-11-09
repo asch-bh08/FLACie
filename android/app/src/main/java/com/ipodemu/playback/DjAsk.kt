@@ -11,8 +11,9 @@ enum class DjAskDo { NONE, SEARCH, PLAY, UPNEXT, NEXT, PAUSE, RESUME, VOLUMEUP, 
     /** The F9 steps: playlist edits (by the playlist's name), a question back, shuffle on or off. */
     ADDTOPLAYLIST, REMOVEFROMPLAYLIST, CREATEPLAYLIST, ASK, SHUFFLE, RENAMEPLAYLIST }
 
-/** A song in an answer: the server's path, and its file, title and artist so this library can find its own copy. */
-data class DjAskSong(val path: String, val file: String = "", val title: String = "", val artist: String = "")
+/** A song in an answer: the server's path, and its file, title, artist and album so this library can find its own copy (the album tells the live
+ *  "Out of Space" from the album one, owner 9 Nov). */
+data class DjAskSong(val path: String, val file: String = "", val title: String = "", val artist: String = "", val album: String = "")
 
 /** One step of an answer (F9): [playlist] is the playlist's name; [say] the question of an ASK step; RENAMEPLAYLIST renames [playlist] to [title]. */
 data class DjAskStep(
@@ -51,7 +52,7 @@ data class DjAskAnswer(
 
         /** The songs of an answer or a step: the full "songs", else the bare "paths". */
         fun songsOf(o: JSONObject): List<DjAskSong> =
-            o.optJSONArray("songs")?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { s -> DjAskSong(s.optString("path"), s.optString("file"), s.optString("title"), s.optString("artist")) } } }
+            o.optJSONArray("songs")?.let { a -> (0 until a.length()).mapNotNull { i -> a.optJSONObject(i)?.let { s -> DjAskSong(s.optString("path"), s.optString("file"), s.optString("title"), s.optString("artist"), s.optString("album")) } } }
                 ?: o.optJSONArray("paths")?.let { a -> (0 until a.length()).map { DjAskSong(a.optString(it)) } } ?: emptyList()
 
         val SORRY = DjAskAnswer(DjAskDo.NONE, "Sorry, I couldn't reach the DJ.")
@@ -132,6 +133,6 @@ object DjAskRunner {
     }
 
     /** How a song in an answer is found here: the same path, else the same file on the server, else the same title and artist. */
-    fun <T> resolve(s: DjAskSong, byPath: (String) -> T?, byFile: (String) -> T?, bySong: (String, String) -> T?): T? =
-        byPath(s.path) ?: s.file.takeIf { it.isNotBlank() }?.let(byFile) ?: if (s.title.isNotBlank()) bySong(s.title, s.artist) else null
+    fun <T> resolve(s: DjAskSong, byPath: (String) -> T?, byFile: (String) -> T?, bySong: (String, String, String) -> T?): T? =
+        byPath(s.path) ?: s.file.takeIf { it.isNotBlank() }?.let(byFile) ?: if (s.title.isNotBlank()) bySong(s.title, s.artist, s.album) else null
 }

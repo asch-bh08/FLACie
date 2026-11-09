@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 Cloud (taking over from Local, branch claude/exciting-ride-2qa9ry from ui/living-sleeve 9b9fc19)
+- A done: DJ "play Out of Space by the Prodigy" picks the album version. `DjPick.VersionRank` (album 0 < edit < live < remix < demo, from title brackets/" - " note and album name) ranks first, before plays; versions grouped by `DjPick.VersionKey` (brackets and " - " dropped); an artist-named ask is ranked too (it used to take the matcher's first hit and keep nothing for "the other one"). "The other one" says which: "Here's the live version of Out of Space, by The Prodigy."
+- Phone: answers now carry each song's album; `DjAskSong.album`, `Library.findSong(title, artist, album)` picks the copy on that album (the live and album "Out of Space" share title+artist). NOT BUILT here (no Android SDK): Local, please run :app:testDebugUnitTest (DjAskTest.theAlbumTellsSameNamedVersionsApart).
+- Tests: DjVersionTests (12). Server suite 1991/1991 (SDK 10 + DOTNET_ROLL_FORWARD=Major). Ready to ship with the next web deploy + APK.
+
 ## 2026-11-06 Local (midday)
 - b112 released + deployed (rollback flacie-web:rollback-20261106-pre-b112). SpotifyPlaylists: Deezer/SoundCloud per-artist answers come from saved lists (WebPlaylistStore, Subject = artist) and refresh in the background; sources asked side by side, FirstAnswer 2.5 s. Phone: RemoteArt (disk cache RemoteArtFiles in cacheDir/remote-art, single flight, prefetch on results). DownloadCovers (data/download-covers.json): search downloads keep their catalogue cover (Library.Merge applies; /art jf key of that song redirects to it; phone sends artUrl to /api/download).
 - Import rows: Matching.SameSongLoosely pairs "Scatman" with "Scatman (ski-ba-bop-ba-dop-bop)" (web page and ImportManager.Have).

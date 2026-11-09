@@ -123,7 +123,7 @@ public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips
 
     public string? Landed(UserSession s, string artist, string title) => DjAskEngine.Landed(UserOf(s), artist, title);
 
-    /// <summary>The answer for a player elsewhere (the phone): with [find], each path also comes with its file, title and artist, so a library that keeps
+    /// <summary>The answer for a player elsewhere (the phone): with [find], each path also comes with its file, title, artist and album (the album tells a live "Out of Space" from the album one), so a library that keeps
     /// its songs under other paths can find the same ones.</summary>
     public static JsonObject Json(DjAskAnswer a, Func<string, Track?> find)
     {
@@ -139,7 +139,7 @@ public sealed class DjAskService(DjAskEngine engine, DjService dj, DjClips clips
 
     static JsonArray Songs(IReadOnlyList<string> paths, Func<string, Track?> find) =>
         new(paths.Select(x => find(x) is { } t
-            ? (JsonNode)new JsonObject { ["path"] = x, ["file"] = t.FilePath ?? "", ["title"] = t.Title, ["artist"] = t.Artist }
+            ? (JsonNode)new JsonObject { ["path"] = x, ["file"] = t.FilePath ?? "", ["title"] = t.Title, ["artist"] = t.Artist, ["album"] = t.Album }
             : new JsonObject { ["path"] = x }).ToArray());
 
     /// <summary>One step as JSON: {do, paths?, title?, shuffle?, replace?, playlist?, say?}.</summary>

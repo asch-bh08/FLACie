@@ -23,11 +23,12 @@ else
                    Options="@prefs.Desk" Props="@DeskPropsPart" MeterReadout="@DeskRateLine" MeterRate="@DeskRate" Finish="@DeskFinishes.For(model, color)">@Area()</DeskScene>
     }
     else { @Area() }
-    <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /></a>
-    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick a model, a scene, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /></button>
+    <a class="ipod-exit" href="/" aria-label="Back to FLACie" title="Back to FLACie" data-testid="ipod-exit"><Icon Name="chevron-left" Size="18" /><span>Back</span></a>
+    <button class="ipod-gear" type="button" tabindex="-1" aria-label="@(panel ? "Hide the panel" : "Show the panel")" title="Panel: pick a model, a scene, colour and look" data-testid="ipod-gear" @onclick="TogglePanel"><Icon Name="settings" Size="18" /><span>@(panel ? "Done" : "Options")</span></button>
     <aside class="ipod-dock ipod-panel @(panel ? "open" : "")" data-testid="ipod-panel" aria-label="Retro panel" tabindex="0">
         <h2>Retro</h2>
         <section class="dock-np" data-testid="ipod-dock-np">
+            @* nothing playing: says so first, then where to start, in the words of what is on screen (a scene has discs and tapes to click; the iPod has its menus) *@
             @if (Player.Current is { } cur)
             {
                 <div class="dock-cover"><Cover ArtKey="@cur.ArtKey" Full="true" Class="dock-art" /></div>
@@ -40,7 +41,8 @@ else
                     <button type="button" aria-label="Next" @onclick="() => Player.Next()" tabindex="-1"><Icon Name="next" Size="18" /></button>
                 </div>
             }
-            else { <p class="dock-empty">Nothing is playing. Pick a song on the player: Music &rsaquo; Songs, or Shuffle Songs.</p> }
+            else if (retro) { <p class="dock-empty"><b>Nothing is playing.</b> Choose some music in FLACie (Back, at the top left) and it plays here.</p> }
+            else { <p class="dock-empty"><b>Nothing is playing.</b> Pick a song on the player: Music &rsaquo; Songs, or Shuffle Songs.</p> }
         </section>
         <section data-testid="scene-options">
             <h3>Scene</h3>

@@ -258,6 +258,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}..." else null, desc = "Reads this phone's music and the servers' song lists again", action = "Reload") { lib.rescan() }
                         if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
                         SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
+                        // Alexa is linked on FLACie Web (parity, 7 Nov: the phone had no way there): the row opens that part of its Settings
+                        if (!ui.guest && prefs.flacieWebUrl.isNotBlank()) SettingRow("Alexa", "Set up on FLACie Web", desc = "Play your music on an Echo by voice", chevron = true) {
+                            ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(prefs.flacieWebUrl.trimEnd('/') + "/settings#alexa")).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
                         SettingRow("iPod sync", lib.syncDeviceLabel ?: "Off", chevron = true) { ui.syncSetupOpen = true }
                     }
                 }

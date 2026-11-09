@@ -32,6 +32,13 @@
                     <a role="menuitem" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="18" />Server admin</a>
                     @if (Dls.Allowed) { <a role="menuitem" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="18" />Downloads</a> }
                 }
+                @* on a phone the bottom bar has only the four main places: these come here instead *@
+                @if (AppHost.Server)
+                {
+                    <a role="menuitem" class="am-phone" href="/devices" @onclick="() => open = false"><Icon Name="devices" Size="18" />Devices</a>
+                    <a role="menuitem" class="am-phone" href="/jam" @onclick="() => open = false"><Icon Name="jam" Size="18" />Jam</a>
+                }
+                <a role="menuitem" class="am-phone" href="/headphones" @onclick="() => open = false"><Icon Name="headphones" Size="18" />Headphone test</a>
                 <a role="menuitem" href="/retro" @onclick="() => open = false"><Icon Name="retro" Size="18" />Retro</a>
                 <a role="menuitem" href="/settings" @onclick="() => open = false"><Icon Name="settings" Size="18" />Settings</a>
                 @if (AppHost.Server) { <form method="post" action="/auth/logout" data-enhance="false"><button role="menuitem" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form> }

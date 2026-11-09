@@ -281,8 +281,8 @@ public class DjWriterTests : IDisposable
             DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "keys"))), new ConfigurationBuilder().Build(), new DjVoiceTests.Lines<CloudflareVoice>(), () => now);
         var v = Load();
         Assert.Equal("aura-1:helios", v.Current.Voice);
-        // chosen again after that, MeloTTS stays
-        var c = v.Current; c.Voice = CloudflareVoice.MeloTts; v.Save(c, null);
-        Assert.Equal(CloudflareVoice.MeloTts, Load().Current.Voice);
+        // MeloTTS is retired (20 Nov 2026): picked again, it is the default voice
+        var c = v.Current; c.Voice = "melotts"; v.Save(c, null);
+        Assert.Equal("aura-1:helios", Load().Current.Voice);
     }
 }

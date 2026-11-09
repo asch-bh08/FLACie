@@ -220,7 +220,7 @@ public class DjRoundTwoTests : IDisposable
     [Fact]
     public async Task The_server_greets_the_person_by_name_at_the_start_of_a_session()
     {
-        var r = Make(voice: CloudflareVoice.MeloTts, ai: false);
+        var r = Make(voice: "kokoro:am_liam", ai: false);
         var cue = await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Web, Smack, LocalHour: 20, Weekday: 2));
         Assert.StartsWith("Good evening, Ashley,", cue!.Caption);   // one sentence since 2 Nov (DjText.OneBreath)
     }
@@ -304,7 +304,7 @@ public class DjRoundTwoTests : IDisposable
     [Fact]
     public async Task Style_is_kept_per_person_and_an_old_settings_file_is_Classic()
     {
-        var r = Make(voice: CloudflareVoice.MeloTts, ai: false, style: DjStyle.Hype);
+        var r = Make(voice: "kokoro:am_liam", ai: false, style: DjStyle.Hype);
         Assert.Equal(DjStyle.Hype, r.Dj.Settings(me).Style);
         var old = Person("u9", "old");
         Assert.Equal(DjStyle.Classic, r.Dj.Settings(old).Style);
@@ -445,6 +445,8 @@ public class DjRoundTwoTests : IDisposable
         // the model is a small part of a line
         Assert.InRange(DjModels.Primary.Cost(DjBudget.PromptTokens, DjBudget.AnswerTokens), 15, 30);
         Assert.All(DjModels.Weighed, m => Assert.True(m.Cost(DjBudget.PromptTokens, DjBudget.AnswerTokens) < 50, m.Id));
+        // Cloudflare retires QwQ 32B on 20 Nov 2026: no longer weighed
+        Assert.DoesNotContain(DjModels.Weighed, m => m.Id.Contains("qwq"));
         // the reserve: none for whole lines at 07:00 on a fresh day, room in the evening; the dashboard's rough count
         var whole = DjBudget.WholeCost(DjModels.Primary);
         Assert.False(DjBudget.WholeAllowed(cap, 0, 0, 7, whole));

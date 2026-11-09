@@ -328,7 +328,7 @@ fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title:
                     SheetItem("Keep it", Glyph.CHECK) { },
                 ))
             }
-        }, icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.DOWNLOADED else Glyph.DOWN)
+        }, icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.CHECK else Glyph.DOWNLOADED)
         // the tick for "new songs download too" (owner, 1 Nov: it should be an option you can see); on by default when a playlist is downloaded
         if (listId != null && st.kind != KeepStatus.Kind.NONE) Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).clickable {
             m.setKept(listId, !kept); if (!kept) app.offlineSyncSoon()

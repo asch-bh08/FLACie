@@ -153,7 +153,12 @@ else
         if (AppHost.WebPlaylists is not { } w) { lists = Made(); return; }
         try
         {
-            await Task.Delay(400, ct);   // after the typing settles: a search per keystroke would ask the sources too often
+            // the lists saved already, at once (owner, 9 Nov: not after the online look-up); then the full answer once the typing settles (a
+            // search per keystroke would ask the sources too often)
+            var saved = await w.ForSearchAsync(Session, query, ct, quick: true);
+            if (ct.IsCancellationRequested) return;
+            if (saved.Count > 0) { lists = saved.Select(ToMade).ToList(); await InvokeAsync(StateHasChanged); }
+            await Task.Delay(400, ct);
             var got = await w.ForSearchAsync(Session, query, ct);
             if (ct.IsCancellationRequested) return;
             lists = got.Select(ToMade).ToList();

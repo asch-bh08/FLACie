@@ -164,17 +164,25 @@ test.describe.serial('the DJ', () => {
       await playLab(page);
       await page.getByRole('button', { name: 'Open Now Playing' }).click();
       const tr = page.locator('.ls-transport');
-      // owner, 7 Nov: "the DJ button on the left", so the row balances round the play button
-      await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
-      await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
-      await expect(tr.locator(':scope > :first-child')).toHaveClass(/ls-dj/);
-      const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }));
-      const withMic = await tr.locator(".dj-mic").count() > 0;
-      expect(boxes).toHaveLength(withMic ? 7 : 6);
+      // owner, 7 Nov: "the DJ button on the left", so the row balances round the play button; owner, 8 Nov: on a phone the DJ (and the mic) are in the top bar
+      // instead, big, and the row keeps shuffle, previous, play, next and repeat
+      const phone = w <= 760;
+      if (phone) {
+        await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
+        await expect(tr.locator('.dj-mic')).toBeHidden();
+      } else {
+        await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
+        await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
+        await expect(tr.locator(':scope > :first-child')).toHaveClass(/ls-dj/);
+      }
+      const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }).filter((b) => b.w > 0));
+      const withMic = !phone && await tr.locator(".dj-mic").count() > 0;
+      expect(boxes).toHaveLength(phone ? 5 : withMic ? 7 : 6);
       // the play button (the ring) is the middle of the row: as much on its left as on its right
       const ring = await tr.locator('.ls-ring').evaluate((e) => { const r = e.getBoundingClientRect(); return (r.left + r.right) / 2; });
       const mid = (boxes[0].l + boxes[boxes.length - 1].r) / 2;
-      if (withMic) expect(Math.abs(ring - mid)).toBeLessThanOrEqual(6);
+      if (withMic || phone) expect(Math.abs(ring - mid)).toBeLessThanOrEqual(6);
       // on a PC nothing in the bar under the row reaches it
       const others = await page.evaluate(() => [...document.querySelectorAll('.ls-dock-l > *, .ls-dock-r .ls-toolset button, .ls-dock-r .vol')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => ({ l: r.left, r: r.right })));
       for (const o of others) expect(o.r <= boxes[0].l + 0.5 || o.l >= boxes[boxes.length - 1].r - 0.5, 'a bar button under the controls').toBe(true);

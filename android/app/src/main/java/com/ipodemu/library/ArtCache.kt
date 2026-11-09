@@ -325,6 +325,32 @@ class ArtCache(private val dir: File) {
         try { work.await() } finally { dog.cancel() }
     }
 
+    /** The first frame waits for Home's covers on disk (owner, 9 Nov: "make them already there like Spotify"); see [FirstFrameGate]. */
+    val firstFrame = FirstFrameGate(android.os.SystemClock.elapsedRealtime())
+
+    /** A row cover from memory, else decoded on the spot from the disk (a small file, a few ms); null when the disk lacks it. Only just after start
+     *  ([FirstFrameGate.decodeNow]), so the first screen draws its covers instead of placeholders; later rows load in the background. */
+    fun decodeDisk(key: String?, thumb: Boolean): Bitmap? {
+        if (key == null) return null
+        peek(key, thumb)?.let { return it }
+        val f = pins?.file(key) ?: file(key).takeIf { it.exists() } ?: return null
+        val b = try { BitmapFactory.decodeFile(f.path, BitmapFactory.Options().apply { inSampleSize = sampleFor(key, thumb, false) }) } catch (_: Exception) { null } ?: return null
+        synchronized(this) { mem.put(memKey(key, thumb, false), b) }
+        return b
+    }
+
+    /**
+     * Shelves that will show later (Home's newer playlists and recommendations, kept for the next time Home opens): their covers are fetched to the
+     * disk and brought into memory now, in the background, so they are there when shown instead of loading in.
+     */
+    fun keepReady(keys: List<Pair<String, Boolean>>) {
+        for ((k, thumb) in keys) {
+            if (peek(k, thumb) != null) continue
+            val bring = { ioScope.launch { try { load(k, thumb, false, Priority.BACKGROUND) } catch (_: Exception) {} }; Unit }
+            if (has(k)) bring() else prefetch(k, done = bring)
+        }
+    }
+
     /** Cached bitmap if already in memory (never loads). */
     fun peek(key: String?, thumb: Boolean = false, full: Boolean = false): Bitmap? {
         if (key == null) return null
@@ -408,7 +434,10 @@ class ArtCache(private val dir: File) {
             // a picture the disk has is decoded into memory for all of them; one it lacks is asked of the server only for the first few (what the first frame shows): the rows ask for
             // the rest themselves as they are drawn, and an empty cover cache must not cost the server 48 requests for pictures nobody looks at
             if (i >= fetchFirst && !has(k)) return@forEachIndexed
-            ioScope.launch { try { load(k, thumb, false, Priority.VISIBLE) } catch (_: Exception) {} }
+            // the first frame is held for the ones on disk (never for a fetch)
+            val onDisk = has(k)
+            if (onDisk) firstFrame.began()
+            ioScope.launch { try { load(k, thumb, false, Priority.VISIBLE) } catch (_: Exception) {} finally { if (onDisk) firstFrame.ended() } }
         }
     }
 

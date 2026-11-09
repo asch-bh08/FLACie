@@ -514,7 +514,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val askPlayer = object : DjAskPlayer<Track> {
         override fun find(s: DjAskSong): Track? {
             val lib = App.of(ctx).library
-            return DjAskRunner.resolve(s, { lib.byPath()[it] }, { f -> lib.songs().firstOrNull { it.filePath == f } }, { t, a -> lib.findSong(t, a) })
+            return DjAskRunner.resolve(s, { lib.byPath()[it] }, { f -> lib.songs().firstOrNull { it.filePath == f } }, { t, a, al -> lib.findSong(t, a, al) })
         }
         override fun play(list: List<Track>, title: String, shuffle: Boolean) = this@PlayerController.play(list, 0, shuffle = shuffle, context = title.ifBlank { null })
         override fun upNext(list: List<Track>, replace: Boolean) { list.asReversed().forEach { addNext(it) } }

@@ -150,14 +150,18 @@ test('an Apple Lossless song plays: the server decodes it to WAV (browsers canno
   expect(problems).toEqual([]);
 });
 
-test('Quick picks learn from what Jellyfin says was played: songs of that artist come first', async ({ page }) => {
+test('Quick picks learn from what Jellyfin says was played: songs of that artist are picked', async ({ page }) => {
   const problems = watch(page);
-  await page.goto('/');
-  // the picks are rebuilt once Jellyfin's play counts have been read (a moment after the page opens)
+  // Jellyfin's play counts are read a moment after Home opens (once the library is in), and the picks on screen never change under the person's pointer: the
+  // picks that learned from them show the next time Home opens. So open Home again until they do. (The account's seeded downloads and whatever earlier tests
+  // played also rank high, so the test looks for the counted artist's songs in the row, not for which song is first.)
   await expect(async () => {
+    await page.goto('/');
     const shelf = page.locator('section.shelf[aria-label="Quick picks"]');
-    await expect(shelf.locator('.pick').first()).toContainText('Aurora Vale', { timeout: 2500 });   // the songs Jellyfin counted lead the row
-  }).toPass({ timeout: 30_000 });
+    await expect(shelf.locator('.pick').first()).toBeVisible({ timeout: 2500 });
+    await expect(shelf.locator('.pick[aria-label$=" by Aurora Vale"]')).not.toHaveCount(0, { timeout: 2500 });
+    expect(await shelf.locator('.pick[aria-label$=" by Aurora Vale"]').count()).toBeGreaterThanOrEqual(3);   // the artist whose songs Jellyfin counted
+  }).toPass({ timeout: 40_000 });
   expect(problems).toEqual([]);
 });
 
@@ -167,7 +171,9 @@ test('an unknown address shows a page, not a crash', async ({ page }) => {
 });
 
 for (const width of [375, 320]) {
-  test(`at ${width}px wide the bottom bar is one scrollable row: no page overflow, every link reachable, no overlap, each >= 44px`, async ({ page }) => {
+  // owner (overhaul, 8-9 Nov): fewer icons, with words. The phone's bottom bar is the four main places, wide and readable, the same on every page;
+  // Devices, Jam, Headphone test and Server admin are in the account menu (the avatar)
+  test(`at ${width}px wide the bottom bar is the four main places, the rest in the account menu`, async ({ page }) => {
     await page.setViewportSize({ width, height: 700 });
     // measured once the page is live: the menu drawn first by the server is replaced when the live connection starts, and a detached link measures 0
     const ws = page.waitForEvent('websocket', { predicate: (w) => w.url().includes('_blazor'), timeout: 20_000 });
@@ -175,18 +181,21 @@ for (const width of [375, 320]) {
     await ws; await page.waitForTimeout(800);
     const rail = page.locator('#main-rail');
     await expect(rail).toBeVisible();
-    const boxes = await rail.locator('a').evaluateAll((as) => as.map((a) => { const r = a.getBoundingClientRect(); return { href: a.getAttribute('href'), x: r.x, w: r.width, h: r.height, shown: getComputedStyle(a).display !== 'none' }; }));
-    expect(boxes.length).toBeGreaterThanOrEqual(8);
-    for (const b of boxes) { expect(b.shown, b.href ?? '').toBe(true); expect(b.w, b.href ?? '').toBeGreaterThanOrEqual(44); expect(b.h, b.href ?? '').toBeGreaterThanOrEqual(44); }
-    for (let i = 1; i < boxes.length; i++) expect(boxes[i].x, boxes[i].href ?? '').toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].w - 0.5);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    // the last link can be scrolled into view and used
-    const last = rail.locator('a').last();
-    await last.scrollIntoViewIfNeeded();
-    const lb = await last.boundingBox();
-    expect(lb && lb.x >= 0 && lb.x + lb.width <= width + 1).toBe(true);
-    await last.click();
-    await expect(page).not.toHaveURL(/\/$/);
+    for (const path of ['/', '/songs']) {
+      if (path !== '/') { await page.goto(path); await page.waitForTimeout(1200); }
+      const boxes = await rail.locator('a').evaluateAll((as) => as.filter((a) => getComputedStyle(a).display !== 'none' && a.getBoundingClientRect().width > 0)
+        .map((a) => { const r = a.getBoundingClientRect(); return { href: a.getAttribute('href'), x: r.x, w: r.width, h: r.height, text: (a as HTMLElement).innerText.trim() }; }));
+      expect(boxes.map((b) => b.href), path).toEqual(['/', '/search', '/favorites', '/playlists']);
+      for (const b of boxes) { expect(b.w, b.href ?? '').toBeGreaterThanOrEqual(64); expect(b.h, b.href ?? '').toBeGreaterThanOrEqual(44); expect(b.text.length, b.href ?? '').toBeGreaterThan(0); }
+      for (let i = 1; i < boxes.length; i++) expect(boxes[i].x, boxes[i].href ?? '').toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].w - 0.5);
+      expect(boxes[boxes.length - 1].x + boxes[boxes.length - 1].w).toBeLessThanOrEqual(width + 1);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await page.locator('.avatar-btn').click();
+    const menu = page.locator('.account-menu');
+    for (const name of ['Devices', 'Jam', 'Headphone test']) await expect(menu.getByRole('menuitem', { name })).toBeVisible();
+    await menu.getByRole('menuitem', { name: 'Devices' }).click();
+    await expect(page).toHaveURL(/\/devices/);
   });
 }
 

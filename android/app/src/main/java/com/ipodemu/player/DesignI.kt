@@ -131,12 +131,18 @@ fun DesignChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: M
     }
 }
 
-/** The format chip under a title ("FLAC 16/44.1" style, here the file type), in DM Mono with a hairline. */
+/**
+ * The format chip under a title ("FLAC 16/44.1" style, here the file type): a round pill with a hairline. The words are in the sans like every other
+ * chip (owner, 9 Nov: round pills in the sans for every chip, no mono chips), a little spaced so the short capitals still read as a tag.
+ */
 @Composable
 fun FormatChip(text: String, color: Color = LocalScheme.current.onBgDim) {
     if (text.isBlank()) return
-    Box(Modifier.border(1.dp, color.copy(alpha = .45f), RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-        MonoLabel(text, size = 9.5f, color = color)
+    Box(Modifier.border(1.dp, color.copy(alpha = .45f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp)) {
+        BasicText(
+            text, style = TextStyle(color = color, fontSize = 10.5.sp, fontFamily = DesignFonts.sans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.04f.em),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

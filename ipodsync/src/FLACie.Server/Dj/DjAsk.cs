@@ -644,7 +644,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.CreatePlaylist: return await MakePlaylistAsync(u, p.What ?? "", cur, recent, ct, text);
             case AskIntent.OtherOne:
             {
-                if (Pick.Other(u.Account, p.What) is { } o) { Remember(u, o); return new(DjAskDo.Play, $"{T(o.Title)}, by {o.Artist}.", [o.Path], T(o.Title)); }
+                // says which version it is now (owner, 9 Nov): "Here's the live version of Out of Space, by The Prodigy."
+                if (Pick.Other(u.Account, p.What) is { } o) { Remember(u, o); return new(DjAskDo.Play, $"Here's {DjPick.VersionName(o)} of {T(DjPick.Plain(o.Title))}, by {o.Artist}.", [o.Path], T(o.Title)); }
                 // "the corona one": this song by them (fetched when the library lacks it), not anything by them
                 if (p.What is { Length: > 0 } w)
                 {
@@ -914,11 +915,12 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             {
                 case Track t1 when Playable(t1) && ArtistFits(query.Artist, t1) && ExactTitle(u, query, what, t1) is var t0:
                     // F11: several versions match: own plays, popularity, then the title said; the rest kept for "not that one"
-                    var versions = DjPick.SameTitle(u, t0).Where(Playable).Prepend(t0).DistinctBy(x => x.Path).ToList();
+                    // with an artist said, only theirs, but still ranked: "out of space by the prodigy" played a demo (owner, 9 Nov)
+                    var versions = DjPick.SameTitle(u, t0).Where(x => Playable(x) && ArtistFits(query.Artist, x)).Prepend(t0).DistinctBy(x => x.Path).ToList();
                     if (query.Artist is not { Length: > 0 } && versions.Count > 1) await u.LookUpPopularityAsync(versions, ct);
-                    var ranked = query.Artist is { Length: > 0 } ? [t0] : DjPick.Rank(u, versions, query.Title ?? what);
+                    var ranked = DjPick.Rank(u, versions, query.Title ?? what);
                     // the version picked before with "the other one" comes first
-                    if (query.Artist is not { Length: > 0 } && Chosen(u, t0) is { } mk && ranked.FirstOrDefault(v => Matching.MatchKey(v) == mk) is { } picked)
+                    if (Chosen(u, t0) is { } mk && ranked.FirstOrDefault(v => Matching.MatchKey(v) == mk) is { } picked)
                         ranked = [picked, .. ranked.Where(v => v.Path != picked.Path)];
                     var song = ranked[0];
                     Pick.Keep(u.Account, ranked.Skip(1).ToList());

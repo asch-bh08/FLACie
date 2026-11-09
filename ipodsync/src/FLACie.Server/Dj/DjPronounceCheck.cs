@@ -8,7 +8,7 @@ namespace FLACie.Server.Dj;
 /// <summary>What the pronunciation check needs from the voice: make a clip, hear one back, and the budget. <see cref="CloudflareEar"/> on the server; fakes in tests.</summary>
 public interface IDjEar
 {
-    /// <summary>The voice in use ("aura-1:helios", "melotts").</summary>
+    /// <summary>The voice in use ("aura-1:helios", "kokoro:am_liam").</summary>
     string Voice { get; }
     bool Ready { get; }
     /// <summary>What saying [text] and hearing it back costs, roughly, in neurons.</summary>

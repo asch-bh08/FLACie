@@ -614,7 +614,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last ?: app.homeSnapshot?.let { HomeData(it.shelves, it.moods) }) }
     // shelves already on screen never change under the person's thumb (they used to swap two or three times as the app opened: saved, phone, server):
     // newer ones are kept and show the next time Home opens
-    fun offer(d: HomeData) { HomeCache.last = d; if (home == null) home = d }
+    // newer shelves get their covers now (disk and memory), so the next Home shows them at once instead of loading them in (owner, 9 Nov)
+    fun offer(d: HomeData) {
+        HomeCache.last = d; if (home == null) home = d
+        try { app.art.keepReady(com.ipodemu.library.HomeSnapshot.coverKeys(com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods))) } catch (_: Exception) {}
+    }
     LaunchedEffect(libRev, hour, recentsKey) {
         // ...and works them out again only once the whole library has loaded, not after every step of loading it (each pass shuffles and sorts all of it)
         if (home != null && !lib.loaded) return@LaunchedEffect
@@ -660,6 +664,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
     val online = rememberOnline()
+    // the chips and the first shelves come in with a short rise as Home opens (as the web's page does), not again on scrolling
+    val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
         if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "FLACie", nav, showBack = false) {
@@ -677,8 +683,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             // design I: Favourites, Recent, Downloads, Recently added and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
+            // the chips wrap onto more lines rather than run off the right edge (owner, 9 Nov: nothing may hang off the screen; "Offline music" was
+            // cut in half at the edge of a phone). Each chip has its own 6 dp above and below, so the lines need no extra gap
             if (modern) item {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp).entranceRise(entrance, 1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
                     DesignChip("All", mood == null, { mood = null })
                     moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
@@ -724,8 +733,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
-            if (mood == null) items(shelves, key = { it.id }) { sh ->
-                Column {
+            if (mood == null) itemsIndexed(shelves, key = { _, sh -> sh.id }) { i, sh ->
+                Column(Modifier.entranceRise(entrance, i + 2)) {
                     if (sh.id == "quick-picks") {
                         Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
@@ -880,7 +889,7 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
                     header = {
                         ShuffleHeader(songs, nav, SORTS[sort]) { sort = (sort + 1) % SORTS.size }
                         SourceFilterChips(allSongs, sourceFilter) { sourceFilter = it }
-                        if (app.offline.doneCount > 0) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { DesignChip("Offline only", offlineOnly, { offlineOnly = !offlineOnly }, icon = Glyph.DOWN) }
+                        if (app.offline.doneCount > 0) Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { DesignChip("Offline only", offlineOnly, { offlineOnly = !offlineOnly }, icon = Glyph.DOWNLOADED) }
                     })
             }
             LibKind.MEMOS -> { val memos = lib.memos; SongList(memos, nav, snap, showArt = false) }
@@ -898,11 +907,14 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
 @Composable
 private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav, sortLabel: String, onSort: () -> Unit) {
     val app = LocalApp.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    // wraps rather than squeezing: on a 360 dp phone Play, Shuffle and the sort pill fill the line, and the count used to be pressed to nothing
+    // against the right edge; now it drops to the next line instead (owner, 9 Nov: nothing may hang off or overlap)
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         GlossPill("Play", { app.player.play(tracks, 0, null) }, icon = Glyph.PLAY, primary = true)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true) }, icon = Glyph.SHUFFLE)
         GlossPill(sortLabel, onSort, height = 32.dp)
-        Txt(songCount(tracks.size), Modifier.weight(1f), size = 13f, color = LocalScheme.current.onBgDim, align = TextAlign.End)
+        Txt(songCount(tracks.size), Modifier.align(Alignment.CenterVertically).padding(start = 4.dp), size = 13f, color = LocalScheme.current.onBgDim)
     }
 }
 
@@ -944,11 +956,15 @@ fun SongList(
     // choosing several songs: Select in a song's sheet starts it; a tap then ticks a row; the bar at the bottom acts on them all (as on the web)
     var chosen by remember(tracks) { mutableStateOf<Set<Int>?>(null) }
     androidx.activity.compose.BackHandler(enabled = chosen != null) { chosen = null }
+    // the first rows rise in one after another as the list opens (the web's j-row), and just appear when scrolled to later
+    val entrance = rememberEntrance()
     val row: @Composable (Int, Track) -> Unit = { i, t ->
         val c = chosen
+        Box(Modifier.entranceRise(entrance, i)) {
         TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra + SheetItem("Select", Glyph.CHECK) { chosen = setOf(i) }, sheetExtraFor = sheetExtraFor, onPlay = {
             app.player.play(tracks, i, null, nav.playContext, nav.playContextId?.takeIf { it.first == nav.playContext }?.second)
         }, picked = c?.contains(i), onPick = c?.let { cur -> { chosen = if (i in cur) cur - i else cur + i } })
+        }
     }
     Box(Modifier.fillMaxSize()) {
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
@@ -968,7 +984,7 @@ fun SongList(
         if (missing.isNotEmpty()) {
             item { SectionHeader("Not in your library") }
             item {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWN, height = 34.dp) }
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
             }
             itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { _, (t, a) ->
                 val st = app.library.downloads[app.library.songKey(a, t)]
@@ -1001,7 +1017,7 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, al
                 if (songs.isEmpty()) return@DesignChip
                 val k = app.offline.keep(songs, com.ipodemu.library.offline.OfflineReason.MANUAL)
                 app.ui.say(if (k > 0) PickSet.summary(k, 0) else "Already on this phone, or not downloadable", warn = k == 0); done()
-            }, icon = Glyph.DOWN)
+            }, icon = Glyph.DOWNLOADED)
             DesignChip("Play next", false, { if (songs.isNotEmpty()) { songs.asReversed().forEach { app.player.addNext(it) }; app.ui.say("${n(songs.size)} play next"); done() } })
             DesignChip("Add to queue", false, { if (songs.isNotEmpty()) { songs.forEach { app.player.addToQueue(it) }; app.ui.say("Added ${n(songs.size)} to the queue"); done() } })
             DesignChip("Add to playlist", false, {
@@ -1018,9 +1034,13 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, al
 @Composable
 internal fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
     if (albums.isEmpty()) { EmptyState("No albums yet"); return }
+    // the first covers rise in one after another as the grid opens (the web's .grid > .card), not again on scrolling
+    val entrance = rememberEntrance()
     LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
+        androidx.compose.foundation.lazy.grid.itemsIndexed(albums, key = { _, g -> g.tracks.first().albumKey }) { i, g ->
+            AlbumCard(g, Modifier.entranceRise(entrance, i)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }
+        }
     }
 }
 
@@ -1030,15 +1050,19 @@ internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, tar
     val sc = LocalScheme.current
     if (groups.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sections = remember(groups) { groups.groupBy { letterOf(sortKey(it.name)) } }
+    // artists (round pictures) and genres: the first rows rise in as the list opens, as the songs do
+    val entrance = rememberEntrance()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         sections.forEach { (l, list) ->
             stickyHeader(key = "h$l", contentType = "letter") { LetterHeader(l) }
-            items(list, key = { it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }, contentType = { "group" }) { g ->
+            itemsIndexed(list, key = { _, g -> g.name + "|" + (g.tracks.firstOrNull()?.path ?: "") }, contentType = { _, _ -> "group" }) { i, g ->
+            Box(Modifier.entranceRise(entrance, i)) {
             IpodRow({ nav.push(target(g)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
                 // an album (or any group) with every song on the phone carries the downloaded mark
                 trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { if (!circle) DownloadedListMark(remember(g) { g.tracks.map { it.path } }); CountChevron(g.tracks.size) } }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
+            }
             }
             }
         }
@@ -1258,12 +1282,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     val missing = if (userId != null) userSongs.second else emptyList()
+    // kept here, outside the list, so the cover and title rise in once as the page opens and not again when scrolled back to
+    val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER)
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
-            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey) }
+            if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance) }
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(when (d.kind) {
                 DetailKind.FAVORITES -> "Tap the heart on a song to add it here"
                 DetailKind.RECENT -> "Songs you play show up here"
@@ -1279,14 +1305,14 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
                     Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs)
                 }
             } else {
                 SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey)
+                        DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                 })
             }
@@ -1324,7 +1350,7 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
                             busy -> Txt(com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(status!!.stage, status.message)), size = 14f, color = sc.onBgDim)
                             else -> GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download", {
                                 app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…")
-                            }, icon = Glyph.DOWN, height = 40.dp)
+                            }, icon = Glyph.DOWNLOADED, height = 40.dp)
                         }
                     }
                 }
@@ -1373,7 +1399,7 @@ private fun CatalogAlbumScreen(d: Screen.CatalogAlbum, nav: PlayerNav, snap: Pla
                         if (busy) Txt(status!!.message, size = 14f, color = sc.onBgDim)
                         else GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download ${a.kind.lowercase()}", {
                             app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…")
-                        }, icon = Glyph.DOWN, height = 40.dp)
+                        }, icon = Glyph.DOWNLOADED, height = 40.dp)
                     }
                 }
             }
@@ -1449,24 +1475,25 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
 }
 
 @Composable
-private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null) {
+private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null, since: Long = 0L) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     if (LocalStyle.current.modern) {
         // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
         // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
         val cols = rememberCoverColours(art)
-        // an artist gets a round picture, as on the web; everything else the rounded cover
-        if (kind == "Artist") ArtImage(art, Modifier.fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp)
-        else ArtImage(art, Modifier.fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // an artist gets a round picture, as on the web; everything else the rounded square cover. The cover, the words and the buttons rise in
+        // one after another as the page opens ([since]: when it opened; 0 leaves them still)
+        if (kind == "Artist") ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp, circle = true)
+        else ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
+        Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (kind.isNotEmpty()) MonoLabel(kind)
             SerifTitle(title, size = if (title.length > SleeveText.LONG_TITLE) 34f else 42f, maxLines = 3)
             if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
             if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
         }
         // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, false, title, djKey) })
             if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
         }
@@ -1563,8 +1590,9 @@ private class Results(val songs: List<Track>, val albums: List<Group>)
 @Composable
 private fun OwnedTag() {
     val sc = LocalScheme.current
-    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF2E7D4F)).padding(horizontal = 7.dp, vertical = 3.dp)) {
-        Txt("OWNED", size = 10f, weight = FontWeight.Bold, color = Color.White)
+    // a round pill in the sans, like every chip (owner, 9 Nov)
+    Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF2E7D4F)).padding(horizontal = 9.dp, vertical = 3.dp)) {
+        Txt("Owned", size = 11f, weight = FontWeight.SemiBold, color = Color.White)
     }
 }
 
@@ -1658,9 +1686,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     LaunchedEffect(query) {
         val q = query.trim()
         if (app.ui.guest || !com.ipodemu.library.MadeLists.worthAsking(q)) { made = emptyList(); return@LaunchedEffect }
-        delay(500)
         val web = com.ipodemu.library.FlacieWebClient(app.prefs)
-        made = if (!web.available) emptyList() else withContext(Dispatchers.IO) { try { web.madeSearch(q) } catch (e: Exception) { android.util.Log.w("FLACie", "made search failed: ${e.message}"); emptyList() } }
+        if (!web.available) { made = emptyList(); return@LaunchedEffect }
+        // the lists saved on FLACie Web first, at once (owner, 9 Nov: not after the online look-up), then the full answer once typing settles
+        delay(150)
+        val saved = withContext(Dispatchers.IO) { try { web.madeSearch(q, quick = true) } catch (e: Exception) { emptyList() } }
+        if (saved.isNotEmpty()) { made = saved; RemoteArt.prefetch(app, saved.mapNotNull { it.picture }) }
+        delay(350)
+        val full = withContext(Dispatchers.IO) { try { web.madeSearch(q) } catch (e: Exception) { android.util.Log.w("FLACie", "made search failed: ${e.message}"); null } }
+        if (full != null) made = full
         RemoteArt.prefetch(app, made.mapNotNull { it.picture })
     }
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -2035,7 +2069,7 @@ private fun SearchSelectBar(count: Int, allPicked: Boolean, modifier: Modifier, 
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Cancel", false, onCancel)
             DesignChip(if (allPicked) "Select none" else "Select all", false, onAll)
-            if (count > 0) DesignChip(PickSet.downloadLabel(count), true, onDownload, icon = Glyph.DOWN)
+            if (count > 0) DesignChip(PickSet.downloadLabel(count), true, onDownload, icon = Glyph.DOWNLOADED)
         }
     }
 }

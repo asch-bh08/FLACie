@@ -45,6 +45,15 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         app.ui.permissions = permissionActions   // no system prompt here: see the permissions section below
         Boot.mark("MainActivity.onCreate start")
+        // the first frame waits (at most 400 ms) for Home's covers to come off the disk, so they are there when Home appears (owner, 9 Nov: "like Spotify")
+        val content = findViewById<android.view.View>(android.R.id.content)
+        content.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                val ready = app.art.firstFrame.ready(android.os.SystemClock.elapsedRealtime())
+                if (ready) content.viewTreeObserver.removeOnPreDrawListener(this)
+                return ready
+            }
+        })
         // test aid, like the fake extras below: `am start --ez clearcovers true` starts with an empty cover cache (what Settings > Clear cache does for covers)
         if (intent?.getBooleanExtra("clearcovers", false) == true) app.art.clearAll()
         if (intent?.getBooleanExtra("browseprobe", false) == true) com.ipodemu.playback.BrowseProbe.run(applicationContext)

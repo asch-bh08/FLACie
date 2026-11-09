@@ -14,11 +14,11 @@ public sealed class DjVoiceConfig
 {
     public string AccountId { get; set; } = "";
     public string Token { get; set; } = "";       // protected; empty when none
-    /// <summary>"melotts", "aura-1:&lt;speaker&gt;" or "aura-2:&lt;speaker&gt;". Aura-1 Helios (British, warm) by default: MeloTTS sounded cheap.</summary>
+    /// <summary>"aura-1:&lt;speaker&gt;", "aura-2:&lt;speaker&gt;" or "kokoro:&lt;voice&gt;". Aura-1 Helios (British, warm) by default.</summary>
     public string Voice { get; set; } = CloudflareVoice.DefaultVoice;
     /// <summary>The lines are written by a Workers AI text model (the templates when it fails); off: the templates only.</summary>
     public bool AiLines { get; set; } = true;
-    /// <summary>2 since the default voice became Aura-1 Helios. An older file still saying "melotts" kept the old default, so it moves to the new one once.</summary>
+    /// <summary>2 since the default voice became Aura-1 Helios; 3 since MeloTTS was retired (Cloudflare, 20 Nov 2026): a file still saying "melotts" moves once.</summary>
     public int Version { get; set; }
     /// <summary>The most of the free 10,000 neurons a day the DJ may use, in percent.</summary>
     public int CapPercent { get; set; } = 50;
@@ -38,14 +38,17 @@ public sealed class DjUsage
 }
 
 /// <summary>
-/// Makes the DJ's clips with Cloudflare Workers AI: Deepgram Aura-1 with one of its speakers (Helios by default) or MeloTTS, and writes the lines with a small text model (<see cref="WriteAsync"/>). Nothing is sent until an admin has added the account
+/// Makes the DJ's clips with Cloudflare Workers AI (Deepgram Aura-1 or Aura-2, Helios by default) or FLACie's own voice (Kokoro on frank), and writes the lines with a small text model (<see cref="WriteAsync"/>). Nothing is sent until an admin has added the account
 /// id and token. Each line's cost is estimated beforehand and a line that would go over the daily cap is refused without a call. The token is never logged or returned.
 /// </summary>
 public sealed partial class CloudflareVoice
 {
-    public const string MeloTts = "melotts";
+    /// <summary>The voice Cloudflare retired on 20 Nov 2026 (@cf/myshell-ai/melotts): only read, to move a saved choice away from it.</summary>
+    public const string RetiredMeloTts = "melotts";
     public const string DefaultVoice = "aura-1:helios";
-    public const int ConfigVersion = 2;
+    /// <summary>FLACie's own voice (Kokoro on frank) that a retired choice moves to when it answers: free, no daily limit.</summary>
+    public const string KokoroDefault = "kokoro:am_liam";
+    public const int ConfigVersion = 3;
     /// <summary>The text model that writes the lines: Llama 3.3 70B (about 22 neurons a line, see <see cref="DjModels"/>); <see cref="FallbackModel"/> when it can't answer.</summary>
     public static string TextModel => DjModels.Primary.Id;
     public static string FallbackModel => DjModels.Fallback.Id;
@@ -106,10 +109,11 @@ public sealed partial class CloudflareVoice
         // first start: take the account from the environment, so a Docker setup can hand it over
         if (cfg.AccountId.Length == 0 && conf["FLACIE_CLOUDFLARE_ACCOUNT"] is { Length: > 0 } a) cfg.AccountId = a.Trim();
         if (cfg.Token.Length == 0 && conf["FLACIE_CLOUDFLARE_TOKEN"] is { Length: > 0 } t) cfg.Token = Protect(t);
-        // a file from before the Aura default (no Version) that still says "melotts" kept the old default: it moves to Aura once, and the file is written so the
-        // disk, the memory and the clip ids all name the same voice. (Such a file can't say whether MeloTTS was picked on purpose; it is moved all the same.)
+        // a file still saying "melotts" (the old default, or picked on purpose) moves once, as Cloudflare retires MeloTTS on 20 Nov 2026: to FLACie's own
+        // voice when Kokoro answers on this server, else to the default Aura voice. The file is written so the disk, the memory and the clip ids all name
+        // the same voice.
         var migrate = File.Exists(file) && cfg.Version < ConfigVersion;
-        if (cfg.Version < ConfigVersion && NormVoice(cfg.Voice) == MeloTts) cfg.Voice = DefaultVoice;
+        if (cfg.Version < ConfigVersion && IsRetired(cfg.Voice)) cfg.Voice = KokoroAnswers() ? KokoroDefault : DefaultVoice;
         cfg.Version = ConfigVersion;
         cfg.Voice = NormVoice(cfg.Voice); cfg.CapPercent = Math.Clamp(cfg.CapPercent, 0, 100);
         if (migrate)
@@ -121,13 +125,29 @@ public sealed partial class CloudflareVoice
     string Protect(string s) { try { return protector.Protect(new string(s.Where(c => !char.IsControl(c)).ToArray()).Trim()); } catch (Exception) { return ""; } }
     string Unprotect(string s) { try { return s.Length == 0 ? "" : protector.Unprotect(s); } catch (Exception) { return ""; } }
 
-    /// <summary>"melotts", or "aura-1:&lt;speaker&gt;" / "aura-2:&lt;speaker&gt;" with a speaker of that family; anything else is MeloTTS.</summary>
+    /// <summary>A saved voice Cloudflare no longer offers (MeloTTS), or one this version does not know.</summary>
+    static bool IsRetired(string? v) => (v ?? "").Trim().Equals(RetiredMeloTts, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Kokoro answers its health check on this server (once, when moving a retired voice; at most 1.5 s).</summary>
+    bool KokoroAnswers()
+    {
+        try
+        {
+            using var http = hf.CreateClient("kokoro");
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1.5));
+            using var res = http.GetAsync(kokoroUrl + "/healthz", cts.Token).GetAwaiter().GetResult();
+            return res.IsSuccessStatusCode && res.Content.ReadAsStringAsync(cts.Token).GetAwaiter().GetResult().Trim() == "ok";
+        }
+        catch (Exception) { return false; }
+    }
+
+    /// <summary>"aura-1:&lt;speaker&gt;" / "aura-2:&lt;speaker&gt;" with a speaker of that family, or "kokoro:&lt;voice&gt;"; anything else (MeloTTS, retired) is the default voice.</summary>
     public static string NormVoice(string? v)
     {
         var s = (v ?? "").Trim().ToLowerInvariant();
         return s.StartsWith("aura-1:", StringComparison.Ordinal) && Speakers.Contains(s[7..]) ? s
             : s.StartsWith("aura-2:", StringComparison.Ordinal) && Speakers2.Contains(s[7..]) ? s
-            : s.StartsWith("kokoro:", StringComparison.Ordinal) && KokoroVoices.Contains(s[7..]) ? s : MeloTts;
+            : s.StartsWith("kokoro:", StringComparison.Ordinal) && KokoroVoices.Contains(s[7..]) ? s : DefaultVoice;
     }
     /// <summary>An Aura-2 voice (twice Aura-1's price, its own model).</summary>
     public static bool IsAura2(string voice) => voice.StartsWith("aura-2:", StringComparison.Ordinal);
@@ -152,9 +172,9 @@ public sealed partial class CloudflareVoice
         }
     }
 
-    /// <summary>Cloudflare's price of one line, in neurons: MeloTTS 18.63 per audio minute (the length guessed at 2.6 words a second), Aura-1 1,363.64 per 1,000 characters.</summary>
+    /// <summary>Cloudflare's price of one line, in neurons: Aura-1 1,363.64 per 1,000 characters, Aura-2 twice that; Kokoro is free.</summary>
     public static double EstimateNeurons(string voice, string text) =>
-        NormVoice(voice) is var n && IsKokoro(n) ? 0 : n == MeloTts ? DjText.WordCount(text) / 2.6 / 60.0 * 18.63 : text.Length / 1000.0 * (IsAura2(n) ? 2727.27 : 1363.64);
+        NormVoice(voice) is var n && IsKokoro(n) ? 0 : text.Length / 1000.0 * (IsAura2(n) ? 2727.27 : 1363.64);
 
     string Today => clock().ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -290,9 +310,7 @@ public sealed partial class CloudflareVoice
         if (IsKokoro(v)) return await KokoroAsync(v[7..], text, ct);
         try
         {
-            var (model, body) = v == MeloTts
-                ? ("@cf/myshell-ai/melotts", new JsonObject { ["prompt"] = text, ["lang"] = "en" })
-                : (IsAura2(v) ? "@cf/deepgram/aura-2-en" : "@cf/deepgram/aura-1", new JsonObject { ["text"] = text, ["speaker"] = v[7..], ["encoding"] = "mp3" });
+            var (model, body) = (IsAura2(v) ? "@cf/deepgram/aura-2-en" : "@cf/deepgram/aura-1", new JsonObject { ["text"] = text, ["speaker"] = v[7..], ["encoding"] = "mp3" });
             using var req = new HttpRequestMessage(HttpMethod.Post, $"https://api.cloudflare.com/client/v4/accounts/{c.AccountId}/ai/run/{model}");
             req.Headers.TryAddWithoutValidation("Authorization", "Bearer " + token);
             req.Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json");

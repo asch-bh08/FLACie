@@ -52,24 +52,6 @@ public class DjVoiceTests : IDisposable
     }
 
     [Fact]
-    public async Task MeloTts_answers_as_json_with_base64_audio()
-    {
-        var (v, h, log) = Make(_ => Task.FromResult(Json(JsonSerializer.Serialize(new { result = new { audio = Convert.ToBase64String(Mp3) }, success = true, errors = Array.Empty<object>() }))));
-        v.Save(new DjVoiceConfig { AccountId = Account, Voice = CloudflareVoice.MeloTts }, Token);
-        var mp3 = await v.SynthesizeAsync("Here's Yellow by Coldplay.");
-        Assert.Equal(Mp3, mp3);
-        var (url, auth, body) = Assert.Single(h.Seen);
-        Assert.Equal($"https://api.cloudflare.com/client/v4/accounts/{Account}/ai/run/@cf/myshell-ai/melotts", url);
-        Assert.Equal("Bearer " + Token, auth);
-        var j = JsonDocument.Parse(body).RootElement;
-        Assert.Equal("Here's Yellow by Coldplay.", j.GetProperty("prompt").GetString());
-        Assert.Equal("en", j.GetProperty("lang").GetString());
-        Assert.DoesNotContain(Token, body);
-        Assert.DoesNotContain(log.All, l => l.Contains(Token));
-        Assert.Equal(1, v.Usage.Lines);
-    }
-
-    [Fact]
     public async Task Aura_answers_with_a_binary_mp3_and_gets_the_speaker()
     {
         var (v, h, _) = Make(_ => Task.FromResult(Audio()));
@@ -117,7 +99,7 @@ public class DjVoiceTests : IDisposable
         Assert.Null(await v.SynthesizeAsync("Here's Yellow by Coldplay."));
         v.Save(new DjVoiceConfig { AccountId = Account, CapPercent = 0 }, Token);
         Assert.True(v.Ready);
-        Assert.False(v.CanAfford(CloudflareVoice.MeloTts, "Here's Yellow by Coldplay."));
+        Assert.False(v.CanAfford(CloudflareVoice.DefaultVoice, "Here's Yellow by Coldplay."));
         Assert.Null(await v.SynthesizeAsync("Here's Yellow by Coldplay."));
         Assert.Contains("cap", v.LastResult);
         Assert.Empty(h.Seen);
@@ -174,7 +156,7 @@ public class DjVoiceTests : IDisposable
         Assert.Equal(0, v.Usage.Neurons);
         Assert.Equal(0, CloudflareVoice.EstimateNeurons("kokoro:am_liam", new string('x', 1000)));
         Assert.Equal("kokoro:am_liam", CloudflareVoice.NormVoice("Kokoro:AM_Liam"));
-        Assert.Equal(CloudflareVoice.MeloTts, CloudflareVoice.NormVoice("kokoro:nobody"));
+        Assert.Equal(CloudflareVoice.DefaultVoice, CloudflareVoice.NormVoice("kokoro:nobody"));
     }
 
     [Fact]
@@ -182,17 +164,17 @@ public class DjVoiceTests : IDisposable
     {
         Assert.Equal("aura-2:phoebe", CloudflareVoice.NormVoice(" Aura-2:Phoebe "));
         Assert.Equal("aura-1:helios", CloudflareVoice.NormVoice("aura-1:helios"));
-        Assert.Equal(CloudflareVoice.MeloTts, CloudflareVoice.NormVoice("aura-2:nobody"));
-        Assert.Equal(CloudflareVoice.MeloTts, CloudflareVoice.NormVoice("aura-1:aries"));   // an Aura-2 voice is not an Aura-1 one
+        Assert.Equal(CloudflareVoice.DefaultVoice, CloudflareVoice.NormVoice("aura-2:nobody"));
+        Assert.Equal(CloudflareVoice.DefaultVoice, CloudflareVoice.NormVoice("aura-1:aries"));   // an Aura-2 voice is not an Aura-1 one
+        // MeloTTS is retired by Cloudflare on 20 Nov 2026: the name is no voice any more
+        Assert.Equal(CloudflareVoice.DefaultVoice, CloudflareVoice.NormVoice("melotts"));
         Assert.Contains("aries", CloudflareVoice.Speakers2);
         Assert.Equal(1363.64 * 2, CloudflareVoice.EstimateNeurons("aura-2:aries", new string('x', 1000)), 1);
     }
 
     [Fact]
-    public void Neurons_are_estimated_from_words_for_MeloTts_and_characters_for_Aura()
+    public void Neurons_are_estimated_from_characters_for_Aura()
     {
-        var twentySix = string.Join(' ', Enumerable.Repeat("word", 26));   // 10 s of speech
-        Assert.Equal(18.63 / 6, CloudflareVoice.EstimateNeurons("melotts", twentySix), 3);
         Assert.Equal(1363.64, CloudflareVoice.EstimateNeurons("aura-1:zeus", new string('x', 1000)), 3);
     }
 
@@ -205,7 +187,7 @@ public class DjVoiceTests : IDisposable
         Assert.DoesNotContain(Token, json);
         Assert.True(v.HasToken);
         Assert.Equal(Account, v.Current.AccountId);
-        Assert.Equal("melotts", v.Current.Voice);     // an unknown speaker falls back to MeloTTS
+        Assert.Equal(CloudflareVoice.DefaultVoice, v.Current.Voice);     // an unknown speaker falls back to the default voice
         Assert.Equal(100, v.Current.CapPercent);
         v.Save(new DjVoiceConfig { AccountId = Account, Voice = "aura-1:athena" }, null);
         Assert.True(v.HasToken);
@@ -231,7 +213,7 @@ public class DjVoiceTests : IDisposable
     {
         var inner = new Handler(_ => Task.FromResult(Audio()));
         using var http = new HttpClient(new CatalogRedirectHandler(new Uri("http://127.0.0.1:9999")) { InnerHandler = inner });
-        await http.PostAsync($"https://api.cloudflare.com/client/v4/accounts/{Account}/ai/run/@cf/myshell-ai/melotts", new StringContent("{}"));
-        Assert.Equal($"http://127.0.0.1:9999/api.cloudflare.com/client/v4/accounts/{Account}/ai/run/@cf/myshell-ai/melotts", Assert.Single(inner.Seen).Url);
+        await http.PostAsync($"https://api.cloudflare.com/client/v4/accounts/{Account}/ai/run/@cf/deepgram/aura-1", new StringContent("{}"));
+        Assert.Equal($"http://127.0.0.1:9999/api.cloudflare.com/client/v4/accounts/{Account}/ai/run/@cf/deepgram/aura-1", Assert.Single(inner.Seen).Url);
     }
 }

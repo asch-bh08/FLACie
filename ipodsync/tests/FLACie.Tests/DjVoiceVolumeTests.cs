@@ -62,16 +62,16 @@ public class DjVoiceVolumeTests : IDisposable
         Assert.Null(cue);                                                       // was: { ClipUrl = null, Backup = true }: the second voice
         fail = false;
         Assert.Equal(calls, r.Http.Seen.Count);                                 // and no call in another voice either
-        Assert.DoesNotContain(r.Http.Seen, x => x.Url.Contains("melotts"));
+        Assert.DoesNotContain(r.Http.Seen, x => !x.Url.Contains("aura-1"));
     }
 
     [Fact]
-    public void Near_the_cap_a_line_is_never_made_in_MeloTTS_instead_of_the_chosen_Aura_voice()
+    public void Near_the_cap_a_line_is_never_made_in_a_cheaper_voice_instead_of_the_chosen_Aura_voice()
     {
-        // 1 % of 10,000 neurons = 100: a 100-character Aura line (136) does not fit, the same line in MeloTTS (under 1) would
+        // 1 % of 10,000 neurons = 100: a 100-character Aura line (136) does not fit, the same line in FLACie's own voice (free) would
         var r = Make(Ok, cap: 1);
         var text = "Here's a line that is about one hundred characters long, so that Aura costs more than the cap allows.";
-        Assert.False(r.Voice.CanAfford(Aura, text)); Assert.True(r.Voice.CanAfford(CloudflareVoice.MeloTts, text));
+        Assert.False(r.Voice.CanAfford(Aura, text)); Assert.True(r.Voice.CanAfford("kokoro:am_liam", text));
         Assert.Null(r.Clips.Request(text));
         Assert.Empty(r.Http.Seen);
     }
@@ -95,13 +95,13 @@ public class DjVoiceVolumeTests : IDisposable
         Assert.NotNull(id);
         Assert.NotNull(await r.Clips.WaitAsync(id!, TimeSpan.FromSeconds(10)));   // joined here, with no call
         Assert.Equal(calls, r.Http.Seen.Count);
-        // parts made in MeloTTS (before the default changed) have other ids: never joined into an Aura line
+        // parts made in another voice have other ids: never joined into an Aura line
         var other = new List<DjPart> { new("Here's", "Here's"), new("Breathe, by The Prodigy.", "Breathe, by The Prodigy.") };
         fail = false;
-        foreach (var p in other) Assert.NotNull((await r.Clips.MakeNowAsync(p.Text, voiceName: CloudflareVoice.MeloTts)).Id);
+        foreach (var p in other) Assert.NotNull((await r.Clips.MakeNowAsync(p.Text, voiceName: "aura-2:aries")).Id);
         Assert.Null(r.Clips.CachedPooled(other, me.Id));
         Assert.Null(r.Clips.Cached("Here's"));
-        Assert.NotEqual(DjClips.IdOf(CloudflareVoice.MeloTts, "Here's"), DjClips.IdOf(Aura, "Here's"));
+        Assert.NotEqual(DjClips.IdOf("aura-2:aries", "Here's"), DjClips.IdOf(Aura, "Here's"));
     }
 
     [Fact]

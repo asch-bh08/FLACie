@@ -32,10 +32,15 @@ public interface IDownloads
     bool MayBulk(UserSession s);
 }
 
+/// <summary>One page's connection, kept up to date by the server (owner, 9 Nov: Server admin showed three of him: two were closed tabs still held
+/// for 30 minutes in case they came back).</summary>
+public sealed class CircuitPresence { public volatile bool Up = true; }
+
 /// <summary>The player windows open on this account (the server lists them on the dashboard).</summary>
 public interface IPlayerClients
 {
-    void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language);
+    /// <summary>[presence]: whether the page is connected now (a closed or reloaded tab is kept a while in case it comes back).</summary>
+    void Add(string id, UserSession s, PlayerState player, string ip, string ua, string browser, string os, string screen, string language, CircuitPresence? presence = null);
     void Remove(string id);
 }
 
@@ -44,7 +49,8 @@ public interface IPlayerClients
 public interface IWebPlaylists
 {
     /// <summary>The All view's lists for a search (fetched as needed, politely), best first.</summary>
-    Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct);
+    /// <summary>[quick]: only the lists saved already, at once (no source is asked).</summary>
+    Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct, bool quick = false);
     /// <summary>The Playlists filter: every list that matches, best first; [genre] narrows them.</summary>
     Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct, string? decade = null);
     /// <summary>A list shown before (kept for 30 days since it was last used), or null.</summary>

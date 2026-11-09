@@ -58,8 +58,8 @@ test.describe('phone (390 x 844)', () => {
     expect(await page.locator('.ls-play').evaluate((e) => getComputedStyle(e).borderRadius)).not.toBe('50%');
     const wave = page.locator('.ls-frame canvas');
     await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
-    const drawn = await wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-    expect(drawn).toBeGreaterThan(200);
+    // (the canvas is sized before the shape arrives from the server, or from the browser working it out, so wait for the bars to be drawn)
+    await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; }), { timeout: 20_000 }).toBeGreaterThan(200);
   });
 
   test('a tap on the frame seeks (the middle of its right side is a quarter of the song)', async ({ page }) => {
@@ -162,8 +162,8 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
 
     test('a press on the frame seeks: the middle of its right side is a quarter of the song', async ({ page }) => {
       const fr = (await page.locator('.ls-frame').boundingBox())!, input = page.locator('.ls-ring input[type=range]'), max = Number(await input.getAttribute('max'));
-      const drawn = await page.locator('.ls-frame canvas').evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; });
-      expect(drawn).toBeGreaterThan(200);
+      // (the shape arrives after the canvas is sized, so wait for the bars to be drawn)
+      await expect.poll(() => page.locator('.ls-frame canvas').evaluate((c: HTMLCanvasElement) => { const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n; }), { timeout: 20_000 }).toBeGreaterThan(200);
       await page.mouse.click(fr.x + fr.width - 14, fr.y + fr.height / 2);
       await expect.poll(async () => Math.abs(Number(await input.inputValue()) - max / 4), { timeout: 5_000 }).toBeLessThanOrEqual(1);
     });
@@ -199,6 +199,12 @@ test.describe('the shape is ready instantly', () => {
     const asked: string[] = [];
     page.on('request', (r) => { if (r.url().includes('/api/wave') && r.method() === 'GET') asked.push(waveP(r.url())); });
     await signIn(page);
+    // the server already keeps the album's shapes, as it does once anyone has played them (whether it does depends on which tests ran before: the page only
+    // looks ahead for shapes the server has, and asks for the rest when a song starts)
+    for (let i = 1; i <= 8; i++) {
+      const p = `http://127.0.0.1:${process.env.MOCK_PORT || 8196}/Audio/h${i}/stream?static=true`;
+      await expect.poll(async () => (await page.request.post('/api/wave?p=' + encodeURIComponent(p), { data: Array.from({ length: 200 }, (_, b) => 40 + (b % 50)) })).status(), { timeout: 20_000 }).toBe(204);
+    }
     await playAlbum(page);
     // the player is not even open: two upcoming songs are asked about
     await expect.poll(() => new Set(asked).size, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
@@ -271,22 +277,24 @@ test.describe('the full-screen player bar on a PC', () => {
     await expect(pop).toHaveCSS('opacity', '1');
     // everything in it, the switch too, sits inside the pop-up
     const pb = (await pop.boundingBox())!;
-    for (const el of await pop.locator('.switch, .seg, .ls-vol-track, .ls-mute').all()) {
+    for (const el of await pop.locator('.switch, .seg, .ls-vol-bar, .ls-mute').all()) {
       const b = (await el.boundingBox())!;
       expect(b.x).toBeGreaterThanOrEqual(pb.x); expect(b.x + b.width).toBeLessThanOrEqual(pb.x + pb.width);
     }
     await page.screenshot({ path: 'test-results/web-a-sound.png' });
-    await page.locator('.ls-vol').fill('40');
+    // a plain volume slider (owner, 9 Nov): set, pressed near the top, dragged down, nudged with the arrow keys; the player follows
+    const bar = page.locator('.ls-vol-bar');
+    await bar.fill('40');
     await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 40%');
-    // a press near the top of the bar turns it up there, a drag down follows the pointer, the wheel nudges it
-    const tb = (await page.locator('.ls-vol-track').boundingBox())!;
+    const tb = (await bar.boundingBox())!;
     await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * .1); await page.mouse.down();
-    await expect.poll(() => page.locator('.ls-vol').inputValue()).toBe('90');
+    await expect.poll(() => page.evaluate(() => Math.round((window as any).flacie.volume() * 100))).toBeGreaterThan(80);
     await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * .7, { steps: 5 }); await page.mouse.up();
-    await expect.poll(() => page.locator('.ls-vol').inputValue()).toBe('30');
-    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.mouse.wheel(0, -100);
-    await expect.poll(() => page.locator('.ls-vol').inputValue()).toBe('35');
-    await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 35%');
+    await expect.poll(() => page.evaluate(() => Math.round((window as any).flacie.volume() * 100))).toBeLessThan(40);
+    const set = Number(await bar.inputValue());
+    await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', `Sound: volume ${set}%`);
+    await bar.focus(); await page.keyboard.press('ArrowUp');
+    await expect.poll(() => bar.inputValue()).toBe(String(set + 1));
     await expect(pop.getByRole('switch', { name: 'Even out volume' })).toBeVisible();
     // More holds the rating, speed and the sleep timer (paused first: the test songs are 3 s long and a new music track starts at 1x)
     await page.mouse.move(10, 10);

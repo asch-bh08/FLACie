@@ -52,9 +52,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 
-/** What the mic button is doing: nothing, listening (from a press until the person stops talking), or waiting for the DJ's answer. */
-enum class MicState { IDLE, LISTENING, THINKING }
-
 /**
  * "Talk to the DJ" on the phone: a glass mic button. Nothing listens until it is pressed; the platform's recogniser (on the device when it can) turns the
  * speech into words, and only the words go to FLACie Web. The first press asks for the microphone, saying why first. With [onSearch] (the search screen)
@@ -83,7 +80,11 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     var pausedByMic by remember { mutableStateOf(false) }
     var turn by remember { mutableStateOf(0) }
     val scope = rememberCoroutineScope()
+    // the limits (DjMicLimits): owner, 9 Nov: after an answer the music came back and the mic stayed on "listening", taking no press
+    val gate = remember { MicGate() }
+    fun clock() = android.os.SystemClock.elapsedRealtime()
     fun end(how: DjTurn) {
+        gate.ended()
         if (!conversing) return
         conversing = false
         if (DjConversation.resumeAtEnd(pausedByMic, how) && !app.player.isPlaying) app.player.resume()
@@ -97,13 +98,14 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         val goodbye = DjConversation.isGoodbye(text)
         if (goodbye && turn == 0 && onSearch != null) { state = MicState.IDLE; end(DjTurn.END); return }
         DjStatus.now.heard(text)
-        state = MicState.THINKING
+        state = MicState.THINKING; gate.thinking(clock())
         app.player.askDj(text, search = onSearch != null) { a ->
             state = MicState.IDLE
             if (a.doThis == DjAskDo.SEARCH) { end(DjTurn.END); onSearch?.invoke(text); return@askDj }
             // the answer is always shown; it is also said in the DJ's voice when it could be
             if (a.say.isNotBlank()) app.ui.say(a.say)
             val how = if (goodbye) DjTurn.END else DjConversation.after(a.mainDo, a.asked, ++turn, a.intent)
+            gate.answered(clock(), how == DjTurn.LISTEN_AGAIN && conversing)
             if (how != DjTurn.LISTEN_AGAIN || !conversing) { end(how); return@askDj }
             // the next turn once the DJ has finished saying the answer (the mic would hear it otherwise); a press meanwhile ends it. It waits a short
             // while for a follow-up (longer after a question back) and ends quietly if nobody speaks
@@ -122,12 +124,15 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         rec.value = r
         r.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
+                // a recogniser already let go (a newer turn, a limit, a press) says nothing more
+                if (rec.value !== r) return
                 val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
                 stop()
                 if (text.isEmpty()) { state = MicState.IDLE; end(DjTurn.END) } else heard(text)
             }
             // nothing said (no match, silence) ends the conversation quietly; anything else says so
             override fun onError(error: Int) {
+                if (rec.value !== r) return
                 // the on-device recogniser failed at once: the same turn again with the online one
                 if (!MicSpeech.onDeviceBroken && MicSpeech.retryOnline(error)) { MicSpeech.useOnline(ctx); listen(waitMs); return }
                 stop(); state = MicState.IDLE; end(DjTurn.END)
@@ -141,7 +146,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
             override fun onPartialResults(partialResults: Bundle?) {}
             override fun onEvent(eventType: Int, params: Bundle?) {}
         })
-        state = MicState.LISTENING
+        state = MicState.LISTENING; gate.listening(clock(), app.player.isPlaying)
         r.startListening(MicSpeech.intent(ctx))
         timing.recogniserReady()
         // nobody began speaking in the follow-up window: let go quietly
@@ -149,9 +154,22 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         if (waitMs > 0) Runnable { if (rec.value === r) { stop(); state = MicState.IDLE; end(DjTurn.END) } }.also { giveUp.value = it; handler.postDelayed(it, waitMs) }
     }
     listenRef = ::listen
+    // while it listens or thinks: lets go when the music starts again in a follow-up turn, or a limit passes
+    LaunchedEffect(state) {
+        if (state == MicState.IDLE) return@LaunchedEffect
+        while (true) {
+            delay(500)
+            if (gate.tick(clock(), app.player.isPlaying)) {
+                val music = app.player.isPlaying
+                stop(); state = MicState.IDLE; end(if (music) DjTurn.END_MUSIC_CHOSEN else DjTurn.END)
+                break
+            }
+        }
+    }
 
     // a conversation starts: the music pauses so the mic doesn't hear the song, then it listens
     fun begin() {
+        gate.ended(); gate.press(clock())
         conversing = true; turn = 0
         pausedByMic = app.player.isPlaying
         if (pausedByMic) app.player.pause()

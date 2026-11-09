@@ -43,7 +43,9 @@ const fakeRecogniser = () => {
     stop() { if (!this.running) return; this.running = false; (window as any).__listening = false; setTimeout(() => this.onend?.(), 10); }
     abort() { this.stop(); }
   }
+  // both names: newer Chromium has the unprefixed one too, and the page prefers it, so a stand-in under one name alone would be bypassed by the real recogniser
   (window as any).webkitSpeechRecognition = FakeRec;
+  (window as any).SpeechRecognition = FakeRec;
   (window as any).__said = null;
 };
 
@@ -106,7 +108,9 @@ test.describe.serial('talk to the DJ', () => {
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
     await page.screenshot({ path: 'test-results/shots/dj-ask-now-playing.png' });
 
-    // a control: pause
+    // a control: pause (once the new queue is really playing: a press while it is still loading would find nothing to pause, and the song would start after "pause")
+    await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 15_000 });
+    await page.waitForTimeout(1000);
     await page.evaluate(() => { (window as any).__said = 'pause'; });
     await mic.click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 10_000 });
@@ -135,6 +139,8 @@ test.describe.serial('talk to the DJ', () => {
     // nothing said: it stops and the song carries on
     await page.evaluate(() => { (window as any).__turns = ['']; (window as any).__starts = 0; });
     await mic.click();
+    // (it listened once, having paused the song first: only then is "Pause" again the song carrying on, and the next press a new conversation rather than the end of this one)
+    await expect.poll(() => page.evaluate(() => (window as any).__starts)).toBe(1);
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
 
@@ -206,7 +212,7 @@ test.describe.serial('talk to the DJ', () => {
     await newQueue(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-transport')).toBeVisible({ timeout: 20_000 });
-    await page.locator('.ls-dj').click({ button: 'right' });
+    await page.locator('.ls-transport .ls-dj').click({ button: 'right' });   // (the top bar has one too, shown on a phone only)
     await page.waitForURL(/\/settings#dj$/, { timeout: 15_000 });
     await expect(page.locator('.ls-transport')).toHaveCount(0, { timeout: 10_000 });
     await expect(page.locator('#dj')).toBeVisible();

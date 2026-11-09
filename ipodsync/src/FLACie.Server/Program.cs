@@ -173,6 +173,9 @@ RetroHost.Heartbeat = () => PlaybackActivity.Current?.Heartbeat();
 RetroHost.KnownCodec = t => FormatIndex.Current?.Get(t)?.Codec;
 builder.Services.AddSingleton<IDownloads>(sp => sp.GetRequiredService<DownloadManager>());
 builder.Services.AddSingleton<IPlayerClients>(sp => sp.GetRequiredService<ClientRegistry>());
+// each page's connection, so the dashboard lists only the pages open now
+builder.Services.AddScoped<CircuitPresence>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler, PresenceHandler>();
 AppHost.Server = true;
 AppHost.DevicePicker = typeof(FLACie.Server.Components.Shared.DevicePicker);
 builder.Services.AddScoped<PlayerState>();

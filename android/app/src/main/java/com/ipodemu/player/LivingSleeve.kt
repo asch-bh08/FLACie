@@ -400,7 +400,7 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         Box(Modifier.weight(1f).padding(end = 8.dp)) {
             SText(
                 SleeveText.where(t.album, t.trackNo, fallback),
-                Modifier.clip(RoundedCornerShape(14.dp)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp),
+                Modifier.clip(RoundedCornerShape(50)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp),
                 family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f,
             )
         }
@@ -439,8 +439,8 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
                     nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
                 }, size = 17f, weight = FontWeight.Bold)
                 val main = if (ai.hiRes) "Hi-Res" else ai.codec
-                if (main.isNotEmpty()) SleeveChip((main + if (ai.sampling.isNotEmpty()) " " + ai.sampling else "").uppercase(), if (ai.hiRes) p.main.value else p.tone.value, if (ai.hiRes) Color(DesignColour.readableOn(p.main.value.toArgb())) else p.toneFg.value)
-                SleeveChip(com.ipodemu.library.SourceLabel.line(t.source).uppercase(), Color(0x1FFFFFFF), InkDim)
+                if (main.isNotEmpty()) SleeveChip(main + if (ai.sampling.isNotEmpty()) " " + ai.sampling else "", if (ai.hiRes) p.main.value else p.tone.value, if (ai.hiRes) Color(DesignColour.readableOn(p.main.value.toArgb())) else p.toneFg.value)
+                SleeveChip(com.ipodemu.library.SourceLabel.line(t.source), Color(0x1FFFFFFF), InkDim)
             }
             DownloadTagLine(t, size = 13f, showNew = false)
         }
@@ -452,10 +452,10 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
     }
 }
 
-/** A small DM Mono chip: the file's format, or where it plays from. */
+/** A small round chip: the file's format, or where it plays from. A pill in the sans like every chip in the app (owner, 9 Nov: no boxy or mono chips). */
 @Composable
 private fun SleeveChip(text: String, bg: Color, fg: Color) {
-    SText(text, Modifier.clip(RoundedCornerShape(8.dp)).background(bg).padding(horizontal = 8.dp, vertical = 4.dp), family = SleeveFonts.mono, size = 11f, color = fg, spacing = .02f)
+    SText(text, Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 10.dp, vertical = 4.dp), size = 12f, weight = FontWeight.SemiBold, color = fg, spacing = .01f)
 }
 
 // ---- the ring: the song's loudness round the play button -----------------------------------------------------------------

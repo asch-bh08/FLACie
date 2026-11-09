@@ -1,7 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
-// Settings and the server pages in design I: serif page titles with the last word in italics, soft rounded cards, outlined chip sub-navs,
-// and no sideways scroll. The login page gets the same feel.
+// Settings and the server pages: serif page titles with the last word in italics, soft rounded cards, sub-navs as round pills in the sans face
+// (like Explore's tabs, design J), and no sideways scroll. The login page gets the same feel.
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -43,21 +43,23 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
       });
     }
 
-    test('Settings: rounded cards and outlined chip sub-nav', async ({ page }) => {
+    test('Settings: rounded cards and round pill sub-nav', async ({ page }) => {
       await openLive(page, '/settings');
       const card = page.locator('.sp .panel.set').first();
       await expect(card).toBeVisible({ timeout: 15_000 });
       expect(parseFloat(await card.evaluate((e) => getComputedStyle(e).borderTopLeftRadius))).toBeGreaterThanOrEqual(18);
       const chip = page.locator('.sp .subnav a').first();
-      expect(await chip.evaluate((e) => getComputedStyle(e).fontFamily)).toContain('DM Mono');
+      expect(await chip.evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Archivo');
+      // a full pill: the corner radius is at least half the height
+      expect(await chip.evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius) >= e.getBoundingClientRect().height / 2)).toBe(true);
       expect(await chip.evaluate((e) => getComputedStyle(e).backgroundColor)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
       expect(await page.locator('.sp .set-head h2').first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Instrument Serif');
     });
 
-    test('Dashboard: chip sub-nav in the mono face', async ({ page }) => {
+    test('Dashboard: pill sub-nav in the sans face', async ({ page }) => {
       await openLive(page, '/dashboard');
       await expect(page.locator('.sp h1').first()).toBeVisible({ timeout: 15_000 });
-      expect(await page.locator('.sp .subnav a').first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain('DM Mono');
+      expect(await page.locator('.sp .subnav a').first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Archivo');
     });
 
     test('Login: serif lede, rounded card, no sideways scroll', async ({ browser }) => {

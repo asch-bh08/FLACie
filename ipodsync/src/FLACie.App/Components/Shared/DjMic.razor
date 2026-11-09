@@ -29,6 +29,7 @@
     protected override async Task OnAfterRenderAsync(bool first)
     {
         if (!first) return;
+        Player.Changed += MusicChanged;
         try { supported = await MicJs.InvokeAsync<bool>("flacie.micAvailable"); } catch (Exception) { supported = false; }
         if (supported) StateHasChanged();
     }
@@ -52,10 +53,44 @@
     /// <summary>Listens for one turn. [waitMs]: how long to wait for the person to begin (0 on the first press, where the browser's own wait is used).</summary>
     async Task ListenAsync(int waitMs)
     {
+        // music playing again (a song asked for landed, or play was pressed) means the turn is over: the mic would only hear the song
+        if (turn > 0 && Player.Playing) { await EndAsync(DjTurn.EndMusicChosen); return; }
+        musicWas = Player.Playing;
         try { listening = await MicJs.InvokeAsync<bool>("flacie.micStart", me, waitMs, DjConversation.EndOfSpeechMs); }
         catch (Exception) { listening = false; }
         if (listening && !OnHeard.HasDelegate) Player.SetDjState(DjBarState.Listening);
         if (!listening) await EndAsync(DjTurn.End);
+        else _ = GiveUpAsync(++listenGen, waitMs);
+        StateHasChanged();
+    }
+
+    // owner, 9 Nov: the mic answered, the music came back, and it still said "listening" and took no press. The listening ends when the music plays,
+    // and in any case after the recogniser's own limit (15 s) and a margin, whatever the browser did or did not report.
+    int listenGen;
+    bool musicWas;
+    const int GiveUpMs = 20_000;
+
+    async Task GiveUpAsync(int gen, int waitMs)
+    {
+        await Task.Delay(GiveUpMs + waitMs);
+        await InvokeAsync(async () => { if (listening && listenGen == gen) await StopListeningAsync(DjTurn.End); });
+    }
+
+    // only the music starting during a later turn counts: on the first the press itself pauses the song, and its "playing" and "paused" can arrive
+    // in either order just then
+    void MusicChanged()
+    {
+        var started = Player.Playing && !musicWas;
+        musicWas = Player.Playing;
+        if (listening && started && turn > 0) _ = InvokeAsync(() => listening && Player.Playing ? StopListeningAsync(DjTurn.EndMusicChosen) : Task.CompletedTask);
+    }
+
+    async Task StopListeningAsync(DjTurn how)
+    {
+        listening = false; listenGen++;
+        try { await MicJs.InvokeVoidAsync("flacie.micAbort"); } catch (Exception) { }
+        if (Player.DjState == DjBarState.Listening) Player.SetDjState(DjBarState.None);
+        await EndAsync(how);
         StateHasChanged();
     }
 
@@ -90,7 +125,10 @@
         var asked = false;
         try
         {
-            var a = await Player.AskDjAsync(text);
+            // an answer that never comes must not leave the mic "thinking" and deaf to presses
+            var asking = Player.AskDjAsync(text);
+            if (await Task.WhenAny(asking, Task.Delay(30_000)) != asking) throw new TimeoutException();
+            var a = await asking;
             // said in the DJ's voice when it could be; otherwise the answer is shown
             // shown as words whenever there is no voice clip (the device's own voice may be silent or missing), the clip's words show in the DJ bar
             if (a is { Say.Length: > 0, Clip: null }) Toast.Show(a.Say);
@@ -113,6 +151,7 @@
 
     public async ValueTask DisposeAsync()
     {
+        Player.Changed -= MusicChanged;
         if (listening) { try { await MicJs.InvokeVoidAsync("flacie.micStop"); } catch (Exception) { } }
         me?.Dispose();
     }

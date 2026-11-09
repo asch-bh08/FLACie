@@ -13,8 +13,9 @@ public static class MadeEndpoints
     public static void MapMade(this WebApplication app)
     {
         // the web's Search lists for the phone (6 Nov): with outside playlists on, the same lists the web shows (kind=playlists, genre and decade as its
-        // Playlists filter); otherwise, or when the sources fail, our own as before
-        app.MapGet("/api/made", async (HttpContext ctx, string? q, string? kind, string? genre, string? decade, SessionStore store, JellyfinClient jf, ListenLogStore log) =>
+        // Playlists filter); otherwise, or when the sources fail, our own as before. quick=1: only the lists saved already, at once (the phone asks
+        // that first and the full answer after, owner 9 Nov)
+        app.MapGet("/api/made", async (HttpContext ctx, string? q, string? kind, string? genre, string? decade, string? quick, SessionStore store, JellyfinClient jf, ListenLogStore log) =>
         {
             var s = await ApiEndpoints.CallerAsync(ctx, store, jf);
             var own = Lists(s, log);
@@ -24,7 +25,7 @@ public static class MadeEndpoints
                 {
                     var filter = kind == "playlists" || !string.IsNullOrWhiteSpace(genre) || !string.IsNullOrWhiteSpace(decade);
                     var got = filter ? await w.ForFilterAsync(s, q!.Trim(), string.IsNullOrWhiteSpace(genre) ? null : genre, ctx.RequestAborted, string.IsNullOrWhiteSpace(decade) ? null : decade)
-                        : await w.ForSearchAsync(s, q!.Trim(), ctx.RequestAborted);
+                        : await w.ForSearchAsync(s, q!.Trim(), ctx.RequestAborted, quick == "1");
                     return WebListsApi.Lists(s, got, own);
                 }
                 catch (Exception e) when (e is not OperationCanceledException) { }

@@ -87,7 +87,7 @@ public class DjClearTests : IDisposable
         var file = DjPronounceCheck.FileIn(dir);
         Assert.Null(DjPronounceCheck.Heard(file, "aura-1:helios")["Moby"]);
         Assert.Equal("Moe-bee", DjPronounceCheck.Heard(file, "aura-1:athena")["Moby"]);
-        Assert.Empty(DjPronounceCheck.Heard(file, "melotts"));
+        Assert.Empty(DjPronounceCheck.Heard(file, "aura-2:aries"));
         var saved = JsonSerializer.Deserialize<DjPronounceFile>(File.ReadAllText(file))!;
         Assert.Equal(2, saved.Voices.Count);
     }

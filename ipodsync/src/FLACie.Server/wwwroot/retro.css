@@ -512,7 +512,9 @@
 .dm-lid.open { transform: perspective(110cqh) rotateX(-112deg); background: linear-gradient(#6c7078, #3c3f45); }
 .dm-lid.open .ring, .dm-lid.open .dm-brand { opacity: 0; }
 /* the front edge: the backlit segment LCD and the keys */
-.dm-front { position: absolute; left: 6%; right: 6%; bottom: 4%; height: 13.5%; display: flex; align-items: center; gap: 3%; z-index: 3; }
+/* the screen and keys stay well inside the body's rounded corners: at 6% in and 4% up the screen's corner sat on the bevelled edge and looked as if it
+   hung off it (owner, 9 Nov) */
+.dm-front { position: absolute; left: 12%; right: 12%; bottom: 7%; height: 13.5%; display: flex; align-items: center; gap: 3%; z-index: 3; }
 .dm-lcd { position: relative; flex: 0 0 38%; height: 100%; border-radius: 1.4cqw; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; align-content: center; align-items: end; column-gap: 7%; row-gap: .5cqw; padding: 0 6%; box-sizing: border-box;
   background: linear-gradient(#b9e3c4, #96cfa6); box-shadow: inset 0 .3cqh .6cqh rgba(0,40,10,.35), inset 0 0 0 .2cqh rgba(0,0,0,.25), 0 0 1.6cqh rgba(150,230,170,.35); color: #142a18; overflow: hidden; }
 .dm-lcd .cdtext { grid-column: 1 / -1; grid-row: 1; min-width: 0; overflow: hidden; white-space: nowrap; font: 700 1.9cqw/1.15 "Dot Matrix", "Consolas", monospace; letter-spacing: .06em; text-transform: uppercase; }

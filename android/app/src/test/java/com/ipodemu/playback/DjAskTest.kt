@@ -44,10 +44,19 @@ class DjAskTest {
 
     @Test fun songsAreFoundByPathThenFileThenTitle() {
         val s = DjAskSong("/server/a.flac", "/media/a.flac", "Smack That", "Akon")
-        assertEquals("p", DjAskRunner.resolve(s, { if (it == "/server/a.flac") "p" else null }, { "f" }, { _, _ -> "t" }))
-        assertEquals("f", DjAskRunner.resolve(s, { null }, { if (it == "/media/a.flac") "f" else null }, { _, _ -> "t" }))
-        assertEquals("t", DjAskRunner.resolve(s, { null }, { null }, { t, a -> if (t == "Smack That" && a == "Akon") "t" else null }))
-        assertNull(DjAskRunner.resolve(DjAskSong("/x"), { null }, { "f" }, { _, _ -> "t" }))
+        assertEquals("p", DjAskRunner.resolve(s, { if (it == "/server/a.flac") "p" else null }, { "f" }, { _, _, _ -> "t" }))
+        assertEquals("f", DjAskRunner.resolve(s, { null }, { if (it == "/media/a.flac") "f" else null }, { _, _, _ -> "t" }))
+        assertEquals("t", DjAskRunner.resolve(s, { null }, { null }, { t, a, _ -> if (t == "Smack That" && a == "Akon") "t" else null }))
+        assertNull(DjAskRunner.resolve(DjAskSong("/x"), { null }, { "f" }, { _, _, _ -> "t" }))
+    }
+
+    // owner, 9 Nov: "Out of Space" on the album and on "Live at Brixton" share title and artist; the album the server sent picks the right copy
+    @Test fun theAlbumTellsSameNamedVersionsApart() {
+        val a = DjAskAnswer.parse("""{"do":"play","say":"x","paths":["/s/live"],"songs":[{"path":"/s/live","title":"Out of Space","artist":"The Prodigy","album":"Live at Brixton"}]}""")
+        val s = a.songs.single()
+        assertEquals("Live at Brixton", s.album)
+        val copies = mapOf("Experience" to "album", "Live at Brixton" to "live")
+        assertEquals("live", DjAskRunner.resolve(s, { null }, { null }, { _, _, al -> copies[al] }))
     }
 
     @Test fun theBodyCarriesOnlyTheWords() {

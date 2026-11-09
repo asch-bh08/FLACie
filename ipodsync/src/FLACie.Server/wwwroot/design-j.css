@@ -7,15 +7,16 @@
   --j-spring: cubic-bezier(.34, 1.56, .64, 1);
 }
 
-/* ---- pages come in: a short rise and fade when a page opens (once; Blazor puts the page's first element in afresh on each route) ---- */
+/* ---- pages come in: a short rise and fade when a page opens (once; Blazor puts the page's first element in afresh on each route). Only 'backwards':
+   a transform left on the page after it ends would trap its menus under later parts of the page ---- */
 @keyframes j-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-main.content > :first-child { animation: j-in .32s var(--j-ease) both; }
-main.content > :nth-child(2) { animation: j-in .32s var(--j-ease) .04s both; }
-main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s both; }
+main.content > :first-child { animation: j-in .32s var(--j-ease) backwards; }
+main.content > :nth-child(2) { animation: j-in .32s var(--j-ease) .04s backwards; }
+main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards; }
 
 /* ---- rows and cards: they flow in as a list fills, a few at a time, then settle ---- */
 @keyframes j-row { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-.tracks > li:nth-child(-n+12), .grid > .card:nth-child(-n+18), .q-item:nth-child(-n+10) { animation: j-row .28s var(--j-ease) both; }
+.tracks > li:nth-child(-n+12), .grid > .card:nth-child(-n+18), .q-item:nth-child(-n+10) { animation: j-row .28s var(--j-ease) backwards; }
 .tracks > li:nth-child(2), .grid > .card:nth-child(2), .q-item:nth-child(2) { animation-delay: .02s; }
 .tracks > li:nth-child(3), .grid > .card:nth-child(3), .q-item:nth-child(3) { animation-delay: .04s; }
 .tracks > li:nth-child(4), .grid > .card:nth-child(4), .q-item:nth-child(4) { animation-delay: .06s; }
@@ -43,10 +44,6 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s both; }
 /* ---- Home: before anything has been played there is no cover behind the greeting, so the hero is only as tall as its words ---- */
 .home-hero:not(:has(.home-hero-art)) { min-height: 0; padding-top: 64px; }
 
-/* ---- song rows: the quality badge says what matters; where the song plays from is quieter until you look at the row ---- */
-.track .badge:not(.fmt):not(.cloud) { opacity: .55; transition: opacity .18s; }
-.track:hover .badge:not(.fmt):not(.cloud), .track:focus-within .badge:not(.fmt):not(.cloud) { opacity: 1; }
-
 /* ---- Up next: a row shows its four arrange buttons only when you point at it or tab to it (fewer icons at once); on a touch screen they stay ---- */
 @media (hover: hover) and (pointer: fine) {
   .q-item .q-edit { opacity: 0; transition: opacity .16s; }
@@ -63,6 +60,9 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s both; }
 .pl-new input { width: 100%; min-width: 0; box-sizing: border-box; height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .pl-new .btn { justify-self: start; }
 
+/* Settings → Animations off, or a computer asking for less motion: nothing comes in, lifts or springs */
+:root.pref-calm main.content > *, :root.pref-calm .tracks > li, :root.pref-calm .grid > .card, :root.pref-calm .q-item { animation: none !important; }
+:root.pref-calm .grid > .card:hover .cover, :root.pref-calm .grid > .card:hover > img { transform: none; }
 @media (prefers-reduced-motion: reduce) {
   main.content > *, .tracks > li, .grid > .card, .q-item { animation: none !important; }
   .grid > .card .cover, .grid > .card img { transition: none; }

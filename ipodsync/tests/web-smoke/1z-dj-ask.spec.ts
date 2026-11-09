@@ -137,6 +137,8 @@ test.describe.serial('talk to the DJ', () => {
     // nothing said: it stops and the song carries on
     await page.evaluate(() => { (window as any).__turns = ['']; (window as any).__starts = 0; });
     await mic.click();
+    // (it listened once, having paused the song first: only then is "Pause" again the song carrying on, and the next press a new conversation rather than the end of this one)
+    await expect.poll(() => page.evaluate(() => (window as any).__starts)).toBe(1);
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 10_000 });
     await expect(mic).toHaveAttribute('aria-pressed', 'false');
 

@@ -26,7 +26,7 @@ public class DjServiceTests : IDisposable
         var paths = new DataPaths(dir); var dp = DataProtectionProvider.Create(new DirectoryInfo(Path.Combine(dir, "keys")));
         var h = new DjVoiceTests.Handler(f ?? (_ => Task.FromResult(DjVoiceTests.Audio())));
         var v = new CloudflareVoice(paths, new DjVoiceTests.Factory(h), dp, new ConfigurationBuilder().Build(), new DjVoiceTests.Lines<CloudflareVoice>(), () => now);
-        if (voice) v.Save(new DjVoiceConfig { AccountId = Account, CapPercent = cap, Voice = CloudflareVoice.MeloTts }, "cf_fake_token");
+        if (voice) v.Save(new DjVoiceConfig { AccountId = Account, CapPercent = cap, Voice = CloudflareVoice.DefaultVoice }, "cf_fake_token");
         var clips = new DjClips(paths, v, new DjVoiceTests.Lines<DjClips>(), () => now);
         var states = new UserStateStore(paths, dp);
         return new(new DjService(states, v, clips, paths, new DjVoiceTests.Lines<DjService>(), () => now), v, clips, h, states);
@@ -116,7 +116,7 @@ public class DjServiceTests : IDisposable
         Assert.Equal(Path.Combine(dir, "dj-clips"), Path.GetDirectoryName(path));
         Assert.Equal(DjVoiceTests.Audio().Content.ReadAsByteArrayAsync().Result, File.ReadAllBytes(path));
         var (_, _, body) = Assert.Single(r.Http.Seen);
-        Assert.Equal(cue.Text, JsonDocument.Parse(body).RootElement.GetProperty("prompt").GetString());   // the spoken form goes to Cloudflare
+        Assert.Equal(cue.Text, JsonDocument.Parse(body).RootElement.GetProperty("text").GetString());   // the spoken form goes to Cloudflare
         Assert.Equal(cue, await r.Dj.PrepareAsync(me, new DjRequest(DjSurface.Phone, B, A)));
         Assert.Equal(IdOf(cue.ClipUrl), r.Clips.Request(cue.Text));   // the same words in the same voice: the file already there
         Assert.Single(r.Http.Seen);
@@ -203,7 +203,7 @@ public class DjServiceTests : IDisposable
         var (clip, _) = await r.Dj.TestAsync();
         Assert.NotNull(clip);
         Assert.NotNull(await r.Clips.WaitAsync(IdOf(clip), TimeSpan.FromSeconds(1)));
-        var prompt = JsonDocument.Parse(Assert.Single(r.Http.Seen).Body).RootElement.GetProperty("prompt").GetString();
+        var prompt = JsonDocument.Parse(Assert.Single(r.Http.Seen).Body).RootElement.GetProperty("text").GetString();
         Assert.Equal("This is the Flacky DJ. Here's a test line.", prompt);
         await r.Dj.TestAsync();
         Assert.Equal(2, r.Http.Seen.Count);   // a test always asks Cloudflare, even for a clip already made
@@ -215,11 +215,11 @@ public class DjServiceTests : IDisposable
     public async Task A_voice_sample_is_the_sample_line_and_is_made_only_once_per_voice()
     {
         var r = Make();
-        var (clip, _) = await r.Dj.TestAsync(default, "melotts");
+        var (clip, _) = await r.Dj.TestAsync(default, "aura-1:luna");
         Assert.NotNull(clip);
-        var prompt = JsonDocument.Parse(Assert.Single(r.Http.Seen).Body).RootElement.GetProperty("prompt").GetString();
+        var prompt = JsonDocument.Parse(Assert.Single(r.Http.Seen).Body).RootElement.GetProperty("text").GetString();
         Assert.Equal(DjService.SampleLine, prompt);
-        var (again, msg) = await r.Dj.TestAsync(default, "melotts");
+        var (again, msg) = await r.Dj.TestAsync(default, "aura-1:luna");
         Assert.Equal(clip, again);
         Assert.Single(r.Http.Seen);   // kept: no second call
         Assert.Contains("kept", msg);
@@ -230,7 +230,7 @@ public class DjServiceTests : IDisposable
     public async Task Voice_samples_still_work_when_the_djs_share_is_used_up()
     {
         var r = Make(cap: 0);
-        var (clip, why) = await r.Dj.TestAsync(default, "melotts");
+        var (clip, why) = await r.Dj.TestAsync(default, "aura-1:luna");
         Assert.NotNull(clip);
         var (none, _) = await r.Dj.TestAsync();
         Assert.Null(none);   // the DJ's own Test stays within the DJ's share
@@ -267,11 +267,11 @@ public class DjServiceTests : IDisposable
     [Fact]
     public void Clip_ids_are_a_hash_of_the_voice_and_the_words()
     {
-        var a = DjClips.IdOf("melotts", "Here's Yellow by Coldplay.");
+        var a = DjClips.IdOf("aura-1:luna", "Here's Yellow by Coldplay.");
         Assert.True(DjClips.IsId(a));
-        Assert.Equal(a, DjClips.IdOf("MeloTTS", "Here's Yellow by Coldplay."));
-        Assert.NotEqual(a, DjClips.IdOf("aura-1:luna", "Here's Yellow by Coldplay."));
-        Assert.NotEqual(a, DjClips.IdOf("melotts", "Here's Yellow by Coldplay"));
+        Assert.Equal(a, DjClips.IdOf("Aura-1:Luna", "Here's Yellow by Coldplay."));
+        Assert.NotEqual(a, DjClips.IdOf("aura-2:aries", "Here's Yellow by Coldplay."));
+        Assert.NotEqual(a, DjClips.IdOf("aura-1:luna", "Here's Yellow by Coldplay"));
         Assert.False(DjClips.IsId("../../keys/key.xml"));
     }
 }

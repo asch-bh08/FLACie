@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 Cloud (later): MeloTTS retired (before 20 Nov)
+- Done: `CloudflareVoice` has no MeloTTS: unknown voices fall back to Aura-1 Helios (`NormVoice`); `ConfigVersion` 3 moves a saved "melotts" once (old default or chosen) to `kokoro:am_liam` when Kokoro's /healthz says "ok" on this server (1.5 s), else to Aura-1 Helios, and writes dj.json. Dashboard: MeloTTS gone from the Voice picker and the test buttons. MeloTTS-only branches dropped in DjClips/DjService. `@cf/qwen/qwq-32b` removed from `DjBudget.Weighed`. 7 test files updated + new migration tests; server 1994/1994.
+- Ready to ship with the next web deploy. After deploy, check frank's dj.json voice and the log line "DJ voice settings moved to version 3".
+
 ## 2026-11-09 Cloud (taking over from Local, branch claude/exciting-ride-2qa9ry from ui/living-sleeve 9b9fc19)
 - A done: DJ "play Out of Space by the Prodigy" picks the album version. `DjPick.VersionRank` (album 0 < edit < live < remix < demo, from title brackets/" - " note and album name) ranks first, before plays; versions grouped by `DjPick.VersionKey` (brackets and " - " dropped); an artist-named ask is ranked too (it used to take the matcher's first hit and keep nothing for "the other one"). "The other one" says which: "Here's the live version of Out of Space, by The Prodigy."
 - Phone: answers now carry each song's album; `DjAskSong.album`, `Library.findSong(title, artist, album)` picks the copy on that album (the live and album "Out of Space" share title+artist). NOT BUILT here (no Android SDK): Local, please run :app:testDebugUnitTest (DjAskTest.theAlbumTellsSameNamedVersionsApart).

@@ -95,7 +95,7 @@ public class DjSilentTests : IDisposable
         Assert.False(r.Voice.Failing);
         fail = false;
         Assert.NotNull(await r.Clips.WaitAsync(r.Clips.Request("Another line.")!, TimeSpan.FromSeconds(10)));
-        Assert.DoesNotContain(r.Http.Seen, s => s.Url.Contains("melotts"));
+        Assert.DoesNotContain(r.Http.Seen, s => !s.Url.Contains("aura-1"));
     }
 
     [Fact]
@@ -118,11 +118,26 @@ public class DjSilentTests : IDisposable
         Assert.Equal(CloudflareVoice.DefaultVoice, disk.Voice); Assert.Equal(CloudflareVoice.ConfigVersion, disk.Version);
         Assert.Equal("abc", disk.AccountId);
         Assert.EndsWith(DjClips.IdOf(CloudflareVoice.DefaultVoice, "Coming up,") + ".mp3", r.Clips.PathOf("Coming up,"));
-        // MeloTTS chosen on the dashboard since (Version 2) stays MeloTTS
-        var picked = r.Voice.Current; picked.Voice = CloudflareVoice.MeloTts; r.Voice.Save(picked, null);
-        var again = Make(_ => Ok(), save: false);
-        Assert.Equal(CloudflareVoice.MeloTts, again.Voice.Current.Voice);
-        Assert.Contains("\"melotts\"", File.ReadAllText(Path.Combine(dir, "dj.json")));
+    }
+
+    // Cloudflare retires MeloTTS on 20 Nov 2026: a MeloTTS picked on the Dashboard on purpose (a Version 2 file) moves too, to FLACie's own voice
+    // when Kokoro answers on this server, else to the default Aura voice; once, written to disk
+    [Theory]
+    [InlineData(true, "kokoro:am_liam")]
+    [InlineData(false, CloudflareVoice.DefaultVoice)]
+    public void A_chosen_melotts_moves_to_kokoro_when_it_answers_else_to_Aura(bool kokoroUp, string want)
+    {
+        File.WriteAllText(Path.Combine(dir, "dj.json"), """{"AccountId":"abc","Token":"","Voice":"melotts","CapPercent":50,"Version":2}""");
+        var r = Make(q => q.RequestUri!.AbsolutePath == "/healthz"
+            ? Task.FromResult(kokoroUp ? new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent("ok") } : new HttpResponseMessage(System.Net.HttpStatusCode.NotFound))
+            : Ok(), save: false);
+        Assert.Equal(want, r.Voice.Current.Voice);
+        var disk = JsonSerializer.Deserialize<DjVoiceConfig>(File.ReadAllText(Path.Combine(dir, "dj.json")))!;
+        Assert.Equal(want, disk.Voice); Assert.Equal(CloudflareVoice.ConfigVersion, disk.Version);
+        Assert.DoesNotContain("melotts", File.ReadAllText(Path.Combine(dir, "dj.json")));
+        // and saving "melotts" now can only give the default voice
+        var c = r.Voice.Current; c.Voice = "melotts"; r.Voice.Save(c, null);
+        Assert.Equal(CloudflareVoice.DefaultVoice, r.Voice.Current.Voice);
     }
 
     // ---- not said: the reason is logged ----

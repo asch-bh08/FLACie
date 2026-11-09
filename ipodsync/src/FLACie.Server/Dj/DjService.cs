@@ -184,7 +184,7 @@ public sealed class DjService : IDjService
         try { line = Decide(s, st, req, extra, out key, out mem); }
         catch (Exception e) { log.LogWarning("DJ line not written: {Kind}", e.GetType().Name); return null; }
         if (line is null) return null;
-        if (WarmPool && voice.Ready && voice.Current.Voice is var v && v != CloudflareVoice.MeloTts && warmed.TryAdd(v + "\n" + st.Style, true))
+        if (WarmPool && voice.Ready && voice.Current.Voice is var v && warmed.TryAdd(v + "\n" + st.Style, true))
             _ = Task.Run(() => clips.WarmAsync(DjPool.All(st.Style)));
         // a new line can cost a text-model call and a voice call: one runaway client (or a stolen session) asking about song after song must not spend the
         // day's DJ allowance for everyone, so past the account's "dj" limit a minute the DJ stays quiet. An answer already decided is given again for free.
@@ -235,7 +235,7 @@ public sealed class DjService : IDjService
     {
         var c = voice.Current;
         var ai = AiLines && c.AiLines && voice.Ready;
-        if (c.Voice != CloudflareVoice.MeloTts && !CloudflareVoice.IsKokoro(c.Voice) && voice.Ready && line.Parts is { Count: > 0 } parts && line.PooledCaption is { } pc)
+        if (!CloudflareVoice.IsKokoro(c.Voice) && voice.Ready && line.Parts is { Count: > 0 } parts && line.PooledCaption is { } pc)
         {
             var whole = CloudflareVoice.EstimateNeurons(c.Voice, ai ? new string('x', DjBudget.WholeChars) : line.Text)
                 + (ai ? DjModels.Primary.Cost(DjBudget.PromptTokens, DjBudget.MaxTokens) : 0);

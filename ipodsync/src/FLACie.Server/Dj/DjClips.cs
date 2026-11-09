@@ -96,12 +96,12 @@ public sealed class DjClips
 
     /// <summary>
     /// The id of the pooled line made of [parts] (in the saved Aura voice), joining the parts' clips in the background and making only the parts not made yet;
-    /// null when there is no Aura voice (MeloTTS lines are cheap enough to say whole), the missing parts do not fit under today's cap, or it failed lately.
+    /// null when there are no parts, the missing parts do not fit under today's cap, or it failed lately.
     /// </summary>
     public string? RequestPooled(IReadOnlyList<DjPart> parts, string owner)
     {
         var v = voice.Current.Voice;
-        if (v == CloudflareVoice.MeloTts || parts.Count == 0) return null;
+        if (parts.Count == 0) return null;
         var ids = parts.Select(p => PartId(v, p, owner)).ToList();
         var id = PooledId(v, ids);
         if (Failed(id)) return null;
@@ -136,7 +136,7 @@ public sealed class DjClips
     public string? CachedPooled(IReadOnlyList<DjPart> parts, string owner)
     {
         var v = voice.Current.Voice;
-        if (v == CloudflareVoice.MeloTts || parts.Count == 0) return null;
+        if (parts.Count == 0) return null;
         var ids = parts.Select(p => PartId(v, p, owner)).ToList();
         var id = PooledId(v, ids);
         if (Have(id)) return id;
@@ -159,7 +159,7 @@ public sealed class DjClips
     public async Task<int> WarmAsync(IEnumerable<string> phrases)
     {
         var v = voice.Current.Voice;
-        if (v == CloudflareVoice.MeloTts || !voice.Ready) return 0;
+        if (!voice.Ready) return 0;
         var made = 0;
         foreach (var p in phrases.Distinct())
         {

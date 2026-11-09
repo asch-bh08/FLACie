@@ -306,7 +306,6 @@ else
                         <option value="@("aura-1:" + spk)">Aura-1 · @SpeakerName(spk)@(("aura-1:" + spk) == FLACie.Server.Dj.CloudflareVoice.DefaultVoice ? " (default)" : "")</option>
                     }
                 </optgroup>
-                <option value="@FLACie.Server.Dj.CloudflareVoice.MeloTts">MeloTTS (plainer, thousands of lines a day free)</option>
             </select>
             <label for="djc">Daily cap <span class="opt">(% of the 10,000 free neurons a day the DJ may use; near it the DJ keeps to the chosen voice: lines already made are said again, and new ones wait for tomorrow)</span></label><input id="djc" type="number" min="0" max="100" @bind="djCfg.CapPercent" />
             <label class="check"><input type="checkbox" @bind="djCfg.AiLines" /> Write the lines with Workers AI (Llama 3.1 8B, about 15 neurons a line); off, or when it fails: the built-in lines</label>
@@ -338,12 +337,12 @@ else
                     <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting">@Voice2Name(spk)</button>
                 }
             </div>
-            <h3>Aura-1 and MeloTTS</h3>
+            <h3>Aura-1</h3>
             <div class="row-actions">
-                @foreach (var v in new[] { FLACie.Server.Dj.CloudflareVoice.MeloTts }.Concat(FLACie.Server.Dj.CloudflareVoice.Speakers.Select(x => "aura-1:" + x)))
+                @foreach (var v in FLACie.Server.Dj.CloudflareVoice.Speakers.Select(x => "aura-1:" + x))
                 {
                     var voiceId = v;
-                    <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting">@(voiceId == FLACie.Server.Dj.CloudflareVoice.MeloTts ? "MeloTTS" : SpeakerName(voiceId[7..]))</button>
+                    <button class="btn" @onclick="() => TestDj(voiceId)" disabled="@djTesting">@SpeakerName(voiceId[7..])</button>
                 }
             </div>
             <p>To use one: pick it under Voice above and press Save.</p>

@@ -24,7 +24,7 @@ public sealed class DjPronounce
         new("deadmau5", Kind.Artist, "dead mouse", "dˈɛd mˈaʊs"),
         new("Sia", Kind.Artist, "See-a", "sˈiːə"),
         new("Dvořák", Kind.Word, "Dvor-zhak", "dvˈɔːɹʒɑːk"),
-        // respelt for the Workers AI voices (Aura-1 and MeloTTS read hyphenated syllables one by one); tune by ear on the dashboard's Test
+        // respelt for the Workers AI voices (Aura-1 reads hyphenated syllables one by one); tune by ear on the dashboard's Test
         new("Sigur Ros", Kind.Artist, "Siggur Rose", "sˈɪɡɚ ɹˈoʊs"),
         new("Beyonce", Kind.Artist, "Bee-yon-say", "biːjˈɑːnseɪ"),
         new("Eminem", Kind.Artist, "Em-in-em", "ˈɛmɪnˌɛm"),

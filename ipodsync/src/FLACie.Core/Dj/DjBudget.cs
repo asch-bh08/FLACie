@@ -22,7 +22,6 @@ public static class DjModels
         new("@cf/mistralai/mistral-small-3.1-24b-instruct", 31_876, 50_488),
         new("@cf/google/gemma-3-12b-it", 31_371, 50_560),
         new("@cf/meta/llama-4-scout-17b-16e-instruct", 24_545, 77_273),
-        new("@cf/qwen/qwq-32b", 60_000, 90_909),
     ];
 }
 

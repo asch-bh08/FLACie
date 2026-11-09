@@ -6,8 +6,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -1238,7 +1236,7 @@ private fun PlaylistsGrid(nav: PlayerNav) {
             item(key = "favs") {
                 PlaylistCard("Favourites", songCount(ud.favorites.size), null, Modifier.entranceRise(entrance, 1), heart = true) { nav.push(Screen.Detail(DetailKind.FAVORITES)) }
             }
-            androidx.compose.foundation.lazy.grid.itemsIndexed(shownPlaylists(app), key = { _, p -> p.id }) { i, p ->
+            gridItemsIndexed(shownPlaylists(app), key = { _, p -> p.id }) { i, p ->
                 val by = lib.byPath()
                 val keys = p.paths.asSequence().take(20).mapNotNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }.toList()
                 // a cover already on disk, else one a server can supply; a local key with no file behind it shows nothing

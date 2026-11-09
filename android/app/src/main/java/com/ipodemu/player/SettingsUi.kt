@@ -128,7 +128,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             // DM Mono hint, in the web's order: Playback, Music sources, Look and feel, then what only the phone has, Account and About
             if (!dashboard) {
                 item(key = "subnav") {
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // the section chips wrap onto a second line rather than run off the right edge ("Account" was cut in half on a phone; owner, 9 Nov:
+                    // nothing may hang off its container)
+                    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
                         if (canAdmin) DesignChip("Server admin", false, { nav.push(Screen.Dashboard) }, icon = Glyph.GEAR)
@@ -211,7 +214,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                                 save(org.json.JSONObject().put("firstSong", !dj.firstSong), dj.copy(firstSong = !dj.firstSong))
                             }
                             MonoLabel("Where", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
-                            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {   // wraps, never runs off the edge
                                 val all = dj.phone && dj.auto && dj.web && dj.windows
                                 DesignChip("Everywhere", dj.enabled && all, { where(true, true, true, true) })
                                 DesignChip("Only in the car", dj.enabled && dj.auto && !dj.phone && !dj.web && !dj.windows, { where(false, true, false, false) })
@@ -491,12 +494,15 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     }
 }
 
-/** A Settings section as the web draws it: one rounded panel with a serif heading and a DM Mono hint, the rows inside. */
+/**
+ * A Settings section as the web draws it: one rounded card with a serif heading and a one-line hint, the rows inside. The hint is a sentence, so it
+ * is in the sans (owner, 9 Nov: plain sentences in the sans, mono only for short labels and numbers).
+ */
 @Composable
 internal fun SetPanel(title: String, hint: String?, content: @Composable () -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(20.dp)).padding(vertical = 14.dp)) {
         SerifTitle(title, Modifier.padding(horizontal = 16.dp), size = 26f)
-        if (hint != null) MonoLabel(hint, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp), size = 10.5f, upper = false, maxLines = 4)
+        if (hint != null) Txt(hint, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp), size = 13.5f, color = LocalScheme.current.onBgDim, maxLines = 6)
         content()
     }
 }

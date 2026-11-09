@@ -76,6 +76,24 @@
 .sp .panel, .sp .admin-block { box-sizing: border-box; }
 .sp .panel.set .switch-row, .sp .switch-row { min-height: 44px; box-sizing: border-box; }
 
+/* ---- wide screens: the cards fill the width in two columns instead of one narrow column on the left ---- */
+@media (min-width: 1280px) {
+  .sp { max-width: 1400px; }
+  /* Settings and Server admin: the title, sub-nav, finder and the full-width admin blocks run across the page; the setting cards
+     flow down two balanced columns in their usual order, each card kept whole */
+  .sp:has(> #playback), .sp:has(> #notify) { columns: 2; column-gap: 20px; }
+  .sp:has(> #playback) > *, .sp:has(> #notify) > * { column-span: all; }
+  .sp:has(> #playback) > .panel.set, .sp:has(> #notify) > .panel.set {
+    column-span: none; break-inside: avoid; display: flex; width: 100%; max-width: none; margin: 0 0 20px;
+  }
+  /* Account: the name and the numbers across the top, Connected and Shortcuts side by side */
+  .sp:has(> .acct-hero) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 20px; align-items: start; }
+  .sp:has(> .acct-hero) > * { grid-column: 1 / -1; max-width: none; }
+  .sp:has(> .acct-hero) > .panel { grid-column: auto; }
+  /* Devices: the "no other device" card a comfortable reading width rather than a narrow box */
+  .sp:has(> .dev-grid) > .panel { max-width: 820px; }
+}
+
 /* ---- the Headphone test's tabs: the same pills as above, a little apart ---- */
 .hp .hp-tabs { gap: 8px; }
 

@@ -515,7 +515,7 @@ window.flacie = (() => {
   // (8 s on a first press): it lets go quietly. Never more than 15 s. The recording is sent once and not kept.
   const micRecord = (ref, waitMs, quietMs) => {
     if (!micCanRecord()) return false;
-    if (micRec) { try { micRec.abort(); } catch { } }
+    if (micRec) { micRec._gone = true; try { micRec.abort(); } catch { } }
     let stream = null, rec = null, ctx = null, poll = 0, cancelled = false, finished = false, spoke = false, lastLoud = 0, t0 = 0;
     const chunks = [];
     const release = () => {
@@ -532,15 +532,19 @@ window.flacie = (() => {
     };
     const done = async () => {
       release();
+      if (me._gone) return;
       if (cancelled || !chunks.length) { ref.invokeMethodAsync("Ended").catch(() => { }); return; }
       const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
       try {
         const r = await fetch("/api/dj/hear", { method: "POST", credentials: "same-origin", body: blob,
-          headers: { "Content-Type": blob.type, "X-Seconds": ((performance.now() - t0) / 1000).toFixed(1) } });
+          headers: { "Content-Type": blob.type, "X-Seconds": ((performance.now() - t0) / 1000).toFixed(1) },
+          // a writing-down that never answers must not leave the mic on "listening"
+          signal: window.AbortSignal && AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined });
         const j = r.ok ? await r.json() : null;
+        if (me._gone) return;
         if (j && j.text && j.text.trim()) { ref.invokeMethodAsync("Heard", j.text.trim()).catch(() => { }); return; }
       } catch { }
-      ref.invokeMethodAsync("Ended").catch(() => { });
+      if (!me._gone) ref.invokeMethodAsync("Ended").catch(() => { });
     };
     const me = { stop: () => finish(true), abort: () => finish(false) };
     micRec = me;
@@ -1598,15 +1602,18 @@ window.flacie = (() => {
       // Brave's recogniser never works (its service is off): straight to recording, or the first words were lost while it failed (owner, 5 Nov)
       let recorderOnly = !!navigator.brave; try { recorderOnly = recorderOnly || localStorage.getItem("flacie.micRecord") === "1"; } catch { }
       if (!R || recorderOnly) return micRecord(ref, waitMs, quietMs);
-      if (micRec) { try { micRec.abort(); } catch { } }
+      // an older session that is still closing says nothing more: its "Ended" used to end the new one (owner, 9 Nov: the mic stuck on "listening")
+      if (micRec) { micRec._gone = true; try { micRec.abort(); } catch { } }
       const rec = new R(); micRec = rec;
       rec.lang = navigator.language || "en-GB"; rec.continuous = true; rec.interimResults = true; rec.maxAlternatives = 1;
-      let said = false, text = "", waitT = 0, quietT = 0;
-      const clear = () => { clearTimeout(waitT); clearTimeout(quietT); };
+      let said = false, text = "", waitT = 0, quietT = 0, ended = false;
+      // never more than 15 s, like the recorder: a recogniser left open while music plays hears words with no pause and never let go (owner, 9 Nov)
+      const capT = setTimeout(() => { if (!said) { rec._gone = true; try { rec.abort(); } catch { } if (micRec === rec) micRec = null; clear(); ended = true; ref.invokeMethodAsync("Ended").catch(() => { }); } }, 15000);
+      const clear = () => { clearTimeout(waitT); clearTimeout(quietT); clearTimeout(capT); };
       const deliver = () => {
         clear();
         const t = text.trim();
-        if (said || !t) return;
+        if (said || !t || rec._gone) return;
         said = true;
         try { rec.stop(); } catch { }
         ref.invokeMethodAsync("Heard", t).catch(() => { });
@@ -1621,7 +1628,11 @@ window.flacie = (() => {
         clearTimeout(quietT); quietT = setTimeout(deliver, quietMs > 0 ? quietMs : 1200);
       };
       rec.onspeechstart = () => clearTimeout(waitT);
-      const end = () => { clear(); if (micRec === rec) micRec = null; if (text.trim()) deliver(); else if (!said) ref.invokeMethodAsync("Ended").catch(() => { }); };
+      const end = () => {
+        clear(); if (micRec === rec) micRec = null;
+        if (ended || rec._gone) return; ended = true;
+        if (text.trim()) deliver(); else if (!said) ref.invokeMethodAsync("Ended").catch(() => { });
+      };
       // Brave has the recogniser but turns off the service behind it: "network" at once, and the mic seemed to stop by itself (owner, 5 Nov).
       // Then this browser records instead, now and from now on.
       let broken = false;
@@ -1639,6 +1650,8 @@ window.flacie = (() => {
       return true;
     },
     micStop() { if (micRec) { try { micRec.stop(); } catch { } } },
+    // lets go without sending what was heard (the music came back, or the page gave up waiting): nothing more comes from that session
+    micAbort() { const r = micRec; micRec = null; micLevelNow = null; if (r) { r._gone = true; try { r.abort(); } catch { } } },
     // the DJ is saying something (a clip or the device's voice): the conversation waits for it before listening again
     djTalking() { return !!djAudio || djSpeaking; },
   };

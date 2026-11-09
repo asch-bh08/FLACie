@@ -1567,8 +1567,9 @@ private class Results(val songs: List<Track>, val albums: List<Group>)
 @Composable
 private fun OwnedTag() {
     val sc = LocalScheme.current
-    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF2E7D4F)).padding(horizontal = 7.dp, vertical = 3.dp)) {
-        Txt("OWNED", size = 10f, weight = FontWeight.Bold, color = Color.White)
+    // a round pill in the sans, like every chip (owner, 9 Nov)
+    Box(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF2E7D4F)).padding(horizontal = 9.dp, vertical = 3.dp)) {
+        Txt("Owned", size = 11f, weight = FontWeight.SemiBold, color = Color.White)
     }
 }
 

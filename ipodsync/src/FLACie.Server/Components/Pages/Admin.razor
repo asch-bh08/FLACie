@@ -257,7 +257,7 @@ else
         <div class="set-head"><h2>FLACie's address</h2><p class="hint">The address everyone's phone uses to reach this server, at home and away. Leave it empty and FLACie uses the first Tailscale address it was opened at.</p></div>
         <div class="form">
             <label for="public-address">Address</label>
-            <input id="public-address" @bind="addressText" placeholder="https://frank.your-tailnet.ts.net:8443" autocomplete="off" disabled="@Address.FromEnvironment" />
+            <input id="public-address" @bind="addressText" placeholder="https://server.your-tailnet.ts.net:8443" autocomplete="off" disabled="@Address.FromEnvironment" />
         </div>
         <div class="row-actions">
             <button class="btn primary" @onclick="SaveAddress" disabled="@Address.FromEnvironment">Save address</button>

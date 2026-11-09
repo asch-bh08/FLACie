@@ -7,7 +7,7 @@ namespace FLACie.Server;
 
 /// <summary>
 /// The one address the phone uses to reach this FLACie Web (downloads, seek-bar shapes, share links, the DJ), saved into each person's profile as
-/// <c>services.flacieweb.url</c>. Owner, 9 Nov: it used to be whatever address the web page was last opened at (frank's own, a second route through a proxy,
+/// <c>services.flacieweb.url</c>. Owner, 9 Nov: it used to be whatever address the web page was last opened at (the server's own, a second route through a proxy,
 /// a LAN address), so the phone's address flipped between them and a LAN or temporary one would cut the phone off away from home. Now it is, in order:
 /// <c>FLACIE_PUBLIC_URL</c>; the address set in Server admin; else the first tailnet address the page was opened at (a <c>*.ts.net</c> name or a 100.64/10
 /// address), kept from then on. A page opened at any other address never changes it. Kept in public-address.json.

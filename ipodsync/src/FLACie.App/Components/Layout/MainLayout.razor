@@ -2,9 +2,9 @@
 @implements IDisposable
 @inject NavigationManager Nav
 @inject IJSRuntime Js
-<div class="app @(InMusic ? "full" : "") @(InMusic && menu ? "menu-open" : "") @(!InMusic && collapsed ? "collapsed" : "")">
-    <TopBar Full="InMusic" MenuOpen="@(InMusic && menu)" OnMenu="Burger" />
-    <button class="menu-scrim" tabindex="-1" aria-hidden="true" @onclick="() => menu = false"></button>
+@* the Explore pages keep the side menu like every other page (owner, overhaul 9 Nov: one frame everywhere); the ☰ folds it to icons there too *@
+<div class="app @(collapsed ? "collapsed" : "")">
+    <TopBar Full="false" MenuOpen="false" OnMenu="Burger" />
     <nav class="rail" aria-label="Main" id="main-rail">
         @* design I: a short menu. Search holds what Explore was (browse when nothing is typed), Import is on Playlists, Downloads is in the Dashboard (administrators) *@
         @* on a phone the bottom bar is these four, wide and worded; the groups below go into the account menu (owner, overhaul 9 Nov: fewer icons, with words) *@
@@ -40,13 +40,10 @@
     bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/explore", "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
     // Search is lit on the search page and everywhere you browse the music from it
     bool InSearch => InMusic || ("/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]).StartsWith("/search", StringComparison.OrdinalIgnoreCase);
-    // Explore uses the whole window: the side menu slides in from a hamburger and goes away again after a choice
-    bool menu;
-    // on a PC the ☰ folds the side menu down to its icons (and back); the choice is kept in this browser. On the Explore pages it slides the menu in, as before
+    // on a PC the ☰ folds the side menu down to its icons (and back), on every page; the choice is kept in this browser
     bool collapsed;
     async Task Burger()
     {
-        if (InMusic) { menu = !menu; return; }
         collapsed = !collapsed;
         try { await Js.InvokeVoidAsync("flacie.stash", "flacie.rail", collapsed ? "1" : "0"); } catch (Exception) { }
     }
@@ -56,6 +53,6 @@
         try { if (await Js.InvokeAsync<string?>("flacie.unstash", "flacie.rail") == "1") { collapsed = true; StateHasChanged(); } } catch (Exception) { }
     }
     protected override void OnInitialized() => Nav.LocationChanged += Moved;
-    void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(() => { menu = false; StateHasChanged(); });
+    void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
     public void Dispose() => Nav.LocationChanged -= Moved;
 }

@@ -1,0 +1,60 @@
+/* ==== Design J (owner, overhaul 9 Nov): the music pages and the frame. One look on every page, fewer icons, words where they help, and motion that
+   flows: pages and rows come in softly, covers lift under the pointer, buttons give a little when pressed. Loaded after the Design I sheets, so these win.
+   Performance rules: only transform and opacity move; nothing animates for ever; nothing moving has a blur or a drop-shadow. ==== */
+
+:root {
+  --j-ease: cubic-bezier(.2, .8, .2, 1);
+  --j-spring: cubic-bezier(.34, 1.56, .64, 1);
+}
+
+/* ---- pages come in: a short rise and fade when a page opens (once; Blazor puts the page's first element in afresh on each route) ---- */
+@keyframes j-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+main.content > :first-child { animation: j-in .32s var(--j-ease) both; }
+main.content > :nth-child(2) { animation: j-in .32s var(--j-ease) .04s both; }
+main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s both; }
+
+/* ---- rows and cards: they flow in as a list fills, a few at a time, then settle ---- */
+@keyframes j-row { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.tracks > li:nth-child(-n+12), .grid > .card:nth-child(-n+18), .q-item:nth-child(-n+10) { animation: j-row .28s var(--j-ease) both; }
+.tracks > li:nth-child(2), .grid > .card:nth-child(2), .q-item:nth-child(2) { animation-delay: .02s; }
+.tracks > li:nth-child(3), .grid > .card:nth-child(3), .q-item:nth-child(3) { animation-delay: .04s; }
+.tracks > li:nth-child(4), .grid > .card:nth-child(4), .q-item:nth-child(4) { animation-delay: .06s; }
+.tracks > li:nth-child(5), .grid > .card:nth-child(5), .q-item:nth-child(5) { animation-delay: .08s; }
+.tracks > li:nth-child(6), .grid > .card:nth-child(6), .q-item:nth-child(6) { animation-delay: .10s; }
+.tracks > li:nth-child(n+7), .grid > .card:nth-child(n+7), .q-item:nth-child(n+7) { animation-delay: .12s; }
+
+/* ---- covers lift a little under the pointer; a card's picture is the thing that moves, not the whole card ---- */
+@media (hover: hover) and (pointer: fine) {
+  .grid > .card .cover, .grid > .card img { transition: transform .22s var(--j-ease); }
+  .grid > .card:hover .cover, .grid > .card:hover > img { transform: translateY(-3px) scale(1.02); }
+}
+
+/* ---- every button gives a little when pressed (round ones a touch more), then springs back ---- */
+.btn, .icon-btn, .mood, .chip, .pill-btn, .play, .shuffle-all, .rail a, .q-row, .track-main { transition: transform .18s var(--j-spring), background-color .18s, color .18s, border-color .18s; }
+.btn:active, .mood:active, .chip:active, .pill-btn:active, .shuffle-all:active, .rail a:active { transform: scale(.97); }
+.icon-btn:active, .play:active { transform: scale(.92); }
+.track-main:active, .q-row:active { transform: scale(.99); }
+
+/* ---- the side menu: words in the sans (no typewriter captions), the page you are on a soft pill, folding to icons smoothly ---- */
+.rail-label { font-family: var(--sans); font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: none; color: var(--dim); }
+.rail a { min-height: 40px; }
+@media (min-width: 761px) { .rail { transition: width .26s var(--j-ease), padding .26s var(--j-ease); } }
+
+/* ---- Home: before anything has been played there is no cover behind the greeting, so the hero is only as tall as its words ---- */
+.home-hero:not(:has(.home-hero-art)) { min-height: 0; padding-top: 64px; }
+
+/* ---- song rows: the quality badge says what matters; where the song plays from is quieter until you look at the row ---- */
+.track .badge:not(.fmt):not(.cloud) { opacity: .55; transition: opacity .18s; }
+.track:hover .badge:not(.fmt):not(.cloud), .track:focus-within .badge:not(.fmt):not(.cloud) { opacity: 1; }
+
+/* ---- Up next: a row shows its four arrange buttons only when you point at it or tab to it (fewer icons at once); on a touch screen they stay ---- */
+@media (hover: hover) and (pointer: fine) {
+  .q-item .q-edit { opacity: 0; transition: opacity .16s; }
+  .q-item:hover .q-edit, .q-item:focus-within .q-edit { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  main.content > *, .tracks > li, .grid > .card, .q-item { animation: none !important; }
+  .grid > .card .cover, .grid > .card img { transition: none; }
+  .grid > .card:hover .cover, .grid > .card:hover > img { transform: none; }
+}

@@ -492,7 +492,8 @@ fun IpodRow(
 fun rememberArt(key: String?, thumb: Boolean, full: Boolean = false): Bitmap? {
     val art = LocalApp.current.art
     // keyed state: produceState kept the previous song's cover on screen while the next one loaded (or for good when it had none)
-    val exact = remember(key, thumb, full) { art.peek(key, thumb, full) }
+    // just after start a row cover the disk has is decoded on the spot: Home's first frame shows covers, not placeholders that then pop in (9 Nov)
+    val exact = remember(key, thumb, full) { art.peek(key, thumb, full) ?: if (!full && art.firstFrame.decodeNow(android.os.SystemClock.elapsedRealtime())) art.decodeDisk(key, thumb) else null }
     // the big cover starts from any smaller copy already in memory (the list's or the mini player's), so it never shows the placeholder while one exists
     val state = remember(key, thumb, full) { mutableStateOf(exact ?: if (full) art.peek(key, thumb = false) ?: art.peek(key, thumb = true) else null) }
     if (full && exact == null && key != null && state.value == null) LaunchedEffect(key) {

@@ -614,7 +614,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     var home by remember { androidx.compose.runtime.mutableStateOf(HomeCache.last ?: app.homeSnapshot?.let { HomeData(it.shelves, it.moods) }) }
     // shelves already on screen never change under the person's thumb (they used to swap two or three times as the app opened: saved, phone, server):
     // newer ones are kept and show the next time Home opens
-    fun offer(d: HomeData) { HomeCache.last = d; if (home == null) home = d }
+    // newer shelves get their covers now (disk and memory), so the next Home shows them at once instead of loading them in (owner, 9 Nov)
+    fun offer(d: HomeData) {
+        HomeCache.last = d; if (home == null) home = d
+        try { app.art.keepReady(com.ipodemu.library.HomeSnapshot.coverKeys(com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods))) } catch (_: Exception) {}
+    }
     LaunchedEffect(libRev, hour, recentsKey) {
         // ...and works them out again only once the whole library has loaded, not after every step of loading it (each pass shuffles and sorts all of it)
         if (home != null && !lib.loaded) return@LaunchedEffect

@@ -998,9 +998,24 @@ window.flacie = (() => {
     async npWaveMakeNow(url) {
         if (flacie.metered() || npWaveBusy) return null;
         npWaveBusy = true;
+        // owner, 9 Nov: "songs take ages to load and buffer". This read is a whole second copy of a song (often 50-150 MB of FLAC), so it waits until the song
+        // being heard has 30 s (or the rest of it) in hand, gives up after two minutes of waiting, and lets go at once if the song starts buffering
+        const ahead = () => {
+            try {
+                if (!audio.src || audio.paused) return true;
+                if (audio.readyState < 3) return false;
+                const t = audio.currentTime, want = Math.min(isFinite(audio.duration) ? audio.duration : Infinity, t + 30) - 0.5;
+                for (let i = 0; i < audio.buffered.length; i++) if (audio.buffered.start(i) <= t + 0.5 && audio.buffered.end(i) >= want) return true;
+                return false;
+            } catch { return false; }
+        };
+        const stop = new AbortController();
+        const stalled = () => stop.abort();
         try {
+            for (let waited = 0; !ahead(); waited += 1000) { if (waited >= 120000) return null; await new Promise(r => setTimeout(r, 1000)); }
+            audio.addEventListener('waiting', stalled); audio.addEventListener('stalled', stalled);
             const p = new URL(url, location.href).searchParams.get('p');
-            const r = await fetch('/stream?wave=1&p=' + encodeURIComponent(p), { credentials: 'same-origin' });
+            const r = await fetch('/stream?wave=1&p=' + encodeURIComponent(p), { credentials: 'same-origin', signal: stop.signal });
             if (!r.ok || Number(r.headers.get('Content-Length') || 0) > 200e6) return null;
             const buf = await r.arrayBuffer();
             const ctx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 1, 22050);
@@ -1014,7 +1029,7 @@ window.flacie = (() => {
             const max = Math.max(...rms) || 1, bars = rms.map(v => Math.round(255 * v / max));
             fetch(url, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(bars) }).catch(() => { });
             return bars;
-        } catch { return null; } finally { npWaveBusy = false; }
+        } catch { return null; } finally { npWaveBusy = false; audio.removeEventListener('waiting', stalled); audio.removeEventListener('stalled', stalled); }
     },
     npWaveStop() { if (npWaveRaf) cancelAnimationFrame(npWaveRaf); npWaveRaf = 0; },
     // design I: the whole app wears the colours of the song playing (the menu's highlight, buttons, chips): the cover's colours on the page itself

@@ -907,11 +907,14 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
 @Composable
 private fun ShuffleHeader(tracks: List<Track>, nav: PlayerNav, sortLabel: String, onSort: () -> Unit) {
     val app = LocalApp.current
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+    // wraps rather than squeezing: on a 360 dp phone Play, Shuffle and the sort pill fill the line, and the count used to be pressed to nothing
+    // against the right edge; now it drops to the next line instead (owner, 9 Nov: nothing may hang off or overlap)
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         GlossPill("Play", { app.player.play(tracks, 0, null) }, icon = Glyph.PLAY, primary = true)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true) }, icon = Glyph.SHUFFLE)
         GlossPill(sortLabel, onSort, height = 32.dp)
-        Txt(songCount(tracks.size), Modifier.weight(1f), size = 13f, color = LocalScheme.current.onBgDim, align = TextAlign.End)
+        Txt(songCount(tracks.size), Modifier.align(Alignment.CenterVertically).padding(start = 4.dp), size = 13f, color = LocalScheme.current.onBgDim)
     }
 }
 
@@ -953,11 +956,15 @@ fun SongList(
     // choosing several songs: Select in a song's sheet starts it; a tap then ticks a row; the bar at the bottom acts on them all (as on the web)
     var chosen by remember(tracks) { mutableStateOf<Set<Int>?>(null) }
     androidx.activity.compose.BackHandler(enabled = chosen != null) { chosen = null }
+    // the first rows rise in one after another as the list opens (the web's j-row), and just appear when scrolled to later
+    val entrance = rememberEntrance()
     val row: @Composable (Int, Track) -> Unit = { i, t ->
         val c = chosen
+        Box(Modifier.entranceRise(entrance, i)) {
         TrackRow(t, nav, snap, showArt = showArt, index = if (numbered) i + 1 else null, sheetExtra = sheetExtra + SheetItem("Select", Glyph.CHECK) { chosen = setOf(i) }, sheetExtraFor = sheetExtraFor, onPlay = {
             app.player.play(tracks, i, null, nav.playContext, nav.playContextId?.takeIf { it.first == nav.playContext }?.second)
         }, picked = c?.contains(i), onPick = c?.let { cur -> { chosen = if (i in cur) cur - i else cur + i } })
+        }
     }
     Box(Modifier.fillMaxSize()) {
     val groups = remember(tracks, sections) { if (sections > 0) tracks.withIndex().groupBy { letterOf(sortKey(if (sections == 2) it.value.artist.ifEmpty { "#" } else it.value.title)) } else emptyMap() }
@@ -1027,9 +1034,13 @@ private fun SelectBar(songs: List<Track>, nav: PlayerNav, modifier: Modifier, al
 @Composable
 internal fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
     if (albums.isEmpty()) { EmptyState("No albums yet"); return }
+    // the first covers rise in one after another as the grid opens (the web's .grid > .card), not again on scrolling
+    val entrance = rememberEntrance()
     LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        items(albums, key = { it.tracks.first().albumKey }) { g -> AlbumCard(g) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) } }
+        androidx.compose.foundation.lazy.grid.itemsIndexed(albums, key = { _, g -> g.tracks.first().albumKey }) { i, g ->
+            AlbumCard(g, Modifier.entranceRise(entrance, i)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }
+        }
     }
 }
 
@@ -1039,15 +1050,19 @@ internal fun GroupList(groups: List<Group>, nav: PlayerNav, circle: Boolean, tar
     val sc = LocalScheme.current
     if (groups.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sections = remember(groups) { groups.groupBy { letterOf(sortKey(it.name)) } }
+    // artists (round pictures) and genres: the first rows rise in as the list opens, as the songs do
+    val entrance = rememberEntrance()
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         sections.forEach { (l, list) ->
             stickyHeader(key = "h$l", contentType = "letter") { LetterHeader(l) }
-            items(list, key = { it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }, contentType = { "group" }) { g ->
+            itemsIndexed(list, key = { _, g -> g.name + "|" + (g.tracks.firstOrNull()?.path ?: "") }, contentType = { _, _ -> "group" }) { i, g ->
+            Box(Modifier.entranceRise(entrance, i)) {
             IpodRow({ nav.push(target(g)) }, height = 56.dp,
                 leading = { ArtImage(g.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp, circle = circle) },
                 // an album (or any group) with every song on the phone carries the downloaded mark
                 trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { if (!circle) DownloadedListMark(remember(g) { g.tracks.map { it.path } }); CountChevron(g.tracks.size) } }) { hi ->
                 Txt(g.name, size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
+            }
             }
             }
         }

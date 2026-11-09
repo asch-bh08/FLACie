@@ -43,7 +43,9 @@ const fakeRecogniser = () => {
     stop() { if (!this.running) return; this.running = false; (window as any).__listening = false; setTimeout(() => this.onend?.(), 10); }
     abort() { this.stop(); }
   }
+  // both names: newer Chromium has the unprefixed one too, and the page prefers it, so a stand-in under one name alone would be bypassed by the real recogniser
   (window as any).webkitSpeechRecognition = FakeRec;
+  (window as any).SpeechRecognition = FakeRec;
   (window as any).__said = null;
 };
 

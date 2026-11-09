@@ -13,6 +13,10 @@ public class DjNamesSaidTests
     [InlineData("Gaga again!", "[Gaga](/ɡˈɑːɡɑː/)")]
     [InlineData("Here's Bobo.", "[Bobo](/bˈoʊboʊ/)")]
     [InlineData("Katy B is next.", "[Katy](/kˈeɪti/)")]
+    [InlineData("Here's DJ BoBo.", "[DJ BoBo](/dˌiː dʒˈeɪ bˈoʊboʊ/)")]
+    [InlineData("David Guetta and Sia.", "[David Guetta](/dˈeɪvɪd ɡˈɛtə/)")]
+    [InlineData("This is P!nk.", "[P!nk](/pˈɪŋk/)")]
+    [InlineData("Roxette, The Look.", "[Roxette](/ɹɑːksˈɛt/)")]
     public void The_name_goes_to_the_voice_with_its_sounds(string line, string marked) =>
         Assert.Contains(marked, DjPronounce.Default.Sounds(line));
 

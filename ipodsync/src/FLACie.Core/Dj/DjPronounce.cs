@@ -53,6 +53,37 @@ public sealed class DjPronounce
         new("Lady Gaga", Kind.Artist, "Lady Gah-gah", "lˈeɪdi ɡˈɑːɡɑː"),
         new("Gaga", Kind.Word, "Gah-gah", "ɡˈɑːɡɑː"),
         new("Bobo", Kind.Word, "Boh-boh", "bˈoʊboʊ"),
+        // every other name the by-ear check (data/dj-pronounce.json, kokoro:am_liam) heard wrong and had no sounds for, 9 Nov
+        new("DJ BoBo", Kind.Artist, "DJ Boh-boh", "dˌiː dʒˈeɪ bˈoʊboʊ"),
+        new("Adele", Kind.Artist, "Uh-dell", "ədˈɛl"),
+        new("Akon", Kind.Artist, "Akon", "ˈeɪkɑːn"),
+        new("Aphex Twin", Kind.Artist, "Ay-fex Twin", "ˈeɪfɛks twˈɪn"),
+        new("Bellini", Kind.Artist, "Bell-ee-nee", "bɛlˈiːni"),
+        new("D12", Kind.Artist, "D Twelve", "dˈiː twˈɛlv"),
+        new("Daddy DJ", Kind.Artist, "Daddy D J", "dˈædi dˌiː dʒˈeɪ"),
+        new("David Guetta", Kind.Artist, "David Getta", "dˈeɪvɪd ɡˈɛtə"),
+        new("Guetta", Kind.Word, "Getta", "ɡˈɛtə"),
+        new("DeBarge", Kind.Artist, "De-barge", "dəbˈɑːɹdʒ"),
+        new("E-Rotic", Kind.Artist, "Ee-rotic", "iːɹˈɑːtɪk"),
+        new("Ellie Goulding", Kind.Artist, "Ellie Gold-ing", "ˈɛli ɡˈoʊldɪŋ"),
+        new("Florence + the Machine", Kind.Artist, "Florence and the Machine", "flˈɔːɹəns ænd ðə məʃˈiːn"),
+        new("Gigi D'Agostino", Kind.Artist, "Gee-gee Dag-oss-tee-no", "dʒˈiːdʒi dˌæɡəstˈiːnoʊ"),
+        new("Gliese", Kind.Artist, "Glee-zuh", "ɡlˈiːzə"),
+        new("JAŸ-Z", Kind.Artist, "Jay Zee", "dʒˈeɪ zˈiː"),
+        new("JME", Kind.Artist, "J M E", "dʒˈeɪ ˈɛm ˈiː"),
+        new("Kesha", Kind.Artist, "Kesha", "kˈɛʃə"),
+        new("Kip Moore", Kind.Artist, "Kip Moore", "kˈɪp mˈʊɹ"),
+        new("La Bouche", Kind.Artist, "La Boosh", "lɑː bˈuːʃ"),
+        new("Le Click", Kind.Artist, "Luh Click", "lə klˈɪk"),
+        new("Livin' Joy", Kind.Artist, "Livin Joy", "lˈɪvɪn dʒˈɔɪ"),
+        new("Maxx", Kind.Artist, "Max", "mˈæks"),
+        new("P!nk", Kind.Artist, "Pink", "pˈɪŋk"),
+        new("Pitbull", Kind.Artist, "Pit-bull", "pˈɪtbʊl"),
+        new("Queen", Kind.Artist, "Queen", "kwˈiːn"),
+        new("Rockin Moroccin", Kind.Artist, "Rockin Mo-rock-in", "ɹˈɑːkɪn məɹˈɑːkɪn"),
+        new("Roxette", Kind.Artist, "Rocks-ett", "ɹɑːksˈɛt"),
+        new("SOS", Kind.Word, "S O S", "ˈɛs ˈoʊ ˈɛs"),
+        new("Taio Cruz", Kind.Artist, "Tie-oh Cruz", "tˈaɪoʊ kɹˈuːz"),
         new("SZA", Kind.Artist, "Sizza", "sˈɪzə"),
         new("Kanye", Kind.Word, "Kahn-yay", "kˈɑːnjeɪ"),
         new("Shania", Kind.Word, "Shuh-nye-uh", "ʃənˈaɪə"),
@@ -71,7 +102,8 @@ public sealed class DjPronounce
 
     /// <summary>Changes whenever the sounds above do, so FLACie's voice makes its kept clips again (DjClips.Salt).</summary>
     /// "sounds-2": the voice reads lines with misaki, Kokoro's own reader, so every clip made the espeak way is made again (owner, 30 Oct: "jyz").
-    /// "sounds-3": Katy Perry, Gaga and Bobo get their sounds (owner, 9 Nov), so clips that said them wrong are made again.
+    /// "sounds-3": Katy Perry, Gaga, Bobo and every other name the by-ear check heard wrong get their sounds (owner, 9 Nov: "do all"), so clips that
+    /// said them wrong are made again.
     public const string SoundsVersion = "sounds-3";
 
     public static DjPronounce Default { get; } = new([]);

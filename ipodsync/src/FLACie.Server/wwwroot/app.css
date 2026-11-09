@@ -1521,3 +1521,12 @@ html.buffering .play .ic { opacity: .55; }
 .song-link-card > span:first-of-type { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .song-link-card small { color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 600px) { .song-link-card { flex-wrap: wrap; } .song-link-card .btn { width: 100%; } }
+
+/* phone bottom bar: the four main places, each a quarter of the width with its word (owner, overhaul 9 Nov); the rest is in the account menu */
+.account-menu .am-phone { display: none; }
+@media (max-width: 760px) {
+  .rail-extra { display: none !important; }
+  .rail-main { flex: 1; justify-content: space-around; }
+  .rail-main a { flex: 1 1 0; min-width: 64px; font-size: 11px !important; }
+  .account-menu .am-phone { display: flex; }
+}

@@ -34,14 +34,16 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
 
     public IReadOnlyList<(WebPlaylist List, IReadOnlyList<string> Songs)> ListsWithArtist(string artist) => WebPlaylistPick.WithArtistIn(store.All, artist);
 
-    public async Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct)
+    /// <summary>[quick]: only what is saved already, at once, asking no one (owner, 9 Nov: "show the saved playlists at once"); the page asks again
+    /// without it for the full answer.</summary>
+    public async Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct, bool quick = false)
     {
-        var (found, kind) = await GatherAsync(s, query, ct);
+        var (found, kind) = quick ? Saved(s, query) : await GatherAsync(s, query, ct);
         var artist = kind == PlaylistQueryKind.Artist ? SearchRankTop.Artist(Lib(s).Artists, query, s.PlayStats)?.Name : null;
         var shown = kind == PlaylistQueryKind.Artist && artist is not null ? WebPlaylistPick.ForArtist(found, artist, now()) : WebPlaylistPick.ForAll(found, query, kind, now(), artist);
         // what showed interest (F26.1): on an artist search only the artist's best-of (its top half); on a playlist, genre or decade search the lists it
         // names (their first 2 songs, so they start at once). Every other list shown downloads nothing until it is opened or played
-        foreach (var l in shown.Where(l => l.Source != "own"))
+        foreach (var l in shown.Where(l => l.Source != "own" && !quick))
         {
             if (kind == PlaylistQueryKind.Artist) { if (l.Kind == WebPlaylistKind.Artist) Interest(s, l, FetchTrigger.ArtistSearch); }
             else if (WebPlaylistPick.Relevance(l, query) > 0) Interest(s, l, FetchTrigger.Popular);
@@ -187,6 +189,24 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         if (artist is not null)
             found.AddRange(store.All.Where(l => l.Source == "deezer" && l.Tracks.Count > 0 && WebPlaylistPick.HoldsCount(l, artist.Name) >= 2 && found.All(f => f.Id != l.Id || f.Source != l.Source)));
         return (found, kind);
+    }
+
+    /// <summary>The lists for a search from what is saved: our own, Spotify's fixed lists already read, and the artist's Deezer and SoundCloud lists.</summary>
+    (List<WebPlaylist> Found, PlaylistQueryKind Kind) Saved(UserSession s, string query)
+    {
+        var lib = Lib(s);
+        var kind = WebPlaylistPick.Classify(query, lib.Artists.Select(a => a.Name), lib.Songs.Select(t => t.Genre).Where(g => g.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase));
+        var found = own(s).Select(m => Own(m, lib)).ToList();
+        var artist = kind == PlaylistQueryKind.Artist ? SearchRankTop.Artist(lib.Artists, query, s.PlayStats) : null;
+        foreach (var f in Fixed)
+            if (store.All.FirstOrDefault(l => l.Source == "spotify" && l.Id == f.Id) is { } known && (artist is not null || WebPlaylistPick.Relevance(known, query) > 0)) found.Add(known);
+        if (artist is not null)
+        {
+            found.AddRange(Saved("deezer", artist.Name));
+            found.AddRange(Saved("soundcloud", artist.Name));
+            found.AddRange(store.All.Where(l => l.Source == "deezer" && l.Tracks.Count > 0 && WebPlaylistPick.HoldsCount(l, artist.Name) >= 2));
+        }
+        return (found.DistinctBy(l => l.Source + ":" + l.Id).ToList(), kind);
     }
 
     DateTime warmedAt = DateTime.MinValue;

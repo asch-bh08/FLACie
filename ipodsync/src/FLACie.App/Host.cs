@@ -44,7 +44,8 @@ public interface IPlayerClients
 public interface IWebPlaylists
 {
     /// <summary>The All view's lists for a search (fetched as needed, politely), best first.</summary>
-    Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct);
+    /// <summary>[quick]: only the lists saved already, at once (no source is asked).</summary>
+    Task<IReadOnlyList<WebPlaylist>> ForSearchAsync(UserSession s, string query, CancellationToken ct, bool quick = false);
     /// <summary>The Playlists filter: every list that matches, best first; [genre] narrows them.</summary>
     Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct, string? decade = null);
     /// <summary>A list shown before (kept for 30 days since it was last used), or null.</summary>

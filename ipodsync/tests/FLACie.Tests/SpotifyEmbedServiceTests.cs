@@ -207,4 +207,21 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
         Assert.True(sw.ElapsedMilliseconds < SpotifyPlaylists.FirstAnswer.TotalMilliseconds + 1000, $"{sw.ElapsedMilliseconds} ms");
         Assert.Contains(shown, l => l.Source == "own");
     }
+
+    // owner, 9 Nov: search should show the playlists already saved at once, not wait for the online look-up
+    [Fact]
+    public async Task A_quick_search_shows_the_saved_lists_at_once_and_asks_nobody()
+    {
+        var (svc, _, _, me, _) = Rig(spotifyUp: true);
+        var first = await svc.ForSearchAsync(me, "the prodigy", default);
+        Assert.Contains(first, l => l.Name == "100% The Prodigy");
+        // later, with every source slow: a new server reads the saved lists
+        var (again, web, _, me2, _) = Rig(spotifyUp: true);
+        web.Hang = true;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var quick = await again.ForSearchAsync(me2, "the prodigy", default, quick: true);
+        Assert.True(sw.ElapsedMilliseconds < 1000, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.Contains(quick, l => l.Name == "100% The Prodigy");
+        Assert.Empty(web.Hosts);
+    }
 }

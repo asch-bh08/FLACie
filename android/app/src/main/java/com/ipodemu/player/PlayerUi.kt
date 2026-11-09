@@ -1658,9 +1658,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
     LaunchedEffect(query) {
         val q = query.trim()
         if (app.ui.guest || !com.ipodemu.library.MadeLists.worthAsking(q)) { made = emptyList(); return@LaunchedEffect }
-        delay(500)
         val web = com.ipodemu.library.FlacieWebClient(app.prefs)
-        made = if (!web.available) emptyList() else withContext(Dispatchers.IO) { try { web.madeSearch(q) } catch (e: Exception) { android.util.Log.w("FLACie", "made search failed: ${e.message}"); emptyList() } }
+        if (!web.available) { made = emptyList(); return@LaunchedEffect }
+        // the lists saved on FLACie Web first, at once (owner, 9 Nov: not after the online look-up), then the full answer once typing settles
+        delay(150)
+        val saved = withContext(Dispatchers.IO) { try { web.madeSearch(q, quick = true) } catch (e: Exception) { emptyList() } }
+        if (saved.isNotEmpty()) { made = saved; RemoteArt.prefetch(app, saved.mapNotNull { it.picture }) }
+        delay(350)
+        val full = withContext(Dispatchers.IO) { try { web.madeSearch(q) } catch (e: Exception) { android.util.Log.w("FLACie", "made search failed: ${e.message}"); null } }
+        if (full != null) made = full
         RemoteArt.prefetch(app, made.mapNotNull { it.picture })
     }
     Column(Modifier.fillMaxSize().imePadding()) {

@@ -166,9 +166,10 @@ class FlacieWebClient(private val prefs: Prefs) {
     /** Ready-made playlists (MadeLists): the ones matching a search, one with its songs, and "Add to my playlists". */
     /** The web's Search playlists (its own and, when the server has them on, Spotify's, Deezer's and SoundCloud's). [kind] "playlists" with [genre] and
      *  [decade] is the web's Playlists filter: every list that matches. */
-    fun madeSearch(q: String, kind: String = "", genre: String = "", decade: String = ""): List<MadeLists.Summary> {
+    fun madeSearch(q: String, kind: String = "", genre: String = "", decade: String = "", quick: Boolean = false): List<MadeLists.Summary> {
         fun e(s: String) = java.net.URLEncoder.encode(s.trim(), "UTF-8")
-        return MadeLists.parseSearch(send("/api/made?q=" + e(q) + (if (kind.isNotEmpty()) "&kind=" + e(kind) else "") + (if (genre.isNotEmpty()) "&genre=" + e(genre) else "") + (if (decade.isNotEmpty()) "&decade=" + e(decade) else ""), "GET"))
+        // quick: only the lists the server has saved, answered at once
+        return MadeLists.parseSearch(send("/api/made?q=" + e(q) + (if (quick) "&quick=1" else "") + (if (kind.isNotEmpty()) "&kind=" + e(kind) else "") + (if (genre.isNotEmpty()) "&genre=" + e(genre) else "") + (if (decade.isNotEmpty()) "&decade=" + e(decade) else ""), "GET"))
     }
     /** "Lists with <artist> in": lists the server has read that hold the artist's songs, each naming which. */
     fun featuring(artist: String): List<MadeLists.Summary> = MadeLists.parseSearch(send("/api/made/featuring?artist=" + java.net.URLEncoder.encode(artist.trim(), "UTF-8"), "GET"))

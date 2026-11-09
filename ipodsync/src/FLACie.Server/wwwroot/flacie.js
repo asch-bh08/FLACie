@@ -940,7 +940,7 @@ window.flacie = (() => {
             const G = frameGeo(), bw = 3, n = Math.max(60, Math.round(G.P / (bw * 2.3)));
             g.clearRect(0, 0, w, h); g.save(); g.scale(dpr, dpr); g.translate(G.W / 2, G.W / 2); g.lineCap = 'round'; g.lineWidth = bw;
             for (let i = 0; i < n; i++) {
-                const [x, y, nx, ny] = G.walk((i + .5) / n), L = Math.max(3, levelAt(i, n) * G.L);
+                const [x, y, nx, ny] = G.walk((i + .5) / n), L = Math.max(4.5, levelAt(i, n) * G.L);   // (at least 4.5, so a silent song's bars are short dashes: from 1.5 to L - 1.5 a bar of 3 would be a zero-length line, which draws nothing)
                 g.strokeStyle = (i + .5) / n <= played ? on : 'rgba(244,239,230,.22)';
                 g.beginPath(); g.moveTo(x + nx * 1.5, y + ny * 1.5); g.lineTo(x + nx * (L - 1.5), y + ny * (L - 1.5)); g.stroke();
             }

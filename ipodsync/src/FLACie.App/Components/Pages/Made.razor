@@ -6,7 +6,7 @@
 @{ var m = List(); var songs = m is null ? [] : m.Paths.Select(Lib.ByPath).OfType<Track>().ToList(); }
 @if (m is null || (songs.Count == 0 && web is null))
 {
-    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <p class="status">This playlist isn't there any more.</p> }
+    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <div class="empty-state"><p class="status">This playlist isn't there any more.<small>Made playlists change as your library does.</small></p><a class="btn" href="/">Back to Home</a></div> }
 }
 else
 {

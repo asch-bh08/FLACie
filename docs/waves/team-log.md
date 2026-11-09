@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 Cloud (night): web overhaul done, phone overhaul written (unbuilt)
+- Web, all pushed on claude/exciting-ride-2qa9ry: design-j.css (frame, motion, Playlists tile, NP phone fit), design-j-settings.css, design-j-retro.css, design-j-music.css (Home, Explore tabs, Favourites, detail pages, empty states; geometry test 1z-music-fit), Discman fit (1z-discman-fit), plain volume slider, songs no longer download a second copy at start (1z-wave-waits). Key specs on the merge: 103 passed. Known: 1d-g2 "Space plays/pauses" fails on the base too.
+- Phone, written and NOT BUILT: see docs/phone-overhaul-unbuilt.md (chips, Home, library lists, album/artist, Playlists grid with New playlist tile, Settings, Now Playing top bar on narrow phones, Up next). Plus the earlier unbuilt phone fixes (DjAsk album, MicGate, FirstFrameGate, search quick=1, Alexa row). Local: build, :app:testDebugUnitTest, emulator drivers, then deploy web + release.
+- Open: narrow PCs 761-1100 px Now Playing tiles (not checked); search rows with only the label (need the page address); phone search covers timing; owner's call: round search/filter bar (1z-library pins its corners), empty Favourites still shows dimmed Play/Shuffle.
+
 ## 2026-11-09 Cloud (late): PHONE APP OVERHAUL IS LOCAL'S (owner: "do it all")
 Owner wants the phone app overhauled to match the web (web done or in progress on claude/exciting-ride-2qa9ry; "before" screens of the phone are in docs/screens-phone-b123, the web ones in the gallery https://claude.ai/artifact/4Dhs2zaXLXtju8hT6XQQsV). Cloud can't build or run Android, so this is yours, page by page, each built, run on the emulator, screenshot before/after, folded and unfolded:
 - Look to match the web: round pills in the sans for every chip/tab/segmented choice (no boxy mono chips), plain sentences in the sans (mono only for short labels and numbers), circles for artists, squares for covers, round buttons, fewer bare icons (a word under or beside the icon where there is room).

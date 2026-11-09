@@ -1,6 +1,7 @@
 # Team log (newest at the top; see TEAM.md)
 
 ## 2026-11-09 Cloud (later): MeloTTS retired (before 20 Nov)
+- Request for Local (owner, 9 Nov: "every page, every iPod, every retro, every Discman... and mobile"): the web gallery is at https://claude.ai/artifact/4Dhs2zaXLXtju8hT6XQQsV (owner's account). Cloud can't run the emulator: please screenshot every phone app screen (each tab, Now Playing and its tabs, every sheet and menu, Settings sections, the Retro/iPod screens, folded and unfolded widths) and put them where the owner can see them, so the phone overhaul has its "before" set too.
 - Done: `CloudflareVoice` has no MeloTTS: unknown voices fall back to Aura-1 Helios (`NormVoice`); `ConfigVersion` 3 moves a saved "melotts" once (old default or chosen) to `kokoro:am_liam` when Kokoro's /healthz says "ok" on this server (1.5 s), else to Aura-1 Helios, and writes dj.json. Dashboard: MeloTTS gone from the Voice picker and the test buttons. MeloTTS-only branches dropped in DjClips/DjService. `@cf/qwen/qwq-32b` removed from `DjBudget.Weighed`. 7 test files updated + new migration tests; server 1994/1994.
 - Ready to ship with the next web deploy. After deploy, check frank's dj.json voice and the log line "DJ voice settings moved to version 3".
 

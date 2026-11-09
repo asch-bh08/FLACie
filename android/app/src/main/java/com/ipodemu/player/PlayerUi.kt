@@ -664,6 +664,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     app.ui.rev
     val clock by androidx.compose.runtime.produceState("") { while (true) { value = java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date()); delay(15000) } }
     val online = rememberOnline()
+    // the chips and the first shelves come in with a short rise as Home opens (as the web's page does), not again on scrolling
+    val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
         if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "FLACie", nav, showBack = false) {
@@ -681,8 +683,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (!modern) item { NowPlayingCard(snap, nav) { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } } }
             if (com.ipodemu.PermissionPlan.showMediaNotice(app.ui.loginMode, app.ui.mediaAccess)) item { MediaAccessNotice(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
             // design I: Favourites, Recent, Downloads, Recently added and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
+            // the chips wrap onto more lines rather than run off the right edge (owner, 9 Nov: nothing may hang off the screen; "Offline music" was
+            // cut in half at the edge of a phone). Each chip has its own 6 dp above and below, so the lines need no extra gap
             if (modern) item {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp).entranceRise(entrance, 1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
                     DesignChip("All", mood == null, { mood = null })
                     moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
@@ -728,8 +733,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
-            if (mood == null) items(shelves, key = { it.id }) { sh ->
-                Column {
+            if (mood == null) itemsIndexed(shelves, key = { _, sh -> sh.id }) { i, sh ->
+                Column(Modifier.entranceRise(entrance, i + 2)) {
                     if (sh.id == "quick-picks") {
                         Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }

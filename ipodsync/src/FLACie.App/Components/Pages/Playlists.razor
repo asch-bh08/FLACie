@@ -3,26 +3,29 @@
 @inherits UserComponent
 @inject IDownloads Downloads
 <PageTitle>Playlists · FLACie</PageTitle>
-<header class="page-head">
+<header class="page-head pl-head">
     <h1><i>Playlists</i></h1>
-    <form class="inline-form" @onsubmit="Create">
-        <input @bind="name" @bind:event="oninput" placeholder="New playlist name" aria-label="New playlist name" />
-        <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
-    </form>
+    @if (Session.Playlists.Count > 0) { <p class="sub">@Session.Playlists.Count @(Session.Playlists.Count == 1 ? "playlist" : "playlists")</p> }
     @* importing a playlist (iTunes, M3U, a text list) lives here now, not in the menu *@
     @if (AppHost.Server && Downloads.MayBulk(Session)) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
 </header>
-@if (Session.Playlists.Count == 0)
-{
-    <p class="status">No playlists yet. Name one above, choose several songs and add them to a new one, or save what is playing from Up next.</p>
-}
+@* a new playlist is the first tile, where the playlists are (owner, overhaul 9 Nov) *@
 <div class="grid pl-grid">
+    <form class="card pl-new" @onsubmit="Create">
+        <span class="pl-new-art" aria-hidden="true"><Icon Name="plus" Size="34" /></span>
+        <input @bind="name" @bind:event="oninput" placeholder="New playlist name" aria-label="New playlist name" />
+        <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
+    </form>
     @foreach (var p in Session.Playlists)
     {
         var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
         <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
     }
 </div>
+@if (Session.Playlists.Count == 0)
+{
+    <p class="status">No playlists yet. Name one in the first tile, choose several songs and add them to a new one, or save what is playing from Up next.</p>
+}
 @code {
     string name = "";
     void Create()

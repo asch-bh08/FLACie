@@ -53,6 +53,16 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s both; }
   .q-item:hover .q-edit, .q-item:focus-within .q-edit { opacity: 1; }
 }
 
+/* ---- Playlists: the title and its count, Import beside them, and a new playlist as the first tile of the grid ---- */
+.pl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px; }
+.pl-head .sub { font-family: var(--sans); color: var(--dim); margin: 0; }
+.pl-head .btn { margin-left: auto; align-self: center; }
+.pl-new { display: grid; grid-template-rows: auto auto auto; gap: 8px; align-content: start; }
+.pl-new-art { display: grid; place-items: center; aspect-ratio: 1; border-radius: 14px; border: 1.5px dashed color-mix(in srgb, var(--ink) 28%, transparent); color: var(--dim); }
+.pl-new:focus-within .pl-new-art { border-color: var(--accent); color: var(--accent); }
+.pl-new input { width: 100%; min-width: 0; box-sizing: border-box; height: 38px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
+.pl-new .btn { justify-self: start; }
+
 @media (prefers-reduced-motion: reduce) {
   main.content > *, .tracks > li, .grid > .card, .q-item { animation: none !important; }
   .grid > .card .cover, .grid > .card img { transition: none; }

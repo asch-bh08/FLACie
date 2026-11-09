@@ -7,13 +7,14 @@
 <MusicTabs Active="Albums" />
 <ExploreBar Tab="Albums" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Albums.Count > 0) { <p class="status">Nothing matches these filters.</p> }
+@if (list.Count == 0 && Lib.Albums.Count > 0) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
 <AlbumGrid Albums="list" />
 @code {
     List<Group> list = [];
     Library? built; int builtVersion = -1;
     void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Albums(Lib); }
     void Refresh() { Build(); StateHasChanged(); }
+    void ClearFilters() { X.Clear(); Refresh(); }
     protected override void OnParametersSet() => Build();
     protected override bool ShouldRender() { Build(); return true; }
 }

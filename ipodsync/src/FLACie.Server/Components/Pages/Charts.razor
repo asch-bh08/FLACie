@@ -12,7 +12,7 @@
     }
 </div>
 @if (loading) { <Skeleton Label="Loading the chart…" /> }
-else if (songs.Count == 0) { <p class="status">The chart couldn't be loaded right now.</p> }
+else if (songs.Count == 0) { <div class="empty-state"><p class="status">The chart couldn't be loaded right now.<small>The charts come from the internet; it may be a moment's hiccup.</small></p><button class="btn" @onclick="() => Pick(current)">Try again</button></div> }
 else
 {
     @* a list of what's popular: the daily download and the Download buttons only appear where the server downloads at all *@

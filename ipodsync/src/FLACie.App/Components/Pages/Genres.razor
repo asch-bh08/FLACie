@@ -7,7 +7,8 @@
 <MusicTabs Active="Genres" />
 <ExploreBar Tab="Genres" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Songs.Count > 0) { <p class="status">@(X.Filtering ? "Nothing matches these filters." : "None of your songs have a genre tag yet.")</p> }
+@if (list.Count == 0 && Lib.Songs.Count > 0) { @if (X.Filtering) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
+    else { <div class="empty-state"><p class="status">None of your songs have a genre tag yet.<small>Songs show up here once their files say what genre they are.</small></p><a class="btn" href="/songs">Browse songs</a></div> } }
 <div class="grid">
     @foreach (var g in list)
     {
@@ -19,6 +20,7 @@
     Library? built; int builtVersion = -1;
     void Build() { if (ReferenceEquals(built, Lib) && builtVersion == X.Version) return; built = Lib; builtVersion = X.Version; list = X.Genres(Lib); }
     void Refresh() { Build(); StateHasChanged(); }
+    void ClearFilters() { X.Clear(); Refresh(); }
     protected override void OnParametersSet() => Build();
     protected override bool ShouldRender() { Build(); return true; }
 }

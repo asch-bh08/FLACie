@@ -284,3 +284,7 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 - 57 screenshots of the b123 phone app on the emulator in `docs/screens-phone-b123/` (phone size, and `-1840x2208@420` = unfolded): every tab, Songs, an album, Playlists, Offline music, Search (keyboard up and after), Now Playing with Lyrics, Info, Options, More, Up next, Add; a song's menu (long press); Settings top to bottom (settings, settings-2..9); Retro scenes 1-6.
 - Missing: the DJ settings sheet (the emulator test has no FLACie Web, so no DJ button), and Retro + Add at the unfolded size (buttons not found there). Tour: `ipodsync/tools/loadtest/v1-shots.mjs` with SIZES=native,1840x2208@420.
 - Local is at 94% weekly: stopping here until the reset (11 Nov 18:00).
+
+## 2026-11-09 Local: cloud branch merged, b124 NOT released
+- Merged claude/exciting-ride-2qa9ry into ui/living-sleeve; fixed missing itemsIndexed imports (PlayerUi.kt); version bumped to 1.0 b124 (Android 139). Server 1994/1994, Android unit + release build OK, emulator smoke 23/23 on rerun (first run: 2 playback fails, likely the new row entrance animation vs the driver tap).
+- Web: 105 passed, 5 failed, and still failing when rerun alone: 1d-g2 keyboard (Space/N), 1q-dj Aura-2 voices, 1z-discman-fit (1024x768), 1z-dj-ask endpoint, 1z-dj-mic-twice. Cloud: fix these, push; local releases b124 after the weekly reset (11 Nov 18:00). Nothing deployed.

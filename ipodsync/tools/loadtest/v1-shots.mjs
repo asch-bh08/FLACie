@@ -72,9 +72,29 @@ for (const size of sizes) {
   await sleep(2500); shot(S('player' + tag));
   if (await tapLabel(/^Lyrics$/, h() * 0.6)) { shot(S('player-lyrics' + tag)); await tapLabel(/^Lyrics$/, h() * 0.6); }
   if (await tapLabel(/^(Song info|Info)$/, h() * 0.6)) { await sleep(1500); shot(S('player-info' + tag)); await tapLabel(/^(Song info|Info)$/, h() * 0.6); }
+  // every sheet and menu of the full-screen player (owner, 9 Nov: "do each menu"): opened one at a time, pictured, closed with Back
+  const W = () => Number((sh('wm size', { quiet: true }) || '').match(/(\d+)x\d+\s*$/m)?.[1] || 1080);
+  const sheet = async (re, name, minY = 0) => { if (await tapLabel(re, minY)) { await sleep(800); shot(S(name + tag)); key('KEYCODE_BACK'); await sleep(1200); } };
+  await sheet(/^Options$/, 'player-options');
+  await sheet(/^(More|More options)$/, 'player-more', h() * 0.5);
+  await sheet(/^Up next$/, 'player-up-next', h() * 0.5);
+  await sheet(/^(Add|Add to playlist)$/, 'player-add', h() * 0.5);
+  // the DJ's settings: a long press on the DJ button
+  { const u = dump(); const d = u && u.find((n) => /^DJ/.test(label(n)) && n.cy < h() * 0.2); if (d) { sh(`input swipe ${d.cx} ${d.cy} ${d.cx} ${d.cy} 900`); await sleep(1800); shot(S('player-dj-settings' + tag)); key('KEYCODE_BACK'); await sleep(1200); } else console.log('no DJ button'); }
+  // Retro: each scene (swipe sideways between them)
+  if (await tapLabel(/^Retro$/, 0)) {
+    await sleep(2500); shot(S('retro-1' + tag));
+    for (let i = 2; i <= 6; i++) { sh(`input swipe ${W() * 0.85} ${h() * 0.5} ${W() * 0.15} ${h() * 0.5} 300`); await sleep(1800); shot(S('retro-' + i + tag)); }
+    await back();
+  }
   await back();
+  // a song's own menu: a long press on a row of Songs
+  await tab('Library'); await tab('Library'); await tapLabel(/^Songs$/);
+  { const u = dump(); const r = u && u.find((n) => /^Song \d+/.test(label(n)) && n.cy > 400); if (r) { sh(`input swipe ${r.cx} ${r.cy} ${r.cx} ${r.cy} 900`); await sleep(1500); shot(S('song-menu' + tag)); key('KEYCODE_BACK'); await sleep(1000); } }
+  await back();
+  // Settings, top to bottom: a picture per screenful
   await tab('Settings'); shot(S('settings' + tag));
-  sh('input swipe 540 1700 540 600 400'); await sleep(1200); shot(S('settings-2' + tag));
+  for (let i = 2; i <= 9; i++) { sh(`input swipe ${W() / 2} ${h() * 0.75} ${W() / 2} ${h() * 0.3} 400`); await sleep(1200); shot(S('settings-' + i + tag)); }
   if (size !== 'native') { sh('wm size reset'); sh('wm density reset'); await sleep(3000); }
 }
 console.log('done; playing: ' + mediaSession().state);

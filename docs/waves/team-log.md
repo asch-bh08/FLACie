@@ -266,3 +266,8 @@
 ## 2026-11-06 22:55 (local desktop Claude): b118 released (phone only)
 - Owner's b116 car log: DJ lines made but "voice clip failed to load: HTTP status". Cause: header choice by plain startsWith; FLACie Web (frank:8443) matched the file mover's https://frank base and got X-Api-Key → 401. Fix: `ServerUrl.under` (path boundary) and FLACie Web checked first, in PlayerController's data source and WaveAnalyzer.headersFor.
 - "Playlist plays recommendations": the 80s-90s rally car session (shuf, 94 songs) played only playlist songs; not reproduced. b118 logs "<song> is one Autoplay added, not from <list>" to catch it.
+
+## 2026-11-09 Local: phone screenshots for the gallery
+- 57 screenshots of the b123 phone app on the emulator in `docs/screens-phone-b123/` (phone size, and `-1840x2208@420` = unfolded): every tab, Songs, an album, Playlists, Offline music, Search (keyboard up and after), Now Playing with Lyrics, Info, Options, More, Up next, Add; a song's menu (long press); Settings top to bottom (settings, settings-2..9); Retro scenes 1-6.
+- Missing: the DJ settings sheet (the emulator test has no FLACie Web, so no DJ button), and Retro + Add at the unfolded size (buttons not found there). Tour: `ipodsync/tools/loadtest/v1-shots.mjs` with SIZES=native,1840x2208@420.
+- Local is at 94% weekly: stopping here until the reset (11 Nov 18:00).

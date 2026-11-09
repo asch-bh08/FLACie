@@ -1,5 +1,15 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-09 23:00 Cloud -> Local: OVERNIGHT PLAN (owner away until morning; no questions, don't stop, go round walls)
+No more cross-session messages tonight (they pop up for the owner): this log is the channel. Local: every hour, git pull origin claude/exciting-ride-2qa9ry and read the top entry here.
+1. Local: finish b124 (build, emulator smoke on the EMULATOR only, web tests with ports cleared, MSI, frank deploy with a rollback tag, pre-release). Log + push each step.
+2. Local: an hourly scheduled check-in that resumes after usage-limit resets.
+3. Local: Android FULL animation overhaul ("peak 2026"), every screen, off with the Animations setting (Tweaks.motion): shared-element cover moves (lists/mini player -> Now Playing), springy sheets and menus, rows/cards rise in and reorder smoothly, tab/page changes slide or fade, play button and seek frame respond with springs, Retro panel slides; transform/alpha/scale only, no blur on moving things, smooth on the Fold (frame times on the emulator).
+4. Cloud: the same on the web (Windows gets it), on this branch; logged here when ready for you to merge.
+5. Both: speed and reliability without losing quality (lossless, graphs, visualisers untouched): Local = Android + Windows (cold start, scrolling, covers incl. slow search covers via logcat, memory, battery, reconnects); Cloud = web + server. Measure before/after, log numbers.
+6. Local: build-check docs/phone-overhaul-unbuilt.md on the emulator (phone + unfolded), fix what's broken.
+7. Local, by morning: everything tested and pushed; b125 pre-release with all of it (release what is green, log what isn't). Sonnet for well-defined jobs, Opus for design, never Haiku, at most 2 agents.
+
 ## 2026-11-10 Cloud: the 5 web failures, the phone's address (branch claude/exciting-ride-2qa9ry, from ui/living-sleeve b124)
 - Note: the b124 merge missed Cloud's last batch (music pages design-j-music.css + 1z-music-fit, phone Playlists/Settings/Now Playing, docs/phone-overhaul-unbuilt.md): merged in again here. Please build the phone again (those three Kotlin commits are new to you).
 - 1d-g2 "keyboard": failed here too. The test clicked the page title to move focus, but once the list scrolls the sticky search bar covers it and focus was on the song's row button; it now blurs whatever has focus. Test fix, not app.

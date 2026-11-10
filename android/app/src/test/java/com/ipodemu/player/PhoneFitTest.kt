@@ -191,6 +191,26 @@ class PhoneFitTest {
         }
     }
 
+    // ---- song info ----
+
+    @Test fun infoTilesGoTwoToARowWhenFourWouldCutTheNumbers() {
+        // a 360 dp phone's side pane: 360 - 36 - 28
+        assertEquals(4, InfoFit.tileColumns(296f, 1f))
+        assertEquals(2, InfoFit.tileColumns(296f, 1.5f))
+        assertEquals(2, InfoFit.tileColumns(256f, 1f))
+        assertEquals(4, InfoFit.tileColumns(480f, 1.5f))
+    }
+
+    @Test fun fullScreenGraphKeepsItsHeightOnAShortScreen() {
+        assertEquals(3, InfoFit.hintLines(640f - 72f, 1f))
+        for ((h, fs) in listOf(296f to 1f, 296f to 1.5f, 336f to 1.3f, 568f to 1.5f)) {
+            val n = InfoFit.hintLines(h, fs)
+            val used = 32f + maxOf(48f, 32f * 1.3f * fs) + 44f + 58f + 36f + (if (n > 0) 12f + n * fitLine(12.5f, fs) else 0f)
+            assertTrue("$h $fs $n", n == 0 || h - used >= InfoFit.MIN_GRAPH)
+        }
+        assertTrue(InfoFit.hintLines(296f, 1.5f) < 3)
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

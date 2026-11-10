@@ -262,6 +262,26 @@ object LyricsFit {
 }
 
 /**
+ * Song info. The four number tiles (kbps, kHz, bit, channels) shared a 256 dp card on a 320 dp phone, and "1411" in 20 sp mono at font scale 1.5 was
+ * cut to "1…": they go two to a row when four would not fit. The full-screen graph's hint (up to three lines under the controls) gives way to the
+ * graph on a short screen: as many lines as leave the graph [MIN_GRAPH] dp.
+ */
+object InfoFit {
+    const val MIN_GRAPH = 120f
+
+    /** [width]: the card's inside (the panel less 28 dp of padding). */
+    fun tileColumns(width: Float, fontScale: Float = 1f): Int = if (width >= 192f * fontScale.coerceAtLeast(.85f) + 104f) 4 else 2
+
+    /** [height]: the full-screen graph's room inside the system bars. */
+    fun hintLines(height: Float, fontScale: Float = 1f): Int {
+        val fs = fontScale.coerceAtLeast(.85f)
+        val overhead = 32f + max(48f, 32f * 1.3f * fs) + 44f + 58f + 3 * 12f
+        for (n in 3 downTo 1) if (overhead + 12f + n * fitLine(12.5f, fs) + MIN_GRAPH <= height) return n
+        return 0
+    }
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

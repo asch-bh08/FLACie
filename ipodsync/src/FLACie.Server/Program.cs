@@ -136,6 +136,8 @@ builder.Services.AddSingleton<FormatIndex>();
 builder.Services.AddSingleton<PlaybackActivity>();
 // the start of the next few songs, so Next starts at once (SongHeadCache)
 builder.Services.AddSingleton<SongHeadCache>();
+// the songs Jellyfin just did not answer for in time, so the player can say why it stopped (GET /api/stream/why)
+builder.Services.AddSingleton(_ => new StreamStalls());
 builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<ListenLogStore>();   // each account's listening log (recommendations)
 builder.Services.AddSingleton<DiagLogStore>();   // each account's playback problems from its devices (stalls, errors, what the mic heard)

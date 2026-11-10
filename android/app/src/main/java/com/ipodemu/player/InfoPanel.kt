@@ -211,7 +211,9 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
     val graphs = infoGraphs(info.kbps, info.channels)
     if (graphs.none { it.first == mode }) mode = "curve"
     androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
-        val graphH = (maxHeight * .34f).coerceIn(150.dp, if (info.hiRes) 280.dp else 230.dp)
+        // a third of the panel (150-230 dp, 280 for Hi-Res) when the graph's card fits; in a short panel (the Info card on a small phone) shorter, not
+        // under 96 dp, so the tabs, its name and the whole graph are on screen together (NowPlayingFit). The graph draws the same detail at any height
+        val graphH = NowPlayingFit.infoGraphHeight(maxHeight.value, androidx.compose.ui.platform.LocalDensity.current.fontScale, info.hiRes).dp
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // 1. the graph, picked from outlined tabs (the chosen one filled)
             Column(Modifier.softCard(toneC).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

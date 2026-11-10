@@ -211,6 +211,23 @@ class PhoneFitTest {
         assertTrue(InfoFit.hintLines(296f, 1.5f) < 3)
     }
 
+    // ---- menus and sheets ----
+
+    @Test fun sheetValuesLeaveTheLabelItsRoom() {
+        assertEquals(160f, SheetFit.valueMax(640f, 1f))
+        assertEquals(120f, SheetFit.valueMax(360f, 1f))
+        assertEquals(60f, SheetFit.valueMax(320f, 1.5f))
+        for (w in listOf(360f, 412f)) for (fs in scales) {
+            val v = SheetFit.valueMax(w, fs)
+            assertTrue("$w $fs", v == 60f || w - 120f - v >= 120f * fs)
+        }
+    }
+
+    @Test fun accountMenuFitsTheScreen() {
+        assertEquals(224f, SheetFit.popupMaxHeight(320f))
+        assertEquals(160f, SheetFit.popupMaxHeight(200f))
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

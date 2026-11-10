@@ -726,14 +726,16 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
                 .pointerInput(Unit) { detectTapGestures { } }
                 .padding(bottom = 12.dp),
         ) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                Txt(title, size = 18f, weight = FontWeight.Bold)
-                if (subtitle != null) Txt(subtitle, size = 13f, color = sc.onBgDim)
-            }
+            // the title and the subtitle scroll with the rows: a long subtitle (the Hi-Res warning) was cut to one line, and on a phone on its side at
+            // big text a fixed header left no room for the rows
             Column(Modifier.weight(1f, fill = false).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                    Txt(title, size = 18f, weight = FontWeight.Bold, maxLines = 3)
+                    if (subtitle != null) Txt(subtitle, size = 13f, color = sc.onBgDim, maxLines = 8)
+                }
                 items.forEachIndexed { i, item ->
                     IpodRow(onClick = { onDismiss(); item.onClick() }, height = 54.dp, focusRequester = if (i == 0) first else null,
-                        leading = { GlyphIcon(if (item.selected) Glyph.CHECK else item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
+                        leading = { GlyphIcon(if (item.selected) Glyph.CHECK else item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg, maxLines = 3) }
                 }
             }
         }

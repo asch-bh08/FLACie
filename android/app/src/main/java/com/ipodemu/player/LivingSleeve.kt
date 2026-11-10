@@ -1047,7 +1047,7 @@ private fun MoreTile(label: String, g: Glyph, p: SleevePalette, on: Boolean, mod
     val pressed by src.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) .94f else 1f, androidx.compose.animation.core.spring(.6f, 600f), label = "tile")
     Column(
-        modifier.height(84.dp).graphicsLayer { scaleX = s; scaleY = s }.clip(RoundedCornerShape(18.dp))
+        modifier.heightIn(min = 84.dp).graphicsLayer { scaleX = s; scaleY = s }.clip(RoundedCornerShape(18.dp))
             .drawBehind { drawRect(if (on) p.main.value else p.tone.value) }
             .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label; if (g == Glyph.HEART || g == Glyph.HEART_FILLED) stateDescription = if (on) "On" else "Off" }
             .clickable(src, null, onClick = onClick).padding(6.dp),
@@ -1065,14 +1065,17 @@ private fun MoreTile(label: String, g: Glyph, p: SleevePalette, on: Boolean, mod
 private fun MoreGroup(name: String, rows: List<MoreRow>) {
     if (rows.isEmpty()) return
     SText(name.uppercase(), Modifier.padding(start = 24.dp, top = 18.dp, bottom = 4.dp).semantics { heading() }, family = SleeveFonts.mono, size = 11f, color = InkDim, spacing = .14f)
+    // the value leaves the label its room on a narrow phone at big text (SheetFit); the rows grow rather than cut a label
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val valueMax = SheetFit.valueMax(minOf(cfg.screenWidthDp, 640).toFloat(), cfg.fontScale).dp
     for (r in rows) {
         Row(
-            Modifier.fillMaxWidth().height(56.dp).semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = r.onClick).padding(horizontal = 24.dp),
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = r.onClick).padding(horizontal = 24.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { r.icon(Ink) }
-            SText(r.label, Modifier.weight(1f), size = 16f, weight = FontWeight.Medium)
-            if (r.value != null) SText(r.value, Modifier.widthIn(max = 160.dp), family = SleeveFonts.mono, size = 13f, color = InkDim)
+            SText(r.label, Modifier.weight(1f), size = 16f, weight = FontWeight.Medium, maxLines = 2)
+            if (r.value != null) SText(r.value, Modifier.widthIn(max = valueMax), family = SleeveFonts.mono, size = 13f, color = InkDim)
             if (r.opens) GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), InkFaint)
         }
     }
@@ -1155,11 +1158,13 @@ private fun DesignSheet(spec: SheetSpec?, p: SleevePalette, onDismiss: () -> Uni
                         },
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(40.dp, 4.dp).clip(CircleShape).background(InkFaint)) }
-                Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
-                    SText(remember(s.title) { serifTitle(s.title) }, family = SleeveFonts.serif, size = 28f, weight = FontWeight.Normal, maxLines = 2)
-                    if (!s.subtitle.isNullOrEmpty()) SText(s.subtitle, size = 14f, color = InkDim, maxLines = 3)
-                }
+                // the title and the subtitle scroll with the rows (a long subtitle was cut at three lines, and on a phone on its side at big text the
+                // fixed header left the rows no room)
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
+                    Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
+                        SText(remember(s.title) { serifTitle(s.title) }, family = SleeveFonts.serif, size = 28f, weight = FontWeight.Normal, maxLines = 3)
+                        if (!s.subtitle.isNullOrEmpty()) SText(s.subtitle, size = 14f, color = InkDim, maxLines = 8)
+                    }
                     if (s.items.isEmpty()) SText("One moment\u2026", Modifier.padding(24.dp), size = 15f, color = InkDim)
                     var group: String? = null
                     for (item in s.items) {

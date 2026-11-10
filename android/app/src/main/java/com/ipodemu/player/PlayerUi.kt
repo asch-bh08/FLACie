@@ -2545,8 +2545,11 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
     val kind = when (app.prefs.accountKind) { "nas" -> "NAS"; "" -> "Not signed in"; else -> "Jellyfin" }
     androidx.compose.ui.window.Popup(alignment = Alignment.TopEnd, offset = androidx.compose.ui.unit.IntOffset(0, 140), onDismissRequest = onClose,
         properties = androidx.compose.ui.window.PopupProperties(focusable = true)) {
-        Column(Modifier.padding(end = 8.dp).widthIn(min = 220.dp, max = 280.dp).clip(RoundedCornerShape(16.dp)).background(sc.top.mix(Color.Black, .45f))
-            .border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp)).padding(vertical = 6.dp)) {
+        // at most the screen less a margin, scrolling: on a phone on its side at big text Sign out was below the screen (SheetFit)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        Column(Modifier.padding(end = 8.dp).widthIn(min = 220.dp, max = 280.dp).heightIn(max = SheetFit.popupMaxHeight(cfg.screenHeightDp.toFloat()).dp)
+            .clip(RoundedCornerShape(16.dp)).background(sc.top.mix(Color.Black, .45f))
+            .border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp)).verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(sc.accent), contentAlignment = Alignment.Center) {
                     Txt(name.take(1).uppercase().ifEmpty { "?" }, size = 18f, weight = FontWeight.Bold, color = Color.White)

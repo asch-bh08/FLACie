@@ -282,6 +282,23 @@ object InfoFit {
 }
 
 /**
+ * Menus and sheets. The player's More sheet rows show a value beside the label (the album, the artist, the sleep timer): capped at 160 dp it left a
+ * 320 dp phone's label about 40 dp; it now leaves the label 120 dp per unit of font scale, never under 60 dp itself (it ends in …). The account menu
+ * is at most the screen less [POPUP_MARGIN] and scrolls (on a phone on its side at big text Sign out was below the screen).
+ */
+object SheetFit {
+    const val POPUP_MARGIN = 96f
+
+    /** [width]: the sheet (the screen, up to 640 dp). */
+    fun valueMax(width: Float, fontScale: Float = 1f): Float {
+        val room = width - 48f - 24f - 32f - 16f
+        return (room - 120f * fontScale.coerceAtLeast(.85f)).coerceIn(60f, 160f)
+    }
+
+    fun popupMaxHeight(screenHeight: Float): Float = (screenHeight - POPUP_MARGIN).coerceAtLeast(160f)
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

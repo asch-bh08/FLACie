@@ -9,4 +9,17 @@
         </a>
     }
 </div>
-@code { [Parameter] public IReadOnlyList<Group> Albums { get; set; } = []; }
+@code {
+    [Parameter] public IReadOnlyList<Group> Albums { get; set; } = [];
+
+    // the grid shows no player state: when a song starts or pauses it is not drawn again unless its albums changed (a whole library's albums were
+    // compared again on every song change, about a tenth of a second of server time with 1,200 albums) or a chosen cover asks for a redraw
+    Group[]? drawn; int drawnRedraws;
+    protected override bool ShouldRender()
+    {
+        if (drawn is not null && drawnRedraws == Player.Redraws && drawn.Length == Albums.Count && Same()) return false;
+        drawn = [.. Albums]; drawnRedraws = Player.Redraws;
+        return true;
+    }
+    bool Same() { for (var i = 0; i < drawn!.Length; i++) if (!ReferenceEquals(drawn[i], Albums[i])) return false; return true; }
+}

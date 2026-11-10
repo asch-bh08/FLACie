@@ -37,6 +37,16 @@ public class PlayerTickTests
         Assert.False(p.Ticking);
     }
 
+    // the album grid and the Artists page skip the player's changes, but a chosen cover (Redraw) still draws them again
+    [Fact] public void A_redraw_is_counted_and_a_tick_or_a_pause_is_not()
+    {
+        var p = new PlayerState(new FakeJs());
+        p.OnTime(1.0, 200); p.OnState(true);
+        Assert.Equal(0, p.Redraws);
+        p.Redraw(); p.Redraw();
+        Assert.Equal(2, p.Redraws);
+    }
+
     // the views that show a clock, a progress line or a countdown follow every tick; the lists and pages do not
     [Theory]
     [InlineData(typeof(FLACie.Server.Components.Shared.PlayerBar), true)]

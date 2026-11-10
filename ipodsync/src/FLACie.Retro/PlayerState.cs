@@ -208,7 +208,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// Search) need not be drawn again for it, so a long list is not rebuilt twice a second while music plays.</summary>
     public bool Ticking { get; private set; }
     /// <summary>Something the player shows changed from outside it (a chosen cover): draw it again now, paused or not.</summary>
-    public void Redraw() => Changed?.Invoke();
+    public void Redraw() { Redraws++; Changed?.Invoke(); }
+    /// <summary>How many times <see cref="Redraw"/> was asked for: a view that otherwise skips player changes (the album grid) draws again when it moves.</summary>
+    public int Redraws { get; private set; }
     /// <summary>A page that starts music asks the player bar to open the full-screen player.</summary>
     public event Action? FullScreenRequested;
     public void RequestFullScreen() => FullScreenRequested?.Invoke();

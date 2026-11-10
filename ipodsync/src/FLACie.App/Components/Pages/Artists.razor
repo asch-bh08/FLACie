@@ -21,5 +21,13 @@
     void Refresh() { Build(); StateHasChanged(); }
     void ClearFilters() { X.Clear(); Refresh(); }
     protected override void OnParametersSet() => Build();
-    protected override bool ShouldRender() { Build(); return true; }
+    // nothing here shows the player: a song starting or pausing does not draw every artist again, only a change of library, filters or a chosen cover
+    List<Group>? drawn; int drawnRedraws;
+    protected override bool ShouldRender()
+    {
+        Build();
+        if (ReferenceEquals(drawn, list) && drawnRedraws == Player.Redraws) return false;
+        drawn = list; drawnRedraws = Player.Redraws;
+        return true;
+    }
 }

@@ -5,7 +5,7 @@ namespace FLACie.Server;
 /// <summary>What this build is: shown in Settings > About, at /licenses and /privacy.</summary>
 public static class AppInfo
 {
-    public const string FallbackVersion = "1.0 b126";
+    public const string FallbackVersion = "1.0 b127";
     public static string Version { get; } = Environment.GetEnvironmentVariable("FLACIE_VERSION") is { Length: > 0 } v ? v
         : typeof(AppInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+')[0] is { Length: > 0 } iv ? iv : FallbackVersion;
 

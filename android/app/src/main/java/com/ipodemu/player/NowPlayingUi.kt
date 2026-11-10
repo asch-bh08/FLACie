@@ -63,8 +63,11 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
     val pos by rememberPosition(app.player, snap.playing)
     val dur = app.player.durationMs
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    // big text: the bar grows a little and the download line goes; a narrow phone keeps the title's room before the DJ and its mic (MiniFit)
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val fit = MiniFit.classic(cfg.screenWidthDp.toFloat(), cfg.fontScale, snap.dj != null)
     Box(
-        Modifier.fillMaxWidth().navigationBarsPadding().height(56.dp)
+        Modifier.fillMaxWidth().navigationBarsPadding().height(fit.height.dp)
             .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))))
             .trackSwipe({ app.player.prev() }, { app.player.next() })
             .clickable { nav.nowPlaying = true }
@@ -79,16 +82,15 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
                 DjCaptionOr(snap.djCaption) { Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim) }
-                DownloadTagLine(t, size = 10.5f)
+                if (fit.tag) DownloadTagLine(t, size = 10.5f)
             }
+            // the round buttons stay small in the slim bar, but each takes a 48 dp touch
             snap.dj?.let { on ->
-                GlossButton({ djTap(app) }, label = djLabel(on), size = 34.dp, primary = on) { GlyphIcon(Glyph.DJ, Modifier.size(17.dp), Color.White) }
-                Box(Modifier.size(6.dp))
-                if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
+                if (fit.dj) GlossButton({ djTap(app) }, label = djLabel(on), size = 34.dp, primary = on, touch = 48.dp) { GlyphIcon(Glyph.DJ, Modifier.size(17.dp), Color.White) }
+                if (fit.mic) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
             }
-            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp).bumpOnChange(snap.playing), Color.White) }
-            Box(Modifier.size(6.dp))
-            GlossButton({ app.player.next() }, label = "Next", size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
+            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true, touch = 48.dp) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp).bumpOnChange(snap.playing), Color.White) }
+            GlossButton({ app.player.next() }, label = "Next", size = 34.dp, touch = 48.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
         }
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .14f))) {
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.accent))
@@ -364,8 +366,15 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     val cols = rememberCoverColours(t.artKey)
     val tone = Color(cols.tone); val main = Color(cols.main)
     val shape = RoundedCornerShape(18.dp)
+    // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
+    val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
+    // what fits (MiniFit, unit tested): at big text the download line goes and the title is smaller before the bar grows a little; on a narrow
+    // phone the title keeps its room before the mic, then Devices, then the DJ (all three are on Now Playing too). The rail takes 80 dp on its side
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val rowW = cfg.screenWidthDp - (if (cfg.screenWidthDp >= 600 || cfg.screenWidthDp >= cfg.screenHeightDp) 80 else 0)
+    val fit = MiniFit.modern(rowW.toFloat(), cfg.fontScale, short, snap.dj != null, !app.ui.guest && hasOthers)
     Box(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(if (short) 58.dp else 66.dp)
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(fit.height.dp)
             .coverShadow(18.dp, 8.dp).clip(shape)
             .background(Brush.horizontalGradient(listOf(tone, Palette.surface))).border(1.dp, Color(cols.toneFg).copy(alpha = .14f), shape)
             .focusRing(shape)
@@ -374,22 +383,20 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             ArtImage(t.artKey, Modifier.size(if (short) 44.dp else 50.dp).sharedCover().popIn(t.path, 0.7f), thumb = true, corner = 10.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                SerifTitle(t.title, size = 20f)
+                SerifTitle(t.title, size = fit.titleSp)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
                     DjCaptionOr(snap.djCaption, Modifier.weight(1f, fill = false)) { Txt(t.artist.ifEmpty { t.album }, size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBgDim) }
-                    if (!short) FormatChip(remember(t.path) { trackExt(t) })
+                    if (fit.chip) FormatChip(remember(t.path) { trackExt(t) })
                 }
-                DownloadTagLine(t, size = 11f)
+                if (fit.tag) DownloadTagLine(t, size = 11f)
             }
-            // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
-            val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
-            if (!app.ui.guest && hasOthers) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
+            if (fit.devices) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
             // talk to the DJ from anywhere, as the web's player bar (not there without FLACie Web)
             // the DJ for this queue and the mic to talk to it, together before play (the web's bar has them together beside the heart). On a narrow
-            // phone (under 380 dp) only the DJ, so the title keeps its room: the mic is on Now Playing
+            // phone only the DJ (or neither), so the title keeps its room: the mic is on Now Playing
             snap.dj?.let { on ->
-                IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f, dot = on)
-                if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
+                if (fit.dj) IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f, dot = on)
+                if (fit.mic) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
             }
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(42.dp).clip(CircleShape).background(main)) {

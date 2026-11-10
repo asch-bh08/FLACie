@@ -94,3 +94,52 @@ object ClassicFit {
         return last!!
     }
 }
+
+/**
+ * The mini player above the tabs. Its words (title, artist, download line) must fit the bar's height: at big text the download line goes, then the
+ * title is smaller, then the bar grows a little (not past [GROW] more). Across, the title keeps at least [MIN_TITLE] dp (more at big text): the mic
+ * goes first, then the Devices button, then the DJ (both are on Now Playing too). The format chip beside the artist only shows at ordinary text sizes.
+ */
+object MiniFit {
+    data class Plan(val height: Float, val titleSp: Float, val tag: Boolean, val chip: Boolean, val dj: Boolean, val mic: Boolean, val devices: Boolean)
+
+    const val MIN_TITLE = 96f
+    const val GROW = 16f
+
+    private fun need(fs: Float) = MIN_TITLE * fs.coerceIn(1f, 1.5f)
+
+    /** The Modern bar: [width] is the bar's row (the screen, less a rail), [short] a screen under 500 dp tall. */
+    fun modern(width: Float, fontScale: Float, short: Boolean, dj: Boolean, devices: Boolean): Plan {
+        val fs = fontScale.coerceAtLeast(.85f)
+        val base = if (short) 58f else 66f
+        var titleSp = 20f
+        var tag = true
+        fun text() = titleSp * 1.05f * fs + fitLine(12.5f, fs) + (if (tag) fitLine(11f, fs) else 0f)
+        if (text() > base - 8f) tag = false
+        if (text() > base - 8f) titleSp = 17f
+        val height = max(base, min(text() + 10f, base + GROW))
+        // the row: outer and inner padding, the cover, the column's padding, play and next
+        val room = width - 24f - 14f - (if (short) 44f else 50f) - 24f - 48f - 48f
+        var showDj = dj; var showMic = dj && width >= 380f; var showDev = devices
+        fun used() = (if (showDj) 40f else 0f) + (if (showMic) 40f else 0f) + (if (showDev) 48f else 0f)
+        if (room - used() < need(fs)) showMic = false
+        if (room - used() < need(fs)) showDev = false
+        if (room - used() < need(fs)) showDj = false
+        return Plan(height, titleSp, tag, !short && fs <= 1.15f && room - used() >= need(fs) + 40f, showDj, showMic, showDev)
+    }
+
+    /** The iPod skins' bar: 56 dp, growing for big text; play, next and the DJ keep 48 dp touch targets. */
+    fun classic(width: Float, fontScale: Float, dj: Boolean): Plan {
+        val fs = fontScale.coerceAtLeast(.85f)
+        var tag = true
+        fun text() = fitLine(14f, fs) + fitLine(12f, fs) + (if (tag) fitLine(10.5f, fs) else 0f)
+        if (text() > 56f - 6f) tag = false
+        val height = max(56f, min(text() + 4f, 56f + GROW))
+        val room = width - 16f - 40f - 20f - 48f - 48f
+        var showDj = dj; var showMic = dj && width >= 380f
+        fun used() = (if (showDj) 48f else 0f) + (if (showMic) 40f else 0f)
+        if (room - used() < need(fs)) showMic = false
+        if (room - used() < need(fs)) showDj = false
+        return Plan(height, 14f, tag, false, showDj, showMic, false)
+    }
+}

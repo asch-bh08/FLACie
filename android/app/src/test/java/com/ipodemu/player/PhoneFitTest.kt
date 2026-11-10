@@ -56,4 +56,49 @@ class PhoneFitTest {
         assertEquals(44f, ClassicFit.extrasSize(320f, 4))
         assertTrue(ClassicFit.extrasSize(200f, 6) >= 36f)
     }
+
+    // ---- mini player ----
+
+    private fun modernTitleRoom(w: Float, p: MiniFit.Plan, short: Boolean = false) =
+        w - 24f - 14f - (if (short) 44f else 50f) - 24f - 96f - (if (p.dj) 40f else 0f) - (if (p.mic) 40f else 0f) - (if (p.devices) 48f else 0f)
+
+    @Test fun miniKeepsTheTitleReadableOnNarrowPhones() {
+        for (w in listOf(320f, 360f, 412f)) for (fs in scales) {
+            val p = MiniFit.modern(w, fs, short = false, dj = true, devices = true)
+            assertTrue("$w at $fs: $p", modernTitleRoom(w, p) >= MiniFit.MIN_TITLE)
+        }
+    }
+
+    @Test fun miniDropsTheMicFirstThenDevicesThenTheDj() {
+        val roomy = MiniFit.modern(480f, 1f, false, dj = true, devices = true)
+        assertTrue(roomy.dj); assertTrue(roomy.mic); assertTrue(roomy.devices)
+        val p = MiniFit.modern(360f, 1f, false, dj = true, devices = true)
+        assertFalse(p.mic)
+        if (!p.dj) assertFalse(p.devices)
+        val tight = MiniFit.modern(320f, 1.5f, false, dj = true, devices = true)
+        assertFalse(tight.mic); assertFalse(tight.devices)
+    }
+
+    @Test fun miniWordsFitTheBarAtBigText() {
+        for (fs in scales) for (short in listOf(false, true)) {
+            val p = MiniFit.modern(360f, fs, short, dj = false, devices = false)
+            val text = p.titleSp * 1.05f * fs + fitLine(12.5f, fs) + (if (p.tag) fitLine(11f, fs) else 0f)
+            assertTrue("$fs short=$short: $p", text <= p.height - 6f)
+            assertTrue(p.height <= (if (short) 58f else 66f) + MiniFit.GROW)
+        }
+        // ordinary text: the bar as it was, with the download line and the format chip
+        val p = MiniFit.modern(412f, 1f, false, dj = false, devices = false)
+        assertEquals(66f, p.height); assertTrue(p.tag); assertTrue(p.chip)
+        assertFalse(MiniFit.modern(412f, 1.5f, false, dj = false, devices = false).tag)
+    }
+
+    @Test fun classicMiniGrowsForBigTextAndKeepsTheTitle() {
+        assertEquals(56f, MiniFit.classic(360f, 1f, dj = false).height)
+        for (fs in scales) {
+            val p = MiniFit.classic(320f, fs, dj = true)
+            val text = fitLine(14f, fs) + fitLine(12f, fs) + (if (p.tag) fitLine(10.5f, fs) else 0f)
+            assertTrue("$fs: $p", text <= p.height - 4f)
+            assertTrue(320f - 172f - (if (p.dj) 48f else 0f) - (if (p.mic) 40f else 0f) >= MiniFit.MIN_TITLE)
+        }
+    }
 }

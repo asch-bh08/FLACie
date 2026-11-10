@@ -326,7 +326,10 @@ fun Txt(
 @Composable
 fun GlossButton(
     onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 56.dp, primary: Boolean = false, enabled: Boolean = true, label: String? = null,
-    onLongClick: (() -> Unit)? = null, content: @Composable BoxScope.() -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    /** a touch target bigger than the button drawn (48 dp for a small button in a slim bar); 0 = the button's own size */
+    touch: Dp = 0.dp,
+    content: @Composable BoxScope.() -> Unit,
 ) {
     val sc = LocalScheme.current
     val style = LocalStyle.current
@@ -337,23 +340,24 @@ fun GlossButton(
     val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else if (pressed) Palette.surface3 else Palette.surface2)
     else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x59FFFFFF), Color(0x1FFFFFFF)))
-    Box(
-        modifier
-            .size(size)
-            .pressSpring(pressed, 0.88f).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
-            .clip(CircleShape)
-            .background(brush)
-            .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, CircleShape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
-            .drawBehind {
-                if (style.glossy) drawOval(
-                    Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color.Transparent)),
-                    Offset(this.size.width * .1f, this.size.height * .03f), Size(this.size.width * .8f, this.size.height * .5f),
-                )
-            }
-            .then(if (label != null) Modifier.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button } else Modifier)
-            .combinedClickableNoRipple(src, enabled, onClick, onLongClick),
-        contentAlignment = Alignment.Center, content = content,
-    )
+    val body = Modifier
+        .size(size)
+        .pressSpring(pressed, 0.88f).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
+        .clip(CircleShape)
+        .background(brush)
+        .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, CircleShape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
+        .drawBehind {
+            if (style.glossy) drawOval(
+                Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color.Transparent)),
+                Offset(this.size.width * .1f, this.size.height * .03f), Size(this.size.width * .8f, this.size.height * .5f),
+            )
+        }
+    val action = (if (label != null) Modifier.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button } else Modifier)
+        .combinedClickableNoRipple(src, enabled, onClick, onLongClick)
+    if (touch > size) Box(modifier.size(touch).then(action), contentAlignment = Alignment.Center) {
+        Box(body, contentAlignment = Alignment.Center, content = content)
+    }
+    else Box(modifier.then(body).then(action), contentAlignment = Alignment.Center, content = content)
 }
 
 @OptIn(ExperimentalFoundationApi::class)

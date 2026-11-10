@@ -178,12 +178,17 @@ async function scenarioScrolling() {
   await reset();
   sh('logcat -c', { quiet: true });
   const t0 = Date.now();
+  sh(`dumpsys gfxinfo ${PKG} reset`, { quiet: true });   // frame times from here on only
   const out = sh(`end=$(( $(date +%s) + ${SCROLL_SECONDS} )); n=0; while [ $(date +%s) -lt $end ]; do cmd input swipe 500 1900 500 600 100; n=$((n+1)); done; echo swipes=$n`, { timeout: (SCROLL_SECONDS + 90) * 1000 });
   const ms = Date.now() - t0;
   const swipes = Number(/swipes=(\d+)/.exec(out)?.[1] ?? 0);
   await sleep(3000);   // covers still on their way
   const st = pick(await stats());
-  result.scenarios.scrolling = { swipes, ms, swipesPerSecond: +(swipes / (ms / 1000)).toFixed(1), ...st };
+  // how smooth it was: the share of frames Android counted as janky and the slow end of the frame times (owner, 9 Nov: smooth on the Fold)
+  const gfx = sh(`dumpsys gfxinfo ${PKG}`, { quiet: true });
+  const num = (re) => { const m = re.exec(gfx); return m ? Number(m[1]) : null; };
+  const frames = { total: num(/Total frames rendered:\s*(\d+)/), jankyPct: num(/Janky frames:\s*\d+\s*\(([\d.]+)%\)/), p50Ms: num(/50th percentile:\s*(\d+)ms/), p90Ms: num(/90th percentile:\s*(\d+)ms/), p99Ms: num(/99th percentile:\s*(\d+)ms/) };
+  result.scenarios.scrolling = { swipes, ms, swipesPerSecond: +(swipes / (ms / 1000)).toFixed(1), frames, ...st };
   shot(path.join(SHOTS, 'scrolling-end.png'));
   log(`scrolling: ${swipes} swipes in ${ms} ms, image requests ${st.images} (${st.imageUrls} distinct, ${st.imageRepeats} repeats), peak ${st.peakInFlight}, total ${st.total}`);
 }

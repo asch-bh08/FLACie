@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~11:30 Local: phone motion, second batch (owner: "are they everywhere and really good? if not carry on")
+- Added: tab bar pill grows in behind the icon and the icon bounces (bottom bar and Fold rail); chips fade their fill in/out as they are chosen; cover cards (Home shelves, albums, playlists) dip on press and spring back; Playlists grid cards glide when the list changes; search results rise in one after another the first time each shows (Motion.kt riseFirstTime). All off with Animations off.
+- Frame times: run-android.mjs scrolling now records dumpsys gfxinfo (janky %, p50/p90/p99). The emulator draws in software (swiftshader), so absolute numbers are poor for every build (p50 ~120 ms); only compare builds. Songs list, 40 s of swipes, frames rendered (p50/p99): b126 586 (121/200), 437 (150/350). First try of this batch: 237 (150/2400), 200 (150/3200): a real slowdown. Bisect: without the tab change still slow (335); without the chip change normal (586, 386). Cause: the press dip on every chip (an interaction source + spring per chip). Kept the chip fill fade, dropped the chip press dip: 298 / 582 (117/200) / 548 (117/200), i.e. as b126.
+- Not done in motion: the cover flying from a list row into Now Playing (only the mini player's cover flies), Settings rows rising in, Retro panel slides.
+
 ## 2026-11-10 ~09:15 Local: b126 RELEASED (pre-release), not deployed
 - Contents: the cloud's web/server speed pass, phone memory fix (ModulateAlpha), search timing logs, version 1.0 b126 (Android 141).
 - Checks: server 2011 passed 1 skipped; Android unit + release green; emulator smoke 23/23 (search 9/9 earlier on the same code); web 227 passed (1z-fast-load, 1z-volume-drag, 1z-public-address, 1z-discman-fit, 1z-wave-waits, 1z-dj-mic-twice, 1z-motion, 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq, 1-pages) on a clean .pub-smoke; MSI built.

@@ -851,7 +851,7 @@ fun AlbumCard(g: Group, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val spoken = remember(g.name) { g.name + (g.tracks.firstOrNull()?.let { t -> t.albumArtist.ifEmpty { t.artist } }?.takeIf { it.isNotEmpty() }?.let { ", $it" } ?: "") }
     Column(modifier.clip(RoundedCornerShape(14.dp)).semantics(mergeDescendants = true) { contentDescription = spoken }.clickable(src, null, onClick = onClick).padding(4.dp)) {
         // rounded covers with a soft shadow, as on the web's new look
-        ArtImage(g.artKey, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
+        ArtImage(g.artKey, Modifier.fillMaxWidth().aspectRatio(1f).pressLift(src).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), corner = 12.dp)
         Txt(g.name, Modifier.padding(top = 8.dp), size = 14f, weight = FontWeight.SemiBold)
         Txt(g.tracks.firstOrNull()?.artist ?: "", size = 12f, color = sc.onBgDim)
         g.tracks.firstOrNull()?.let { Box(Modifier.padding(top = 4.dp)) { SourceBadge(it.source) } }
@@ -864,7 +864,7 @@ private fun TrackCard(t: Track, modifier: Modifier = Modifier, onClick: () -> Un
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     Column(modifier.clip(RoundedCornerShape(14.dp)).clickable(src, null, onClick = onClick).padding(4.dp)) {
-        ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
+        ArtImage(t.artKey, Modifier.fillMaxWidth().aspectRatio(1f).pressLift(src).coverShadow(12.dp, 8.dp).border(if (focused) 3.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(12.dp)), thumb = true, corner = 12.dp)
         Txt(t.title, Modifier.padding(top = 8.dp), size = 13f, weight = FontWeight.SemiBold)
         Txt(t.artist, size = 12f, color = sc.onBgDim)
         if (com.ipodemu.library.HomeShelves.isNew(t)) Txt("New · tap to get it", size = 11f, color = sc.accent)
@@ -1190,8 +1190,9 @@ private fun NewPlaylistTile() {
 private fun PlaylistCard(name: String, sub: String, art: String?, modifier: Modifier = Modifier, heart: Boolean = false, onLong: (() -> Unit)? = null,
                          mark: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     val sc = LocalScheme.current
-    Column(modifier.clip(RoundedCornerShape(14.dp)).semantics(mergeDescendants = true) { contentDescription = "$name, $sub" }
-        .combinedClickable(onClick = onClick, onLongClick = onLong).padding(4.dp)) {
+    val src = remember { MutableInteractionSource() }
+    Column(modifier.pressLift(src).clip(RoundedCornerShape(14.dp)).semantics(mergeDescendants = true) { contentDescription = "$name, $sub" }
+        .combinedClickable(src, androidx.compose.foundation.LocalIndication.current, onClick = onClick, onLongClick = onLong).padding(4.dp)) {
         if (heart) Box(
             Modifier.fillMaxWidth().aspectRatio(1f).coverShadow(12.dp, 8.dp).clip(RoundedCornerShape(12.dp)).background(Brush.linearGradient(listOf(Color(0xFFE5486B), Color(0xFF9E2A4A)))),
             contentAlignment = Alignment.Center,
@@ -1250,7 +1251,7 @@ private fun PlaylistsGrid(nav: PlayerNav) {
                 val keys = p.paths.asSequence().take(20).mapNotNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }.toList()
                 // a cover already on disk, else one a server can supply; a local key with no file behind it shows nothing
                 val first = keys.firstOrNull { app.art.has(it) } ?: keys.firstOrNull { it.startsWith("jf") || it.startsWith("px") || it.startsWith("it") }
-                PlaylistCard(p.name, songCount(p.paths.size), first, Modifier.entranceRise(entrance, i + 2), onLong = { nav.sheet = playlistSheet(app, nav, p) },
+                PlaylistCard(p.name, songCount(p.paths.size), first, Modifier.glide(this@gridItemsIndexed).entranceRise(entrance, i + 2), onLong = { nav.sheet = playlistSheet(app, nav, p) },
                     mark = { DownloadedListMark(p.paths) }) { nav.push(Screen.Detail(DetailKind.USER, p.id)) }
             }
             items(shownFolderPlaylists(app), key = { "f" + it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
@@ -2011,7 +2012,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (w.songs.isNotEmpty() && shows("songs")) {
                 item { SectionHeader("Songs") }
                 val shown = if (webSongsExpanded || only == "songs" || picks != null) w.songs else w.songs.take(8)
-                itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { _, s ->
+                itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { i, s ->
+                  Box(Modifier.riseFirstTime("ws$i${s.artist}${s.title}", i)) {
                     val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
                     val status = dl[app.library.songKey(s.artist, s.title)]
                     val more = w.versions[versionKey(s)].orEmpty()
@@ -2037,6 +2039,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                             }
                             nav.sheet = SheetSpec(s.title, s.artist.ifEmpty { null }, items)
                         })
+                  }
                 }
                 if (!webSongsExpanded && only != "songs" && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
             }
@@ -2046,8 +2049,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 val shown = if (songsExpanded || only == "songs" || picks != null) libSongs else libSongs.take(4)
                 itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t ->
                     val id = "L" + t.path
-                    TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
-                        picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) }, kind = "Song")
+                    Box(Modifier.riseFirstTime("s$i${t.path}", i)) { TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
+                        picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) }, kind = "Song") }
                 }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }

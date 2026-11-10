@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 
 /** Small shared motion: things pop, rise and spring instead of just appearing. */
 
@@ -111,4 +112,37 @@ object QueueKeys {
         val seen = HashMap<String, Int>()
         return paths.map { p -> val n = seen.getOrDefault(p, 0); seen[p] = n + 1; "$p#$n" }
     }
+}
+
+/** A cover card dips a little while pressed and springs back (as the web's covers lift on press). */
+@Composable
+fun Modifier.pressLift(src: androidx.compose.foundation.interaction.MutableInteractionSource, to: Float = 0.96f): Modifier {
+    val pressed by src.collectIsPressedAsState()
+    return pressSpring(pressed, to)
+}
+
+/** 0 -> 1 as something becomes the chosen one (a tab, a chip), springing; jumps straight there with Animations off. */
+@Composable
+fun chosenAmount(selected: Boolean, label: String = "chosen"): Float {
+    val target = if (selected) 1f else 0f
+    if (!Tweaks.motion) return target
+    val v by animateFloatAsState(target, spring(dampingRatio = 0.7f, stiffness = 500f), label = label)
+    return v
+}
+
+/** Rows already shown once (by their list key): a row rises in the first time it appears and simply sits there when scrolled back to. */
+private val seenRows: MutableSet<String> = java.util.Collections.newSetFromMap(object : java.util.LinkedHashMap<String, Boolean>(256, .75f, true) {
+    override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Boolean>?) = size > 600
+})
+
+/**
+ * For rows that arrive after their screen opened (search results as they come in): the first few rise and fade in one after another, the first
+ * time each is shown. Off with Animations off.
+ */
+@Composable
+fun Modifier.riseFirstTime(key: String, index: Int): Modifier {
+    if (!Tweaks.motion) return this
+    val first = remember(key) { synchronized(seenRows) { seenRows.add(key) } }
+    if (!first || index > 12) return this
+    return riseIn(delayMs = index * 30, key = key, riseDp = 12f)
 }

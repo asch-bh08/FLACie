@@ -1,5 +1,7 @@
 package com.ipodemu.player
 
+import androidx.compose.ui.graphics.graphicsLayer
+
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -189,11 +191,16 @@ private fun NavItem(t: Tab, selected: Boolean, modifier: Modifier, onClick: () -
     val focused by src.collectIsFocusedAsState()
     val col = if (selected) sc.accent else Palette.dim
     Column(modifier.wheelTracked().clickable(src, null, onClick = onClick), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        // the chosen tab's pill grows out from the icon (a spring, transform and alpha only), and the icon gives a small bounce as it is chosen
+        val k = chosenAmount(selected, "tab")
         Box(
             Modifier.size(width = 64.dp, height = 32.dp).clip(RoundedCornerShape(16.dp))
-                .background(if (selected) sc.accent.copy(alpha = .16f) else if (focused) Color(0x22FFFFFF) else Color.Transparent).ringWhen(focused, RoundedCornerShape(16.dp)),
+                .background(if (focused && !selected) Color(0x22FFFFFF) else Color.Transparent).ringWhen(focused, RoundedCornerShape(16.dp)),
             contentAlignment = Alignment.Center,
-        ) { GlyphIcon(t.glyph, Modifier.size(24.dp), col) }
+        ) {
+            Box(Modifier.matchParentSize().graphicsLayer { scaleX = .4f + .6f * k; scaleY = .7f + .3f * k; alpha = k }.clip(RoundedCornerShape(16.dp)).background(sc.accent.copy(alpha = .16f)))
+            GlyphIcon(t.glyph, Modifier.size(24.dp).bumpOnChange(selected), col)
+        }
         Txt(t.label, Modifier.padding(top = 4.dp), size = 12f, maxLines = 1, weight = if (selected) FontWeight.SemiBold else FontWeight.Normal, color = col, align = TextAlign.Center)
     }
 }

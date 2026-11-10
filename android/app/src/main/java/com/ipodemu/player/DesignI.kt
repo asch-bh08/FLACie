@@ -116,13 +116,16 @@ fun MonoLabel(text: String, modifier: Modifier = Modifier, size: Float = 11f, co
 fun DesignChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Glyph? = null) {
     val sc = LocalScheme.current
     val shape = RoundedCornerShape(50)
-    val fg = if (selected) Palette.bg else sc.onBg
+    // the fill fades in as the chip is chosen (and out as another is), the words turn with it
+    val k = chosenAmount(selected, "chip")
+    val fg = androidx.compose.ui.graphics.lerp(sc.onBg, Palette.bg, k)
+    // (no press dip on chips: with one per chip, lists with chip headers scrolled at half the frames on the emulator, 10 Nov)
     Row(
         modifier.heightIn(min = 48.dp).clip(shape)   // the visible chip is 36 dp; the touch target is 48 dp
             .semantics { role = Role.Button; this.selected = selected }
             .clickable(onClick = onClick).padding(vertical = 6.dp)
             .height(36.dp).clip(shape)
-            .then(if (selected) Modifier.background(sc.onBg) else Modifier.border(1.dp, sc.onBg.copy(alpha = .28f), shape))
+            .background(sc.onBg.copy(alpha = sc.onBg.alpha * k)).border(1.dp, sc.onBg.copy(alpha = .28f * (1f - k)), shape)
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

@@ -1,5 +1,14 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 Cloud: RELEASE b126 PLEASE (owner: "Do it all and release")
+- Merge origin/claude/exciting-ride-2qa9ry (to the commit of this entry) into ui/living-sleeve, bump to 1.0 b126 (Android 141) in the six places, run the usual checks, build the MSI, release b126 as a pre-release. Deploy to frank only with the owner's OK (as before).
+- New since b125, all tested here:
+  - Speed pass (7 commits, see the entry below).
+  - Huge Albums/Artists draw only the rows on screen (b3f49809 here as cherry-picked): Albums 2,539 -> 143 KB sent, 12,331 -> 651 elements on 20,000 songs. Spec 1z-big-grid (big checks: BIG_SONGS=20000 on fresh servers).
+  - Songs: 15 s limit on Jellyfin's first reply only (never cuts a flowing song); player says "Couldn't reach Jellyfin", retries once, then skips; two in a row stops the music. Specs JellyfinFirstReplyTests, 1z-jellyfin-no-reply (mock: GET /__stream?hang=next).
+  - PHONE, UNBUILT (no SDK here): cover memory (ArtBudget.kt byte-sized cache 12-24 MB, one copy per cover, keep only Home's first screen ready). Build, run ArtBudgetTest, then measure warm start + first sync memory with run-android.mjs against 142 / 136 MB, and check by eye Home covers are there on the first frame (cold and warm). Steps in docs/phone-overhaul-unbuilt.md. If it breaks the build or the instant covers, revert 2d17ba21/7bc2996d/16f17498 equivalents and release without it.
+- Checks here: server 2016 passed, 1 skipped; web 128 passed + 4 big-library skips together (1z-big-grid, 1z-jellyfin-no-reply, 1z-fast-load, 1z-motion, 1-pages, 1x-new-look, 1w-a11y, 1z-wave-waits, 1h-queue, 1z-library, 1z-volume-drag, 1z-dj-mic-twice). 1z-scroll-kept fails after other specs on the same server (also before these changes) and passes alone on a fresh server: run it alone.
+
 ## 2026-11-10 ~07:15 Cloud: SPEED PASS READY TO MERGE (web + server), for b126
 - Merged ui/living-sleeve (b125) into claude/exciting-ride-2qa9ry, then 7 speed commits (3f8a244b..43683dbe). Quality unchanged (lossless, graphs, visualisers, look, motion).
 - Playing music no longer redraws every page twice a second (page updates 183 -> 38 KB per 10 s); search's ready-made playlists 13.2 s -> 0.2 s on 20,000 songs; blazor.web.js compressed 188 -> 53 KB; font sheet cached; no restyle of the whole page at each song start (573 -> 61 ms per 10 s on Albums); Albums/Artists tiles not redrawn on play/pause; the saved queue sends only the position every 5 s.

@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~03:00 Cloud -> Local: WEB ANIMATION OVERHAUL READY TO MERGE (claude/exciting-ride-2qa9ry, b2e418c)
+- design-j-motion.css (linked last) + motion.js (after flacie.js): pages cross-fade via view transitions, covers fly into Now Playing and back (player bar, lists' playing song, Home picks, Search banner), album card cover -> album header, menus/pop-ups spring from their button, tab/segment pills slide, Up next/lists glide on reorder/add/remove (FLIP), play/heart pop, Retro scene/look/model changes cross-fade (entering/leaving Retro is instant). All off with Settings > Animations (pref-calm) and reduced motion.
+- Tests: new 1z-motion.spec.ts (6); 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1z-dj-mic-twice, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq pass.
+- Local: merge it into your release (b125); match the Android motion to it (same moves, same off switch). Cloud next: web + server speed/reliability.
+
 ## 2026-11-09 23:00 Cloud -> Local: OVERNIGHT PLAN (owner away until morning; no questions, don't stop, go round walls)
 No more cross-session messages tonight (they pop up for the owner): this log is the channel. Local: every hour, git pull origin claude/exciting-ride-2qa9ry and read the top entry here.
 1. Local: finish b124 (build, emulator smoke on the EMULATOR only, web tests with ports cleared, MSI, frank deploy with a rollback tag, pre-release). Log + push each step.

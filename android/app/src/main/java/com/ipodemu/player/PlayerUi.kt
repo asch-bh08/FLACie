@@ -1141,7 +1141,9 @@ private fun NewPlaylistRow(nav: PlayerNav, withField: Boolean = true) {
         val shared = app.ui.sharedLink
         var linkOpen by remember { mutableStateOf(shared != null) }
         LaunchedEffect(shared) { if (shared != null) linkOpen = true }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // the two chips wrap at big text ("Paste a link" ran off a 320 dp phone at font scale 1.5)
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Import a playlist", false, {
                 if (web.available) pick.launch(arrayOf("*/*")) else app.ui.say(com.ipodemu.library.LinkImport.NEEDS_WEB, warn = true)
             }, icon = Glyph.DOWN)
@@ -1249,7 +1251,9 @@ private fun PlaylistsGrid(nav: PlayerNav) {
     val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         NewPlaylistRow(nav, withField = false)
-        LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 24.dp),
+        // two columns on any phone (GridFit): a 320 dp phone had one column, the New playlist tile alone filling the screen
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+        LazyVerticalGrid(GridCells.Fixed(GridFit.columns(maxWidth.value)), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item(key = "new") { Box(Modifier.entranceRise(entrance, 0)) { NewPlaylistTile() } }
             item(key = "favs") {
@@ -1266,6 +1270,7 @@ private fun PlaylistsGrid(nav: PlayerNav) {
             items(shownFolderPlaylists(app), key = { "f" + it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
                 PlaylistCard(g.name, songCount(g.tracks.size), g.artKey, mark = { DownloadedListMark(remember(g) { g.tracks.map { it.path } }) }) { nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }
             }
+        }
         }
     }
 }

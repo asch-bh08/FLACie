@@ -125,10 +125,12 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
             Row(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Txt("Playing from", size = 12f, color = sc.onBgDim)
-                    Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 1)
+                    Txt(from, size = 18f, weight = FontWeight.Bold, maxLines = 2)
                 }
-                // Save: the queue, in play order, as a new playlist
-                if (cur != null && next.isNotEmpty()) DesignChip("Save as playlist", false, { saveQueueAsPlaylist(app) }, icon = Glyph.PLUS)   // a word with the plus: a bare + read as "add a song" (owner, 9 Nov: fewer bare icons)
+                // Save: the queue, in play order, as a new playlist; just "Save" when the full words would crush the list's name (QueueFit)
+                val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+                val paneW = if (cfg.screenWidthDp >= 600) cfg.screenWidthDp / 2 else cfg.screenWidthDp
+                if (cur != null && next.isNotEmpty()) DesignChip(QueueFit.saveLabel(paneW.toFloat(), cfg.fontScale), false, { saveQueueAsPlaylist(app) }, Modifier.semantics { contentDescription = "Save the queue as a playlist" }, icon = Glyph.PLUS)   // a word with the plus: a bare + read as "add a song" (owner, 9 Nov: fewer bare icons)
             }
         }
         item {
@@ -136,7 +138,7 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
             Row(Modifier.fillMaxWidth().clickable { on = !on; app.prefs.autoplay = on }.padding(horizontal = 4.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Txt("Autoplay", size = 15f, weight = FontWeight.SemiBold)
-                    Txt("Add similar songs to the end of the queue", size = 12.5f, color = sc.onBgDim)
+                    Txt("Add similar songs to the end of the queue", size = 12.5f, color = sc.onBgDim, maxLines = 3)
                 }
                 SwitchPill(on)
             }
@@ -189,7 +191,8 @@ fun PendingDrawerRow(r: UpNextMerge.PendingRow) {
             Txt(listOf(p.artist, p.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 12.5f, color = sc.onBgDim, maxLines = 2)
             DownloadTagLine(p.key, null, compact = narrow)
         }
-        if (p.durationMs > 0) Txt(fmtTime(p.durationMs), size = 12.5f, color = sc.onBgDim)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        if (p.durationMs > 0 && ListFit.showTime(cfg.screenWidthDp.toFloat(), cfg.fontScale)) Txt(fmtTime(p.durationMs), size = 12.5f, color = sc.onBgDim)
     }
 }
 
@@ -208,7 +211,9 @@ private fun DrawerRow(t: Track, current: Boolean, onMore: (() -> Unit)? = null, 
             DownloadTagLine(t, compact = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520)
         }
         DownloadedMark(t.path, 14.dp)
-        if (t.durationMs > 0) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
+        // the time steps aside at big text on a narrow phone, as in the song lists (ListFit)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        if (t.durationMs > 0 && ListFit.showTime(cfg.screenWidthDp.toFloat(), cfg.fontScale)) Txt(fmtTime(t.durationMs), size = 12.5f, color = sc.onBgDim)
         if (onMore != null) Box(
             Modifier.size(48.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = "More for ${t.title}" }.clickable(onClick = onMore),
             contentAlignment = Alignment.Center,

@@ -229,6 +229,24 @@ object SettingsFit {
 }
 
 /**
+ * Up next's header: "Playing from" and the list's name beside the Save as playlist chip. At font scale 1.5 on a 320 dp phone the chip was about 240
+ * dp wide and left the name 48; the chip says just "Save" when the name would get under 100 dp per unit of font scale.
+ */
+object QueueFit {
+    const val LONG = "Save as playlist"
+    const val SHORT = "Save"
+
+    private fun chip(label: String, fs: Float) = 32f + 23f + label.length * 14f * .6f * fs
+
+    /** [width]: the pane (the screen on a phone, the side panel on a tablet). */
+    fun saveLabel(width: Float, fontScale: Float = 1f): String {
+        val fs = fontScale.coerceAtLeast(.85f)
+        val room = width - 36f - 24f - 8f
+        return if (room - chip(LONG, fs) >= 100f * fs) LONG else SHORT
+    }
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

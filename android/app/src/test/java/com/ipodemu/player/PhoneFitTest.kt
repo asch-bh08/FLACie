@@ -169,6 +169,16 @@ class PhoneFitTest {
         }
     }
 
+    // ---- Up next ----
+
+    @Test fun upNextSaysSaveAsPlaylistWhenThereIsRoom() {
+        assertEquals(QueueFit.LONG, QueueFit.saveLabel(412f, 1f))
+        assertEquals(QueueFit.LONG, QueueFit.saveLabel(360f, 1f))
+        assertEquals(QueueFit.SHORT, QueueFit.saveLabel(320f, 1.5f))
+        assertEquals(QueueFit.SHORT, QueueFit.saveLabel(360f, 1.5f))
+        assertEquals(QueueFit.LONG, QueueFit.saveLabel(600f, 1.5f))
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

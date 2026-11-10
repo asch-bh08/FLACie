@@ -642,3 +642,9 @@ body.np-open .dj-bar { display: none; }
   .ls-dock .ls-tile-eq .chipbtn { width: 52px; min-width: 52px; padding: 0; }
   .ls-tile-eq .chipbtn span { max-width: 48px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+/* Info's graph on a PC: as tall as before where there is room, shorter in a short window (a laptop at 150% zoom) so it is never cut off by the panel's
+   foot, and never under 80px. The canvas is drawn at the screen's own pixel density at whatever height it gets, so it stays sharp */
+@media (min-width: 761px) {
+  .ls-info .viz, .ls-info .viz.curve, .ls-info .viz.loud, .ls-info .viz.stereo, .ls-info .viz.wall { height: max(80px, min(clamp(150px, 26vh, 230px), 100dvh - 430px)); }
+  .ls-info .viz.tall { height: max(80px, min(clamp(170px, 30vh, 260px), 100dvh - 430px)); }
+}

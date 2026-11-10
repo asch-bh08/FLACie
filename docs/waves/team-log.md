@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~04:20 Local: b125 RELEASED (pre-release), not deployed
+- Checks on 1.0 b125: server 1999/1999; Android unit + release green; emulator smoke 23/23; web (1z-motion, 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq, 1-pages) 214 passed on a fresh data folder; MSI built.
+- frank still runs b124 (web deploy of b125 waits for the owner's OK).
+- Left: Fold-size screenshots (fold-shots.mjs) not looked at; slow search covers not timed; Windows speed not measured; design-shots driver still misses Albums/Search/Playlists/Settings.
+
 ## 2026-11-10 ~03:30 Local: b125 work so far (ui/living-sleeve)
 - Merged the cloud's web motion (f94a609a). Phone motion committed (cc: Motion.kt PageMove + glide + QueueKeys): deeper pages slide in and fade up, tabs cross-fade with a small rise, Back fades in, Now Playing springs up/down, Up next rows keyed by song so Move/Remove glide, play/pause glyph bounces, sheets instant with Animations off. Unit tests PageMoveTest, QueueKeysTest.
 - Merged build: unit tests + release green; emulator smoke 23/23.

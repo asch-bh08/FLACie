@@ -708,8 +708,9 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
       androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().safeArea()) {
         androidx.compose.animation.AnimatedVisibility(
             shown, Modifier.align(Alignment.BottomCenter),
-            enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(0.82f, 420f)) { it } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)),
-            exit = androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(220)) { it } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)),
+            // springs up from the bottom; with Animations off it is simply there
+            enter = if (Tweaks.motion) androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(0.82f, 420f)) { it } + androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(160)) else androidx.compose.animation.EnterTransition.None,
+            exit = if (Tweaks.motion) androidx.compose.animation.slideOutVertically(androidx.compose.animation.core.tween(220)) { it } + androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200)) else androidx.compose.animation.ExitTransition.None,
         ) {
         // capped to the screen and scrollable, so long lists (EQ presets, landscape phones) never run off the bottom
         Column(

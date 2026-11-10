@@ -3,6 +3,7 @@ package com.ipodemu.player
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -70,4 +71,44 @@ fun Modifier.bumpOnChange(key: Any?): Modifier {
         a.snapTo(0.6f); a.animateTo(1f, spring(dampingRatio = 0.35f, stiffness = 420f))
     }
     return this.graphicsLayer { scaleX = a.value; scaleY = a.value }
+}
+
+/** Where an incoming page starts, as fractions: [slide0] of its width to the right, [rise0] dp below, [alpha0] see-through. It springs to rest. */
+data class PageStart(val slide0: Float, val rise0: Float, val alpha0: Float)
+
+/**
+ * How a page change moves, matching the web's pages (owner, 9 Nov: "peak 2026" motion everywhere): deeper slides in from the right and fades up,
+ * a tab change cross-fades with a small rise, Back only fades in (the swipe-back drag already moved the page). All off with Animations off.
+ */
+enum class PageMove(val start: PageStart) {
+    PUSH(PageStart(0.28f, 0f, 0.4f)), BACK(PageStart(-0.06f, 0f, 0.5f)), TAB(PageStart(0f, 10f, 0f)), NONE(PageStart(0f, 0f, 1f));
+    companion object {
+        fun of(motion: Boolean, fromDepth: Int, toDepth: Int, sameTop: Boolean): PageMove = when {
+            !motion || sameTop -> NONE
+            toDepth > fromDepth -> PUSH
+            toDepth < fromDepth -> BACK
+            else -> TAB
+        }
+    }
+}
+
+/** The spring every page change uses: settles quickly with no wobble, so a page never looks like it bounces. */
+fun <T> pageSpring() = spring<T>(dampingRatio = 0.92f, stiffness = 520f)
+
+/** A row in a keyed list glides to its new place when the list changes (Up next reordered, a song removed) and fades in/out; off with Animations off. */
+@Composable
+fun Modifier.glide(scope: androidx.compose.foundation.lazy.LazyItemScope): Modifier =
+    if (!Tweaks.motion) this else with(scope) { this@glide.animateItem(fadeInSpec = tween(180), placementSpec = spring(dampingRatio = 0.86f, stiffness = 420f, visibilityThreshold = androidx.compose.ui.unit.IntOffset.VisibilityThreshold), fadeOutSpec = tween(140)) }
+
+/** The same for a card in a keyed grid (Playlists, albums). */
+@Composable
+fun Modifier.glide(scope: androidx.compose.foundation.lazy.grid.LazyGridItemScope): Modifier =
+    if (!Tweaks.motion) this else with(scope) { this@glide.animateItem(fadeInSpec = tween(180), placementSpec = spring(dampingRatio = 0.86f, stiffness = 420f, visibilityThreshold = androidx.compose.ui.unit.IntOffset.VisibilityThreshold), fadeOutSpec = tween(140)) }
+
+/** Keys for the songs in Up next that follow the song, not its place: the path plus which copy of it this is (a song queued twice gets #0 and #1). */
+object QueueKeys {
+    fun of(paths: List<String>): List<String> {
+        val seen = HashMap<String, Int>()
+        return paths.map { p -> val n = seen.getOrDefault(p, 0); seen[p] = n + 1; "$p#$n" }
+    }
 }

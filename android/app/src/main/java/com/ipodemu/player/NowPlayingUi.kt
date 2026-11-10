@@ -84,7 +84,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
                 Box(Modifier.size(6.dp))
                 if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
             }
-            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp), Color.White) }
+            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp).bumpOnChange(snap.playing), Color.White) }
             Box(Modifier.size(6.dp))
             GlossButton({ app.player.next() }, label = "Next", size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
         }
@@ -124,7 +124,7 @@ fun NowPlayingCard(snap: PlayerSnap, nav: PlayerNav, onShuffleAll: () -> Unit) {
                 }
             }
             if (t != null) {
-                GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 44.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(22.dp), Color.White) }
+                GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 44.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(22.dp).bumpOnChange(snap.playing), Color.White) }
                 Box(Modifier.size(6.dp))
                 GlossButton({ app.player.next() }, label = "Next", size = 38.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(18.dp), Color.White) }
             } else GlossButton({ onShuffleAll() }, label = "Shuffle all", size = 44.dp, primary = true) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(22.dp), Color.White) }

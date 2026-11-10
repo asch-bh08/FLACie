@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~13:40 Local: phone numbers WITH animations on (run-android.ps1 -Motion), Songs list + warm start
+- b124: scroll frames 501/607, p50 121, p99 250/200 ms; warm-start memory 101/98 MB; first songs 13.4/14.5 s.
+- b126: 575 frames, p50 121, p99 200; warm 79 MB (second run: emulator failed to start).
+- current (motion batch 2 + cover flight): 565/581 frames, p50 121/129, p99 200; warm 77/86 MB; first songs 14.4/14.0 s.
+- So with motion on, the phone is as smooth as b124/b126 on the emulator and uses less memory than b124. Next: b128 with the cover flight.
+
 ## 2026-11-10 ~13:00 Local: covers fly into Now Playing on the phone; IMPORTANT: emulator runs had animations OFF
 - Now Playing's big cover (LivingSleeve) never had the shared marker, so the mini player's "flight" did nothing on the phone. Now: the big cover is the target; the playing song's row in any list flies into it when tapped (nav.openFromCover("row:"+path), SharedCover.kt sharedCoverFrom with sharedElementWithCallerManagedVisibility under a new LocalSharedRoot), and back on close; the mini player flies when it opened the player (coverFrom == null). Off with Animations off. Build + unit tests green, smoke 23/23. Seen working in a screen recording (flight-shots.mjs: Now Playing slides up while the row's cover grows into the big one).
 - FOUND: run-android.ps1 sets the emulator's animation scales to 0, and the app turns its own motion off when the phone has (Tweaks.motionOn). So every emulator speed/memory/frame number tonight measured the app WITHOUT motion. New switch: run-android.ps1 -Motion keeps animations on. Re-measuring b124 / b126 / current with -Motion now.

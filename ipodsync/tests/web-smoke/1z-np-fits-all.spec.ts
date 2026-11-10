@@ -57,11 +57,15 @@ async function check(page: Page, sels: string[], floor = 0, allowed: string[][] 
 async function graph(page: Page, where: string) {
   const viz = page.locator('#viz');
   await expect(viz, `${where}: the graph is drawn`).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(600);
+  // (a phone's sheet springs up a touch past its place and settles: measure once nothing moves)
+  const at = () => viz.evaluate((c) => { const p = c.closest('.ls-panel') ?? c; return JSON.stringify([c.getBoundingClientRect(), p.getBoundingClientRect()]); });
+  let last = '';
+  await expect.poll(async () => { const now = await at(); const same = now === last; last = now; return same; }, { intervals: [300], timeout: 10_000 }).toBe(true);
   return viz.evaluate((c: HTMLCanvasElement, where) => {
     const out: string[] = [], b = c.getBoundingClientRect(), vw = document.documentElement.clientWidth, vh = window.innerHeight, dpr = devicePixelRatio || 1;
     if (b.height < 78) out.push(`${where}: the graph is only ${Math.round(b.height)}px tall`);
-    // the boxes that clip it: scrolling or clipped ancestors, up to the full-screen box (it sits on top of everything, so nothing above it clips it).
+    // the boxes that clip it: scrolling or clipped ancestors, up to the first fixed one (Now Playing, its sheet or the full-screen box: what is
+    // above that does not clip it).
     // A scrolling panel fades its top 40px and bottom 64px out: the graph may only reach a little way into the fade
     let top = 0, bottom = vh, left = 0, right = vw;
     for (let p = c.parentElement; p; p = p.parentElement) {
@@ -70,7 +74,7 @@ async function graph(page: Page, where: string) {
         const fade = p.classList.contains('ls-panel');
         top = Math.max(top, r.top + (fade ? 20 : 0)); bottom = Math.min(bottom, r.bottom - (fade ? 40 : 0)); left = Math.max(left, r.left); right = Math.min(right, r.right);
       }
-      if (p === document.fullscreenElement || s.position === 'fixed' && p.classList.contains('graph-box')) break;
+      if (p === document.fullscreenElement || s.position === 'fixed') break;
     }
     if (b.top < top - 1 || b.bottom > bottom + 1 || b.left < left - 1 || b.right > right + 1) out.push(`${where}: the graph is cut off (${Math.round(b.top)}..${Math.round(b.bottom)}, room ${Math.round(top)}..${Math.round(bottom)})`);
     if (Math.abs(c.height - Math.round(c.clientHeight * dpr)) > 2 || Math.abs(c.width - Math.round(c.clientWidth * dpr)) > 2) out.push(`${where}: the graph is drawn at ${c.width}x${c.height} for ${c.clientWidth}x${c.clientHeight} css px at ${dpr}x (blurry)`);

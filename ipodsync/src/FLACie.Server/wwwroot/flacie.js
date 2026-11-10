@@ -86,12 +86,31 @@ window.flacie = (() => {
   ["playing", "canplay", "canplaythrough", "seeked", "pause", "emptied", "error", "ended"].forEach(ev => audio.addEventListener(ev, check));
   // a dropped connection mid-song: pick up again at the same second. A song the browser can't decode (e.g. WMA) fails
   // the same way every time, so after three tries it is skipped instead of retried forever.
-  let failures = 0, failedSrc = "";
+  // Jellyfin not answering a song at all (the server gives it 15 s, then answers 504) is told apart: the player says "Couldn't reach Jellyfin", tries the
+  // song once more, then skips it like any failed song; a second song in a row that Jellyfin does not answer stops the music instead of running down the queue.
+  let failures = 0, failedSrc = "", jfTries = 0, jfSrc = "", jfSkips = 0;
   // __flaciePlayingAt: when sound last started, for the song-start timing test (1z-song-start)
-  audio.addEventListener("playing", () => { failures = 0; window.__flaciePlayingAt = performance.now(); });
-  audio.addEventListener("error", () => {
+  audio.addEventListener("playing", () => { failures = 0; jfTries = 0; jfSkips = 0; window.__flaciePlayingAt = performance.now(); });
+  // why a song that sent nothing failed: "jellyfin" when Jellyfin did not answer it in time (an audio element never sees the HTTP status, so the server is asked)
+  const failedWhy = async (src) => {
+    try {
+      const u = new URL(src, location.href); if (u.pathname !== "/stream" || !u.searchParams.get("p")) return "";
+      const r = await fetch("/api/stream/why?p=" + encodeURIComponent(u.searchParams.get("p")), { cache: "no-store", credentials: "same-origin" });
+      return r.ok ? ((await r.json()).why || "") : "";
+    } catch { return ""; }
+  };
+  audio.addEventListener("error", async () => {
     if (!audio.src) return;
     const at = audio.currentTime, src = audio.src;
+    if (audio.readyState === 0 && await failedWhy(src) === "jellyfin") {
+      if (audio.src !== src) return;   // moved on to another song meanwhile
+      jfTries = src === jfSrc ? jfTries + 1 : 1; jfSrc = src;
+      if (jfTries === 1) { send("OnStreamProblem", "jellyfin", "retry"); audio.src = src; audio.play().catch(() => {}); return; }
+      jfTries = 0; failures = 0;
+      send("OnStreamProblem", "jellyfin", jfSkips++ > 0 ? "stop" : "skip");
+      return;
+    }
+    if (audio.src !== src) return;
     failures = src === failedSrc ? failures + 1 : 1; failedSrc = src;
     if (failures > 3) { failures = 0; send("OnEnded"); return; }
     setTimeout(() => { if (audio.src !== src) return; audio.src = src; selfSeek = true; audio.currentTime = at; audio.play().catch(() => {}); }, 1500);
@@ -833,8 +852,9 @@ window.flacie = (() => {
     panelTop() { const p = document.querySelector(".ls-panel, .np-panel"); if (p) p.scrollTop = 0; },
     // is the player laid out as a phone (tabs open a sheet over the cover)?
     sheetMode() { return window.matchMedia("(max-width: 760px)").matches; },
-    toggle() { audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
-    play() { audio.play().catch(() => send("OnState", false)); },
+    // a song that failed (Jellyfin did not answer, the music stopped) is asked for again when play is pressed: an element in error does not load again by itself
+    toggle() { if (audio.error && audio.src) { jfTries = 0; audio.src = audio.src; } audio.paused ? audio.play().catch(() => {}) : audio.pause(); },
+    play() { if (audio.error && audio.src) { jfTries = 0; audio.src = audio.src; } audio.play().catch(() => send("OnState", false)); },
     setLyrics(times) { lyr = { times, cur: -2 }; },
     clearLyrics() { lyr = null; },
     // keeps the line being sung in the middle of the lyrics panel, scrolling only that panel (never the page behind it)

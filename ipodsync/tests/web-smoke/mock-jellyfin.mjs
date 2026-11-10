@@ -106,11 +106,14 @@ const wav = (() => {
   return b;
 })();
 let flakyFailed = false;
-const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0, streamAborted: 0, streamCapped: 0, imageRepeats: 0, imageFull: 0, imageRow: 0 };
+const counts = { usersMe: 0, items: 0, item: 0, stream: 0, image: 0, streamAborted: 0, streamCapped: 0, streamHung: 0, imageRepeats: 0, imageFull: 0, imageRow: 0 };
 // every picture asked for, by item + tag + size, so a test can see a cover fetched twice or at a size nobody should use
 const images = new Map();
 // GET /__stream?delay=ms makes the song streams slow (ms between chunks), so a stream the server drops half way is visible as streamAborted
 let streamDelay = 0, firstByte = 0;
+// GET /__stream?hang=next: the next song whose stream is asked for never gets an answer (no headers, nothing), on every request for it, like a Jellyfin
+// that takes the request and goes quiet (1z-jellyfin-no-reply). Any other /__stream call without hang= clears it.
+let hang = '', hungId = '';
 let prefsDelay = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
@@ -144,7 +147,7 @@ http
     // first=ms: a wait before a song's first byte, like a real Jellyfin opening a big FLAC file from disk (1z-song-start)
     // /__prefs?delay=ms: the profile (DisplayPreferences) answers this much later, like a busy Jellyfin just after sign-in (1z-skeleton)
     if (p === '/__prefs') { prefsDelay = Number(q.get('delay') || 0); return json(res, 200, { delay: prefsDelay }); }
-    if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); firstByte = Number(q.get('first') || 0); return json(res, 200, { delay: streamDelay, first: firstByte }); }
+    if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); firstByte = Number(q.get('first') || 0); hang = q.get('hang') || ''; hungId = ''; return json(res, 200, { delay: streamDelay, first: firstByte, hang }); }
     // /__touch?id=s5&name=New title: the song was saved again (what a metadata edit does); the next MinDateLastSaved question returns it
     if (p === '/__touch') {
       const x = songs.find((s) => s.Id === q.get('id'));
@@ -198,6 +201,9 @@ http
     if (/^\/Audio\/(h[1-8]|s([2-9]|[1-9]\d)|p\d+)\/stream/.test(p)) {
       const mm = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
       const from = mm && mm[1] !== '' ? +mm[1] : 0, to = mm && mm[2] !== '' ? Math.min(+mm[2], wav.length - 1) : wav.length - 1;
+      const id = p.split('/')[2];
+      if (hang === 'next' && !hungId) hungId = id;
+      if (hungId === id) { counts.streamHung++; return; }   // never answered: the request stays open until the caller lets go
       if (firstByte > 0) await new Promise((r) => setTimeout(r, firstByte));
       res.writeHead(mm ? 206 : 200, { 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(mm ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
       // the server's early read of the next song asks for its start only: the first 30 s, 1 to 8 MiB (F4.2)

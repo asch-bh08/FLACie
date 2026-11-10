@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~17:40 Local: STOPPED by the owner ("stop cleanly"); b129 NOT released
+- ui/living-sleeve is at 1.0 b129 (Android 144), pushed, with the Now Playing fit work merged and the fontScale fix. Not released, not deployed; frank runs b127.
+- b129 checks before the stop: server passed; Android unit + release green; smoke 23/23 (animations off). Smoke WITH animations on (-Motion): 6 passed, 9 failed (result-android-b129m-fast.json) - not looked at yet. b128's -Motion smoke was 23/23, so something since (the Now Playing fit merge?) or a flake. First thing next time: rerun that and read the failures.
+- Web tests, the three alone-runs and the MSI for b129 did not run. Emulator and test servers stopped; no leftovers. My hourly check-in is off; the cloud's routine "FLACie local overnight watchdog" (trig_01TWVQTwHbCqtcGPJg8Nfeec) still fires into this session.
+
 ## 2026-11-10 ~17:30 Local: Now Playing fits every screen, phone side BUILT and checked
 - Merged the cloud's "Now Playing fits every screen" (e11e266c). Build green, NowPlayingFitTest 13/13, smoke 23/23 with animations off and on.
 - New emulator check np-fit-shots.mjs (with -Motion): opens Now Playing and at each size checks play/pause, next, previous, Lyrics, Up next are inside the screen, with a screenshot. Results: phone, phone at text 1.5, small phone 720x1280 at text 1.5, phone on its side, tablet 1600x2560, Fold open 1840x2208, Fold open at text 1.5: all controls on screen, nothing to scroll.

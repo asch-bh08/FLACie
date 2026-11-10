@@ -6,8 +6,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -283,17 +281,23 @@ fun PlayerHost(nav: PlayerNav) {
         if (rail) NavRail(nav)
         Column(Modifier.weight(1f).fillMaxHeight().graphicsLayer { translationX = if (nav.nowPlaying) 0f else backDrag }) {
             Box(Modifier.weight(1f)) {
-                // one cheap slide for the incoming screen only (no cross-fade, old screen is not kept composed);
-                // going back needs no animation because the swipe-back drag already moved the page
+                // the incoming screen only moves (the old one is not kept composed, so it stays cheap): deeper slides in, a tab cross-fades
+                // with a small rise, Back fades in because the swipe-back drag already moved the page (PageMove, as the web's pages)
                 val depth = nav.stack.size
                 val stateHolder = androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 val lastDepth = remember { androidx.compose.runtime.mutableIntStateOf(depth) }
-                val forward = depth > lastDepth.intValue
+                val move = PageMove.of(Tweaks.motion, lastDepth.intValue, depth, sameTop = false)
                 androidx.compose.runtime.SideEffect { lastDepth.intValue = depth }
                 androidx.compose.runtime.key(nav.top) {
-                    val slide = remember { androidx.compose.animation.core.Animatable(if (forward) 1f else 0f) }
-                    LaunchedEffect(Unit) { if (slide.value > 0f) slide.animateTo(0f, tween(200)) }
-                    Box(Modifier.fillMaxSize().graphicsLayer { translationX = slide.value * size.width * 0.28f }) {
+                    val start = remember { move.start }
+                    val p = remember { androidx.compose.animation.core.Animatable(if (start == PageMove.NONE.start) 1f else 0f) }
+                    LaunchedEffect(Unit) { if (p.value < 1f) p.animateTo(1f, pageSpring()) }
+                    Box(Modifier.fillMaxSize().graphicsLayer {
+                        val left = 1f - p.value
+                        translationX = left * start.slide0 * size.width
+                        translationY = left * start.rise0 * density
+                        alpha = start.alpha0 + (1f - start.alpha0) * p.value
+                    }) {
                         // each screen on the back stack keeps its saved state (a list's scroll position), so Back returns to the same place in it
                         val key = "${nav.stack.size}:${nav.top}"
                         stateHolder.SaveableStateProvider(key) { ScreenContent(nav.top, nav, snap) }
@@ -328,8 +332,9 @@ fun PlayerHost(nav: PlayerNav) {
         }
         AnimatedVisibility(
             nav.nowPlaying,
-            enter = slideInVertically(tween(320)) { it } + fadeIn(tween(200)),
-            exit = slideOutVertically(tween(260)) { it } + fadeOut(tween(200)),
+            // the full player springs up (and the cover flies into it); instant with Animations off
+            enter = if (Tweaks.motion) slideInVertically(androidx.compose.animation.core.spring(0.9f, 380f)) { it } + fadeIn(tween(200)) else androidx.compose.animation.EnterTransition.None,
+            exit = if (Tweaks.motion) slideOutVertically(androidx.compose.animation.core.spring(1f, 520f)) { it } + fadeOut(tween(200)) else androidx.compose.animation.ExitTransition.None,
         ) { Box(Modifier.graphicsLayer { translationX = backDrag }.focusProperties { canFocus = nav.sheet == null && nav.nameDialog == null }) {
             androidx.compose.runtime.CompositionLocalProvider(LocalPlayerNav provides nav, LocalSharedCover provides SharedCoverScope(sharedLayout, this@AnimatedVisibility)) { NowPlayingScreen(snap, nav) }
         } }
@@ -1238,7 +1243,7 @@ private fun PlaylistsGrid(nav: PlayerNav) {
             item(key = "favs") {
                 PlaylistCard("Favourites", songCount(ud.favorites.size), null, Modifier.entranceRise(entrance, 1), heart = true) { nav.push(Screen.Detail(DetailKind.FAVORITES)) }
             }
-            androidx.compose.foundation.lazy.grid.itemsIndexed(shownPlaylists(app), key = { _, p -> p.id }) { i, p ->
+            gridItemsIndexed(shownPlaylists(app), key = { _, p -> p.id }) { i, p ->
                 val by = lib.byPath()
                 val keys = p.paths.asSequence().take(20).mapNotNull { (by[it] ?: lib.resolve(it, ud.meta[it]))?.artKey }.toList()
                 // a cover already on disk, else one a server can supply; a local key with no file behind it shows nothing
@@ -2356,8 +2361,10 @@ private fun QueueScreen(nav: PlayerNav, snap: PlayerSnap) {
         val upcoming = q.withIndex().filter { it.index > snap.index }.map { it.index to it.value }
         val plan = rememberUpNextPlan(upcoming, snap.count, snap.rev, snap.track?.path)
         LazyColumn(Modifier.fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
-            itemsIndexed(q, key = { i, t -> "$i${t.path}" }) { i, t ->
-                Column(Modifier.fillMaxWidth()) {
+            // keyed by the song (not its place), so Move up/down and Remove glide the rows instead of redrawing them
+            val keys = QueueKeys.of(q.map { it.path })
+            itemsIndexed(q, key = { i, _ -> keys[i] }) { i, t ->
+                Column(Modifier.fillMaxWidth().glide(this@itemsIndexed)) {
                 if (i == plan.dividerBefore) AutoplayDivider()
                 val cur = i == snap.index
                 val remove = remember(i, t) { SwipeAction("Remove", Glyph.CLOSE, { Color(0xFFD9423F) }) { removeFromQueueWithUndo(app, i) } }

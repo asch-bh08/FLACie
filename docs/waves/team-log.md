@@ -1,5 +1,18 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~04:20 Local: b125 RELEASED (pre-release), not deployed
+- Checks on 1.0 b125: server 1999/1999; Android unit + release green; emulator smoke 23/23; web (1z-motion, 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq, 1-pages) 214 passed on a fresh data folder; MSI built.
+- frank still runs b124 (web deploy of b125 waits for the owner's OK).
+- Left: Fold-size screenshots (fold-shots.mjs) not looked at; slow search covers not timed; Windows speed not measured; design-shots driver still misses Albums/Search/Playlists/Settings.
+
+## 2026-11-10 ~03:30 Local: b125 work so far (ui/living-sleeve)
+- Merged the cloud's web motion (f94a609a). Phone motion committed (cc: Motion.kt PageMove + glide + QueueKeys): deeper pages slide in and fade up, tabs cross-fade with a small rise, Back fades in, Now Playing springs up/down, Up next rows keyed by song so Move/Remove glide, play/pause glyph bounces, sheets instant with Animations off. Unit tests PageMoveTest, QueueKeysTest.
+- Merged build: unit tests + release green; emulator smoke 23/23.
+- phone-overhaul-unbuilt.md build-check on the emulator (phone size): Home chips wrap (moods + shortcuts, none cut off), Songs header (Play/Shuffle/A-Z/count) fits, artist page round picture, mini player fine, nothing overlapping. design-shots.mjs was stale (Explore tab gone): updated for Library/Got it; Albums/Search/Playlists/Settings steps still miss (driver, not app). fold-shots.mjs added (same shots at 1840x2208), not yet looked at.
+- Speed, emulator, 10,000-song mock, b124 -> b125: first songs after sign-in 14.1 s -> 13.4 s; all songs 31.7 s -> 30.4 s; first-sync cover requests 172 -> 124; warm start 10.6 s -> 9.8 s with 44 -> 0 cover requests (Home's covers kept ready); scrolling 4.2 -> 4.0 swipes/s (same); skip burst last song ready 6.9 s -> 7.9 s (one run, noisy). MEMORY: warm start 95 MB -> 142 MB, first sync 120 -> 136 MB. Cause: ArtCache.keepReady brings up to 48 Home covers (albums at full size) into the memory cache (capped at maxMemory/6, so bounded, not a leak). Kept: it is what makes Home's covers there at start. If it matters, lower HomeSnapshot.coverKeys limit or keep album covers as thumbs.
+- Version 1.0 b125 (Android 140) in the six places.
+- Next: speed numbers b124 vs b125 on the emulator (run-android.mjs: first sync, scrolling, skip burst, warm start, kill/restore), then the slow search covers with logcat.
+
 ## 2026-11-10 ~03:00 Cloud -> Local: WEB ANIMATION OVERHAUL READY TO MERGE (claude/exciting-ride-2qa9ry, b2e418c)
 - design-j-motion.css (linked last) + motion.js (after flacie.js): pages cross-fade via view transitions, covers fly into Now Playing and back (player bar, lists' playing song, Home picks, Search banner), album card cover -> album header, menus/pop-ups spring from their button, tab/segment pills slide, Up next/lists glide on reorder/add/remove (FLIP), play/heart pop, Retro scene/look/model changes cross-fade (entering/leaving Retro is instant). All off with Settings > Animations (pref-calm) and reduced motion.
 - Tests: new 1z-motion.spec.ts (6); 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1z-dj-mic-twice, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq pass.
@@ -14,6 +27,16 @@ No more cross-session messages tonight (they pop up for the owner): this log is 
 5. Both: speed and reliability without losing quality (lossless, graphs, visualisers untouched): Local = Android + Windows (cold start, scrolling, covers incl. slow search covers via logcat, memory, battery, reconnects); Cloud = web + server. Measure before/after, log numbers.
 6. Local: build-check docs/phone-overhaul-unbuilt.md on the emulator (phone + unfolded), fix what's broken.
 7. Local, by morning: everything tested and pushed; b125 pre-release with all of it (release what is green, log what isn't). Sonnet for well-defined jobs, Opus for design, never Haiku, at most 2 agents.
+## 2026-11-09 Local: b124 release run
+- Merged origin/claude/exciting-ride-2qa9ry (to d74b65c1) into ui/living-sleeve. Version 1.0 b124 / Android 139 in all six places.
+- Server tests: 1999/1999 passed.
+- Android: the merge broke PlayerUi.kt again (Playlists grid called `androidx.compose.foundation.lazy.grid.itemsIndexed(...)` by full name, which doesn't resolve next to the `as gridItemsIndexed` alias; imports were also duplicated). Fixed: the grid uses `gridItemsIndexed`, duplicates removed. Cloud: please call `gridItemsIndexed` inside LazyVerticalGrid, never the full name. :app:testDebugUnitTest + assembleRelease + assembleDebug: green.
+- Emulator smoke (b124 release APK, emulator-5554): 23/23 passed.
+- Web (12 specs changed since b123, ports cleared, global-setup accepted the server): 116 passed, 11 failed. Errors pointed at old data, e.g. 1z-dj-ask got `"say": "I'm still loading your library. Try again in a moment."`, 1z-music-fit `.shelf-head:has(.chip.small)` count 0, 1q-dj Aura-2 `#dj` not found on /dashboard. CAUSE: the PC's kept data folder `tests/web-smoke/.pub-smoke/.data-smoke` dated from 7 Nov. Moved aside (.data-smoke-old-b124); the 8 failing files rerun: 61/61 passed. Cloud: worth making global-setup start from an empty .data-smoke (or warn when it is older than the build), so the PC can't hit this again.
+- MSI built (C:/FLACie-handoff/msi-b124); its server answers /healthz and the app starts it with CreateNoWindow.
+- frank: rollback tag flacie-web:rollback-b124pre (dropped rollback-b122web), b124 deployed, /healthz ok. Log: "DJ voice settings moved to version 3: voice kokoro:am_liam"; dj.json Voice = kokoro:am_liam.
+- RELEASED: https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b124 (pre-release, target 6b3878ad, APK + MSI).
+- Next (Local): merge the cloud's web motion (f94a609a), phone motion (started: page moves, Now Playing spring, Up next glide), build-check phone-overhaul-unbuilt.md, speed pass, b125.
 
 ## 2026-11-10 Cloud: the 5 web failures, the phone's address (branch claude/exciting-ride-2qa9ry, from ui/living-sleeve b124)
 - Note: the b124 merge missed Cloud's last batch (music pages design-j-music.css + 1z-music-fit, phone Playlists/Settings/Now Playing, docs/phone-overhaul-unbuilt.md): merged in again here. Please build the phone again (those three Kotlin commits are new to you).
@@ -315,3 +338,6 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 ## 2026-11-09 Local: cloud branch merged, b124 NOT released
 - Merged claude/exciting-ride-2qa9ry into ui/living-sleeve; fixed missing itemsIndexed imports (PlayerUi.kt); version bumped to 1.0 b124 (Android 139). Server 1994/1994, Android unit + release build OK, emulator smoke 23/23 on rerun (first run: 2 playback fails, likely the new row entrance animation vs the driver tap).
 - Web: 105 passed, 5 failed, and still failing when rerun alone: 1d-g2 keyboard (Space/N), 1q-dj Aura-2 voices, 1z-discman-fit (1024x768), 1z-dj-ask endpoint, 1z-dj-mic-twice. Cloud: fix these, push; local releases b124 after the weekly reset (11 Nov 18:00). Nothing deployed.
+
+## 2026-11-09 Local (96% weekly): handing the b124 release to a new local session
+- Read docs/HANDOFF-b124-release.md: merge the cloud branch again (its last batch), build, smoke, web tests, MSI, deploy, release.

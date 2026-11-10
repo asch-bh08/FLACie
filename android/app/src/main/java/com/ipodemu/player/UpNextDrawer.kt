@@ -143,8 +143,10 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
         }
         if (cur != null) item { DrawerRow(cur, current = true, onClick = {}, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, cur, snap.index, -1, next.size, more, true) } }) }
         if (next.isEmpty()) item { Txt("Nothing queued after this song.", Modifier.padding(horizontal = 4.dp, vertical = 8.dp), size = 14f, color = sc.onBgDim) }
-        itemsIndexed(next, key = { _, p -> p.first }) { pos, p ->
-            Column(Modifier.fillMaxWidth()) {
+        // keyed by the song, so a moved or removed song glides (QueueKeys)
+        val keys = QueueKeys.of(next.map { it.second.path })
+        itemsIndexed(next, key = { pos, _ -> keys[pos] }) { pos, p ->
+            Column(Modifier.fillMaxWidth().glide(this@itemsIndexed)) {
                 if (p.first == plan.dividerBefore) AutoplayDivider()
                 DrawerRow(p.second, current = false, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, p.second, p.first, pos, next.size, more, false) } }) { app.player.skipTo(p.first) }
             }

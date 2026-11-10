@@ -1,4 +1,4 @@
-﻿// Screenshots of the Android app's design I screens on an emulator, against the mock Jellyfin: sign in, play a song, then Home, the bar,
+// Screenshots of the Android app's design I screens on an emulator, against the mock Jellyfin: sign in, play a song, then Home, the bar,
 // Explore's songs and albums, an album, an artist, search, playlists, favourites and settings. Set ANDROID_SERIAL to pick the emulator.
 //   node ls-shots.mjs --port 8496 --shots <dir> --adb <adb.exe>
 import { spawn } from 'node:child_process';
@@ -35,25 +35,28 @@ for (let i = 0; i < 30; i++) {
   ui = dump();
   const row = ui && ui.filter((n) => /^Song \d+$/.test(label(n)) && n.cy > 500)[0];
   if (row) { tapAt(500, row.cy); break; }
-  const ex = ui && find(ui, 'Explore', { minY: 1800 }); if (ex) tapNode(ex);
+  const ex = ui && (find(ui, 'Library', { minY: 1800 }) || find(ui, 'Explore', { minY: 1800 })); if (ex) tapNode(ex);
+  const songs = ui && ui.find((n) => /^Songs$/.test(label(n)) && n.cy > 300); if (songs && ex) { await sleep(1500); tapNode(songs); }
   await sleep(2000);
 }
 for (let i = 0; i < 60 && mediaSession().state !== 3; i++) await sleep(500);
 await sleep(2000);
-const nav = async (name) => { const u = dump(); const n = u && find(u, name, { minY: 1900 }); if (n) tapNode(n); await sleep(2500); };
+// the bottom bar's places since b124: Home, Search, Library (was Explore), Settings; logs what it saw when a place is missing
+const nav = async (...names) => { const u = dump(); const n = u && names.map((nm) => find(u, nm, { minY: 1900 })).find(Boolean); if (n) tapNode(n); else console.log('nav: none of', names, 'in', (u || []).map(label).filter(Boolean).slice(0, 40).join(' | ')); await sleep(2500); };
 const tapLabel = async (re, minY = 300) => { const u = dump(); const n = u && u.find((x) => re.test(label(x)) && x.cy > minY); if (n) { tapNode(n); await sleep(2500); return true; } return false; };
 await nav('Home'); await nav('Home');
+await tapLabel(/^Got it$/);   // the first-run welcome card
 shot(S('android-home'));
 sh('input swipe 540 1600 540 700 400'); await sleep(1500);
 shot(S('android-home-shelves'));
-await nav('Explore');
+await nav('Library', 'Explore'); await tapLabel(/^Songs$/);
 shot(S('android-browse-songs'));
 await tapLabel(/^Albums$/); shot(S('android-browse-albums'));
 await tapLabel(/Album \d+/, 600); await sleep(1500); shot(S('android-detail-album'));
 key('KEYCODE_BACK'); await sleep(1500);
 await tapLabel(/^Artists$/); await tapLabel(/Artist \d+/, 600); await sleep(1500); shot(S('android-detail-artist'));
-await nav('Search'); typeText('Song 1'); await sleep(2500); key('KEYCODE_BACK'); await sleep(1200); shot(S('android-search'));
-await nav('Playlists'); shot(S('android-playlists'));
+await nav('Search'); await sleep(500); { const u = dump(); const f = u && u.find((n) => /EditText/.test(n.cls)); if (f) tapAt(f.cx, f.cy); await sleep(500); } typeText('Song 1'); await sleep(2500); key('KEYCODE_BACK'); await sleep(1200); shot(S('android-search'));
+key('KEYCODE_BACK'); await sleep(800); await nav('Library', 'Playlists'); await tapLabel(/^Playlists$/); shot(S('android-playlists'));
 await tapLabel(/^Favou?rites$/); shot(S('android-favourites'));
 await nav('Settings'); shot(S('android-settings'));
 console.log('done');

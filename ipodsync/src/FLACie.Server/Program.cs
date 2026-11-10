@@ -196,6 +196,18 @@ builder.Services.AddSingleton<SignInDevices>();   // the known-device cookie: a 
 // the rate limits at every door (RateLimiting; FLACIE_RATE_* in docs/SELF-HOSTING.md): one table of limits, also used inside the DJ and the Search page
 builder.Services.AddSingleton(new RateLimits(k => builder.Configuration[k]));
 builder.Services.AddSingleton<AlacCache>();
+// Blazor's own script (_framework/blazor.web.js, 188 KB) comes from inside the framework, not from wwwroot, so it is not among the files published
+// already compressed: it is compressed as it is sent instead (about 50 KB), so a phone on mobile data starts the page sooner. Only that script:
+// pages and API answers stay as they are (a compressed answer that carries private data could leak it, BREACH).
+builder.Services.AddResponseCompression(o =>
+{
+    o.EnableForHttps = true;
+    o.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    o.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+    o.MimeTypes = ["text/javascript", "application/javascript"];
+});
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Optimal);
+builder.Services.Configure<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProviderOptions>(o => o.Level = System.IO.Compression.CompressionLevel.Optimal);
 builder.Services.AddSingleton<HitsService>();
 // Alexa (off until switched on in Settings): the skill endpoint, signed stream links, pairing
 builder.Services.AddAlexa(dataDir);
@@ -276,6 +288,7 @@ if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error", createSc
 app.UseWhen(c => HttpMethods.IsGet(c.Request.Method) && c.Request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase)
         && !new[] { "/api", "/art", "/stream", "/auth", "/debug", "/_framework", "/_blazor", "/licenses", "/privacy" }.Any(p => c.Request.Path.StartsWithSegments(p)),
     b => b.UseStatusCodePagesWithReExecute("/not-found"));
+app.UseWhen(c => c.Request.Path.StartsWithSegments("/_framework") && c.Request.Path.Value!.EndsWith(".js", StringComparison.Ordinal), b => b.UseResponseCompression());
 app.UseRouting();   // after the status pages, so a re-executed request is routed again
 app.UseAuthentication();
 // after sign-in is read (a signed-in person is counted by account, not by an address their whole household shares), before anything is done for the request

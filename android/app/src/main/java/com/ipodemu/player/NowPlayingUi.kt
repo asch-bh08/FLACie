@@ -3,6 +3,8 @@ package com.ipodemu.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -165,19 +167,26 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
         if (LocalStyle.current.modern) { LivingSleeveBody(snap, nav); return@Box }
         Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 6.dp).size(width = 38.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .3f)))
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            val boxH = maxHeight
-            val twoCol = maxWidth > maxHeight * 0.8f
-            if (twoCol) {
+            // what fits this screen and this text size (ClassicFit, unit tested): upright the cover takes what the rest leaves, and the album line, the
+            // download line, the title's size and the gaps step aside before it gets small; on its side the header moves over the cover when the
+            // controls' column is short, and only a split-screen sliver scrolls
+            val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            val buttons = if (snap.dj != null) 6 else 4
+            val fit = remember(maxWidth, maxHeight, fontScale, buttons) { ClassicFit.plan(maxWidth.value, maxHeight.value, fontScale, buttons) }
+            if (fit.twoCol) {
                 Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(0.52f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        NpArt(t.artKey, Modifier.widthIn(max = boxH - 24.dp))
+                    Column(Modifier.weight(0.52f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (fit.headerOverArt) NpHeader(nav)
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            NpArt(t.artKey, Modifier.widthIn(max = fit.art.dp))
+                        }
                     }
-                    Column(Modifier.weight(0.48f).fillMaxHeight().navigationBarsPadding(), verticalArrangement = Arrangement.SpaceEvenly) {
-                        NpHeader(nav)
-                        NpInfo(snap, center = false)
+                    Column(Modifier.weight(0.48f).fillMaxHeight().then(if (fit.scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier), verticalArrangement = Arrangement.SpaceEvenly) {
+                        if (!fit.headerOverArt) NpHeader(nav)
+                        NpInfo(snap, center = false, titleSp = fit.titleSp, album = fit.album, tag = fit.tag)
                         NpSeek(snap)
                         NpTransport(snap)
-                        NpExtras(snap, nav)
+                        NpExtras(snap, nav, fit.extras)
                     }
                 }
             } else {
@@ -186,13 +195,13 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
                     Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                         NpArt(t.artKey, Modifier.widthIn(max = 420.dp))
                     }
-                    NpInfo(snap, center = true)
-                    Box(Modifier.height(6.dp))
+                    NpInfo(snap, center = true, titleSp = fit.titleSp, album = fit.album, tag = fit.tag)
+                    Box(Modifier.height(if (fit.tight) 2.dp else 6.dp))
                     NpSeek(snap)
                     NpTransport(snap)
-                    Box(Modifier.height(10.dp))
-                    NpExtras(snap, nav)
-                    Box(Modifier.height(6.dp))
+                    Box(Modifier.height(if (fit.tight) 4.dp else 10.dp))
+                    NpExtras(snap, nav, fit.extras)
+                    Box(Modifier.height(if (fit.tight) 2.dp else 6.dp))
                 }
             }
         }
@@ -203,9 +212,10 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
 private fun NpHeader(nav: PlayerNav) {
     val sc = LocalScheme.current
     Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlossButton({ nav.nowPlaying = false }, label = "Close", size = 36.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
+        // 44 dp: the header's two buttons were 36 dp, small to hit with a thumb
+        GlossButton({ nav.nowPlaying = false }, label = "Close", size = 44.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
         Txt("Now Playing", Modifier.weight(1f), size = 16f, weight = FontWeight.Bold, align = TextAlign.Center)
-        GlossButton({ nav.openQueueFromPlayer() }, label = "Up next", size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
+        GlossButton({ nav.openQueueFromPlayer() }, label = "Up next", size = 44.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
     }
 }
 
@@ -219,16 +229,16 @@ private fun NpArt(key: String?, modifier: Modifier) {
 }
 
 @Composable
-private fun NpInfo(snap: PlayerSnap, center: Boolean) {
+private fun NpInfo(snap: PlayerSnap, center: Boolean, titleSp: Float = 24f, album: Boolean = true, tag: Boolean = true) {
     val sc = LocalScheme.current
     val t = snap.track ?: return
     val a = if (center) TextAlign.Center else TextAlign.Start
     val app = LocalApp.current
     Column(Modifier.fillMaxWidth().trackSwipe({ app.player.prev() }, { app.player.next() }), horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start) {
-        Txt(t.title, Modifier.fillMaxWidth(), size = 24f, weight = FontWeight.Bold, align = a)
+        Txt(t.title, Modifier.fillMaxWidth(), size = titleSp, weight = FontWeight.Bold, align = a)
         Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.fillMaxWidth().padding(top = 2.dp), size = 17f, color = sc.accentLight, align = a)
-        DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a, showNew = false)
-        if (t.album.isNotEmpty()) Txt(t.album, Modifier.fillMaxWidth(), size = 14f, color = sc.onBgDim, align = a)
+        if (tag) DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a, showNew = false)
+        if (album && t.album.isNotEmpty()) Txt(t.album, Modifier.fillMaxWidth(), size = 14f, color = sc.onBgDim, align = a)
     }
 }
 
@@ -275,7 +285,7 @@ private fun NpTransport(snap: PlayerSnap) {
 }
 
 @Composable
-private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
+private fun NpExtras(snap: PlayerSnap, nav: PlayerNav, size: Float = 44f) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val t = snap.track ?: return
@@ -283,15 +293,17 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
     val fav = app.userData.isFavorite(t)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.userData.toggleFavorite(t) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
+            // one size for the row (ClassicFit.extrasSize): six of them fit a phone on its side; the favourite was 40 dp, now as big as the rest
+            val b = size.dp; val ic = (size * .5f).dp
+            GlossButton({ app.userData.toggleFavorite(t) }, label = if (fav) "Unfavorite" else "Favorite", size = b, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(ic), Color.White) }
+            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = b) { GlyphIcon(Glyph.LIST, Modifier.size(ic), Color.White) }
+            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = b, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(ic), Color.White) }
             // the AI DJ for this queue (lit when on); a long press opens its settings. Not there without FLACie Web
             snap.dj?.let { on ->
-                GlossButton({ djTap(app) }, label = djLabel(on), size = 44.dp, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(22.dp), Color.White) }
-                DjMicButton(44.dp)
+                GlossButton({ djTap(app) }, label = djLabel(on), size = b, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(ic), Color.White) }
+                DjMicButton(b)
             }
-            GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
+            GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = b) { GlyphIcon(Glyph.MORE, Modifier.size(ic), Color.White) }
         }
     }
 }

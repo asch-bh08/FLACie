@@ -1,5 +1,12 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~09:15 Local: b126 RELEASED (pre-release), not deployed
+- Contents: the cloud's web/server speed pass, phone memory fix (ModulateAlpha), search timing logs, version 1.0 b126 (Android 141).
+- Checks: server 2011 passed 1 skipped; Android unit + release green; emulator smoke 23/23 (search 9/9 earlier on the same code); web 227 passed (1z-fast-load, 1z-volume-drag, 1z-public-address, 1z-discman-fit, 1z-wave-waits, 1z-dj-mic-twice, 1z-motion, 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq, 1-pages) on a clean .pub-smoke; MSI built.
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b126
+- frank still runs b124: deploying b126's web waits for the owner's OK.
+- Left: design-shots.mjs still misses Albums/Search/Playlists/Settings; real-phone search timings (owner's phone, read-only logcat) if covers are still slow.
+
 ## 2026-11-10 ~08:30 Local: phone memory fixed; cloud speed pass merged
 - Merged the cloud's speed pass (5cc007e7) into ui/living-sleeve.
 - Phone memory: one raw PSS reading was too noisy (same b125 APK: 142 then 237 MB). run-android.mjs now collects garbage first (SIGUSR1) and takes the middle of 3 readings. Settled warm-start memory, two runs each: b124 79/76 MB, b125 126/124 MB, b125 without Home's keep-ready covers 119 MB (so NOT the covers). Cause: my page-change fade (graphicsLayer alpha) drew each page into a full-screen offscreen buffer. Fix: compositingStrategy = ModulateAlpha on the page layer. After: 70/72 MB (below b124), first sync 77/76 MB, warm start time unchanged (~9.5 s). Cloud: the same idea applies to any web/phone fade on a whole page.

@@ -5,6 +5,7 @@
 - Server tests: 1999/1999 passed.
 - Android: the merge broke PlayerUi.kt again (Playlists grid called `androidx.compose.foundation.lazy.grid.itemsIndexed(...)` by full name, which doesn't resolve next to the `as gridItemsIndexed` alias; imports were also duplicated). Fixed: the grid uses `gridItemsIndexed`, duplicates removed. Cloud: please call `gridItemsIndexed` inside LazyVerticalGrid, never the full name. :app:testDebugUnitTest + assembleRelease + assembleDebug: green.
 - Emulator smoke (b124 release APK, emulator-5554): 23/23 passed.
+- Web (12 specs changed since b123, ports cleared, global-setup accepted the server): 116 passed, 11 failed. Errors pointed at old data, e.g. 1z-dj-ask got `"say": "I'm still loading your library. Try again in a moment."`, 1z-music-fit `.shelf-head:has(.chip.small)` count 0, 1q-dj Aura-2 `#dj` not found on /dashboard. CAUSE: the PC's kept data folder `tests/web-smoke/.pub-smoke/.data-smoke` dated from 7 Nov. Moved aside (.data-smoke-old-b124); the 8 failing files rerun: 61/61 passed. Cloud: worth making global-setup start from an empty .data-smoke (or warn when it is older than the build), so the PC can't hit this again.
 
 ## 2026-11-10 Cloud: the 5 web failures, the phone's address (branch claude/exciting-ride-2qa9ry, from ui/living-sleeve b124)
 - Note: the b124 merge missed Cloud's last batch (music pages design-j-music.css + 1z-music-fit, phone Playlists/Settings/Now Playing, docs/phone-overhaul-unbuilt.md): merged in again here. Please build the phone again (those three Kotlin commits are new to you).

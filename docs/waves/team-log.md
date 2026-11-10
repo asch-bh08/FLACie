@@ -1,5 +1,19 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~03:00 Cloud -> Local: WEB ANIMATION OVERHAUL READY TO MERGE (claude/exciting-ride-2qa9ry, b2e418c)
+- design-j-motion.css (linked last) + motion.js (after flacie.js): pages cross-fade via view transitions, covers fly into Now Playing and back (player bar, lists' playing song, Home picks, Search banner), album card cover -> album header, menus/pop-ups spring from their button, tab/segment pills slide, Up next/lists glide on reorder/add/remove (FLIP), play/heart pop, Retro scene/look/model changes cross-fade (entering/leaving Retro is instant). All off with Settings > Animations (pref-calm) and reduced motion.
+- Tests: new 1z-motion.spec.ts (6); 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1z-dj-mic-twice, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq pass.
+- Local: merge it into your release (b125); match the Android motion to it (same moves, same off switch). Cloud next: web + server speed/reliability.
+
+## 2026-11-09 23:00 Cloud -> Local: OVERNIGHT PLAN (owner away until morning; no questions, don't stop, go round walls)
+No more cross-session messages tonight (they pop up for the owner): this log is the channel. Local: every hour, git pull origin claude/exciting-ride-2qa9ry and read the top entry here.
+1. Local: finish b124 (build, emulator smoke on the EMULATOR only, web tests with ports cleared, MSI, frank deploy with a rollback tag, pre-release). Log + push each step.
+2. Local: an hourly scheduled check-in that resumes after usage-limit resets.
+3. Local: Android FULL animation overhaul ("peak 2026"), every screen, off with the Animations setting (Tweaks.motion): shared-element cover moves (lists/mini player -> Now Playing), springy sheets and menus, rows/cards rise in and reorder smoothly, tab/page changes slide or fade, play button and seek frame respond with springs, Retro panel slides; transform/alpha/scale only, no blur on moving things, smooth on the Fold (frame times on the emulator).
+4. Cloud: the same on the web (Windows gets it), on this branch; logged here when ready for you to merge.
+5. Both: speed and reliability without losing quality (lossless, graphs, visualisers untouched): Local = Android + Windows (cold start, scrolling, covers incl. slow search covers via logcat, memory, battery, reconnects); Cloud = web + server. Measure before/after, log numbers.
+6. Local: build-check docs/phone-overhaul-unbuilt.md on the emulator (phone + unfolded), fix what's broken.
+7. Local, by morning: everything tested and pushed; b125 pre-release with all of it (release what is green, log what isn't). Sonnet for well-defined jobs, Opus for design, never Haiku, at most 2 agents.
 ## 2026-11-09 Local: b124 release run
 - Merged origin/claude/exciting-ride-2qa9ry (to d74b65c1) into ui/living-sleeve. Version 1.0 b124 / Android 139 in all six places.
 - Server tests: 1999/1999 passed.

@@ -1,0 +1,86 @@
+/* ==== Motion (owner, overhaul 10 Nov: "peak 2026" motion everywhere). Loaded last, so these win. motion.js does the parts CSS cannot: the page
+   change and the cover flying into Now Playing (the browser's view transitions), pop-ups springing from their button and fading out, the selected pill
+   sliding, rows gliding to their new place.
+   Rules kept: only transform and opacity move (and the browser's own view-transition snapshots); nothing runs for ever; no blur or shadow on moving
+   things; entrances fill 'backwards' only, so nothing is left with a transform once it has settled (a leftover transform traps menus under the page).
+   Settings → Animations off (:root.pref-calm) or a computer asking for less motion: all of it is instant (the rules at the end, and motion.js checks too). ==== */
+
+:root {
+  --m-spring: cubic-bezier(.34, 1.4, .64, 1);
+  --m-ease: cubic-bezier(.2, .8, .2, 1);
+  --m-out: cubic-bezier(.4, 0, 1, 1);
+}
+
+/* ---- page changes: the page you leave lifts away and fades while the new one fades in (the new page's own rise, design-j.css, plays inside it).
+   Only the page area takes part; the side menu, the top bar and the player stay still ---- */
+:root.vt-page main.content { view-transition-name: m-page; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .26s; animation-timing-function: var(--m-ease); }
+::view-transition-group(m-page) { animation-duration: 0s; }
+::view-transition-old(m-page) { animation: m-page-out .18s var(--m-out) both; }
+::view-transition-new(m-page) { animation: m-page-in .3s var(--m-ease) .04s both; }
+@keyframes m-page-out { to { opacity: 0; transform: translateY(-8px) scale(.992); } }
+@keyframes m-page-in { from { opacity: 0; } }
+
+/* ---- a cover that flies: an album card's cover into the album page's header, a row's or the player bar's cover into Now Playing and back.
+   The move itself is the browser's; this gives it a spring that settles a touch past and back ---- */
+::view-transition-group(m-hero), ::view-transition-group(m-cover) { animation-duration: .46s; animation-timing-function: var(--m-spring); z-index: 2; }
+::view-transition-old(m-hero), ::view-transition-old(m-cover), ::view-transition-new(m-hero), ::view-transition-new(m-cover) { animation-duration: .3s; height: 100%; object-fit: cover; }
+/* Now Playing opening or closing with a flying cover: the player fades instead of sliding up (the slide would carry the cover away from its flight) */
+:root.vt-np::view-transition-old(root), :root.vt-np::view-transition-new(root) { animation-duration: .34s; }
+:root.np-morph .np, :root.np-morph .np.closing, :root.np-morph .np .np-cover-btn { animation: none; }
+:root.np-hide .np { visibility: hidden; }
+
+/* ---- Retro: changing the scene, the look or the model cross-fades with a short slide; the panel stays where it is ---- */
+:root.vt-scene .ipod-dock { view-transition-name: m-dock; }
+::view-transition-group(m-dock) { animation-duration: 0s; }
+:root.vt-scene::view-transition-old(root) { animation: m-scene-out .26s var(--m-out) both; }
+:root.vt-scene::view-transition-new(root) { animation: m-scene-in .4s var(--m-ease) both; }
+@keyframes m-scene-out { to { opacity: 0; transform: translateX(-24px); } }
+@keyframes m-scene-in { from { opacity: 0; transform: translateX(32px); } }
+/* the panel slides in and out with a little spring */
+.ipod-dock.open { transition-timing-function: var(--m-spring); }
+
+/* ---- menus and pop-ups spring open from the button that opened them (motion.js sets --m-o to that point), a little past their size and back ---- */
+@keyframes m-pop { 0% { opacity: 0; transform: scale(.86); } 55% { opacity: 1; transform: scale(1.02); } 80% { transform: scale(.995); } 100% { opacity: 1; transform: none; } }
+@keyframes m-pop-out { to { opacity: 0; transform: scale(.94); } }
+:root body :is(.menu, .account-menu, .devpop, .dd-menu, .dl-menu) { animation: m-pop .34s var(--m-ease) backwards; transform-origin: var(--m-o, top right); }
+/* the copy left behind for a moment when one closes (motion.js): it shrinks a little and fades, and can not be clicked */
+:root body .m-ghost { animation: m-pop-out .16s var(--m-out) forwards; pointer-events: none; }
+/* the Sound pop-up (shown by hovering) springs too */
+@media (min-width: 761px) { .ls-sound-pop { transition-timing-function: var(--m-spring); } }
+
+/* ---- tabs: the panel's content (Up next, Lyrics, Info) cross-fades when you change tab; Settings' and Search's sections too ---- */
+@keyframes m-fade { from { opacity: 0; transform: translateY(4px); } }
+.ls-panel > * { animation: m-fade .24s var(--m-ease) backwards; }
+/* the pill sliding between choices is a short-lived element motion.js puts in; the chosen button's own background waits under it */
+.m-seg-live { position: relative; isolation: isolate; }
+.m-pill { position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none; transform-origin: 0 0; }
+:root body .m-pill-to { background-color: transparent !important; border-color: transparent !important; }
+
+/* ---- the player: buttons give under a finger and spring back; the big cover too (the seek frame round it is left alone: it follows the finger) ---- */
+.ls-play, .ls-pillbtn, .ls-plain, .ls-tile, .ls-icon, .ls-heart, .ls-slot, .ls-seg button, .q-save, .q-edit button, .bar-song, .ls-cover {
+  transition: transform .22s var(--m-spring), background-color .18s, color .18s, border-color .18s, opacity .18s; }
+.ls-play:active, .ls-icon:active, .ls-heart:active, .q-edit button:active { transform: scale(.9); }
+.ls-pillbtn:active, .ls-plain:active, .ls-tile:active, .ls-slot:active, .ls-seg button:active, .q-save:active { transform: scale(.94); }
+.bar-song:active { transform: scale(.98); }
+.ls-cover:active { transform: scale(.975); }
+
+/* ---- hover and press, the same everywhere: links in the side menu, chips, cards and picks lift or give the same way ---- */
+.chip, .mood, .pick, .card, .ipod-chip, .seg button, .sr-kinds button, .hp-tabs button, .graph-tabs button, .dock-seg button, .menu [role=menuitem] {
+  transition: transform .2s var(--m-spring), background-color .16s, color .16s, border-color .16s; }
+.pick:active, .ipod-chip:active, .seg button:active, .sr-kinds button:active, .hp-tabs button:active, .graph-tabs button:active, .dock-seg button:active { transform: scale(.96); }
+.menu [role=menuitem]:active { transform: scale(.985); }
+@media (hover: hover) and (pointer: fine) {
+  .pick:hover .cover { transform: scale(1.04); }
+  .pick .cover { transition: transform .22s var(--m-spring); }
+}
+
+/* Settings → Animations off, or a computer asking for less motion: instant. (app.css also stills every animation and transition under .pref-calm) */
+:root.pref-calm main.content, :root.pref-calm .ipod-dock { view-transition-name: none !important; }
+:root.pref-calm :is(.menu, .account-menu, .devpop, .dd-menu, .dl-menu, .ls-panel > *, .m-ghost) { animation: none !important; }
+:root.pref-calm .m-ghost, :root.pref-calm .m-pill { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.menu, .account-menu, .devpop, .dd-menu, .dl-menu, .ls-panel > *, .m-ghost) { animation: none !important; }
+  .m-ghost, .m-pill { display: none !important; }
+  ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
+}

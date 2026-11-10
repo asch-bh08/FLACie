@@ -578,7 +578,7 @@ window.flacie = (() => {
     }).catch(() => { finished = true; release(); ref.invokeMethodAsync("Ended").catch(() => { }); });
     return true;
   };
-  const npClosed = () => { const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
+  const npClosed = () => { if (npRef) try { window.flacieMotion?.npClosing?.(); } catch { } const r = npRef; npRef = null; npPushed = false; document.body.classList.remove("np-open"); if (r) r.invokeMethodAsync("Closed").catch(() => { }); };
   // Back onto a "#now-playing" entry (after following a link out of the full-screen player) brings the player back instead of landing on the bare page
   let barRef = null;
   window.addEventListener("popstate", () => {

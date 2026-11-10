@@ -1423,6 +1423,15 @@ window.flacie = (() => {
     npReset() { npRef = null; npPushed = false; document.body.classList.remove("np-open"); },
     setBarRef(r) { barRef = r; },
     stash(key, json) { try { localStorage.setItem(key, json); } catch { } },
+    // the saved queue's second only (its songs are saved already), when the saved queue is still this one at this song (another tab may have saved
+    // its own since): false asks the player for a full save instead
+    stashPlace(key, p, i, path) {
+      try {
+        const o = JSON.parse(localStorage.getItem(key) || "null");
+        if (!o || o.i !== i || !Array.isArray(o.q) || o.q[i] !== path) return false;
+        o.p = p; localStorage.setItem(key, JSON.stringify(o)); return true;
+      } catch { return false; }
+    },
     unstash(key) { try { return localStorage.getItem(key); } catch { return null; } },
     ready() { return audio.readyState >= 3; },
     pause() { audio.pause(); },

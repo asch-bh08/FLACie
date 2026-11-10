@@ -229,7 +229,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     // ---- remembering the queue across a reload (kept in this browser, per account) ----
 
-    string? stashKey; long lastStash;
+    string? stashKey; long lastStash; string? stashedRest;
     public void SetStashKey(string key) => stashKey = "flacie.queue." + key;
 
     void Stash(bool force)
@@ -243,6 +243,15 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var at = Math.Max(0, order.Count == Queue.Count ? order.IndexOf(Index) : Index);
         var from = Math.Max(0, at - 50);
         // x: the playlist the queue came from, so its DJ switch still counts after the reload
+        var rest = System.Text.Json.JsonSerializer.Serialize(new { q = seq.Skip(from).Take(300).Select(t => t.Path), i = at - from, s = Shuffle, r = Repeat, x = ContextId });
+        // while one song plays only the second it has reached changes: just that is sent, not the 300 songs again every 5 s (up to 30 KB each time)
+        if (rest == stashedRest)
+        {
+            _ = js.InvokeAsync<bool>("flacie.stashPlace", stashKey, Position, at - from, seq[at].Path).AsTask()
+                .ContinueWith(t => { if (!t.IsCompletedSuccessfully || !t.Result) stashedRest = null; });
+            return;
+        }
+        stashedRest = rest;
         var json = System.Text.Json.JsonSerializer.Serialize(new { q = seq.Skip(from).Take(300).Select(t => t.Path), i = at - from, p = Position, s = Shuffle, r = Repeat, x = ContextId });
         _ = js.InvokeVoidAsync("flacie.stash", stashKey, json).AsTask().ContinueWith(_ => { });
     }

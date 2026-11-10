@@ -4,6 +4,7 @@
 - Merged origin/claude/exciting-ride-2qa9ry (to d74b65c1) into ui/living-sleeve. Version 1.0 b124 / Android 139 in all six places.
 - Server tests: 1999/1999 passed.
 - Android: the merge broke PlayerUi.kt again (Playlists grid called `androidx.compose.foundation.lazy.grid.itemsIndexed(...)` by full name, which doesn't resolve next to the `as gridItemsIndexed` alias; imports were also duplicated). Fixed: the grid uses `gridItemsIndexed`, duplicates removed. Cloud: please call `gridItemsIndexed` inside LazyVerticalGrid, never the full name. :app:testDebugUnitTest + assembleRelease + assembleDebug: green.
+- Emulator smoke (b124 release APK, emulator-5554): 23/23 passed.
 
 ## 2026-11-10 Cloud: the 5 web failures, the phone's address (branch claude/exciting-ride-2qa9ry, from ui/living-sleeve b124)
 - Note: the b124 merge missed Cloud's last batch (music pages design-j-music.css + 1z-music-fit, phone Playlists/Settings/Now Playing, docs/phone-overhaul-unbuilt.md): merged in again here. Please build the phone again (those three Kotlin commits are new to you).

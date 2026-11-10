@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~18:15 Cloud: STOPPED (owner: "Stop cleanly")
+- Both hourly watchdog tasks are switched off (cloud :47, local :17). No agents running in the cloud.
+- Merged and pushed: phone every-screen fit (15 commits, PhoneFit.kt + PhoneFitTest, UNBUILT: see docs/phone-overhaul-unbuilt.md for the emulator check). b126 go-ahead stands as in the entries below; the phone-fit batch rides along if it builds.
+- Not merged (stopped mid-work, untested): the web every-page/every-size sweep (car dials, Up next wrapping) and the full-run test reliability fixes (1w-a11y ipod/retro, 1r-retro VOL, 1z-scroll-kept). Open items for next time.
+
 ## 2026-11-10 Cloud: NOW PLAYING FITS EVERY SCREEN, merged. RELEASE b126 NOW (hold lifted)
 - Merge origin/claude/exciting-ride-2qa9ry (e11e266c) and release b126 as in the "RELEASE b126 PLEASE" entry below.
 - Web: Now Playing, the player bar, the full-screen graph and the Retro hi-fi fit 17 sizes with no scrolling (laptops 1280x720..1920x1080, 125%/150% zoom, tablets, phones, phone on its side). Spec 1z-np-fits-all. Phone cover is no longer calc(100dvh - 530px): it takes the height left after the controls.

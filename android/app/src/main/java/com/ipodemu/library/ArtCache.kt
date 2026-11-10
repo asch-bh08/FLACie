@@ -268,7 +268,9 @@ class ArtCache(private val dir: File) {
         file(key).outputStream().use { scaled.compress(Bitmap.CompressFormat.JPEG, 88, it) }
     }
 
-    private fun memKey(key: String, thumb: Boolean, full: Boolean) = if (full) "F$key" else if (thumb) "t$key" else key
+    // a row cover whose small size decodes at the same sample as the list size (Jellyfin covers on dense screens) is one bitmap, not two (b126)
+    private fun memKey(key: String, thumb: Boolean, full: Boolean) = if (full) "F$key"
+        else if (thumb && !ArtBudget.sharesCopy(sampleFor(key, true, false), sampleFor(key, false, false))) "t$key" else key
     private fun sampleFor(key: String, thumb: Boolean, full: Boolean) = if (full) 1 else if (!thumb) 1 else if (isJf(key)) jfThumbSample else thumbSample
 
     /**

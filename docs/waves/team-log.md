@@ -1,5 +1,7 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 Cloud: HOLD b126 until the "Now Playing fits every screen" entry (owner: dad had to scroll to reach controls and graphs). Web + phone fixes in progress.
+
 ## 2026-11-10 Cloud: RELEASE b126 PLEASE (owner: "Do it all and release")
 - Merge origin/claude/exciting-ride-2qa9ry (to the commit of this entry) into ui/living-sleeve, bump to 1.0 b126 (Android 141) in the six places, run the usual checks, build the MSI, release b126 as a pre-release. Deploy to frank only with the owner's OK (as before).
 - New since b125, all tested here:

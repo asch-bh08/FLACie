@@ -421,3 +421,7 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 
 ## 2026-11-09 Local (96% weekly): handing the b124 release to a new local session
 - Read docs/HANDOFF-b124-release.md: merge the cloud branch again (its last batch), build, smoke, web tests, MSI, deploy, release.
+
+## 2026-11-10 Owner: redo the web volume (queued, do before b129 ships)
+- Owner: the volume bar / Sound pop-up on the web "is terrible, does not work and looks bad". Redesign it: one Sound button in the PC player bar that opens a pop-up on hover and on click, with a real volume slider that drags, clicks, scrolls and takes arrow keys, a mute button and the percentage, plus Even out volume and Fade between songs. Match the player style (tone pills, cover-colour accent). Build it on web + Windows; check the phone has an equivalent.
+- Prove it in a Playwright test with a real mouse drag, a click on the track, the wheel and the keys, checking the audio element volume actually changes, then screenshot it and look at it. Files: SoundTile.razor, living-sleeve.css, flacie.js (volume), 1x-new-look / 1z-volume-drag specs.

@@ -78,6 +78,8 @@ async function main() {
   const failed = checks.filter((c) => !c.pass).length;
   console.log(`search: ${checks.length - failed} passed, ${failed} failed`);
   fs.writeFileSync(path.join(here, 'result-search.json'), JSON.stringify(checks, null, 2));
+  // where the search's time went (catalogue answer, each cover's wait / network / decode): the app logs it under FLACieSearch
+  try { fs.writeFileSync(path.join(here, 'search-timings.txt'), sh('logcat -d -s FLACieSearch', { quiet: true })); } catch { }
   stopAll(); process.exit(failed ? 1 : 0);
 }
 

@@ -567,14 +567,23 @@ object RemoteArt {
 
     private suspend fun fetch(ctx: android.content.Context, url: String): Bitmap? {
         val disk = files(ctx)
-        val bytes = disk.get(url) ?: slots.withPermit {
+        // timed in logcat (adb logcat -s FLACieSearch) so a slow search cover says where its time went: waiting for a slot, the network, or the decode
+        val t0 = android.os.SystemClock.elapsedRealtime()
+        var tSlot = t0; var tNet = t0
+        val cached = disk.get(url)
+        val bytes = cached ?: slots.withPermit {
+            tSlot = android.os.SystemClock.elapsedRealtime()
             try {
                 val conn = java.net.URL(com.ipodemu.library.CoverLookup.small(url)).openConnection() as java.net.HttpURLConnection
                 conn.connectTimeout = 5000; conn.readTimeout = 8000
                 conn.inputStream.use { it.readBytes() }.also { disk.put(url, it) }
-            } catch (_: Exception) { null }
+            } catch (x: Exception) { android.util.Log.i("FLACieSearch", "cover failed after ${android.os.SystemClock.elapsedRealtime() - tSlot} ms: ${x.javaClass.simpleName}"); null }
+                .also { tNet = android.os.SystemClock.elapsedRealtime() }
         } ?: return null
-        return try { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) } catch (_: Exception) { null }?.also { remoteArtCache.put(url, it) }
+        val bmp = try { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) } catch (_: Exception) { null }?.also { remoteArtCache.put(url, it) }
+        val t1 = android.os.SystemClock.elapsedRealtime()
+        android.util.Log.i("FLACieSearch", if (cached != null) "cover disk ${bytes.size / 1024} KB decode ${t1 - t0} ms" else "cover wait ${tSlot - t0} ms net ${tNet - tSlot} ms ${bytes.size / 1024} KB decode ${t1 - tNet} ms ${bmp?.width}px")
+        return bmp
     }
 }
 

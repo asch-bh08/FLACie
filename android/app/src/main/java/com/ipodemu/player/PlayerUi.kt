@@ -1801,13 +1801,17 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         delay(450)
         webLoading = true
         // one row a song, its versions under it (owner, 6 Nov: "filter out the 30 versions and list like Spotify would")
+        val tq = android.os.SystemClock.elapsedRealtime()
         val groups = withContext(Dispatchers.IO) { WebCatalog.songGroups(q) }
+        android.util.Log.i("FLACieSearch", "catalogue songs for \"$q\": ${groups.size} in ${android.os.SystemClock.elapsedRealtime() - tq} ms (after 450 ms typing pause)")
         val songs = groups.map { it.first }
         val versions = groups.associate { versionKey(it.first) to it.second }
         // their covers start now, before the rows are drawn (owner, 6 Nov: covers came slowly in search)
         RemoteArt.prefetch(app, songs.take(12).mapNotNull { it.artUrl })
         web = WebResults(songs, emptyList(), versions)
+        val ta = android.os.SystemClock.elapsedRealtime()
         val albums = withContext(Dispatchers.IO) { WebCatalog.albumsWithTop(q, songs.firstOrNull()) }
+        android.util.Log.i("FLACieSearch", "catalogue albums: ${albums.size} in ${android.os.SystemClock.elapsedRealtime() - ta} ms")
         RemoteArt.prefetch(app, albums.take(8).mapNotNull { it.artUrl })
         web = WebResults(songs, albums, versions)
         webLoading = false

@@ -62,10 +62,14 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
 
 /* ---- Now Playing on a phone: the content was taller than short screens, so the cover was pushed up under the top bar's round buttons. The cover now takes
    the room that is left once the top bar, the words, the buttons, the tiles and the empty bottom band (no main control in the bottom 94 px) have theirs,
-   about 530 px, never more than before. (living-sleeve.css loads after this sheet, hence the .ls in front.) ---- */
+   never more than before (44dvh). The room left is measured, not guessed: the cover's box takes the rest of the column and is a size container, so the
+   frame is as big as its height allows (a fixed 530 px guess left a 360 x 640 phone a 64 px cover with the buttons in the bottom band, and pushed the frame
+   under the top bar on a 390 x 844 one). The frame sits at the foot of its box, right over the time. (living-sleeve.css loads after this sheet, hence the
+   .ls in front.) ---- */
 @media (max-width: 760px) {
-  .ls .ls-frame { width: min(100cqw, 44dvh, max(120px, calc(100dvh - 530px))); }
-  .ls .ls-cover { width: calc(min(100cqw, 44dvh, max(120px, calc(100dvh - 530px))) - 2 * var(--frame)); }
+  .ls .ls-art { flex: 1 1 0; min-height: 0; container-type: size; place-items: end center; }
+  .ls .ls-frame { width: min(100cqw, 100cqh, 44dvh); }
+  .ls .ls-cover { width: calc(min(100cqw, 100cqh, 44dvh) - 2 * var(--frame)); align-self: end; margin-bottom: var(--frame); }
 }
 
 /* ---- the Sound pop-up's volume: a plain slider, standing up, in the cover's colour (owner, 9 Nov: "just make a volume bar") ---- */

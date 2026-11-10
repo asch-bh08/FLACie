@@ -42,6 +42,9 @@
                     {
                         <div class="menu bar-menu" role="menu">
                             <a role="menuitem" class="retro-link" href="/retro" aria-label="Retro" data-testid="bar-retro" @onclick="() => barMore = false"><Icon Name="retro" Size="18" /><span><b>Retro</b><small>Music players, a car stereo, a hi-fi…</small></span></a>
+                            @* a narrow window or an upright tablet (761-1000 wide): shuffle and repeat leave the bar so every button fits, and wait here *@
+                            <button role="menuitem" class="bar-narrow @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); barMore = false; }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")"><Icon Name="shuffle" Size="18" /><span><b>Shuffle@(Player.Shuffle ? " (on)" : "")</b><small>Play this queue in any order</small></span></button>
+                            <button role="menuitem" class="bar-narrow @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); barMore = false; }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="18" /><span><b>@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat" })</b><small>Off, the whole queue, or this song</small></span></button>
                             @if (pipOk) { <button role="menuitem" class="@(pipOn ? "on" : "")" @onclick="async () => { barMore = false; await TogglePip(); }" aria-label="Mini player (picture in picture)"><Icon Name="pip" Size="18" /><span><b>Mini player@(pipOn ? " (on)" : "")</b><small>Cover and controls on top of other tabs</small></span></button> }
                         </div>
                     }

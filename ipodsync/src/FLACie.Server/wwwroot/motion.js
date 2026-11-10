@@ -60,7 +60,11 @@
 
   // ---- page changes: around every change of address (a link, NavigationManager, Back / Forward), not the #now-playing that only opens the player ----
   let path = location.pathname, heroFrom = null, heroAt = 0;
-  const pageMove = () => {
+  // Retro (the iPod and its scenes) has its own moving parts, drawn every frame: going into it or out of it is left instant, so its scene is never
+  // held behind a snapshot while it starts
+  const retro = p => /^\/(retro|ipod)\b/i.test(p);
+  const pageMove = from => {
+    if (retro(from) || retro(location.pathname)) { heroFrom = null; return; }
     const hero = heroFrom && performance.now() - heroAt < 1500 && visible(heroFrom) ? heroFrom : null;
     heroFrom = null;
     if (!vtOK() || document.querySelector(".np")) return;
@@ -77,11 +81,11 @@
     history[k] = function (...a) {
       const before = location.pathname, r = orig.apply(this, a);
       path = location.pathname;
-      if (k === "pushState" && path !== before) pageMove();
+      if (k === "pushState" && path !== before) pageMove(before);
       return r;
     };
   }
-  addEventListener("popstate", () => { if (location.pathname !== path) { path = location.pathname; pageMove(); } });
+  addEventListener("popstate", () => { if (location.pathname !== path) { const was = path; path = location.pathname; pageMove(was); } });
 
   // ---- Now Playing: the pressed cover flies into the big one. [data-np] marks what opens the player (the player bar's song, the current row, Home's picks) ----
   const npCover = () => [...document.querySelectorAll(".np .ls-cover .cover, .np .ls-hero .cover")].find(visible) || null;

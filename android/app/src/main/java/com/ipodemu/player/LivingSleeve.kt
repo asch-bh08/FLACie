@@ -611,7 +611,8 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
         // the cover, rounded, with a soft shadow; a tap on it is play / pause (handled above, so a press on the frame never reaches it)
         ArtImage(
             t.artKey,
-            Modifier.size(cover).shadow(24.dp, RoundedCornerShape(corner), clip = false, ambientColor = Color.Black, spotColor = Color.Black)
+            // the cover that opened the player (the mini player's, or a row's) flies into this one and back (SharedCover.kt)
+            Modifier.size(cover).sharedCover().shadow(24.dp, RoundedCornerShape(corner), clip = false, ambientColor = Color.Black, spotColor = Color.Black)
                 .semantics { contentDescription = if (snap.playing) "Pause" else "Play"; role = Role.Button },
             corner = corner, full = true,
         )

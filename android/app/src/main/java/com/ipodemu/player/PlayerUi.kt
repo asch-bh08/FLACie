@@ -153,6 +153,8 @@ class PlayerNav {
     val stack = mutableStateListOf<Screen>(Screen.Home)
     val top: Screen get() = stack.last()
     var nowPlaying by mutableStateOf(false)
+    /** Which cover opened Now Playing (a row's or a card's id, see sharedCoverFrom); null = the mini player's. */
+    var coverFrom by mutableStateOf<String?>(null)
     /** The list the screen on top is showing (a playlist, an album...): what a play from it reports as "Playing from". */
     var playContext: String? = null
     /** For a playlist page: (its [playContext], the playlist's DJ key), so a play from its songs carries the playlist's DJ switch. Only used while the name still matches. */
@@ -175,7 +177,7 @@ class PlayerNav {
     fun pop(): Boolean {
         if (stack.size <= 1) return false
         val gone = stack.removeAt(stack.lastIndex)
-        if (gone == Screen.Queue && queueFromPlayer) { queueFromPlayer = false; nowPlaying = true }
+        if (gone == Screen.Queue && queueFromPlayer) { queueFromPlayer = false; coverFrom = null; nowPlaying = true }
         return true
     }
     fun home() { queueFromPlayer = false; while (stack.size > 1) stack.removeAt(stack.lastIndex) }
@@ -250,7 +252,7 @@ fun PlayerHost(nav: PlayerNav) {
     }
     // a playlist link shared to FLACie: show Playlists, whose link box takes it (NewPlaylistRow)
     LaunchedEffect(ui.sharedLinkRequest) { if (ui.sharedLinkRequest > 0) { nav.nowPlaying = false; nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
-    LaunchedEffect(ui.nowPlayingRequest) { if (ui.nowPlayingRequest > 0 && app.player.hasQueue) nav.nowPlaying = true }
+    LaunchedEffect(ui.nowPlayingRequest) { if (ui.nowPlayingRequest > 0 && app.player.hasQueue) { nav.coverFrom = null; nav.nowPlaying = true } }
     val libRev = rememberLibRev(app.library)
 
     androidx.compose.runtime.CompositionLocalProvider(LocalLibRev provides libRev) {
@@ -266,6 +268,7 @@ fun PlayerHost(nav: PlayerNav) {
     ) {
         androidx.compose.animation.SharedTransitionLayout(Modifier.fillMaxSize()) {
         val sharedLayout = this
+        androidx.compose.runtime.CompositionLocalProvider(LocalSharedRoot provides sharedLayout) {
         val modern = LocalStyle.current.modern
         // the iPod theme has no tabs: its stack must always start at Home (a Modern tab root like Settings would make Back exit)
         if (!modern && nav.stack.first() != Screen.Home) androidx.compose.runtime.SideEffect { if (nav.stack.first() != Screen.Home) nav.stack.add(0, Screen.Home) }
@@ -343,6 +346,7 @@ fun PlayerHost(nav: PlayerNav) {
         // the full-screen player draws its menus in design I itself (LivingSleeve.DesignSheet)
         if (!(nav.nowPlaying && nav.designSheets)) nav.sheet?.let { s -> ActionSheet(s.title, s.subtitle, s.items) { nav.sheet = null } }
         nav.nameDialog?.let { done -> NameDialog(done, nav.nameDialogRename) { nav.nameDialog = null; nav.nameDialogRename = null } }
+        }   // LocalSharedRoot
         }
     }
     }
@@ -415,7 +419,7 @@ fun TrackRow(
     val focus = androidx.compose.ui.platform.LocalFocusManager.current
     // tapping the song that is already playing opens the player (or resumes it) instead of starting it over; any tap puts the keyboard away
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
-    val tap = { focus.clearFocus(); keyboard?.hide(); if (picked != null && onPick != null) onPick() else if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else onPlay() }
+    val tap = { focus.clearFocus(); keyboard?.hide(); if (picked != null && onPick != null) onPick() else if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.openFromCover("row:" + t.path) } else onPlay() }
     IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = if (tagged) 74.dp else 56.dp,
         leading = {
             // choosing several songs: the cover stays, with a tick on it (an album's numbered list gets the tick alone)
@@ -425,7 +429,7 @@ fun TrackRow(
             } else if (picked != null) Box(Modifier.size(42.dp).clip(CircleShape).background(if (picked) sc.accent else Color(0x22FFFFFF)).semantics { stateDescription = if (picked) "Selected" else "Not selected" }, contentAlignment = Alignment.Center) {
                 GlyphIcon(if (picked) Glyph.CHECK else Glyph.PLUS, Modifier.size(20.dp), if (picked) Color.Black else sc.onBg)
             } else if (showArt) Box(Modifier.size(42.dp)) {
-                ArtImage(t.artKey, Modifier.fillMaxSize(), thumb = true, corner = 8.dp)
+                ArtImage(t.artKey, Modifier.fillMaxSize().sharedCoverFrom("row:" + t.path, nav), thumb = true, corner = 8.dp)
                 if (isCurrent) Box(Modifier.fillMaxSize().background(Color(0x66000000)), contentAlignment = Alignment.Center) {
                     EqualizerBars(Modifier.size(22.dp), snap.playing, Color.White)
                 }
@@ -820,7 +824,7 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
             AccentPill("Shuffle all", Glyph.SHUFFLE, cols, onShuffleAll)
             if (last != null) TonePill("Resume", Glyph.PLAY, cols, {
                 // the song still loaded opens the player (resuming it); one from history starts again
-                if (app.player.current?.path == last.path) { if (!app.player.isPlaying) app.player.toggle(); nav.nowPlaying = true }
+                if (app.player.current?.path == last.path) { if (!app.player.isPlaying) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true }
                 else app.player.play(listOf(last), 0, null, "Recently Played")
             })
         }
@@ -2005,7 +2009,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (topSong != null && only == "" && picks == null && !artistMode) {
                 item { SectionHeader("Top result") }
                 item(key = "top${topSong.path}") {
-                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
+                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
                 }
             }
             if (!albumNamed) webAlbums()
@@ -2020,7 +2024,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) }
                         ?: ("Song · ${s.artist} · ${s.album}" + if (more.isNotEmpty()) " · +${more.size} version${if (more.size == 1) "" else "s"}" else ""), s.artUrl, owned, status,
                         onOpen = { searchFocus.clearFocus(); nav.push(Screen.CatalogSong(s, more)) },
-                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
+                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                         // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
                         onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") },
                         picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },

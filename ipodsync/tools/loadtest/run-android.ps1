@@ -1,4 +1,4 @@
-# Unattended Android load measurement of FLACie against the 10,000-song mock Jellyfin, on the headless emulator.
+﻿# Unattended Android load measurement of FLACie against the 10,000-song mock Jellyfin, on the headless emulator.
 #
 #   powershell -NoProfile -File run-android.ps1 -Apk <path.apk> -Label before|after -Profile fast|slow|flaky|ratelimit
 #           [-Window 120] [-Port 8296] [-Items 10000] [-Out <result.json>] [-Scenarios first-sync,scrolling,skip-burst,warm-start,kill-restore]
@@ -14,7 +14,7 @@ param(
   [string]$Apk, [string]$Label = 'run', [string]$Profile = 'fast', [int]$Window = 120, [int]$Port = 8296, [int]$Items = 10000,
   [string]$Out = '', [string]$Scenarios = 'first-sync,scrolling,skip-burst,warm-start,kill-restore',
   [string]$Avd = 'flacie_phone', [int]$Memory = 2048, [switch]$HoldOnly, [int]$HoldMinutes = 14, [string]$StopFile = "$env:TEMP\flacie-android-stop",
-  [switch]$Reuse, [string]$Shots = '', [int]$BootTimeoutSec = 420, [string]$Driver = 'run-android.mjs', [string]$Extra = ''
+  [switch]$Reuse, [switch]$Motion, [string]$Shots = '', [int]$BootTimeoutSec = 420, [string]$Driver = 'run-android.mjs', [string]$Extra = ''
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -54,8 +54,10 @@ try {
   }
   Log ("booted in {0:n0} s" -f $sw.Elapsed.TotalSeconds)
   Start-Sleep -Seconds 5
-  # quiet, awake, no animations (software rendering is slow; animations only add noise to the timings)
-  foreach ($s in 'window_animation_scale 0', 'transition_animation_scale 0', 'animator_duration_scale 0', 'stay_on_while_plugged_in 7', 'screen_off_timeout 2147483647') {
+  # quiet, awake, no animations (software rendering is slow; animations only add noise to the timings). -Motion keeps them on: the app follows the
+  # phone's setting and switches all its own motion off without it, so measuring the motion itself needs -Motion (10 Nov: every earlier run had it off)
+  $a = if ($Motion) { '1' } else { '0' }
+  foreach ($s in "window_animation_scale $a", "transition_animation_scale $a", "animator_duration_scale $a", 'stay_on_while_plugged_in 7', 'screen_off_timeout 2147483647') {
     $kv = $s -split ' '; Adb shell settings put global $kv[0] $kv[1] | Out-Null
   }
   Adb shell settings put system screen_off_timeout 2147483647 | Out-Null

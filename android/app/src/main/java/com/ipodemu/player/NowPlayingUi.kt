@@ -65,7 +65,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
         Modifier.fillMaxWidth().navigationBarsPadding().height(56.dp)
             .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))))
             .trackSwipe({ app.player.prev() }, { app.player.next() })
-            .clickable { nav.nowPlaying = true }
+            .clickable { nav.coverFrom = null; nav.nowPlaying = true }
             .pointerInput(Unit) {
                 var up = 0f
                 detectVerticalDragGestures(onDragStart = { up = 0f }, onDragEnd = { up = 0f }) { _, dy -> up += dy; if (up < -28f) { up = 0f; nav.nowPlaying = true } }
@@ -108,7 +108,7 @@ fun NowPlayingCard(snap: PlayerSnap, nav: PlayerNav, onShuffleAll: () -> Unit) {
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).clip(shape)
             .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))))
             .border(1.dp, sc.cardBorder, shape)
-            .clickable { if (t != null) nav.nowPlaying = true else onShuffleAll() },
+            .clickable { if (t != null) { nav.coverFrom = null; nav.nowPlaying = true } else onShuffleAll() },
     ) {
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
             ArtImage(t?.artKey, Modifier.size(64.dp), corner = 10.dp)
@@ -357,10 +357,10 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             .coverShadow(18.dp, 8.dp).clip(shape)
             .background(Brush.horizontalGradient(listOf(tone, Palette.surface))).border(1.dp, Color(cols.toneFg).copy(alpha = .14f), shape)
             .focusRing(shape)
-            .clickable { nav.nowPlaying = true }
+            .clickable { nav.coverFrom = null; nav.nowPlaying = true }
     ) {
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            ArtImage(t.artKey, Modifier.size(if (short) 44.dp else 50.dp).sharedCover().popIn(t.path, 0.7f), thumb = true, corner = 10.dp)
+            ArtImage(t.artKey, Modifier.size(if (short) 44.dp else 50.dp).sharedCover(nav.coverFrom == null).popIn(t.path, 0.7f), thumb = true, corner = 10.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 SerifTitle(t.title, size = 20f)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {

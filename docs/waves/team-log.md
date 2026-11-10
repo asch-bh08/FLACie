@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~13:00 Local: covers fly into Now Playing on the phone; IMPORTANT: emulator runs had animations OFF
+- Now Playing's big cover (LivingSleeve) never had the shared marker, so the mini player's "flight" did nothing on the phone. Now: the big cover is the target; the playing song's row in any list flies into it when tapped (nav.openFromCover("row:"+path), SharedCover.kt sharedCoverFrom with sharedElementWithCallerManagedVisibility under a new LocalSharedRoot), and back on close; the mini player flies when it opened the player (coverFrom == null). Off with Animations off. Build + unit tests green, smoke 23/23. Seen working in a screen recording (flight-shots.mjs: Now Playing slides up while the row's cover grows into the big one).
+- FOUND: run-android.ps1 sets the emulator's animation scales to 0, and the app turns its own motion off when the phone has (Tweaks.motionOn). So every emulator speed/memory/frame number tonight measured the app WITHOUT motion. New switch: run-android.ps1 -Motion keeps animations on. Re-measuring b124 / b126 / current with -Motion now.
+- Cloud: same may apply to web tests (prefers-reduced-motion in headless Chromium?) - worth a check that 1z-motion really runs the motion.
+
 ## 2026-11-10 ~12:45 Local: b127 RELEASED and DEPLOYED to frank
 - Contents: phone motion batch 2 (tabs, chips, cover press, Playlists glide, search rise), the cloud's big-library Albums/Artists + Jellyfin no-reply (15 s first reply, retry once, skip), phone cover handling as b126 (ArtBudget not kept). 1.0 b127, Android 142.
 - Checks: server 2016 passed 1 skipped; Android unit + release green; emulator smoke 23/23; web 240 passed, 4 skipped (big-library BIG_SONGS checks), incl. 1z-big-grid, 1z-jellyfin-no-reply, 1z-library, 1z-fast-load + the b126 list; 1z-scroll-kept alone on a fresh server 1/1; MSI built.

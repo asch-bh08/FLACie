@@ -34,12 +34,9 @@ import java.util.concurrent.ThreadFactory
  * and decodes in the background, then calls [onLoaded] so the UI redraws.
  */
 class ArtCache(private val dir: File) {
-    /** Decoded covers, sized by bytes ([ArtBudget.lruBytes]; the app sets it from the memory class with [memoryBudget]). */
-    private val mem = object : LruCache<String, Bitmap>(ArtBudget.lruBytes(256)) {
-        override fun sizeOf(k: String, v: Bitmap) = v.allocationByteCount
+    private val mem = object : LruCache<String, Bitmap>(maxOf(24 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 6).toInt()) {
+        override fun sizeOf(k: String, v: Bitmap) = v.byteCount
     }
-    /** Sets the bytes the decoded covers may use (b126: kept-ready covers had filled a sixth of the largest heap, 42 MB and more). */
-    fun memoryBudget(bytes: Int) { synchronized(this) { mem.resize(bytes) } }
     private val missing = HashSet<String>()
     private val pending = HashSet<String>()
     /** Decode and download threads run at background priority: on a low-power SoC they must never compete with the UI and render threads. */
@@ -268,9 +265,7 @@ class ArtCache(private val dir: File) {
         file(key).outputStream().use { scaled.compress(Bitmap.CompressFormat.JPEG, 88, it) }
     }
 
-    // a row cover whose small size decodes at the same sample as the list size (Jellyfin covers on dense screens) is one bitmap, not two (b126)
-    private fun memKey(key: String, thumb: Boolean, full: Boolean) = if (full) "F$key"
-        else if (thumb && !ArtBudget.sharesCopy(sampleFor(key, true, false), sampleFor(key, false, false))) "t$key" else key
+    private fun memKey(key: String, thumb: Boolean, full: Boolean) = if (full) "F$key" else if (thumb) "t$key" else key
     private fun sampleFor(key: String, thumb: Boolean, full: Boolean) = if (full) 1 else if (!thumb) 1 else if (isJf(key)) jfThumbSample else thumbSample
 
     /**
@@ -345,18 +340,15 @@ class ArtCache(private val dir: File) {
     }
 
     /**
-     * Shelves that will show later (Home's newer playlists and recommendations, kept for the next time Home opens): the covers of the first screen ([first])
-     * are fetched to the disk and brought into memory now, in the background, so they are there when shown instead of loading in; the rest ([rest]) are
-     * only fetched to the disk (b126: decoding every shelf's covers into memory was 47 MB more at a warm start). A row scrolled into view decodes from disk.
+     * Shelves that will show later (Home's newer playlists and recommendations, kept for the next time Home opens): their covers are fetched to the
+     * disk and brought into memory now, in the background, so they are there when shown instead of loading in.
      */
-    fun keepReady(first: List<Pair<String, Boolean>>, rest: List<Pair<String, Boolean>> = emptyList()) {
-        for ((k, thumb) in first) {
+    fun keepReady(keys: List<Pair<String, Boolean>>) {
+        for ((k, thumb) in keys) {
             if (peek(k, thumb) != null) continue
             val bring = { ioScope.launch { try { load(k, thumb, false, Priority.BACKGROUND) } catch (_: Exception) {} }; Unit }
             if (has(k)) bring() else prefetch(k, done = bring)
         }
-        val inFirst = first.mapTo(HashSet()) { it.first }
-        for ((k, _) in rest) if (k !in inFirst && !has(k)) prefetch(k)
     }
 
     /** Cached bitmap if already in memory (never loads). */

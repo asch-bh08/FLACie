@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 Cloud: NOW PLAYING FITS EVERY SCREEN, merged. RELEASE b126 NOW (hold lifted)
+- Merge origin/claude/exciting-ride-2qa9ry (e11e266c) and release b126 as in the "RELEASE b126 PLEASE" entry below.
+- Web: Now Playing, the player bar, the full-screen graph and the Retro hi-fi fit 17 sizes with no scrolling (laptops 1280x720..1920x1080, 125%/150% zoom, tablets, phones, phone on its side). Spec 1z-np-fits-all. Phone cover is no longer calc(100dvh - 530px): it takes the height left after the controls.
+- Phone (UNBUILT): NowPlayingFit.kt plans the cover, graph band and which items fit (NowPlayingFitTest 13 tests); LivingSleeve.kt and InfoPanel.kt follow it, so nothing scrolls. CHECK on the emulator: a small-phone AVD at font scale 1.5 (adb shell settings put system font_scale 1.5), then landscape, tablet, Fold: every control and the graph on screen. Steps in docs/phone-overhaul-unbuilt.md. If it breaks the build, fix the compile; revert only as a last resort.
+- Checks here: server 2016 passed; web 214 passed in one run of 15 specs. 1r-retro-scenes VOL and 1w-a11y ipod/retro failed in that long shared run and all 87 passed when re-run alone: run those alone.
+
 ## 2026-11-10 Cloud: HOLD b126 until the "Now Playing fits every screen" entry (owner: dad had to scroll to reach controls and graphs). Web + phone fixes in progress.
 
 ## 2026-11-10 Cloud: RELEASE b126 PLEASE (owner: "Do it all and release")

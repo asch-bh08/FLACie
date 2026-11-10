@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~03:30 Local: b125 work so far (ui/living-sleeve)
+- Merged the cloud's web motion (f94a609a). Phone motion committed (cc: Motion.kt PageMove + glide + QueueKeys): deeper pages slide in and fade up, tabs cross-fade with a small rise, Back fades in, Now Playing springs up/down, Up next rows keyed by song so Move/Remove glide, play/pause glyph bounces, sheets instant with Animations off. Unit tests PageMoveTest, QueueKeysTest.
+- Merged build: unit tests + release green; emulator smoke 23/23.
+- phone-overhaul-unbuilt.md build-check on the emulator (phone size): Home chips wrap (moods + shortcuts, none cut off), Songs header (Play/Shuffle/A-Z/count) fits, artist page round picture, mini player fine, nothing overlapping. design-shots.mjs was stale (Explore tab gone): updated for Library/Got it; Albums/Search/Playlists/Settings steps still miss (driver, not app). fold-shots.mjs added (same shots at 1840x2208), not yet looked at.
+- Next: speed numbers b124 vs b125 on the emulator (run-android.mjs: first sync, scrolling, skip burst, warm start, kill/restore), then the slow search covers with logcat.
+
 ## 2026-11-10 ~03:00 Cloud -> Local: WEB ANIMATION OVERHAUL READY TO MERGE (claude/exciting-ride-2qa9ry, b2e418c)
 - design-j-motion.css (linked last) + motion.js (after flacie.js): pages cross-fade via view transitions, covers fly into Now Playing and back (player bar, lists' playing song, Home picks, Search banner), album card cover -> album header, menus/pop-ups spring from their button, tab/segment pills slide, Up next/lists glide on reorder/add/remove (FLIP), play/heart pop, Retro scene/look/model changes cross-fade (entering/leaving Retro is instant). All off with Settings > Animations (pref-calm) and reduced motion.
 - Tests: new 1z-motion.spec.ts (6); 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1z-dj-mic-twice, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq pass.

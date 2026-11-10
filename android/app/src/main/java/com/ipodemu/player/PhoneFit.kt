@@ -137,7 +137,7 @@ object MiniFit {
         val height = max(56f, min(text() + 4f, 56f + GROW))
         val room = width - 16f - 40f - 20f - 48f - 48f
         var showDj = dj; var showMic = dj && width >= 380f
-        fun used() = (if (showDj) 48f else 0f) + (if (showMic) 40f else 0f)
+        fun used() = (if (showDj) 48f else 0f) + (if (showMic) 48f else 0f)
         if (room - used() < need(fs)) showMic = false
         if (room - used() < need(fs)) showDj = false
         return Plan(height, 14f, tag, false, showDj, showMic, false)

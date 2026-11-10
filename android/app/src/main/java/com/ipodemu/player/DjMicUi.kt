@@ -19,7 +19,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
@@ -58,7 +60,7 @@ import androidx.compose.runtime.rememberCoroutineScope
  * words that are not a request fill the search instead. Not there without FLACie Web or a recogniser.
  */
 @Composable
-fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Color(0x47000000), lit: Color = LocalScheme.current.accent, onSearch: ((String) -> Unit)? = null) {
+fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Color(0x47000000), lit: Color = LocalScheme.current.accent, onSearch: ((String) -> Unit)? = null, touch: Dp = 0.dp) {
     val app = LocalApp.current
     val ctx = LocalContext.current
     if (!app.player.djAvailable || !SpeechRecognizer.isRecognitionAvailable(ctx)) return
@@ -202,16 +204,18 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
     val on = state == MicState.LISTENING
     // lit (without the pulse) between turns of a conversation
     val lit2 = on || conversing
-    Box(
-        Modifier.size(size).scale(if (on) pulse.value else 1f).clip(CircleShape).background(if (lit2) lit.copy(alpha = .35f) else glass)
-            .then(if (lit2) Modifier.border(2.dp, lit, CircleShape) else Modifier).focusRing(CircleShape)
-            .semantics {
-                contentDescription = when (state) { MicState.LISTENING -> "Listening. Press to stop"; MicState.THINKING -> "Thinking"; else -> if (conversing) "Talking with the DJ. Press to stop" else "Talk to the DJ" }
-                role = Role.Button; stateDescription = state.name.lowercase()
-            }
-            .clickable(onClick = ::press),
-        contentAlignment = Alignment.Center,
-    ) { GlyphIcon(Glyph.MIC, Modifier.size(size * .5f), if (state == MicState.THINKING) tint.copy(alpha = .5f) else tint) }
+    val visual = Modifier.size(size).scale(if (on) pulse.value else 1f).clip(CircleShape).background(if (lit2) lit.copy(alpha = .35f) else glass)
+        .then(if (lit2) Modifier.border(2.dp, lit, CircleShape) else Modifier).focusRing(CircleShape)
+    val action = Modifier
+        .semantics {
+            contentDescription = when (state) { MicState.LISTENING -> "Listening. Press to stop"; MicState.THINKING -> "Thinking"; else -> if (conversing) "Talking with the DJ. Press to stop" else "Talk to the DJ" }
+            role = Role.Button; stateDescription = state.name.lowercase()
+        }
+        .clickable(onClick = ::press)
+    val glyph: @Composable () -> Unit = { GlyphIcon(Glyph.MIC, Modifier.size(size * .5f), if (state == MicState.THINKING) tint.copy(alpha = .5f) else tint) }
+    // [touch]: a touch target bigger than the round button drawn (the slim bars draw it small)
+    if (touch > size) Box(Modifier.size(touch).then(action), contentAlignment = Alignment.Center) { Box(visual, contentAlignment = Alignment.Center) { glyph() } }
+    else Box(visual.then(action), contentAlignment = Alignment.Center) { glyph() }
 }
 
 /** Why FLACie wants the microphone, asked once before Android's own question: stays until Continue or Not now. */
@@ -219,13 +223,17 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
 private fun MicWhyDialog(onContinue: () -> Unit, onDismiss: () -> Unit) {
     val sc = LocalScheme.current
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
+        // scrolls when a phone on its side at big text is shorter than the words (Continue was below the screen), the buttons wrap on a narrow one,
+        // and the words are never cut (Txt is one line unless told)
         androidx.compose.foundation.layout.Column(
-            Modifier.widthIn(max = 420.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f)).padding(20.dp),
+            Modifier.widthIn(max = 420.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp)).background(sc.top.mix(Color.Black, .4f))
+                .verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(20.dp),
             verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(14.dp),
         ) {
-            Txt("Talk to the DJ", size = 20f, weight = androidx.compose.ui.text.font.FontWeight.Bold)
-            Txt("FLACie listens only while the mic is lit, to hear what you ask. Your phone's speech recogniser turns it into words, and only the words go to FLACie. Some phones do that on their own servers.", size = 15f)
-            androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp), modifier = Modifier.align(Alignment.End)) {
+            Txt("Talk to the DJ", size = 20f, weight = androidx.compose.ui.text.font.FontWeight.Bold, maxLines = 2)
+            Txt("FLACie listens only while the mic is lit, to hear what you ask. Your phone's speech recogniser turns it into words, and only the words go to FLACie. Some phones do that on their own servers.", size = 15f, maxLines = 12)
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp, Alignment.End), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 GlossPill("Not now", onDismiss)
                 GlossPill("Continue", onContinue, primary = true)
             }

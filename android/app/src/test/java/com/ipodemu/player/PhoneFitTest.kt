@@ -98,7 +98,7 @@ class PhoneFitTest {
             val p = MiniFit.classic(320f, fs, dj = true)
             val text = fitLine(14f, fs) + fitLine(12f, fs) + (if (p.tag) fitLine(10.5f, fs) else 0f)
             assertTrue("$fs: $p", text <= p.height - 4f)
-            assertTrue(320f - 172f - (if (p.dj) 48f else 0f) - (if (p.mic) 40f else 0f) >= MiniFit.MIN_TITLE)
+            assertTrue(320f - 172f - (if (p.dj) 48f else 0f) - (if (p.mic) 48f else 0f) >= MiniFit.MIN_TITLE)
         }
     }
 

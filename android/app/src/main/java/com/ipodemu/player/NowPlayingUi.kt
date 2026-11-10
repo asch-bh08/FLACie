@@ -87,7 +87,7 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
             // the round buttons stay small in the slim bar, but each takes a 48 dp touch
             snap.dj?.let { on ->
                 if (fit.dj) GlossButton({ djTap(app) }, label = djLabel(on), size = 34.dp, primary = on, touch = 48.dp) { GlyphIcon(Glyph.DJ, Modifier.size(17.dp), Color.White) }
-                if (fit.mic) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
+                if (fit.mic) DjMicButton(34.dp, glass = Color.Transparent, touch = 48.dp)
             }
             GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true, touch = 48.dp) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp).bumpOnChange(snap.playing), Color.White) }
             GlossButton({ app.player.next() }, label = "Next", size = 34.dp, touch = 48.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }

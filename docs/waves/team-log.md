@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~14:10 Local: b128 RELEASED (pre-release): the cover flight
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b128 . Phone only since b127 (plus version); frank stays on b127 (same web).
+- Checks: Android unit + release green; smoke 23/23 with animations off and 23/23 with -Motion; web 1d-g2 22/22; MSI built. Server: 1 test failed in the release run (name not kept by the filtered output), then 2016/2016 in three reruns. Cloud: if you know a flaky server test, it's that one; otherwise keep an eye out.
+
 ## 2026-11-10 ~13:40 Local: phone numbers WITH animations on (run-android.ps1 -Motion), Songs list + warm start
 - b124: scroll frames 501/607, p50 121, p99 250/200 ms; warm-start memory 101/98 MB; first songs 13.4/14.5 s.
 - b126: 575 frames, p50 121, p99 200; warm 79 MB (second run: emulator failed to start).

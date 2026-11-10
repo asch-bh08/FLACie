@@ -23,7 +23,7 @@
                 var resume = Player.Current ?? lastTrack;
                 <button class="btn primary carry-on" @onclick="() => CarryOn(resume)"><Icon Name="play" Size="18" />Carry on: <span class="carry-title">@resume.Title</span></button>
             }
-            <button class="btn @(lastTrack is not null && !Player.Playing ? "" : "primary") shuffle-all" @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
+            <button class="btn @(lastTrack is not null && !Player.Playing ? "" : "primary") shuffle-all" data-np @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
         </div>
     </div>
 </header>
@@ -59,12 +59,12 @@ else
 @if (mood is not null)
 {
     <section class="shelf" aria-label="@mood">
-        <div class="shelf-head"><div><h2>@Serif(mood)</h2><small>New picks each day</small></div><button class="chip small" @onclick="() => PlayFull(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
+        <div class="shelf-head"><div><h2>@Serif(mood)</h2><small>New picks each day</small></div><button class="chip small" data-np @onclick="() => PlayFull(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
         <ul class="pick-grid">
             @for (var i = 0; i < moodTracks.Count; i++)
             {
                 var idx = i; var t = moodTracks[i];
-                <li @key="t.Path"><button class="pick" data-warm="@Warm(t)" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                <li @key="t.Path"><button class="pick" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
             }
         </ul>
     </section>
@@ -90,7 +90,7 @@ else
             <div class="shelf-head">
                 <div><h2>@Serif(sh.Title)</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
                 <span class="shelf-nav">
-                    @if (sh.Tracks.Count > 0) { <button class="chip small" @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
+                    @if (sh.Tracks.Count > 0) { <button class="chip small" data-np @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
                     @if (sh.Id != "quick-picks") { <Arrows /> }
                 </span>
             </div>
@@ -100,7 +100,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <li @key="t.Path"><button class="pick" data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                        <li @key="t.Path"><button class="pick" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
                     }
                 </ul>
             }
@@ -110,7 +110,7 @@ else
                     @for (var i = 0; i < sh.Tracks.Count; i++)
                     {
                         var idx = i; var t = sh.Tracks[i];
-                        <button class="card song-card" @key="t.Path" data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
+                        <button class="card song-card" data-np @key="t.Path" data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
                             <Cover ArtKey="@(t.ArtKey)" Class="square" />
                             <span class="card-title">@t.Title</span>
                             <span class="card-sub">@t.Artist</span>

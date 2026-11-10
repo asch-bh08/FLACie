@@ -98,7 +98,7 @@
     <section aria-label="Top result" class="sr-section sr-top">
         <div class="sr-top-main">
             <h2 class="section">Top <i>result</i></h2>
-            <div class="sr-hero artist" @onclick="() => PlayFull(ta.Tracks.Where(X.Allows).ToList(), ta.Name)">
+            <div class="sr-hero artist" data-np @onclick="() => PlayFull(ta.Tracks.Where(X.Allows).ToList(), ta.Name)">
                 <a class="sr-art" href="/artist/@Uri.EscapeDataString(ta.Name)" aria-label="Open artist @ta.Name" @onclick="Noop" @onclick:stopPropagation><Cover ArtKey="@(ta.ArtKey)" Size="188" Class="square round" /></a>
                 <div class="sr-hero-text">
                     <a class="sr-hero-title" href="/artist/@Uri.EscapeDataString(ta.Name)" @onclick="Noop" @onclick:stopPropagation>@ta.Name</a>
@@ -158,7 +158,7 @@
                 @foreach (var t in artistPage.Popular)
                 {
                     var song = t;
-                    <button type="button" class="card" aria-label="Play @song.Title" @onclick="() => PlayFull([song], ta.Name)"><Cover ArtKey="@(Art.KeyFor(song))" Class="square" /><span class="card-title">@song.Title</span><span class="card-sub">@(song.Album.Length > 0 ? song.Album : "Song")</span></button>
+                    <button type="button" class="card" data-np aria-label="Play @song.Title" @onclick="() => PlayFull([song], ta.Name)"><Cover ArtKey="@(Art.KeyFor(song))" Class="square" /><span class="card-title">@song.Title</span><span class="card-sub">@(song.Album.Length > 0 ? song.Album : "Song")</span></button>
                 }
             </div>
         </section>
@@ -205,7 +205,7 @@ else
         <h2 class="section">Top <i>result</i></h2>
         @if (heroArtist && topArtist is not null)
         {
-            <div class="sr-hero artist" @onclick="() => PlayFull(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)">
+            <div class="sr-hero artist" data-np @onclick="() => PlayFull(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)">
                 <a class="sr-art" href="/artist/@Uri.EscapeDataString(topArtist.Name)" aria-label="Open artist @topArtist.Name" @onclick="Noop" @onclick:stopPropagation><Cover ArtKey="@(topArtist.ArtKey)" Size="188" Class="square round" /></a>
                 <div class="sr-hero-text">
                     <a class="sr-hero-title" href="/artist/@Uri.EscapeDataString(topArtist.Name)" @onclick="Noop" @onclick:stopPropagation>@topArtist.Name</a>

@@ -14,7 +14,7 @@
             {
                 <button class="track-pick" aria-pressed="@(picked ? "true" : "false")" aria-label="Select @t.Title" @onclick="() => Pick(idx)"><Icon Name="@(picked ? "check" : "plus")" Size="18" /></button>
             }
-            <button class="track-main" @onclick="e => Main(e, idx)" aria-label="@(selecting ? "Tick " + t.Title : "Play " + t.Title + " by " + t.Artist)">
+            <button class="track-main" data-np="@(now && Player.Playing)" @onclick="e => Main(e, idx)" aria-label="@(selecting ? "Tick " + t.Title : "Play " + t.Title + " by " + t.Artist)">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
                 else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">

@@ -163,3 +163,26 @@ object HomeFit {
         return Hero(h, sp)
     }
 }
+
+/**
+ * The song lists (Songs, an album's or a playlist's songs, search's library rows, Up next). A row's trailing cluster (downloaded mark, heart, time,
+ * the ⋯ button) took about 140 dp at font scale 1.5, leaving a 320 dp phone's title six letters; the time goes when the width per unit of text is
+ * short (it is in the song's menu and on Now Playing).
+ */
+object ListFit {
+    /** The width, in dp, divided by the font scale, under which the row's time steps aside. */
+    const val TIME_MIN = 260f
+
+    fun showTime(width: Float, fontScale: Float = 1f): Boolean = width / fontScale.coerceAtLeast(.85f) >= TIME_MIN
+}
+
+/**
+ * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
+ * column of 296 dp covers from GridCells.Adaptive(150 dp)).
+ */
+object GridFit {
+    fun columns(width: Float, min: Float = 150f, gap: Float = 8f, pad: Float = 24f): Int {
+        val n = ((width - pad + gap) / (min + gap)).toInt()
+        return if (n < 2 && width >= 280f) 2 else n.coerceAtLeast(1)
+    }
+}

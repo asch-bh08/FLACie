@@ -464,7 +464,8 @@ fun IpodRow(
     // what wheelTracked() does, without the composed{} modifier (its remember + node chain per row was measurable on a 10 000-song list)
     val wheelFr = remember { androidx.compose.ui.focus.FocusRequester() }
     Row(
-        modifier.fillMaxWidth().height(if (Tweaks.compact) height * 0.84f else height)
+        // at least this tall, taller when big text needs it: a fixed height cut the second line of a row in half at font scale 1.5
+        modifier.fillMaxWidth().heightIn(min = if (Tweaks.compact) height * 0.84f else height)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             // nothing is painted behind an idle row (it used to draw a transparent gradient shader per row, every frame)
             .then(if (hi && style.modern) Modifier.background(Palette.surface2) else if (hi) Modifier.background(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark))) else Modifier)

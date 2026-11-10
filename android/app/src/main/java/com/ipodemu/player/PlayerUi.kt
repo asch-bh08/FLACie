@@ -402,7 +402,10 @@ fun TrackRow(
     // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
     val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
     // a narrow screen (a phone, or the 480 dp wide RG Rotate with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
-    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val narrow = cfg.screenWidthDp < 520
+    // big text on a narrow phone: the time steps aside so the title keeps its room (ListFit; it is in the song's menu and on Now Playing)
+    val showTime = ListFit.showTime(cfg.screenWidthDp.toFloat(), cfg.fontScale)
     // a download tag (running, recently finished, failed, or "New download" for a Cloud song past the hour) takes a third line under the artist;
     // the "New download" marker is left to the row's own badge where that is shown
     val badgeShown = !narrow && Tweaks.badges && app.library.mixedSources
@@ -441,7 +444,7 @@ fun TrackRow(
                 if (hiRes && !narrow) HiResBadge()
                 if (!narrow) SourceBadge(t.source)
                 // times are DM Mono in design I, so the columns of digits line up
-                if (t.durationMs > 0) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
+                if (t.durationMs > 0 && showTime) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
@@ -1051,11 +1054,14 @@ internal fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
     if (albums.isEmpty()) { EmptyState("No albums yet"); return }
     // the first covers rise in one after another as the grid opens (the web's .grid > .card), not again on scrolling
     val entrance = rememberEntrance()
-    LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
+    // two columns on any phone (GridFit): a 320 dp phone got one column of 296 dp covers
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    LazyVerticalGrid(GridCells.Fixed(GridFit.columns(maxWidth.value)), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         gridItemsIndexed(albums, key = { _, g -> g.tracks.first().albumKey }) { i, g ->
             AlbumCard(g, Modifier.entranceRise(entrance, i)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }
         }
+    }
     }
 }
 
@@ -2425,7 +2431,7 @@ fun totalTime(tracks: List<Track>): String {
 @Composable
 fun LetterHeader(letter: String) {
     val sc = LocalScheme.current
-    Box(Modifier.fillMaxWidth().height(24.dp).background(Brush.verticalGradient(listOf(sc.top.copy(alpha = .96f), sc.bottom.copy(alpha = .96f)))).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 24.dp).background(Brush.verticalGradient(listOf(sc.top.copy(alpha = .96f), sc.bottom.copy(alpha = .96f)))).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
         Txt(letter, size = 13f, weight = FontWeight.Bold, color = sc.accentLight)
     }
 }

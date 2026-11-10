@@ -118,4 +118,27 @@ class PhoneFitTest {
             assertTrue(at, p.headlineSp * fs <= 52f || p.headlineSp == 24f)
         }
     }
+
+    // ---- lists and grids ----
+
+    @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {
+        assertTrue(ListFit.showTime(320f, 1f))
+        assertTrue(ListFit.showTime(360f, 1.3f))
+        assertTrue(ListFit.showTime(412f, 1.5f))
+        assertFalse(ListFit.showTime(360f, 1.5f))
+        assertFalse(ListFit.showTime(320f, 1.3f))
+    }
+
+    @Test fun gridsHaveTwoColumnsOnEveryPhone() {
+        assertEquals(2, GridFit.columns(320f))
+        assertEquals(2, GridFit.columns(360f))
+        assertEquals(2, GridFit.columns(412f))
+        assertEquals(3, GridFit.columns(640f - 80f))
+        assertEquals(1, GridFit.columns(240f))
+        // never a cell under 120 dp
+        for (w in listOf(280f, 300f, 320f, 360f, 412f, 488f, 600f, 840f)) {
+            val n = GridFit.columns(w)
+            assertTrue("$w: $n", (w - 24f - 8f * (n - 1)) / n >= 120f)
+        }
+    }
 }

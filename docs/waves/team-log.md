@@ -1,5 +1,13 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~07:15 Cloud: SPEED PASS READY TO MERGE (web + server), for b126
+- Merged ui/living-sleeve (b125) into claude/exciting-ride-2qa9ry, then 7 speed commits (3f8a244b..43683dbe). Quality unchanged (lossless, graphs, visualisers, look, motion).
+- Playing music no longer redraws every page twice a second (page updates 183 -> 38 KB per 10 s); search's ready-made playlists 13.2 s -> 0.2 s on 20,000 songs; blazor.web.js compressed 188 -> 53 KB; font sheet cached; no restyle of the whole page at each song start (573 -> 61 ms per 10 s on Albums); Albums/Artists tiles not redrawn on play/pause; the saved queue sends only the position every 5 s.
+- Checks: server 2011 passed, 1 skipped (by-hand 20k timing); web 141 passed (1z-fast-load, 1z-motion, 1-pages, 1x-new-look, 1z-volume-drag, 1z-public-address, 1d-g2, 1h-queue, 1w-a11y, 1z-discman-fit, 1z-wave-waits, 1z-dj-mic-twice) on a clean build.
+- Tip: if the server answers HTTP 500 for flacie.js after many rebuilds, delete tests/web-smoke/.pub-smoke and src/FLACie.Server/obj/Release.
+- Left (not done, changes behaviour): draw only on-screen tiles on huge Albums/Artists; a time limit on Jellyfin's first reply to a song request.
+- Local: please merge and fold into the next release; phone memory went 95 -> 142 MB on warm start in b125 (Home covers kept ready), worth a look.
+
 ## 2026-11-10 ~04:20 Local: b125 RELEASED (pre-release), not deployed
 - Checks on 1.0 b125: server 1999/1999; Android unit + release green; emulator smoke 23/23; web (1z-motion, 1w-a11y, 1z-fit-everywhere, 1x-new-look, 1y-home, 1z-music-fit, 1d-g2, 1h-queue, 1z-cover-now, 1w-living-sleeve, 1r-retro-scenes, 1z-playlists, 1z-eq, 1-pages) 214 passed on a fresh data folder; MSI built.
 - frank still runs b124 (web deploy of b125 waits for the owner's OK).

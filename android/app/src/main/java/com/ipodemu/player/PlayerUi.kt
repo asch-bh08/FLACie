@@ -297,6 +297,8 @@ fun PlayerHost(nav: PlayerNav) {
                         translationX = left * start.slide0 * size.width
                         translationY = left * start.rise0 * density
                         alpha = start.alpha0 + (1f - start.alpha0) * p.value
+                        // fades each drawing as it is drawn instead of the whole page into a full-screen buffer first (the buffer cost ~48 MB, 10 Nov)
+                        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
                     }) {
                         // each screen on the back stack keeps its saved state (a list's scroll position), so Back returns to the same place in it
                         val key = "${nav.stack.size}:${nav.top}"

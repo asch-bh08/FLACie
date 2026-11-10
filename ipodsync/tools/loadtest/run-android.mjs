@@ -80,6 +80,15 @@ function gotoExploreSongs(nodes) {
   const tab = find(nodes, 'Search', { minY: navY() }) ?? find(nodes, 'Search', { last: true });
   if (tab) tapNode(tab);
 }
+// memory after the app's garbage is collected (SIGUSR1 makes ART collect), the middle of three readings: one raw reading swung 142 -> 237 MB
+// between two runs of the same build (10 Nov), too noisy to compare builds
+const pssSettled = async () => {
+  const pid = sh(`pidof ${PKG}`, { quiet: true }).trim();
+  const got = [];
+  for (let i = 0; i < 3; i++) { if (pid) sh(`kill -10 ${pid}`, { quiet: true }); await sleep(1500); const v = pss(); if (v != null) got.push(v); }
+  got.sort((a, b) => a - b);
+  return got.length ? got[Math.floor(got.length / 2)] : null;
+};
 const pss = () => { const m = /TOTAL PSS:\s+(\d+)|TOTAL\s+(\d+)/.exec(sh(`dumpsys meminfo ${PKG}`, { quiet: true })); return m ? Math.round(Number(m[1] ?? m[2]) / 1024) : null; };
 const gateLines = () => sh(`logcat -d -s FLACieGate`, { quiet: true }).split('\n').filter((l) => /FLACieGate/.test(l));
 const crashLog = () => sh('logcat -b crash -d', { quiet: true }).split('\n').filter((l) => l.trim() && !/^-+ beginning/.test(l));
@@ -145,7 +154,7 @@ async function scenarioFirstSync() {
   fs1.server = { firstItemsPageMs: firstPage ? firstPage.at - t0 : null, lastItemsPageMs: lastPage && lastPage.pages > 0 ? lastPage.at - t0 : null, itemsPagesTotal: samples.at(-1)?.pages ?? null,
     requestsAfterSec: { 5: at(5), 10: at(10), 30: at(30), 60: at(60), 120: at(120) } };
   fs1.final = pick(await stats());
-  fs1.pssMb = pss();
+  fs1.pssMb = await pssSettled();
   shot(path.join(SHOTS, 'first-sync-end.png'));
   log(`first-sync: songs ${fs1.songsShown}, first ${fs1.timeToFirstSongsMs} ms, all ${fs1.timeToAllSongsMs} ms, requests ${fs1.final.total} (${JSON.stringify(fs1.final.byKind)}), peak ${fs1.final.peakInFlight}`);
 }
@@ -261,7 +270,7 @@ async function scenarioWarmStart() {
   }
   while (Date.now() - w0 < 60000) await sleep(500);   // 60 s from the launch
   Object.assign(warm, pick(await stats()));
-  warm.pssMb = pss();
+  warm.pssMb = await pssSettled();
   result.scenarios['warm-start'] = warm;
   log(`warm-start: first songs ${warm.timeToFirstSongsMs} ms, all ${warm.timeToAllSongsMs} ms, requests in the first 60 s ${warm.total}`);
 }

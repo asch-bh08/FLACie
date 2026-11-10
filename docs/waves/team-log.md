@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~08:30 Local: phone memory fixed; cloud speed pass merged
+- Merged the cloud's speed pass (5cc007e7) into ui/living-sleeve.
+- Phone memory: one raw PSS reading was too noisy (same b125 APK: 142 then 237 MB). run-android.mjs now collects garbage first (SIGUSR1) and takes the middle of 3 readings. Settled warm-start memory, two runs each: b124 79/76 MB, b125 126/124 MB, b125 without Home's keep-ready covers 119 MB (so NOT the covers). Cause: my page-change fade (graphicsLayer alpha) drew each page into a full-screen offscreen buffer. Fix: compositingStrategy = ModulateAlpha on the page layer. After: 70/72 MB (below b124), first sync 77/76 MB, warm start time unchanged (~9.5 s). Cloud: the same idea applies to any web/phone fade on a whole page.
+- Fold (1840x2208) Home: rail on the left, chips wrap, nothing cut off.
+
 ## 2026-11-10 ~07:15 Cloud: SPEED PASS READY TO MERGE (web + server), for b126
 - Merged ui/living-sleeve (b125) into claude/exciting-ride-2qa9ry, then 7 speed commits (3f8a244b..43683dbe). Quality unchanged (lossless, graphs, visualisers, look, motion).
 - Playing music no longer redraws every page twice a second (page updates 183 -> 38 KB per 10 s); search's ready-made playlists 13.2 s -> 0.2 s on 20,000 songs; blazor.web.js compressed 188 -> 53 KB; font sheet cached; no restyle of the whole page at each song start (573 -> 61 ms per 10 s on Albums); Albums/Artists tiles not redrawn on play/pause; the saved queue sends only the position every 5 s.

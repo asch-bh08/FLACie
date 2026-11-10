@@ -626,7 +626,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     // newer shelves get their covers now (disk and memory), so the next Home shows them at once instead of loading them in (owner, 9 Nov)
     fun offer(d: HomeData) {
         HomeCache.last = d; if (home == null) home = d
-        try { app.art.keepReady(com.ipodemu.library.HomeSnapshot.coverKeys(com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods))) } catch (_: Exception) {}
+        // only the first screen's covers are decoded into memory; the rest of the shelves' covers are only fetched to the disk (b126: memory)
+        try { val hd = com.ipodemu.library.HomeSnapshot.Data(d.shelves, d.moods); app.art.keepReady(com.ipodemu.library.HomeSnapshot.firstViewKeys(hd), com.ipodemu.library.HomeSnapshot.coverKeys(hd)) } catch (_: Exception) {}
     }
     LaunchedEffect(libRev, hour, recentsKey) {
         // ...and works them out again only once the whole library has loaded, not after every step of loading it (each pass shuffles and sorts all of it)

@@ -345,15 +345,18 @@ class ArtCache(private val dir: File) {
     }
 
     /**
-     * Shelves that will show later (Home's newer playlists and recommendations, kept for the next time Home opens): their covers are fetched to the
-     * disk and brought into memory now, in the background, so they are there when shown instead of loading in.
+     * Shelves that will show later (Home's newer playlists and recommendations, kept for the next time Home opens): the covers of the first screen ([first])
+     * are fetched to the disk and brought into memory now, in the background, so they are there when shown instead of loading in; the rest ([rest]) are
+     * only fetched to the disk (b126: decoding every shelf's covers into memory was 47 MB more at a warm start). A row scrolled into view decodes from disk.
      */
-    fun keepReady(keys: List<Pair<String, Boolean>>) {
-        for ((k, thumb) in keys) {
+    fun keepReady(first: List<Pair<String, Boolean>>, rest: List<Pair<String, Boolean>> = emptyList()) {
+        for ((k, thumb) in first) {
             if (peek(k, thumb) != null) continue
             val bring = { ioScope.launch { try { load(k, thumb, false, Priority.BACKGROUND) } catch (_: Exception) {} }; Unit }
             if (has(k)) bring() else prefetch(k, done = bring)
         }
+        val inFirst = first.mapTo(HashSet()) { it.first }
+        for ((k, _) in rest) if (k !in inFirst && !has(k)) prefetch(k)
     }
 
     /** Cached bitmap if already in memory (never loads). */

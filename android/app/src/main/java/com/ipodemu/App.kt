@@ -59,7 +59,8 @@ class App : Application() {
         player = Boot.span("PlayerController()") { PlayerController(this, prefs) }
         // the first screen's songs and covers come from this small file and the cover cache, not from the whole saved library
         homeSnapshot = Boot.span("home snapshot read") { com.ipodemu.library.HomeSnapshot.read(File(filesDir, "home.json")) }
-        homeSnapshot?.let { art.warm(com.ipodemu.library.HomeSnapshot.coverKeys(it)) }
+        // only the first screen's covers (b126: memory); rows further along decode from the disk as they are drawn (FirstFrameGate.decodeNow)
+        homeSnapshot?.let { art.warm(com.ipodemu.library.HomeSnapshot.firstViewKeys(it)) }
         ui = UiState(prefs)
         // the player asks the offline library which songs are on the phone while it rebuilds the queue: it must exist first
         offline = com.ipodemu.library.offline.OfflineManager(this, prefs)

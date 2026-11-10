@@ -557,6 +557,22 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (Repeat == 2) { await SeekRawAsync(0); await audio.PlayAsync(); }
         else { djAuto = true; try { await NextAsync(); } finally { djAuto = false; } }   // (the DJ speaks only on a move the player made by itself)
     }
+    /// <summary>Something the listener should be told about the music itself (Jellyfin not answering a song); the player bar shows it.</summary>
+    public event Action<string>? Problem;
+    /// <summary>flacie.js: a song failed because Jellyfin did not answer it in time (<paramref name="why"/> "jellyfin"). <paramref name="next"/> is what the
+    /// page does about it: "retry" (once), "skip" (as any failed song: OnEnded), or "stop" (a second song in a row Jellyfin did not answer: the music stops
+    /// rather than running down the whole queue; play asks for the song again).</summary>
+    [JSInvokable] public async Task OnStreamProblem(string why, string next)
+    {
+        if (why != "jellyfin") return;
+        var title = Current?.Title;
+        switch (next)
+        {
+            case "retry": Problem?.Invoke("Couldn't reach Jellyfin. Trying the song again…"); break;
+            case "skip": Problem?.Invoke(title is null ? "Couldn't reach Jellyfin, so the song was skipped" : $"Couldn't reach Jellyfin, so “{title}” was skipped"); await OnEnded(); break;
+            case "stop": Problem?.Invoke("Couldn't reach Jellyfin, so the music stopped. Press play to try again."); await PauseAsync(); Playing = false; Changed?.Invoke(); break;
+        }
+    }
     [JSInvokable] public Task OnNext() => Next();
     [JSInvokable] public Task OnPrev() => Prev();
 

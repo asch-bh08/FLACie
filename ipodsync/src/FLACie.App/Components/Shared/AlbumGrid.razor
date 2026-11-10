@@ -1,8 +1,10 @@
-@inherits UserComponent
-<div class="grid">
-    @foreach (var g in Albums)
+@inherits TileGridBase
+@{ var (from, to, pad) = Window(Albums.Count); }
+<div class="grid virtual" @ref="GridEl" style="@pad">
+    @for (var i = from; i < to; i++)
     {
-        <a class="card" href="@AlbumLink(g)">
+        var g = Albums[i];
+        <a @key="g" class="card" href="@AlbumLink(g)">
             <Cover ArtKey="@(g.ArtKey)" Class="square" />
             <span class="card-title">@g.Name</span>
             <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
@@ -13,12 +15,13 @@
     [Parameter] public IReadOnlyList<Group> Albums { get; set; } = [];
 
     // the grid shows no player state: when a song starts or pauses it is not drawn again unless its albums changed (a whole library's albums were
-    // compared again on every song change, about a tenth of a second of server time with 1,200 albums) or a chosen cover asks for a redraw
-    Group[]? drawn; int drawnRedraws;
+    // compared again on every song change, about a tenth of a second of server time with 1,200 albums), a chosen cover asks for a redraw, or the
+    // rows on screen changed (scrolling, a new width: TileGridBase)
+    Group[]? drawn; int drawnRedraws, drawnWindow;
     protected override bool ShouldRender()
     {
-        if (drawn is not null && drawnRedraws == Player.Redraws && drawn.Length == Albums.Count && Same()) return false;
-        drawn = [.. Albums]; drawnRedraws = Player.Redraws;
+        if (drawn is not null && drawnRedraws == Player.Redraws && drawnWindow == WindowVersion && drawn.Length == Albums.Count && Same()) return false;
+        drawn = [.. Albums]; drawnRedraws = Player.Redraws; drawnWindow = WindowVersion;
         return true;
     }
     bool Same() { for (var i = 0; i < drawn!.Length; i++) if (!ReferenceEquals(drawn[i], Albums[i])) return false; return true; }

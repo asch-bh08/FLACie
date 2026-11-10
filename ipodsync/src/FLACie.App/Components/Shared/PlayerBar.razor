@@ -137,10 +137,13 @@
         Player.Started += OnStarted;
         Player.FullScreenRequested += OnFullScreen;
         Player.DjAskSaid += OnDjSaid;
+        Player.Problem += OnProblem;
     }
     [Inject] Toasts DjToast { get; set; } = default!;
     // a song asked for through the mic has landed and is playing
     void OnDjSaid(string line) => _ = InvokeAsync(() => DjToast.Show(line));
+    // the music itself failed (Jellyfin did not answer a song): said as a warning, long enough to read
+    void OnProblem(string line) => _ = InvokeAsync(() => DjToast.Show(line, warn: true, seconds: 8));
     void OnFullScreen() => InvokeAsync(() => { open = true; StateHasChanged(); });
     string? lastPath;
     DotNetObjectReference<PlayerBar>? barRef;
@@ -162,7 +165,7 @@
         var next = Player.UpNext(2).Select(u => u.Track).Concat(Player.AutoplayNext).Take(2).Select(u => u.Path).ToArray();
         if (next.Length > 0) _ = InvokeAsync(async () => { try { await PageJs.InvokeVoidAsync("flacie.npWavePrefetch", (object)next); } catch (Exception) { } });
     }
-    public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; Player.DjAskSaid -= OnDjSaid; base.Dispose(); }
+    public override void Dispose() { barRef?.Dispose(); if (clientId is not null) Registry.Remove(clientId); Nav.LocationChanged -= OnNavigated; Player.Started -= OnStarted; Player.FullScreenRequested -= OnFullScreen; Player.DjAskSaid -= OnDjSaid; Player.Problem -= OnProblem; base.Dispose(); }
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (Player.Current is { } cur)

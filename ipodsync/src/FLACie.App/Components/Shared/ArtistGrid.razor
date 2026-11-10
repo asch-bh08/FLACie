@@ -1,0 +1,22 @@
+@inherits TileGridBase
+@{ var (from, to, pad) = Window(Artists.Count); }
+<div class="grid virtual" @ref="GridEl" style="@pad">
+    @for (var i = from; i < to; i++)
+    {
+        var a = Artists[i];
+        <a @key="a" class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">@a.Tracks.Count @(a.Tracks.Count == 1 ? "song" : "songs")</span></a>
+    }
+</div>
+@code {
+    [Parameter] public List<Group> Artists { get; set; } = [];
+
+    // nothing here shows the player: a song starting or pausing does not draw every artist again, only a change of library, filters or a chosen cover,
+    // or of the rows on screen (TileGridBase)
+    List<Group>? drawn; int drawnRedraws, drawnWindow;
+    protected override bool ShouldRender()
+    {
+        if (ReferenceEquals(drawn, Artists) && drawnRedraws == Player.Redraws && drawnWindow == WindowVersion) return false;
+        drawn = Artists; drawnRedraws = Player.Redraws; drawnWindow = WindowVersion;
+        return true;
+    }
+}

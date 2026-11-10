@@ -55,4 +55,9 @@ object HomeSnapshot {
         }
         return out.entries.take(limit).map { it.key to it.value }
     }
+
+    /** The covers the first screen of Home draws (see [ArtBudget.firstView]): only these are kept decoded in memory ahead of time. */
+    fun firstViewKeys(data: Data): List<Pair<String, Boolean>> = ArtBudget.firstView(data.shelves.map { s ->
+        s.tracks.mapNotNull { t -> t.artKey?.let { it to true } } + s.albums.mapNotNull { g -> g.artKey?.let { it to false } }
+    })
 }

@@ -47,6 +47,8 @@ class App : Application() {
         // the old cover folder (covers changed in Jellyfin showed stale): covers are fetched again, into a new one; deleted off the main thread
         bg.launch { File(filesDir, "art").deleteRecursively() }
         art = ArtCache(File(filesDir, "art2"))
+        // the decoded covers get a share of the memory class, by bytes (b126: 142 MB at a warm start with Home's covers kept ready)
+        art.memoryBudget(com.ipodemu.library.ArtBudget.lruBytes((getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).memoryClass))
         // row thumbnails: a 44 dp row is 66 px at 240 dpi, so 80 px (1/4 of the 320 px file) is plenty and decodes in about half the time
         art.thumbSample = if (resources.displayMetrics.density <= 1.6f) 4 else 3
         // Jellyfin row covers are 240 px files: half size is sharp on ordinary screens, full size on dense ones
@@ -57,7 +59,8 @@ class App : Application() {
         player = Boot.span("PlayerController()") { PlayerController(this, prefs) }
         // the first screen's songs and covers come from this small file and the cover cache, not from the whole saved library
         homeSnapshot = Boot.span("home snapshot read") { com.ipodemu.library.HomeSnapshot.read(File(filesDir, "home.json")) }
-        homeSnapshot?.let { art.warm(com.ipodemu.library.HomeSnapshot.coverKeys(it)) }
+        // only the first screen's covers (b126: memory); rows further along decode from the disk as they are drawn (FirstFrameGate.decodeNow)
+        homeSnapshot?.let { art.warm(com.ipodemu.library.HomeSnapshot.firstViewKeys(it)) }
         ui = UiState(prefs)
         // the player asks the offline library which songs are on the phone while it rebuilds the queue: it must exist first
         offline = com.ipodemu.library.offline.OfflineManager(this, prefs)

@@ -29,7 +29,7 @@ public static class MediaEndpoints
 
         // pre=1 marks the page's early read of the NEXT song (a second audio element, so a skip starts at once): background work that does not count as a play, is
         // never ahead of a song someone waits for, waits out a slow Jellyfin, and asks only for the start of the file (a small Range), never the whole song.
-        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, string? wave, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity, SongHeadCache heads) =>
+        app.MapGet("/stream", async (HttpContext ctx, string p, string? pre, string? wave, SessionStore store, JellyfinClient jf, IHttpClientFactory hf, AlacCache alac, PlayTracker plays, Notifier notify, PlaybackActivity activity, SongHeadCache heads, StreamStalls stalls) =>
         {
             var s = store.For(ctx.User);
             var t = s.FindByPath(p);
@@ -54,7 +54,12 @@ public static class MediaEndpoints
                 var upstream = own?.Token ?? ctx.RequestAborted;
                 try
                 {
-                    using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, upstream);
+                    // a song someone is waiting for: Jellyfin's first reply (its headers) gets a time limit, the song itself none (JellyfinFirstReply). The
+                    // early read and the seek bar's whole-file read are background work that waits out a slow Jellyfin (the early read has its own 30 s)
+                    var http = hf.CreateClient("media");
+                    using var res = early || quiet ? await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, upstream)
+                        : await JellyfinFirstReply.SendAsync(http, req, JellyfinFirstReply.Limit, upstream);
+                    if (!early && !quiet) stalls.Clear(s.Id, t.Path);
                     ctx.Response.StatusCode = (int)res.StatusCode;
                     foreach (var h in new[] { "Content-Type", "Content-Length", "Content-Range", "Accept-Ranges" })
                     {
@@ -83,6 +88,14 @@ public static class MediaEndpoints
                     ctx.Response.StatusCode = 503;
                     ctx.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(e.Wait.TotalSeconds)).ToString();
                 }
+                // Jellyfin took the request and sent nothing back in time: 504, and the song is noted, so the player can say "Couldn't reach Jellyfin"
+                // (an audio element never sees the status; it asks GET /api/stream/why)
+                catch (JellyfinNoReplyException) when (!ctx.Response.HasStarted)
+                {
+                    stalls.Mark(s.Id, t.Path);
+                    ctx.Response.StatusCode = 504;
+                    ctx.Response.Headers["X-FLACie-Error"] = "jellyfin-no-reply";
+                }
                 catch (HttpRequestException) when (!ctx.Response.HasStarted) { ctx.Response.StatusCode = 502; }
                 return Results.Empty;
             }
@@ -100,7 +113,8 @@ public static class MediaEndpoints
                     if (plan.UpFrom < 0) return Results.Empty;
                     using var req = rest();
                     req.Headers.TryAddWithoutValidation("Range", $"bytes={plan.UpFrom}-{plan.UpTo}");
-                    using var res = await hf.CreateClient("media").SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ctx.RequestAborted);
+                    // the rest of the song gets the same first-reply limit; past it the connection is dropped (below) and the browser asks again from where it got to
+                    using var res = await JellyfinFirstReply.SendAsync(hf.CreateClient("media"), req, JellyfinFirstReply.Limit, ctx.RequestAborted);
                     // Jellyfin must send exactly the rest; anything else (a whole file, an error) can't be joined on: the connection is dropped and the browser asks again
                     if ((int)res.StatusCode != 206 || res.Content.Headers.ContentRange?.From != plan.UpFrom) { ctx.Abort(); return Results.Empty; }
                     await using var body = await res.Content.ReadAsStreamAsync(ctx.RequestAborted);
@@ -149,6 +163,15 @@ public static class MediaEndpoints
             }
             return Results.NotFound();
         }).RequireAuthorization().RateLimited("stream");
+
+        // why the song at p just failed, for the player (flacie.js asks after an audio error, which never shows it the HTTP status): "jellyfin" when
+        // Jellyfin did not answer it in time (a 504 from /stream), else "". Only ever this account's own songs; nothing is asked of Jellyfin.
+        app.MapGet("/api/stream/why", (HttpContext ctx, string p, SessionStore store, StreamStalls stalls) =>
+        {
+            var s = store.For(ctx.User);
+            ctx.Response.Headers.CacheControl = "no-store";
+            return Results.Json(new { why = s.FindByPath(p) is { } t && stalls.Recent(s.Id, t.Path) ? "jellyfin" : "" });
+        }).RequireAuthorization();
 
         // the Living Sleeve seek bar's shape: how loud each part of a song is (200 bars, 0-255). Jellyfin servers can't always convert a song (transcoding off,
         // or no ffmpeg), so the first browser to play a song works the shape out from the audio it already decodes and sends it here; it is kept on disk

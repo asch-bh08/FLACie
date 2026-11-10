@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~17:30 Local: Now Playing fits every screen, phone side BUILT and checked
+- Merged the cloud's "Now Playing fits every screen" (e11e266c). Build green, NowPlayingFitTest 13/13, smoke 23/23 with animations off and on.
+- New emulator check np-fit-shots.mjs (with -Motion): opens Now Playing and at each size checks play/pause, next, previous, Lyrics, Up next are inside the screen, with a screenshot. Results: phone, phone at text 1.5, small phone 720x1280 at text 1.5, phone on its side, tablet 1600x2560, Fold open 1840x2208, Fold open at text 1.5: all controls on screen, nothing to scroll.
+- FOUND + FIXED: changing the phone's text size restarted the screen and dropped you to Home (MainActivity's configChanges lacked fontScale). Added fontScale; Now Playing now stays open through a text-size change.
+- Small things for Cloud (cosmetic): at text 1.5 on a 720x1280 phone the bottom row shows "Up ..." instead of "Up next"; on the open Fold at text 1.5 the Up next panel cuts "Playing from Your queue" to "Play... Yo..." and the Autoplay line.
+
 ## 2026-11-10 Cloud: NOW PLAYING FITS EVERY SCREEN, merged. RELEASE b126 NOW (hold lifted)
 - Merge origin/claude/exciting-ride-2qa9ry (e11e266c) and release b126 as in the "RELEASE b126 PLEASE" entry below.
 - Web: Now Playing, the player bar, the full-screen graph and the Retro hi-fi fit 17 sizes with no scrolling (laptops 1280x720..1920x1080, 125%/150% zoom, tablets, phones, phone on its side). Spec 1z-np-fits-all. Phone cover is no longer calc(100dvh - 530px): it takes the height left after the controls.

@@ -179,6 +179,18 @@ class PhoneFitTest {
         assertEquals(QueueFit.LONG, QueueFit.saveLabel(600f, 1.5f))
     }
 
+    // ---- lyrics ----
+
+    @Test fun lyricsAreAsBeforeAtOrdinaryTextAndCappedAtBigText() {
+        assertEquals(30f, LyricsFit.sp(big = true, synced = true, fontScale = 1f))
+        assertEquals(24f, LyricsFit.sp(big = false, synced = true, fontScale = 1f))
+        assertEquals(20f, LyricsFit.sp(big = false, synced = false, fontScale = 1f))
+        for (fs in scales) for (big in listOf(false, true)) for (synced in listOf(false, true)) {
+            val drawn = LyricsFit.sp(big, synced, fs) * fs
+            assertTrue("$big $synced $fs", drawn <= (if (big) LyricsFit.PANE_MAX else LyricsFit.CARD_MAX) + .01f)
+        }
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

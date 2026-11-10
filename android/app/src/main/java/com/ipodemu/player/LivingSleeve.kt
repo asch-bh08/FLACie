@@ -251,7 +251,7 @@ private fun SleevePane(id: String, snap: PlayerSnap, nav: PlayerNav, t: Track, p
         Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .6f)) }
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).padding(horizontal = 18.dp),
     ) {
-        Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }) {
                 SText(remember(title) { serifTitle(title) }, family = SleeveFonts.serif, size = 30f, weight = FontWeight.Normal)
                 SText(listOf(t.title, t.artist).filter { it.isNotEmpty() }.joinToString(" · "), size = 13f, color = InkDim)
@@ -707,7 +707,8 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
 private fun SleeveCard(id: String, snap: PlayerSnap, t: Track, p: SleevePalette, size: Modifier, onClose: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Column(size.clip(shape).background(Color(0x38000000)).border(1.dp, Color(0x1FF4EFE6), shape).padding(start = 18.dp, end = 8.dp, top = 6.dp)) {
-        Row(Modifier.fillMaxWidth().height(52.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically) {
+        // at least 52 dp, taller at big text (the serif name and the song line were cut at font scale 1.5)
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically) {
             val title = if (id == "lyrics") "Lyrics" else "Song info"
             Column(Modifier.weight(1f)) {
                 SText(remember(title) { serifTitle(title) }, family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
@@ -913,7 +914,8 @@ private fun SleeveLyrics(t: Track, playing: Boolean, big: Boolean = false) {
                             .then(if (l.synced) Modifier.clickable(onClickLabel = "Play from this line") { app.player.seekTo(line.timeMs) } else Modifier)
                             .semantics { if (cur) stateDescription = "Now singing" }
                             .padding(vertical = 6.dp),
-                        size = if (big) 30f else if (l.synced) 24f else 20f, weight = if (l.synced) FontWeight.Bold else FontWeight.SemiBold, color = color, maxLines = 6, lineHeight = 1.2f,
+                        // kept under 40 / 32 sp as drawn at big text, so a line is more than eight letters (LyricsFit)
+                        size = LyricsFit.sp(big, l.synced, LocalDensity.current.fontScale), weight = if (l.synced) FontWeight.Bold else FontWeight.SemiBold, color = color, maxLines = 8, lineHeight = 1.2f,
                     )
                 }
                 item { Txt("Lyrics via ${l.source}", Modifier.padding(top = 12.dp), size = 12f, color = InkFaint) }

@@ -247,6 +247,21 @@ object QueueFit {
 }
 
 /**
+ * Lyrics' line size: 30 sp in the full pane, 24 sp timed and 20 sp plain in the card. Big text multiplied them to 45 sp, about eight letters a line
+ * on a 320 dp phone, and a long line hit its six-line limit; the drawn size is kept under [PANE_MAX] in the pane and [CARD_MAX] in the card.
+ */
+object LyricsFit {
+    const val PANE_MAX = 40f
+    const val CARD_MAX = 32f
+
+    fun sp(big: Boolean, synced: Boolean, fontScale: Float = 1f): Float {
+        val base = if (big) 30f else if (synced) 24f else 20f
+        val cap = if (big) PANE_MAX else CARD_MAX
+        return min(base, cap / fontScale.coerceAtLeast(.85f))
+    }
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

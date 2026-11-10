@@ -153,7 +153,8 @@ for (const [name, w, h, dpr] of sizes) {
       await page.waitForTimeout(800);
       const full = await check(page, ['.graph-box .graph-tabs', '.graph-transport button', '.graph-full-btn', '#viz'], 0);
       problems.push(...full.problems.map((p) => 'full-screen graph: ' + p));
-      for (const need of ['Previous', 'Next', 'Pause', 'Full screen']) if (!full.names.includes(need)) problems.push(`full-screen graph: no ${need} on screen`);
+      // (play / pause is one button: as Repeat one starts the short song again it can read Play for a moment)
+      for (const need of ['Previous', 'Next', 'Pause|Play', 'Full screen']) if (!need.split('|').some((n) => full.names.includes(n))) problems.push(`full-screen graph: no ${need} on screen`);
       problems.push(...await graph(page, 'full-screen graph'));
       const fb = (await page.locator('#viz').boundingBox())!;
       if (fb.height < h * 0.35) problems.push(`full-screen graph: the graph is only ${Math.round(fb.height)}px of ${h}`);

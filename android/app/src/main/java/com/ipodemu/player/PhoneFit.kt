@@ -177,6 +177,25 @@ object ListFit {
 }
 
 /**
+ * Album, artist and playlist pages. Upright the cover is as before (up to 300 dp); on its side it is at most 45% of the height (the 300 dp cover
+ * filled a landscape phone, Play and Shuffle under the fold). Two panes (the header beside the songs) from 560 dp wide when the screen is clearly
+ * landscape, the header column up to 300 dp and scrolling. The serif title (42 sp, 34 for a long one) is kept under 50 sp as drawn.
+ */
+object DetailFit {
+    fun coverCap(width: Float, height: Float, max: Float = 300f): Float = if (width > height) min(max, max(140f, height * .45f)) else max
+
+    fun twoPane(width: Float, height: Float): Boolean = width >= 560f && width > height * 1.25f
+
+    fun sideWidth(width: Float): Float = min(300f, width * .42f)
+
+    fun titleSp(long: Boolean, fontScale: Float = 1f): Float {
+        var sp = if (long) 34f else 42f
+        while (sp > 26f && sp * fontScale > 50f) sp -= 2f
+        return sp
+    }
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

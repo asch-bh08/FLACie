@@ -119,6 +119,29 @@ class PhoneFitTest {
         }
     }
 
+    // ---- album and artist pages ----
+
+    @Test fun detailCoverLeavesPlayOnScreenOnItsSide() {
+        assertEquals(300f, DetailFit.coverCap(360f, 640f))
+        assertEquals(340f, DetailFit.coverCap(320f, 568f, 340f))
+        for ((w, h) in listOf(568f to 320f, 640f to 360f, 915f to 412f)) assertTrue(DetailFit.coverCap(w, h) <= h * .45f + .5f)
+        assertTrue(DetailFit.coverCap(568f, 280f) >= 140f)
+    }
+
+    @Test fun detailTwoPanesOnLandscapePhonesWithTheRail() {
+        // a 640 dp phone on its side, less the 80 dp rail
+        assertTrue(DetailFit.twoPane(560f, 336f))
+        assertFalse(DetailFit.twoPane(360f, 640f))
+        assertFalse(DetailFit.twoPane(600f, 560f))
+        assertTrue(DetailFit.sideWidth(560f) <= 300f)
+    }
+
+    @Test fun detailTitleStaysUnder50SpAsDrawn() {
+        assertEquals(42f, DetailFit.titleSp(false, 1f))
+        assertEquals(34f, DetailFit.titleSp(true, 1f))
+        for (fs in scales) for (long in listOf(false, true)) assertTrue(DetailFit.titleSp(long, fs) * fs <= 50f)
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

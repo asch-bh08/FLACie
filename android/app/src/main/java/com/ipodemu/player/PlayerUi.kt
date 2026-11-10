@@ -1440,10 +1440,11 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         // "Recommended songs" below the songs, only on the person's own playlists (PlaylistRecsUi.kt)
         val recs: (@Composable () -> Unit)? = userId?.takeIf { d.kind == DetailKind.USER }?.let { id -> @Composable { PlaylistRecsSection(id, tracks, title) } }
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
+            // two panes from 560 dp (a landscape phone beside the rail), the header's column scrolling: it was cut off at the bottom (DetailFit)
+            val wide = DetailFit.twoPane(maxWidth.value, maxHeight.value)
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
-                    Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column(Modifier.width(DetailFit.sideWidth(maxWidth.value).dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs)
@@ -1477,9 +1478,11 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item(key = "head") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RemoteArtImage(s.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = 340.dp).aspectRatio(1f), corner = 18.dp)
-                    Txt(s.title, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
-                    Txt(s.artist, size = 16f, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    // on its side the cover leaves Download on the first screen (DetailFit); the whole title, up to three lines
+                    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+                    RemoteArtImage(s.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), 340f).dp).aspectRatio(1f), corner = 18.dp)
+                    Txt(s.title, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 3, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    Txt(s.artist, size = 16f, color = sc.onBg, maxLines = 2, align = androidx.compose.ui.text.style.TextAlign.Center)
                     val facts = listOfNotNull(s.album.ifBlank { null }, year.ifBlank { null }, if (s.durationMs > 0) "%d:%02d".format(s.durationMs / 60000, s.durationMs / 1000 % 60) else null)
                     if (facts.isNotEmpty()) Txt(facts.joinToString(" · "), size = 14f, color = sc.onBgDim, align = androidx.compose.ui.text.style.TextAlign.Center)
                     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
@@ -1528,9 +1531,10 @@ private fun CatalogAlbumScreen(d: Screen.CatalogAlbum, nav: PlayerNav, snap: Pla
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item(key = "head") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RemoteArtImage(a.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = 340.dp).aspectRatio(1f), corner = 18.dp)
-                    Txt(a.cleanTitle, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
-                    Txt(a.artist, size = 16f, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+                    RemoteArtImage(a.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), 340f).dp).aspectRatio(1f), corner = 18.dp)
+                    Txt(a.cleanTitle, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 3, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    Txt(a.artist, size = 16f, color = sc.onBg, maxLines = 2, align = androidx.compose.ui.text.style.TextAlign.Center)
                     val n = tracks?.size?.takeIf { it > 0 } ?: a.trackCount
                     Txt(listOfNotNull(a.kind, year.ifBlank { null }, if (n > 0) "$n song${if (n == 1) "" else "s"}" else null).joinToString(" · "), size = 14f, color = sc.onBgDim)
                     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
@@ -1621,32 +1625,37 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
         // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
         val cols = rememberCoverColours(art)
+        // on its side the cover is at most 45% of the height, so Play and Shuffle are on the first screen; the title stays under 50 sp as drawn (DetailFit)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        val cap = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat())
         // an artist gets a round picture, as on the web; everything else the rounded square cover. The cover, the words and the buttons rise in
         // one after another as the page opens ([since]: when it opened; 0 leaves them still)
-        if (kind == "Artist") ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp, circle = true)
-        else ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
+        if (kind == "Artist") ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.62f).widthIn(max = (cap * .87f).dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp, circle = true)
+        else ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.7f).widthIn(max = cap.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
         Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (kind.isNotEmpty()) MonoLabel(kind)
-            SerifTitle(title, size = if (title.length > SleeveText.LONG_TITLE) 34f else 42f, maxLines = 3)
+            SerifTitle(title, size = DetailFit.titleSp(title.length > SleeveText.LONG_TITLE, cfg.fontScale), maxLines = 3)
             if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
-            if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
+            if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp), maxLines = 2)
         }
-        // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
-        Row(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings); they wrap at big text
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, false, title, djKey) })
             if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
         }
     } else {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         ArtImage(art, Modifier.size(104.dp), corner = 12.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(title, size = 20f, weight = FontWeight.Bold, maxLines = 2)
             if (line1.isNotEmpty()) Txt(line1, size = 13f, color = sc.onBgDim)
             if (line2.isNotEmpty()) Txt(line2, size = 12f, color = sc.onBgDim)
         }
     }
-    // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts; they wrap at big text
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         GlossPill("Play", { app.player.play(tracks, 0, false, title, djKey) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }

@@ -116,3 +116,19 @@ body.np-open .dl-activity { display: none; }
 .player .bar-menu [role=menuitem] b { font-size: 14px; font-weight: 600; }
 .player .bar-menu [role=menuitem] small { font-size: 12px; color: var(--dim); }
 .player .bar-menu [role=menuitem].on b { color: var(--accent-text); }
+
+/* ---- the bar fits every window (owner, 10 Nov: the controls must never need a scroll or hang off the screen) ---- */
+/* an upright tablet or a narrow window (761-1000 wide): with the DJ, the mic and the touch-sized buttons the right-hand group ran off the right edge and
+   Shuffle ran under the song. Shuffle and Repeat move into More (they are in Now Playing too), and Full screen goes: a tap on the song opens it */
+.player .bar-menu .bar-narrow { display: none; }
+@media (min-width: 761px) and (max-width: 1000px) {
+  .player .bar-controls .buttons > [data-pip="shuffle"], .player .bar-controls .buttons > [data-pip="repeat"], .player .bar-right .icon-btn[aria-label="Full screen player"] { display: none; }
+  .player .bar-menu .bar-narrow { display: flex; }
+}
+/* a short wide window (a laptop at 150% zoom): the bar was 60px tall with 72px of controls in it, so play and the seek line hung below the window. A
+   slightly taller bar, a smaller cover and a lower play button */
+@media (orientation: landscape) and (max-height: 520px) and (min-width: 761px) {
+  :root { --bar: 72px; }
+  .player .bar-song .cover { width: 46px; height: 46px; }
+  .player .play { height: 44px; }
+}

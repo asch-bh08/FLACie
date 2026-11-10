@@ -292,6 +292,22 @@
   .hf-receiver { grid-template-rows: 26% 1fr auto auto; }
   .hf-meter span { font-size: 2.4cqw; } .hf-scale { font-size: 3.2cqw; } .hf-switches button { font-size: 2.8cqw; }
   .hf-fmt { font-size: 2.6cqw; } .hf-lyric { font-size: 4cqw; } .hf-knob { width: 11cqw; } .hf-kn small { font-size: 2.2cqw; } .hf-knobs { gap: 12%; }
+  /* the dial gives way, never the knobs and keys under it: its row may shrink (it clips its own lines), so VOLUME and the transport keys stay inside the
+     receiver on a squarer stage (a tablet either way round with the Retro panel open: they hung below the window) */
+  .hf-receiver { grid-template-rows: 24% minmax(0, 1fr) auto auto; }
+  .hf-knob { width: min(11cqw, 8cqh); }
+}
+/* a nearly square stage (a tablet on its side, or a laptop at 150% zoom, with the Retro panel open): the turntable gives the receiver more of the height,
+   its tuning knob is no taller than its row, and its knobs and keys are sized by the height too */
+@container retro (aspect-ratio < 23 / 20) and (aspect-ratio >= 4 / 5) {
+  .hf-top { height: 38%; }
+  .hf-front { top: 38%; }
+  .hf-receiver { height: 94%; grid-template-rows: 22% minmax(0, 1fr) auto auto; gap: 2% 2.4%; }
+  .hf-tune { width: min(92%, 12cqh); }
+  .hf-knob { width: min(11cqw, 7cqh); }
+  .hf-kn small { font-size: min(2.2cqw, 1.7cqh); }
+  .hf-switches button { font-size: min(2.8cqw, 2cqh); padding: .5cqh 1.2cqh; }
+  .hf-lyric { font-size: min(4cqw, 3.2cqh); } .hf-scale { font-size: min(3.2cqw, 2.4cqh); }
 }
 @media (prefers-reduced-motion: reduce) {
   .hf-record { animation: none !important; }

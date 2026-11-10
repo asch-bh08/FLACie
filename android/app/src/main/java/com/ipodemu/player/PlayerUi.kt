@@ -2284,12 +2284,16 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
             }
         },
         trailing = {
+            // a narrow phone or big text: Play and Download as 48 dp icons, so the title keeps its room (SearchFit); the menu is 44 dp (it was 36)
+            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+            val compact = SearchFit.compactActions(cfg.screenWidthDp.toFloat(), cfg.fontScale)
             if (picked == null) when {
-                owned != null -> GlossPill("Play", onPlay, height = 32.dp)
+                owned != null -> if (compact) IconAction(Glyph.PLAY, "Play $title", onPlay, tint = sc.accent) else GlossPill("Play", onPlay, height = 32.dp)
                 busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
-                else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (onHiRes != null) IconAction(Glyph.LIST, "More download options for $title", onHiRes, size = 36.dp)
-                    GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (onHiRes != null) IconAction(Glyph.LIST, "More download options for $title", onHiRes, size = 44.dp)
+                    if (compact) IconAction(Glyph.DOWN, if (failed) "Retry $title" else actionLabel, onDownload, tint = if (failed) Color(0xFFFF9C9C) else sc.accent)
+                    else GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
                 }
             }
         },

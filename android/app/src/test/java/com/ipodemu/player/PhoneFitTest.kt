@@ -142,6 +142,15 @@ class PhoneFitTest {
         for (fs in scales) for (long in listOf(false, true)) assertTrue(DetailFit.titleSp(long, fs) * fs <= 50f)
     }
 
+    // ---- search ----
+
+    @Test fun searchRowsUseIconsWhenThePillWouldCrushTheTitle() {
+        assertFalse(SearchFit.compactActions(412f, 1f))
+        assertFalse(SearchFit.compactActions(600f, 1.5f))
+        for (fs in scales) { assertTrue(SearchFit.compactActions(320f, fs)); assertTrue(SearchFit.compactActions(360f, fs)) }
+        assertTrue(SearchFit.compactActions(412f, 1.3f))
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

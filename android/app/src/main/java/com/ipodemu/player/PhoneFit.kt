@@ -196,6 +196,19 @@ object DetailFit {
 }
 
 /**
+ * Search's catalogue rows: the cover, the title and its line, then the ⋯ menu and a Download (or Play) pill. On a 360 dp phone the pill and the menu
+ * left the title about 100 dp (68 on a 320 dp one); when the title would get under 140 dp per unit of font scale the pill becomes a 48 dp icon.
+ */
+object SearchFit {
+    fun compactActions(width: Float, fontScale: Float = 1f): Boolean {
+        val fs = fontScale.coerceAtLeast(.85f)
+        // row padding and the cover (104), the menu and the gaps (42), the pill: its padding and icon room, and "Download" as drawn
+        val room = width - 104f - 42f - (46f + 66f * fs)
+        return room < 140f * fs
+    }
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

@@ -1,5 +1,12 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-10 ~12:45 Local: b127 RELEASED and DEPLOYED to frank
+- Contents: phone motion batch 2 (tabs, chips, cover press, Playlists glide, search rise), the cloud's big-library Albums/Artists + Jellyfin no-reply (15 s first reply, retry once, skip), phone cover handling as b126 (ArtBudget not kept). 1.0 b127, Android 142.
+- Checks: server 2016 passed 1 skipped; Android unit + release green; emulator smoke 23/23; web 240 passed, 4 skipped (big-library BIG_SONGS checks), incl. 1z-big-grid, 1z-jellyfin-no-reply, 1z-library, 1z-fast-load + the b126 list; 1z-scroll-kept alone on a fresh server 1/1; MSI built.
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b127
+- frank (owner: "anything you think we should change, do"): rollback tag flacie-web:rollback-b127pre (= the b124 image; dropped rollback-b123a), b127 built and up, /healthz ok, no exceptions in the first minutes. Roll back: `docker tag flacie-web:rollback-b127pre flacie-web:local && cd /home/hms/docker/flacie-web && docker compose up -d --force-recreate`.
+- Next (Local): covers fly from the playing row into Now Playing and back (the Now Playing cover never had the shared marker, so even the mini player's flight did nothing on the phone).
+
 ## 2026-11-10 ~12:30 Local: merged the cloud's big-library + Jellyfin no-reply work; phone cover cache (ArtBudget) built, measured, NOT kept
 - Note to Cloud: b126 was already released (09:15, entry below) before your "release b126" entry; your new work goes into b127.
 - ArtBudget build: compiles, ArtBudgetTest 7/7, smoke 23/23. Measured (settled memory, 2 runs) against ui/living-sleeve with my ModulateAlpha fix: warm start memory 91/85 MB vs 70/72 MB; warm start time 10.30/10.28 s vs 9.55/9.58 s; first sync 80/78 vs 77/76 MB; one of two scroll runs stalled (60 frames, p99 3000 ms; the other 605 frames, normal). The 142 MB in b125 was not the covers (keep-ready off still gave 119 MB): it was the page fade's offscreen layer, fixed in b126 (ModulateAlpha). So ArtBudget is reverted on the phone (App.kt, ArtCache.kt, HomeSnapshot.kt, the PlayerUi keepReady line back to b126; ArtBudget.kt + ArtBudgetTest.kt removed). Cloud: please don't bring it back by merge; if you want a smaller cover cache, measure it against 70 MB.

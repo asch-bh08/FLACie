@@ -21,8 +21,17 @@ test("Blazor's own script comes compressed, and the app's styles and scripts are
   expect((await br.body()).length).toBeGreaterThan(100_000);   // (the client reads it back decompressed)
   const gz = await request.get('/_framework/blazor.web.js', { headers: { 'Accept-Encoding': 'gzip' } });
   expect(gz.headers()['content-encoding']).toBe('gzip');
-  // an API answer is never compressed (private data in a compressed answer can leak: BREACH)
+  // nothing else is compressed on the way (private data in a compressed answer can leak: BREACH)
+  const health = await request.get('/healthz', { headers: { 'Accept-Encoding': 'br, gzip' } });
+  expect(health.headers()['content-encoding'] ?? '').toBe('');
   await signIn(page);
+  // the web fonts' sheet is one of the app's kept files (it used to be asked for again on every page load, holding the page up)
+  const fontsHref = await page.locator('link[rel=stylesheet][href*="fonts/ls/"]').getAttribute('href');
+  expect(fontsHref).toMatch(/fonts\/ls\/fonts\.[a-z0-9]{10}\.css$/);
+  const fontsCss = await request.get('/' + fontsHref);
+  expect(fontsCss.headers()['cache-control']).toContain('immutable');
+  // ... and its fonts still load from beside it
+  await expect.poll(() => page.evaluate(async () => { await document.fonts.ready; return [...document.fonts].some((f) => /Archivo/.test(f.family) && f.status === 'loaded'); })).toBe(true);
   const files: { url: string; enc: string; cache: string }[] = [];
   page.on('response', (r) => { if (/\/[a-z-]+\.[a-z0-9]{10}\.(css|js)$/.test(r.url())) files.push({ url: r.url(), enc: r.headers()['content-encoding'] || '', cache: r.headers()['cache-control'] || '' }); });
   await page.reload();

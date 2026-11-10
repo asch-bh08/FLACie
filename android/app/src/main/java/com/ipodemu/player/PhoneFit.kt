@@ -209,6 +209,26 @@ object SearchFit {
 }
 
 /**
+ * A Settings row: the name and what it does on the left, a value and an action chip (or a chevron) on the right. At font scale 1.5 on a 320 dp phone
+ * a value and a chip took about 260 dp of the 256 the row has, pressing the name to nothing; when the name would get under 110 dp per unit of font
+ * scale the value and the chip go under it instead.
+ */
+object SettingsFit {
+    fun trailing(fontScale: Float, valueChars: Int, actionChars: Int, chevron: Boolean): Float {
+        val fs = fontScale.coerceAtLeast(.85f)
+        val action = actionChars > 0
+        val value = if (valueChars > 0) min(if (action) 120f else 150f, valueChars * (if (action) 13f else 15f) * .55f * fs) + 8f else 0f
+        return value + (if (action) 32f + actionChars * 14f * .6f * fs else 0f) + (if (chevron) 24f else 0f)
+    }
+
+    /** [width]: the panel's row (the screen, up to 620 dp). */
+    fun stack(width: Float, fontScale: Float, valueChars: Int, actionChars: Int, chevron: Boolean = false): Boolean {
+        val room = width - 32f - 32f - 12f - trailing(fontScale, valueChars, actionChars, chevron)
+        return room < 110f * fontScale.coerceAtLeast(.85f)
+    }
+}
+
+/**
  * Grids of covers (Albums, Playlists): as many columns of at least [min] dp as fit, but two on any phone at least 280 dp wide (a 320 dp phone got one
  * column of 296 dp covers from GridCells.Adaptive(150 dp)).
  */

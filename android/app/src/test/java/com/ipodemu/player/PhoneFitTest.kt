@@ -151,6 +151,24 @@ class PhoneFitTest {
         assertTrue(SearchFit.compactActions(412f, 1.3f))
     }
 
+    // ---- settings ----
+
+    @Test fun settingsKeepsTheValueBesideTheNameWhenThereIsRoom() {
+        assertFalse(SettingsFit.stack(412f, 1f, 6, 7))          // "2.3 GB" and "Clear" on an ordinary phone
+        assertFalse(SettingsFit.stack(360f, 1f, 0, 0, chevron = true))
+        assertFalse(SettingsFit.stack(320f, 1.5f, 0, 0, chevron = true))
+    }
+
+    @Test fun settingsPutsTheValueAndChipUnderTheNameWhenCramped() {
+        assertTrue(SettingsFit.stack(320f, 1.5f, 12, 8))         // "Synced 5 min ago" and "Sync now"
+        assertTrue(SettingsFit.stack(360f, 1.5f, 16, 8))
+        assertTrue(SettingsFit.stack(320f, 1f, 20, 12))
+        // whatever stays beside the name leaves it at least 110 dp per unit of font scale
+        for (w in listOf(320f, 360f, 412f)) for (fs in scales) for ((v, a) in listOf(0 to 5, 8 to 6, 14 to 9, 20 to 12, 0 to 0)) {
+            if (!SettingsFit.stack(w, fs, v, a)) assertTrue(w - 76f - SettingsFit.trailing(fs, v, a, false) >= 110f * fs)
+        }
+    }
+
     // ---- lists and grids ----
 
     @Test fun songRowsKeepTheTimeUnlessTheTitleWouldBeCrushed() {

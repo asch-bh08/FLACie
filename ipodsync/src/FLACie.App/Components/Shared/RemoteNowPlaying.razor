@@ -21,6 +21,8 @@
     </aside>
 }
 @code {
+    // drawn again on each tick of the player's clock: the other device's time moves on
+    protected override bool FollowsTime => true;
     Timer? poll, tick;
 
     protected override async Task OnInitializedAsync()

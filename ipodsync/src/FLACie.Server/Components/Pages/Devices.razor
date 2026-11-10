@@ -65,6 +65,8 @@ else
 </div>
 
 @code {
+    // drawn again on each tick of the player's clock: the devices' times move on
+    protected override bool FollowsTime => true;
     // what kind of device a session is, from its name (Jellyfin only tells us a device name and the app, which is the same for every FLACie player)
     static (string Label, string Icon) Kind(FLACie.Core.ConnectSession s)
     {

@@ -24,7 +24,7 @@ public abstract class UserComponent : ComponentBase, IDisposable
     {
         Session = Store.For((await Auth).User);
         Session.Changed += Refresh;
-        Player.Changed += Refresh;
+        Player.Changed += PlayerChanged;
         Player.SetLibrary(() => Session.Library);
         Player.SetPlanner(Session, Planner);
         Player.SetPlays(Plays);
@@ -40,6 +40,12 @@ public abstract class UserComponent : ComponentBase, IDisposable
     }
 
     void Refresh() => InvokeAsync(StateHasChanged);
+    // the player's clock moves on twice a second while music plays: only views that show the time (or a countdown) are drawn again for that;
+    // everything else (song lists, Home, Search) is drawn again when the song, the queue or the play/pause state changes
+    void PlayerChanged() { if (!Player.Ticking || FollowsTime) Refresh(); }
+
+    /// <summary>True for a view that shows the song's time, a progress bar or a countdown, so it is drawn again on every clock tick of the player.</summary>
+    protected virtual bool FollowsTime => false;
 
     /// <summary>Writes the profile to the user's accounts in the background (after a playlist or favourite edit).</summary>
     protected void SaveProfile() => _ = Task.Run(async () => { try { await Session.SaveAsync(Jellyfin); } catch { } });
@@ -51,7 +57,7 @@ public abstract class UserComponent : ComponentBase, IDisposable
     public virtual void Dispose()
     {
         if (Session is not null) Session.Changed -= Refresh;
-        Player.Changed -= Refresh;
+        Player.Changed -= PlayerChanged;
         if (Live is { } l) { l.Connect.Changed -= Refresh; l.Jam.Changed -= Refresh; }
     }
 }

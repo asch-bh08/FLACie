@@ -204,6 +204,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     public Track? Current => Index >= 0 && Index < Queue.Count ? Queue[Index] : null;
     public event Action? Changed;
+    /// <summary>True while Changed is raised for a plain twice-a-second clock tick (only the time moved on): a page that shows no clock (a song list, Home,
+    /// Search) need not be drawn again for it, so a long list is not rebuilt twice a second while music plays.</summary>
+    public bool Ticking { get; private set; }
     /// <summary>Something the player shows changed from outside it (a chosen cover): draw it again now, paused or not.</summary>
     public void Redraw() => Changed?.Invoke();
     /// <summary>A page that starts music asks the player bar to open the full-screen player.</summary>
@@ -533,7 +536,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     // ---- from flacie.js ----
 
-    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); CountHeard(pos); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); if (djFor is null && DjOn && DjNearEnd()) DjAhead(); Changed?.Invoke(); }
+    [JSInvokable] public void OnTime(double pos, double dur) { RetroHost.Heartbeat?.Invoke(); CountHeard(pos); Position = pos; if (dur > 0 && !double.IsInfinity(dur)) Duration = dur; Stash(false); RememberPlace(); SleepTick(); PlayTick(); if (djFor is null && DjOn && DjNearEnd()) DjAhead(); Ticking = true; try { Changed?.Invoke(); } finally { Ticking = false; } }
     [JSInvokable] public void OnState(bool playing) { Playing = playing; PlayTick(); Changed?.Invoke(); }
     [JSInvokable] public async Task OnEnded()
     {

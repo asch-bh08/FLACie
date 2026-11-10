@@ -54,6 +54,8 @@
     </section>
 }
 @code {
+    // drawn again on each tick of the player's clock: the bar shows the time and the progress line
+    protected override bool FollowsTime => true;
     bool open, volumeLoaded, pipOk, pipOn, barMore;
     // the bar's More menu closes on a click anywhere outside it or Escape (flacie.watchOutside calls DismissBarMore)
     DotNetObjectReference<PlayerBar>? barSelf;

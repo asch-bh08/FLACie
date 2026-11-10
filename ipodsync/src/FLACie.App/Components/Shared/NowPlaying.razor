@@ -225,6 +225,8 @@
     }
 </div>
 @code {
+    // drawn again on each tick of the player's clock: the full-screen player shows the time and the progress line
+    protected override bool FollowsTime => true;
     [Parameter] public EventCallback OnClose { get; set; }
     [Inject] LyricsService LyricsSvc { get; set; } = default!;
     [Inject] ITrackInfo Infos { get; set; } = default!;

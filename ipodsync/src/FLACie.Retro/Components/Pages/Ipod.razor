@@ -139,6 +139,8 @@ else
 }
 
 @code {
+    // drawn again on each tick of the player's clock: the iPod shows the song's time
+    protected override bool FollowsTime => true;
     // the help for each retro scene (index = IpodPrefs.Scene; the main player's own help is the list above)
     static readonly string[][] SceneHelp =
     [

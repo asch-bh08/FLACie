@@ -10,6 +10,8 @@ namespace FLACie.Server.Components.Shared;
 public abstract class RetroBase : UserComponent
 {
     [Inject] protected IJSRuntime Js { get; set; } = default!;
+    // every scene shows the song's time
+    protected override bool FollowsTime => true;
 
     // ---------------------------------------------------------------- the EQ: the player's own five bands (flacie.js eq(): 100 Hz, 400 Hz, 1 kHz, 3 kHz and
     // 8 kHz, -12 to +12 dB, kept for next time), the same the desk's preamp sets: whatever a scene's sliders, knobs or preset key show is what the music goes

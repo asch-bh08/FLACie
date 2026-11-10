@@ -51,6 +51,8 @@ else
 </div>
 
 @code {
+    // drawn again on each tick of the player's clock: "so far" counts up
+    protected override bool FollowsTime => true;
     string filter = "";
     bool everyone;
     bool admin => AdminAccess.Is(Session, Conf);

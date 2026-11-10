@@ -377,6 +377,8 @@ else
 </div>
 
 @code {
+    // drawn again on each tick of the player's clock: the players' times move on
+    protected override bool FollowsTime => true;
     // FLACie's address (the phone's way in): what is typed, and what happened on Save
     string? addressText; string addressMsg = "";
     void SaveAddress()

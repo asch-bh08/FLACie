@@ -52,6 +52,8 @@
     </div>
 }
 @code {
+    // drawn again on each tick of the player's clock: the sleep timer counts down
+    protected override bool FollowsTime => true;
     ChipMenu? speedMenu, sleepMenu, soundMenu;
 
     string SoundText => Player.LevelVolume && Player.FadeSecs > 0 ? $"even out, fade {Player.FadeSecs} s" : Player.LevelVolume ? "even out" : Player.FadeSecs > 0 ? $"fade {Player.FadeSecs} s" : "default";

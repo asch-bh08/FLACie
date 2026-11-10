@@ -1,5 +1,4 @@
 @inherits UserComponent
-@implements IDisposable
 @* F26.5 (owner, 5 Nov: "add what it's doing / thinking and change the subtitle location to where the current downloads are, in a little own bar above
    the now playing bar"): one small bar just above the player. The DJ's side shows Listening… (with the mic's level), what it heard, what it is doing
    (Thinking…, Finding your favourites…, Downloading…), then its words in time with its voice (the captions live here now); the downloads line joins it.
@@ -31,8 +30,6 @@
 @code {
     ElementReference meterEl; bool metering;
     [Inject] IJSRuntime BarJs { get; set; } = default!;
-    Action? onChanged;
-    protected override void OnInitialized() { onChanged = () => _ = InvokeAsync(StateHasChanged); Player.Changed += onChanged; }
     protected override async Task OnAfterRenderAsync(bool first)
     {
         // the mic's level moves the meter while it listens (read every frame in the page, nothing over the wire)
@@ -40,5 +37,4 @@
         if (listening && !metering) { metering = true; try { await BarJs.InvokeVoidAsync("flacie.djBarMeter", meterEl); } catch (Exception) { } }
         else if (!listening) metering = false;
     }
-    public override void Dispose() { if (onChanged is not null) Player.Changed -= onChanged; base.Dispose(); }
 }

@@ -1338,7 +1338,10 @@ body:has(.remote-now.solo) .az-rail { bottom: calc(var(--tabs, 0px) + var(--remo
 /* buffering: a spinner ring on the play buttons while the song has no data yet */
 .play { position: relative; }
 html.buffering .play::after { content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 3px solid transparent; border-top-color: var(--accent); border-right-color: var(--accent); animation: buf-spin .8s linear infinite; pointer-events: none; }
-html.buffering .play .ic { opacity: .55; }
+/* the icon dims through a value set on the button: a rule ending in ".ic" made the browser look at every icon on the page (thousands on a big
+   Albums page, with each cover's placeholder note) each time a song started, a tenth of a second of stutter; this way only the play buttons are looked at */
+.play .ic { opacity: var(--play-ic-dim, 1); }
+html.buffering .play { --play-ic-dim: .55; }
 @keyframes buf-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { html.buffering .play::after { animation-duration: 2.4s; } }
 

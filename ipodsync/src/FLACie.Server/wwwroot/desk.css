@@ -298,7 +298,7 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E"); }
 @keyframes desk-grain { 0% { background-position: 0 0 } 25% { background-position: -38px 19px } 50% { background-position: 19px -38px } 75% { background-position: -19px -19px } 100% { background-position: 0 0 } }
 /* the panel, the gear and the exit stay above the desk */
-.ipod-stage:has(.desk) .ipod-dock { z-index: 20; }
+.ipod-stage[data-look="desk"] .ipod-dock { z-index: 20; }
 
 /* ---------------- portrait (a tall window, a phone): the frame is a closer look at the same desk. Everything keeps its size beside the iPod (a phone does not
    shrink the coffee or the CDs); what does not fit runs off the edge, as in a photo. The journal comes in from the left (its title and the line being sung above

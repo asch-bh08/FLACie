@@ -23,7 +23,7 @@
 @inject ArtistResolveService ArtistFixes
 @inject WebCatalog FixCatalog
 <PageTitle>Server admin · FLACie</PageTitle>
-<div class="sp">
+<div class="sp @(allowed ? "sp-cols" : "")">
 <header class="page-head"><h1>Server <i>admin</i></h1><p class="sub">Only for whoever runs this server: what is playing, who is on, what the server is doing, and the server's settings</p></header>
 @if (allowed && Downloads.Allowed) { <nav class="subnav" aria-label="Server admin sections"><a href="/downloads">Downloads</a><a href="/dashboard#allow-downloads">Allow downloads</a><a href="/dashboard#downloads">Download services</a><a href="/dashboard#opensources">Open sources</a><a href="/dashboard#background">Background downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/dashboard#dj">AI DJ</a><a href="/downloads">Download log</a></nav> }
 else if (allowed) { <nav class="subnav" aria-label="Server admin sections"><a href="/dashboard#allow-downloads">Downloads</a><a href="/dashboard#storage">Storage</a><a href="/dashboard#notify">Notifications</a><a href="/dashboard#dj">AI DJ</a></nav> }

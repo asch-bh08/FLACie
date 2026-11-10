@@ -3,7 +3,7 @@
 @implements IDisposable
 @inherits UserComponent
 <PageTitle>Devices · FLACie</PageTitle>
-<div class="sp">
+<div class="sp @(Live is not null ? "sp-devices" : "")">
 <header class="page-head"><h1><i>Devices</i></h1></header>
 
 @if (Live is not { } live)

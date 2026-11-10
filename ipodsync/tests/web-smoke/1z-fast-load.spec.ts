@@ -67,3 +67,29 @@ test('while a song plays, a page of songs is not sent to the browser again on ev
   console.log(`page updates while playing: ${Math.round(bytes / 6 / 1024)} KB/s`);
   expect(bytes / 6).toBeLessThan(9_000);
 });
+
+test('a song starting restyles the play buttons, not the whole page', async ({ page, browser }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page);
+  await page.goto('/albums');
+  await expect(page.locator('.grid .card').first()).toBeVisible();
+  await page.waitForTimeout(1000);
+  const all = await page.evaluate(() => document.getElementsByTagName('*').length);
+  // the spinner on the play buttons comes and goes as each song starts (html.buffering), and the player bar's icon changes with it
+  await browser.startTracing(page, { categories: ['devtools.timeline'] });
+  for (let i = 0; i < 4; i++) {
+    await page.evaluate(() => {
+      document.documentElement.classList.toggle('buffering');
+      const b = document.querySelector('.player .play') || document.body;
+      b.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')).remove();
+      document.body.offsetHeight;
+    });
+    await page.waitForTimeout(100);
+  }
+  const events = JSON.parse((await browser.stopTracing()).toString()).traceEvents;
+  const restyled = events.filter((e: any) => e.name === 'UpdateLayoutTree' && e.ph === 'X').map((e: any) => e.args?.elementCount ?? 0);
+  console.log(`elements on the page: ${all}; restyled: ${restyled.join(', ')}`);
+  expect(restyled.length).toBeGreaterThan(0);
+  // before, every element was restyled each time (:has() rules and a rule ending in ".ic" made the browser look at the whole page)
+  for (const n of restyled) expect(n).toBeLessThan(all / 10);
+});

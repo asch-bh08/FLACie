@@ -19,10 +19,10 @@
 .ipod-gear svg { display: none; }
 /* the Desk: its notebook, cards and CDs are laid out round two small round buttons in the corners, so there they stay small round icons
    (the gear for the panel); an unseen ring round each keeps the tap target a thumb's size */
-.ipod-stage:has(> .desk) :is(.ipod-gear, .ipod-exit) { width: 36px; min-width: 0; height: 36px; padding: 0; }
-.ipod-stage:has(> .desk) :is(.ipod-gear, .ipod-exit) > span { display: none; }
-.ipod-stage:has(> .desk) .ipod-gear svg { display: block; }
-.ipod-stage:has(> .desk) :is(.ipod-gear, .ipod-exit)::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
+.ipod-stage[data-look="desk"] :is(.ipod-gear, .ipod-exit) { width: 36px; min-width: 0; height: 36px; padding: 0; }
+.ipod-stage[data-look="desk"] :is(.ipod-gear, .ipod-exit) > span { display: none; }
+.ipod-stage[data-look="desk"] .ipod-gear svg { display: block; }
+.ipod-stage[data-look="desk"] :is(.ipod-gear, .ipod-exit)::before { content: ""; position: absolute; inset: -4px; border-radius: 50%; }
 
 /* ---- the panel: the theme's surface, solid (nothing shows through the words), sentences in the sans ---- */
 .ipod-dock {

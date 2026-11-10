@@ -6,7 +6,7 @@
 @inject IConfiguration Conf
 @inject DownloadPolicy Policy
 <PageTitle>Settings · FLACie</PageTitle>
-<div class="sp">
+<div class="sp sp-cols">
 <header class="page-head"><h1><i>Settings</i></h1></header>
 <nav class="subnav" aria-label="Settings sections">
     <a href="/settings#playback">Playback</a>@if (Player.Dj is not null) { <a href="/settings#dj">DJ</a> }<a href="/settings#look">Appearance</a><a href="/settings#sources">Library</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a>@if (Policy.Allowed) { <a href="/downloads">Download log</a> }@if (admin) { <a href="/dashboard">Server admin</a> }

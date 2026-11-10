@@ -34,9 +34,12 @@ import java.util.concurrent.ThreadFactory
  * and decodes in the background, then calls [onLoaded] so the UI redraws.
  */
 class ArtCache(private val dir: File) {
-    private val mem = object : LruCache<String, Bitmap>(maxOf(24 * 1024 * 1024L, Runtime.getRuntime().maxMemory() / 6).toInt()) {
-        override fun sizeOf(k: String, v: Bitmap) = v.byteCount
+    /** Decoded covers, sized by bytes ([ArtBudget.lruBytes]; the app sets it from the memory class with [memoryBudget]). */
+    private val mem = object : LruCache<String, Bitmap>(ArtBudget.lruBytes(256)) {
+        override fun sizeOf(k: String, v: Bitmap) = v.allocationByteCount
     }
+    /** Sets the bytes the decoded covers may use (b126: kept-ready covers had filled a sixth of the largest heap, 42 MB and more). */
+    fun memoryBudget(bytes: Int) { synchronized(this) { mem.resize(bytes) } }
     private val missing = HashSet<String>()
     private val pending = HashSet<String>()
     /** Decode and download threads run at background priority: on a low-power SoC they must never compete with the UI and render threads. */

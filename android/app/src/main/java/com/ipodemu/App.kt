@@ -47,6 +47,8 @@ class App : Application() {
         // the old cover folder (covers changed in Jellyfin showed stale): covers are fetched again, into a new one; deleted off the main thread
         bg.launch { File(filesDir, "art").deleteRecursively() }
         art = ArtCache(File(filesDir, "art2"))
+        // the decoded covers get a share of the memory class, by bytes (b126: 142 MB at a warm start with Home's covers kept ready)
+        art.memoryBudget(com.ipodemu.library.ArtBudget.lruBytes((getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager).memoryClass))
         // row thumbnails: a 44 dp row is 66 px at 240 dpi, so 80 px (1/4 of the 320 px file) is plenty and decodes in about half the time
         art.thumbSample = if (resources.displayMetrics.density <= 1.6f) 4 else 3
         // Jellyfin row covers are 240 px files: half size is sharp on ordinary screens, full size on dense ones

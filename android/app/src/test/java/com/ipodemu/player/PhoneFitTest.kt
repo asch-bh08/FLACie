@@ -101,4 +101,21 @@ class PhoneFitTest {
             assertTrue(320f - 172f - (if (p.dj) 48f else 0f) - (if (p.mic) 40f else 0f) >= MiniFit.MIN_TITLE)
         }
     }
+
+    // ---- Home ----
+
+    @Test fun homeHeroIsAsBeforeOnAnOrdinaryPhone() {
+        assertEquals(HomeFit.Hero(300f, 40f), HomeFit.hero(412f, 915f, 1f))
+        assertEquals(HomeFit.Hero(300f, 40f), HomeFit.hero(320f, 568f, 1f))
+    }
+
+    @Test fun homeHeroLeavesRoomOnItsSideAndTheHeadlineFitsIt() {
+        for ((w, h) in listOf(568f to 320f, 640f to 360f, 915f to 412f, 320f to 568f, 360f to 640f)) for (fs in scales) {
+            val p = HomeFit.hero(w, h, fs)
+            val at = "${w}x$h at $fs: $p"
+            if (w > h) assertTrue(at, p.height <= h * .6f + .5f)
+            assertTrue(at, HomeFit.TOP + fitLine(11f, fs) + 6f + 2 * p.headlineSp * 1.05f * fs + 8f <= p.height + .5f)
+            assertTrue(at, p.headlineSp * fs <= 52f || p.headlineSp == 24f)
+        }
+    }
 }

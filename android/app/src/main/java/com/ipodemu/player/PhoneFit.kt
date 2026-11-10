@@ -143,3 +143,23 @@ object MiniFit {
         return Plan(height, 14f, tag, false, showDj, showMic, false)
     }
 }
+
+/**
+ * Home's hero (the last cover under the search pill, the greeting and the serif headline). Upright it is 300 dp; on its side it is at most 60% of
+ * the height, so the chips and the first shelf show under it. The headline (40 sp) is smaller when its two lines would not fit the hero over the
+ * search pill and the greeting, and is kept under 52 sp as drawn at big text sizes.
+ */
+object HomeFit {
+    data class Hero(val height: Float, val headlineSp: Float)
+
+    const val TOP = 6f + 48f
+
+    fun hero(width: Float, height: Float, fontScale: Float = 1f): Hero {
+        val fs = fontScale.coerceAtLeast(.85f)
+        val h = if (width > height) (height * .6f).coerceIn(180f, 300f) else 300f
+        var sp = 40f
+        fun need() = TOP + fitLine(11f, fs) + 6f + 2 * sp * 1.05f * fs + 8f
+        while (sp > 24f && (need() > h || sp * fs > 52f)) sp -= 2f
+        return Hero(h, sp)
+    }
+}

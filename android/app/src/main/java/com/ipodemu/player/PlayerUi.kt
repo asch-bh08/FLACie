@@ -790,8 +790,11 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
     val sc = LocalScheme.current
     val cols = rememberCoverColours(last?.artKey)
     val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    // on its side the hero is shorter (it filled a landscape phone), and the headline is smaller when its two lines would not fit (HomeFit)
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val hero = remember(cfg.screenWidthDp, cfg.screenHeightDp, cfg.fontScale) { HomeFit.hero(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), cfg.fontScale) }
     Column {
-        Box(Modifier.fillMaxWidth().height(300.dp)) {
+        Box(Modifier.fillMaxWidth().height(hero.height.dp)) {
             if (last?.artKey != null) {
                 ArtImage(last.artKey, Modifier.fillMaxSize(), corner = 0.dp)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
@@ -812,10 +815,12 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
             Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp)) {
                 val who = remember { app.prefs.accountUserName.ifBlank { if (app.prefs.accountKind == "nas") app.prefs.nasUsername else "" } }
                 MonoLabel(HomeWords.greeting(hour) + if (who.isNotBlank()) ", $who" else "", color = sc.onBg.copy(alpha = .75f))
-                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = if (last != null) 4 else 1)
+                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp, bottom = 8.dp), size = hero.headlineSp, maxLines = 2, italicWords = if (last != null) 4 else 1)
             }
         }
-        Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Shuffle all and Resume wrap onto two lines rather than run off a narrow phone at big text (they needed about 350 dp at font scale 1.5)
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             AccentPill("Shuffle all", Glyph.SHUFFLE, cols, onShuffleAll)
             if (last != null) TonePill("Resume", Glyph.PLAY, cols, {
                 // the song still loaded opens the player (resuming it); one from history starts again

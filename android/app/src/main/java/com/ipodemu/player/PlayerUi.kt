@@ -2239,7 +2239,8 @@ private fun AlbumCard(a: WebCatalog.Album, owned: Boolean, status: DownloadStatu
         .semantics { contentDescription = "${a.cleanTitle}, ${a.kind} by ${a.artist}. " + if (owned) "In your library" else if (busy) status!!.message else "Download" }) {
         Box {
             RemoteArtImage(a.artUrl, Modifier.size(132.dp), corner = 10.dp)
-            Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).height(32.dp).widthIn(min = 32.dp).clip(RoundedCornerShape(50))
+            // 40 dp (it was 32): the one place on the card that downloads, so easy to hit and hard to miss for the cover's own tap
+            Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).height(40.dp).widthIn(min = 40.dp).clip(RoundedCornerShape(50))
                 .background(if (owned || busy) Color(0xCC000000) else sc.accent).clickable(onClick = { if (owned) onOpen() else if (!busy) onDownload() })
                 .semantics { contentDescription = if (owned) "Open ${a.cleanTitle}" else "Download ${a.cleanTitle}" }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                 when {

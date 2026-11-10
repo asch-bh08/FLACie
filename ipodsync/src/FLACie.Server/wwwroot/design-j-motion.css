@@ -49,6 +49,10 @@
 /* the Sound pop-up (shown by hovering) springs too */
 @media (min-width: 761px) { .ls-sound-pop { transition-timing-function: var(--m-spring); } }
 
+/* ---- the big tile grids (Albums, Artists) draw only the rows near the screen (flacie.js tileGrid): their tiles flow in when the page fills, as every grid's
+   do; rows drawn later, as the page scrolls or a filter changes, are just there, as when every tile was drawn at once ---- */
+.grid.virtual.settled > .card { animation: none; }
+
 /* ---- tabs: the panel's content (Up next, Lyrics, Info) cross-fades when you change tab; Settings' and Search's sections too ---- */
 @keyframes m-fade { from { opacity: 0; transform: translateY(4px); } }
 .ls-panel > * { animation: m-fade .24s var(--m-ease) backwards; }

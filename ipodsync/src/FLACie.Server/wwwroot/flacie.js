@@ -1406,6 +1406,49 @@ window.flacie = (() => {
       removeEventListener("pointermove", ipod.move); removeEventListener("pointerup", ipod.up); removeEventListener("pointercancel", ipod.up);
       clearInterval(ipod.timer); clearTimeout(ipod.hold); if (ipod.coast) cancelAnimationFrame(ipod.coast); try { ipod.ctx && ipod.ctx.close(); } catch { } ipod = null;
     },
+    // a grid of tiles that draws only the rows on or near the screen (Albums, Artists: TileGridBase.cs). Tells the server the grid's columns (the page's
+    // own layout decides them, as many as fit), the distance from one row's top to the next, and the rows to draw: the screen's rows and one screen more
+    // above and below, in steps so a scroll asks again only every few rows. The rows not drawn are the grid's padding, the height they would have.
+    tileGrid(el, ref) {
+      if (!el || el.__tileGrid) return;
+      let sent = "", raf = 0, settle = 0, dead = false;
+      const ask = () => { if (!raf && !dead) raf = requestAnimationFrame(measure); };
+      const ro = new ResizeObserver(ask), mo = new MutationObserver(() => { ask(); settleSoon(); });
+      const stop = () => {
+        dead = true; el.__tileGrid = null;
+        document.removeEventListener("scroll", ask, true); removeEventListener("resize", ask); ro.disconnect(); mo.disconnect(); clearTimeout(settle);
+      };
+      // tiles flow in when the page's grid first fills (design-j.css); rows drawn later, as the page scrolls, are just there, as when every tile was drawn
+      const settleSoon = () => { if (!settle && el.children.length) settle = setTimeout(() => el.classList.add("settled"), 900); };
+      function measure() {
+        raf = 0;
+        if (dead) return;
+        if (!el.isConnected) return stop();
+        const cs = getComputedStyle(el), tiles = el.children;
+        const cols = cs.gridTemplateColumns.split(" ").filter(Boolean).length || 1;
+        if (!tiles.length) return;
+        let pitch = 0;
+        if (tiles.length > cols) pitch = tiles[cols].getBoundingClientRect().top - tiles[0].getBoundingClientRect().top;
+        else { const t = tiles[0], ts = getComputedStyle(t); pitch = t.getBoundingClientRect().height + parseFloat(ts.marginTop) + parseFloat(ts.marginBottom) + (parseFloat(cs.rowGap) || 0); }
+        pitch = Math.round(pitch * 100) / 100;
+        if (!(pitch > 0)) return;
+        // row 0's top is the grid's top: the padding above stands in for the rows not drawn
+        const top = el.getBoundingClientRect().top, screen = Math.max(2, Math.ceil(innerHeight / pitch)), step = Math.max(1, screen >> 1);
+        const first = Math.floor(-top / pitch), last = Math.ceil((innerHeight - top) / pitch);
+        const from = Math.max(0, Math.floor((first - screen) / step) * step), to = Math.max(from + screen, Math.ceil((last + screen) / step) * step);
+        const key = cols + "|" + pitch + "|" + from + "|" + to;
+        if (key === sent) return;
+        sent = key;
+        ref.invokeMethodAsync("Seen", cols, pitch, from, to).catch(() => { if (!el.isConnected) stop(); });
+      }
+      el.__tileGrid = { stop };
+      document.addEventListener("scroll", ask, { capture: true, passive: true });
+      addEventListener("resize", ask);
+      ro.observe(el);
+      mo.observe(el, { childList: true });
+      settleSoon();
+      ask();
+    },
     // a song's menu is a short scrollable list: bring its last part (the Hi-Res question) into view
     menuToEnd() { document.querySelectorAll(".menu").forEach(m => { m.scrollTop = m.scrollHeight; }); },
     // a popup that closes when you click or tap anywhere outside it (selector = the popup's wrapper), or press Escape

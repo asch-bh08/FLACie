@@ -8,12 +8,7 @@
 <ExploreBar Tab="Artists" Changed="Refresh" />
 <LibraryStatus />
 @if (list.Count == 0 && Lib.Artists.Count > 0) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
-<div class="grid">
-    @foreach (var a in list)
-    {
-        <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub">@a.Tracks.Count @(a.Tracks.Count == 1 ? "song" : "songs")</span></a>
-    }
-</div>
+<ArtistGrid Artists="list" />
 @code {
     List<Group> list = [];
     Library? built; int builtVersion = -1;

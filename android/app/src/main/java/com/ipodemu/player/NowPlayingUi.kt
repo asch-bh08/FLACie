@@ -3,6 +3,8 @@ package com.ipodemu.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -61,8 +63,11 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
     val pos by rememberPosition(app.player, snap.playing)
     val dur = app.player.durationMs
     val frac = if (dur > 0) (pos.toFloat() / dur).coerceIn(0f, 1f) else 0f
+    // big text: the bar grows a little and the download line goes; a narrow phone keeps the title's room before the DJ and its mic (MiniFit)
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val fit = MiniFit.classic(cfg.screenWidthDp.toFloat(), cfg.fontScale, snap.dj != null)
     Box(
-        Modifier.fillMaxWidth().navigationBarsPadding().height(56.dp)
+        Modifier.fillMaxWidth().navigationBarsPadding().height(fit.height.dp)
             .background(Brush.verticalGradient(listOf(Color(0x40FFFFFF), Color(0x1AFFFFFF))))
             .trackSwipe({ app.player.prev() }, { app.player.next() })
             .clickable { nav.coverFrom = null; nav.nowPlaying = true }
@@ -77,16 +82,15 @@ fun MiniPlayer(snap: PlayerSnap, nav: PlayerNav) {
             Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
                 Txt(t.title, size = 14f, weight = FontWeight.SemiBold)
                 DjCaptionOr(snap.djCaption) { Txt(t.artist.ifEmpty { t.album }, size = 12f, color = sc.onBgDim) }
-                DownloadTagLine(t, size = 10.5f)
+                if (fit.tag) DownloadTagLine(t, size = 10.5f)
             }
+            // the round buttons stay small in the slim bar, but each takes a 48 dp touch
             snap.dj?.let { on ->
-                GlossButton({ djTap(app) }, label = djLabel(on), size = 34.dp, primary = on) { GlyphIcon(Glyph.DJ, Modifier.size(17.dp), Color.White) }
-                Box(Modifier.size(6.dp))
-                if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) { DjMicButton(34.dp, glass = Color.Transparent); Box(Modifier.size(6.dp)) }
+                if (fit.dj) GlossButton({ djTap(app) }, label = djLabel(on), size = 34.dp, primary = on, touch = 48.dp) { GlyphIcon(Glyph.DJ, Modifier.size(17.dp), Color.White) }
+                if (fit.mic) DjMicButton(34.dp, glass = Color.Transparent, touch = 48.dp)
             }
-            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp).bumpOnChange(snap.playing), Color.White) }
-            Box(Modifier.size(6.dp))
-            GlossButton({ app.player.next() }, label = "Next", size = 34.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
+            GlossButton({ app.player.toggle() }, label = if (snap.playing) "Pause" else "Play", size = 38.dp, primary = true, touch = 48.dp) { GlyphIcon(if (snap.playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(20.dp).bumpOnChange(snap.playing), Color.White) }
+            GlossButton({ app.player.next() }, label = "Next", size = 34.dp, touch = 48.dp) { GlyphIcon(Glyph.NEXT, Modifier.size(17.dp), Color.White) }
         }
         Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(2.dp).background(sc.onBg.copy(alpha = .14f))) {
             Box(Modifier.fillMaxWidth(frac).fillMaxHeight().background(sc.accent))
@@ -165,19 +169,26 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
         if (LocalStyle.current.modern) { LivingSleeveBody(snap, nav); return@Box }
         Box(Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 6.dp).size(width = 38.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(sc.onBg.copy(alpha = .3f)))
         BoxWithConstraints(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
-            val boxH = maxHeight
-            val twoCol = maxWidth > maxHeight * 0.8f
-            if (twoCol) {
+            // what fits this screen and this text size (ClassicFit, unit tested): upright the cover takes what the rest leaves, and the album line, the
+            // download line, the title's size and the gaps step aside before it gets small; on its side the header moves over the cover when the
+            // controls' column is short, and only a split-screen sliver scrolls
+            val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+            val buttons = if (snap.dj != null) 6 else 4
+            val fit = remember(maxWidth, maxHeight, fontScale, buttons) { ClassicFit.plan(maxWidth.value, maxHeight.value, fontScale, buttons) }
+            if (fit.twoCol) {
                 Row(Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(0.52f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        NpArt(t.artKey, Modifier.widthIn(max = boxH - 24.dp))
+                    Column(Modifier.weight(0.52f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        if (fit.headerOverArt) NpHeader(nav)
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            NpArt(t.artKey, Modifier.widthIn(max = fit.art.dp))
+                        }
                     }
-                    Column(Modifier.weight(0.48f).fillMaxHeight().navigationBarsPadding(), verticalArrangement = Arrangement.SpaceEvenly) {
-                        NpHeader(nav)
-                        NpInfo(snap, center = false)
+                    Column(Modifier.weight(0.48f).fillMaxHeight().then(if (fit.scroll) Modifier.verticalScroll(rememberScrollState()) else Modifier), verticalArrangement = Arrangement.SpaceEvenly) {
+                        if (!fit.headerOverArt) NpHeader(nav)
+                        NpInfo(snap, center = false, titleSp = fit.titleSp, album = fit.album, tag = fit.tag)
                         NpSeek(snap)
                         NpTransport(snap)
-                        NpExtras(snap, nav)
+                        NpExtras(snap, nav, fit.extras)
                     }
                 }
             } else {
@@ -186,13 +197,13 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
                     Box(Modifier.weight(1f).fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
                         NpArt(t.artKey, Modifier.widthIn(max = 420.dp))
                     }
-                    NpInfo(snap, center = true)
-                    Box(Modifier.height(6.dp))
+                    NpInfo(snap, center = true, titleSp = fit.titleSp, album = fit.album, tag = fit.tag)
+                    Box(Modifier.height(if (fit.tight) 2.dp else 6.dp))
                     NpSeek(snap)
                     NpTransport(snap)
-                    Box(Modifier.height(10.dp))
-                    NpExtras(snap, nav)
-                    Box(Modifier.height(6.dp))
+                    Box(Modifier.height(if (fit.tight) 4.dp else 10.dp))
+                    NpExtras(snap, nav, fit.extras)
+                    Box(Modifier.height(if (fit.tight) 2.dp else 6.dp))
                 }
             }
         }
@@ -203,9 +214,10 @@ fun NowPlayingScreen(snap: PlayerSnap, nav: PlayerNav) {
 private fun NpHeader(nav: PlayerNav) {
     val sc = LocalScheme.current
     Row(Modifier.fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlossButton({ nav.nowPlaying = false }, label = "Close", size = 36.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
+        // 44 dp: the header's two buttons were 36 dp, small to hit with a thumb
+        GlossButton({ nav.nowPlaying = false }, label = "Close", size = 44.dp) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp), Color.White) }
         Txt("Now Playing", Modifier.weight(1f), size = 16f, weight = FontWeight.Bold, align = TextAlign.Center)
-        GlossButton({ nav.openQueueFromPlayer() }, label = "Up next", size = 36.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
+        GlossButton({ nav.openQueueFromPlayer() }, label = "Up next", size = 44.dp) { GlyphIcon(Glyph.QUEUE, Modifier.size(22.dp), Color.White) }
     }
 }
 
@@ -219,16 +231,16 @@ private fun NpArt(key: String?, modifier: Modifier) {
 }
 
 @Composable
-private fun NpInfo(snap: PlayerSnap, center: Boolean) {
+private fun NpInfo(snap: PlayerSnap, center: Boolean, titleSp: Float = 24f, album: Boolean = true, tag: Boolean = true) {
     val sc = LocalScheme.current
     val t = snap.track ?: return
     val a = if (center) TextAlign.Center else TextAlign.Start
     val app = LocalApp.current
     Column(Modifier.fillMaxWidth().trackSwipe({ app.player.prev() }, { app.player.next() }), horizontalAlignment = if (center) Alignment.CenterHorizontally else Alignment.Start) {
-        Txt(t.title, Modifier.fillMaxWidth(), size = 24f, weight = FontWeight.Bold, align = a)
+        Txt(t.title, Modifier.fillMaxWidth(), size = titleSp, weight = FontWeight.Bold, align = a)
         Txt(t.artist.ifEmpty { "Unknown Artist" }, Modifier.fillMaxWidth().padding(top = 2.dp), size = 17f, color = sc.accentLight, align = a)
-        DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a, showNew = false)
-        if (t.album.isNotEmpty()) Txt(t.album, Modifier.fillMaxWidth(), size = 14f, color = sc.onBgDim, align = a)
+        if (tag) DownloadTagLine(t, Modifier.padding(top = 2.dp), size = 12.5f, align = a, showNew = false)
+        if (album && t.album.isNotEmpty()) Txt(t.album, Modifier.fillMaxWidth(), size = 14f, color = sc.onBgDim, align = a)
     }
 }
 
@@ -275,7 +287,7 @@ private fun NpTransport(snap: PlayerSnap) {
 }
 
 @Composable
-private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
+private fun NpExtras(snap: PlayerSnap, nav: PlayerNav, size: Float = 44f) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val t = snap.track ?: return
@@ -283,15 +295,17 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav) {
     val fav = app.userData.isFavorite(t)
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.userData.toggleFavorite(t) }, label = if (fav) "Unfavorite" else "Favorite", size = 40.dp, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = 44.dp) { GlyphIcon(Glyph.LIST, Modifier.size(22.dp), Color.White) }
-            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = 44.dp, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(22.dp), Color.White) }
+            // one size for the row (ClassicFit.extrasSize): six of them fit a phone on its side; the favourite was 40 dp, now as big as the rest
+            val b = size.dp; val ic = (size * .5f).dp
+            GlossButton({ app.userData.toggleFavorite(t) }, label = if (fav) "Unfavorite" else "Favorite", size = b, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(ic), Color.White) }
+            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = b) { GlyphIcon(Glyph.LIST, Modifier.size(ic), Color.White) }
+            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = b, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(ic), Color.White) }
             // the AI DJ for this queue (lit when on); a long press opens its settings. Not there without FLACie Web
             snap.dj?.let { on ->
-                GlossButton({ djTap(app) }, label = djLabel(on), size = 44.dp, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(22.dp), Color.White) }
-                DjMicButton(44.dp)
+                GlossButton({ djTap(app) }, label = djLabel(on), size = b, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(ic), Color.White) }
+                DjMicButton(b)
             }
-            GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = 44.dp) { GlyphIcon(Glyph.MORE, Modifier.size(22.dp), Color.White) }
+            GlossButton({ openTrackSheet(app, nav, t) }, label = "More", size = b) { GlyphIcon(Glyph.MORE, Modifier.size(ic), Color.White) }
         }
     }
 }
@@ -352,8 +366,15 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
     val cols = rememberCoverColours(t.artKey)
     val tone = Color(cols.tone); val main = Color(cols.main)
     val shape = RoundedCornerShape(18.dp)
+    // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
+    val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
+    // what fits (MiniFit, unit tested): at big text the download line goes and the title is smaller before the bar grows a little; on a narrow
+    // phone the title keeps its room before the mic, then Devices, then the DJ (all three are on Now Playing too). The rail takes 80 dp on its side
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val rowW = cfg.screenWidthDp - (if (cfg.screenWidthDp >= 600 || cfg.screenWidthDp >= cfg.screenHeightDp) 80 else 0)
+    val fit = MiniFit.modern(rowW.toFloat(), cfg.fontScale, short, snap.dj != null, !app.ui.guest && hasOthers)
     Box(
-        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(if (short) 58.dp else 66.dp)
+        Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = if (short) 4.dp else 6.dp, bottom = if (short) 4.dp else 10.dp).height(fit.height.dp)
             .coverShadow(18.dp, 8.dp).clip(shape)
             .background(Brush.horizontalGradient(listOf(tone, Palette.surface))).border(1.dp, Color(cols.toneFg).copy(alpha = .14f), shape)
             .focusRing(shape)
@@ -362,22 +383,20 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
         Row(Modifier.fillMaxSize().padding(start = 8.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             ArtImage(t.artKey, Modifier.size(if (short) 44.dp else 50.dp).sharedCover(nav.coverFrom == null).popIn(t.path, 0.7f), thumb = true, corner = 10.dp)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                SerifTitle(t.title, size = 20f)
+                SerifTitle(t.title, size = fit.titleSp)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
                     DjCaptionOr(snap.djCaption, Modifier.weight(1f, fill = false)) { Txt(t.artist.ifEmpty { t.album }, size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBgDim) }
-                    if (!short) FormatChip(remember(t.path) { trackExt(t) })
+                    if (fit.chip) FormatChip(remember(t.path) { trackExt(t) })
                 }
-                DownloadTagLine(t, size = 11f)
+                if (fit.tag) DownloadTagLine(t, size = 11f)
             }
-            // instant way to the Devices screen (hand this song to another device, or take over theirs) while other devices are signed in
-            val hasOthers by remember { androidx.compose.runtime.derivedStateOf { app.connect.sessions.any { !it.isSelf } } }
-            if (!app.ui.guest && hasOthers) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
+            if (fit.devices) IconAction(Glyph.DEVICES, "Devices", { app.ui.devicesOpen = true }, tint = sc.accent)
             // talk to the DJ from anywhere, as the web's player bar (not there without FLACie Web)
             // the DJ for this queue and the mic to talk to it, together before play (the web's bar has them together beside the heart). On a narrow
-            // phone (under 380 dp) only the DJ, so the title keeps its room: the mic is on Now Playing
+            // phone only the DJ (or neither), so the title keeps its room: the mic is on Now Playing
             snap.dj?.let { on ->
-                IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f, dot = on)
-                if (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp >= 380) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
+                if (fit.dj) IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f, dot = on)
+                if (fit.mic) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
             }
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 Box(Modifier.size(42.dp).clip(CircleShape).background(main)) {

@@ -251,7 +251,7 @@ private fun SleevePane(id: String, snap: PlayerSnap, nav: PlayerNav, t: Track, p
         Modifier.fillMaxSize().drawBehind { drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .6f)) }
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)).padding(horizontal = 18.dp),
     ) {
-        Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).semantics(mergeDescendants = true) { heading() }) {
                 SText(remember(title) { serifTitle(title) }, family = SleeveFonts.serif, size = 30f, weight = FontWeight.Normal)
                 SText(listOf(t.title, t.artist).filter { it.isNotEmpty() }.joinToString(" · "), size = 13f, color = InkDim)
@@ -708,7 +708,8 @@ private fun SleeveTime(pos: State<Long>, dur: State<Long>, scrub: State<Float>) 
 private fun SleeveCard(id: String, snap: PlayerSnap, t: Track, p: SleevePalette, size: Modifier, onClose: () -> Unit) {
     val shape = RoundedCornerShape(28.dp)
     Column(size.clip(shape).background(Color(0x38000000)).border(1.dp, Color(0x1FF4EFE6), shape).padding(start = 18.dp, end = 8.dp, top = 6.dp)) {
-        Row(Modifier.fillMaxWidth().height(52.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically) {
+        // at least 52 dp, taller at big text (the serif name and the song line were cut at font scale 1.5)
+        Row(Modifier.fillMaxWidth().heightIn(min = 52.dp).semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically) {
             val title = if (id == "lyrics") "Lyrics" else "Song info"
             Column(Modifier.weight(1f)) {
                 SText(remember(title) { serifTitle(title) }, family = SleeveFonts.serif, size = 24f, weight = FontWeight.Normal)
@@ -914,7 +915,8 @@ private fun SleeveLyrics(t: Track, playing: Boolean, big: Boolean = false) {
                             .then(if (l.synced) Modifier.clickable(onClickLabel = "Play from this line") { app.player.seekTo(line.timeMs) } else Modifier)
                             .semantics { if (cur) stateDescription = "Now singing" }
                             .padding(vertical = 6.dp),
-                        size = if (big) 30f else if (l.synced) 24f else 20f, weight = if (l.synced) FontWeight.Bold else FontWeight.SemiBold, color = color, maxLines = 6, lineHeight = 1.2f,
+                        // kept under 40 / 32 sp as drawn at big text, so a line is more than eight letters (LyricsFit)
+                        size = LyricsFit.sp(big, l.synced, LocalDensity.current.fontScale), weight = if (l.synced) FontWeight.Bold else FontWeight.SemiBold, color = color, maxLines = 8, lineHeight = 1.2f,
                     )
                 }
                 item { Txt("Lyrics via ${l.source}", Modifier.padding(top = 12.dp), size = 12f, color = InkFaint) }
@@ -1046,7 +1048,7 @@ private fun MoreTile(label: String, g: Glyph, p: SleevePalette, on: Boolean, mod
     val pressed by src.collectIsPressedAsState()
     val s by animateFloatAsState(if (pressed) .94f else 1f, androidx.compose.animation.core.spring(.6f, 600f), label = "tile")
     Column(
-        modifier.height(84.dp).graphicsLayer { scaleX = s; scaleY = s }.clip(RoundedCornerShape(18.dp))
+        modifier.heightIn(min = 84.dp).graphicsLayer { scaleX = s; scaleY = s }.clip(RoundedCornerShape(18.dp))
             .drawBehind { drawRect(if (on) p.main.value else p.tone.value) }
             .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label; if (g == Glyph.HEART || g == Glyph.HEART_FILLED) stateDescription = if (on) "On" else "Off" }
             .clickable(src, null, onClick = onClick).padding(6.dp),
@@ -1064,14 +1066,17 @@ private fun MoreTile(label: String, g: Glyph, p: SleevePalette, on: Boolean, mod
 private fun MoreGroup(name: String, rows: List<MoreRow>) {
     if (rows.isEmpty()) return
     SText(name.uppercase(), Modifier.padding(start = 24.dp, top = 18.dp, bottom = 4.dp).semantics { heading() }, family = SleeveFonts.mono, size = 11f, color = InkDim, spacing = .14f)
+    // the value leaves the label its room on a narrow phone at big text (SheetFit); the rows grow rather than cut a label
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val valueMax = SheetFit.valueMax(minOf(cfg.screenWidthDp, 640).toFloat(), cfg.fontScale).dp
     for (r in rows) {
         Row(
-            Modifier.fillMaxWidth().height(56.dp).semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = r.onClick).padding(horizontal = 24.dp),
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = r.onClick).padding(horizontal = 24.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Box(Modifier.size(24.dp), contentAlignment = Alignment.Center) { r.icon(Ink) }
-            SText(r.label, Modifier.weight(1f), size = 16f, weight = FontWeight.Medium)
-            if (r.value != null) SText(r.value, Modifier.widthIn(max = 160.dp), family = SleeveFonts.mono, size = 13f, color = InkDim)
+            SText(r.label, Modifier.weight(1f), size = 16f, weight = FontWeight.Medium, maxLines = 2)
+            if (r.value != null) SText(r.value, Modifier.widthIn(max = valueMax), family = SleeveFonts.mono, size = 13f, color = InkDim)
             if (r.opens) GlyphIcon(Glyph.CHEVRON, Modifier.size(16.dp), InkFaint)
         }
     }
@@ -1154,11 +1159,13 @@ private fun DesignSheet(spec: SheetSpec?, p: SleevePalette, onDismiss: () -> Uni
                         },
                     contentAlignment = Alignment.Center,
                 ) { Box(Modifier.size(40.dp, 4.dp).clip(CircleShape).background(InkFaint)) }
-                Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
-                    SText(remember(s.title) { serifTitle(s.title) }, family = SleeveFonts.serif, size = 28f, weight = FontWeight.Normal, maxLines = 2)
-                    if (!s.subtitle.isNullOrEmpty()) SText(s.subtitle, size = 14f, color = InkDim, maxLines = 3)
-                }
+                // the title and the subtitle scroll with the rows (a long subtitle was cut at three lines, and on a phone on its side at big text the
+                // fixed header left the rows no room)
                 Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
+                    Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
+                        SText(remember(s.title) { serifTitle(s.title) }, family = SleeveFonts.serif, size = 28f, weight = FontWeight.Normal, maxLines = 3)
+                        if (!s.subtitle.isNullOrEmpty()) SText(s.subtitle, size = 14f, color = InkDim, maxLines = 8)
+                    }
                     if (s.items.isEmpty()) SText("One moment\u2026", Modifier.padding(24.dp), size = 15f, color = InkDim)
                     var group: String? = null
                     for (item in s.items) {

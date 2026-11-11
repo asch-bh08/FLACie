@@ -408,7 +408,10 @@ fun TrackRow(
     // built once per (track, favourite, settings): stable objects keep the row's pointer handlers from restarting
     val hw = LocalHardware.current   // the faithful device view has no swipe shortcuts
     // a narrow screen (a phone, or the 480 dp wide RG Rotate with its 80 dp rail): the badges would leave the title room for 7 letters, so the source badge goes and Hi-Res moves under the title
-    val narrow = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp < 520
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val narrow = cfg.screenWidthDp < 520
+    // big text on a narrow phone: the time steps aside so the title keeps its room (ListFit; it is in the song's menu and on Now Playing)
+    val showTime = ListFit.showTime(cfg.screenWidthDp.toFloat(), cfg.fontScale)
     // a download tag (running, recently finished, failed, or "New download" for a Cloud song past the hour) takes a third line under the artist;
     // the "New download" marker is left to the row's own badge where that is shown
     val badgeShown = !narrow && Tweaks.badges && app.library.mixedSources
@@ -447,7 +450,7 @@ fun TrackRow(
                 if (hiRes && !narrow) HiResBadge()
                 if (!narrow) SourceBadge(t.source)
                 // times are DM Mono in design I, so the columns of digits line up
-                if (t.durationMs > 0) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
+                if (t.durationMs > 0 && showTime) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
                 Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
@@ -795,8 +798,11 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
     val sc = LocalScheme.current
     val cols = rememberCoverColours(last?.artKey)
     val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    // on its side the hero is shorter (it filled a landscape phone), and the headline is smaller when its two lines would not fit (HomeFit)
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val hero = remember(cfg.screenWidthDp, cfg.screenHeightDp, cfg.fontScale) { HomeFit.hero(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), cfg.fontScale) }
     Column {
-        Box(Modifier.fillMaxWidth().height(300.dp)) {
+        Box(Modifier.fillMaxWidth().height(hero.height.dp)) {
             if (last?.artKey != null) {
                 ArtImage(last.artKey, Modifier.fillMaxSize(), corner = 0.dp)
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
@@ -817,10 +823,12 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
             Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp)) {
                 val who = remember { app.prefs.accountUserName.ifBlank { if (app.prefs.accountKind == "nas") app.prefs.nasUsername else "" } }
                 MonoLabel(HomeWords.greeting(hour) + if (who.isNotBlank()) ", $who" else "", color = sc.onBg.copy(alpha = .75f))
-                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp), size = 40f, maxLines = 2, italicWords = if (last != null) 4 else 1)
+                SerifTitle(HomeWords.headline(last != null), Modifier.padding(top = 6.dp, bottom = 8.dp), size = hero.headlineSp, maxLines = 2, italicWords = if (last != null) 4 else 1)
             }
         }
-        Row(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Shuffle all and Resume wrap onto two lines rather than run off a narrow phone at big text (they needed about 350 dp at font scale 1.5)
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             AccentPill("Shuffle all", Glyph.SHUFFLE, cols, onShuffleAll)
             if (last != null) TonePill("Resume", Glyph.PLAY, cols, {
                 // the song still loaded opens the player (resuming it); one from history starts again
@@ -1051,11 +1059,14 @@ internal fun AlbumGrid(albums: List<Group>, nav: PlayerNav) {
     if (albums.isEmpty()) { EmptyState("No albums yet"); return }
     // the first covers rise in one after another as the grid opens (the web's .grid > .card), not again on scrolling
     val entrance = rememberEntrance()
-    LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
+    // two columns on any phone (GridFit): a 320 dp phone got one column of 296 dp covers
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    LazyVerticalGrid(GridCells.Fixed(GridFit.columns(maxWidth.value)), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 12.dp, 12.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         gridItemsIndexed(albums, key = { _, g -> g.tracks.first().albumKey }) { i, g ->
             AlbumCard(g, Modifier.entranceRise(entrance, i)) { nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }
         }
+    }
     }
 }
 
@@ -1135,7 +1146,9 @@ private fun NewPlaylistRow(nav: PlayerNav, withField: Boolean = true) {
         val shared = app.ui.sharedLink
         var linkOpen by remember { mutableStateOf(shared != null) }
         LaunchedEffect(shared) { if (shared != null) linkOpen = true }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        // the two chips wrap at big text ("Paste a link" ran off a 320 dp phone at font scale 1.5)
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Import a playlist", false, {
                 if (web.available) pick.launch(arrayOf("*/*")) else app.ui.say(com.ipodemu.library.LinkImport.NEEDS_WEB, warn = true)
             }, icon = Glyph.DOWN)
@@ -1244,7 +1257,9 @@ private fun PlaylistsGrid(nav: PlayerNav) {
     val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         NewPlaylistRow(nav, withField = false)
-        LazyVerticalGrid(GridCells.Adaptive(150.dp), Modifier.fillMaxWidth().weight(1f), contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 24.dp),
+        // two columns on any phone (GridFit): a 320 dp phone had one column, the New playlist tile alone filling the screen
+        BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
+        LazyVerticalGrid(GridCells.Fixed(GridFit.columns(maxWidth.value)), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item(key = "new") { Box(Modifier.entranceRise(entrance, 0)) { NewPlaylistTile() } }
             item(key = "favs") {
@@ -1261,6 +1276,7 @@ private fun PlaylistsGrid(nav: PlayerNav) {
             items(shownFolderPlaylists(app), key = { "f" + it.name + "|" + (it.tracks.firstOrNull()?.path ?: "") }) { g ->
                 PlaylistCard(g.name, songCount(g.tracks.size), g.artKey, mark = { DownloadedListMark(remember(g) { g.tracks.map { it.path } }) }) { nav.push(Screen.Detail(DetailKind.FOLDER, g.name)) }
             }
+        }
         }
     }
 }
@@ -1435,10 +1451,11 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         // "Recommended songs" below the songs, only on the person's own playlists (PlaylistRecsUi.kt)
         val recs: (@Composable () -> Unit)? = userId?.takeIf { d.kind == DetailKind.USER }?.let { id -> @Composable { PlaylistRecsSection(id, tracks, title) } }
         BoxWithConstraints(Modifier.fillMaxSize()) {
-            val wide = maxWidth > 620.dp && maxWidth > maxHeight * 1.25f
+            // two panes from 560 dp (a landscape phone beside the rail), the header's column scrolling: it was cut off at the bottom (DetailFit)
+            val wide = DetailFit.twoPane(maxWidth.value, maxHeight.value)
             if (wide) {
                 Row(Modifier.fillMaxSize()) {
-                    Column(Modifier.width(300.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column(Modifier.width(DetailFit.sideWidth(maxWidth.value).dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                     SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs)
@@ -1472,9 +1489,11 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item(key = "head") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RemoteArtImage(s.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = 340.dp).aspectRatio(1f), corner = 18.dp)
-                    Txt(s.title, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
-                    Txt(s.artist, size = 16f, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    // on its side the cover leaves Download on the first screen (DetailFit); the whole title, up to three lines
+                    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+                    RemoteArtImage(s.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), 340f).dp).aspectRatio(1f), corner = 18.dp)
+                    Txt(s.title, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 3, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    Txt(s.artist, size = 16f, color = sc.onBg, maxLines = 2, align = androidx.compose.ui.text.style.TextAlign.Center)
                     val facts = listOfNotNull(s.album.ifBlank { null }, year.ifBlank { null }, if (s.durationMs > 0) "%d:%02d".format(s.durationMs / 60000, s.durationMs / 1000 % 60) else null)
                     if (facts.isNotEmpty()) Txt(facts.joinToString(" · "), size = 14f, color = sc.onBgDim, align = androidx.compose.ui.text.style.TextAlign.Center)
                     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
@@ -1523,9 +1542,10 @@ private fun CatalogAlbumScreen(d: Screen.CatalogAlbum, nav: PlayerNav, snap: Pla
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             item(key = "head") {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    RemoteArtImage(a.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = 340.dp).aspectRatio(1f), corner = 18.dp)
-                    Txt(a.cleanTitle, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
-                    Txt(a.artist, size = 16f, color = sc.onBg, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+                    RemoteArtImage(a.artUrl, Modifier.fillMaxWidth(.8f).widthIn(max = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), 340f).dp).aspectRatio(1f), corner = 18.dp)
+                    Txt(a.cleanTitle, Modifier.padding(top = 10.dp), size = 22f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 3, align = androidx.compose.ui.text.style.TextAlign.Center)
+                    Txt(a.artist, size = 16f, color = sc.onBg, maxLines = 2, align = androidx.compose.ui.text.style.TextAlign.Center)
                     val n = tracks?.size?.takeIf { it > 0 } ?: a.trackCount
                     Txt(listOfNotNull(a.kind, year.ifBlank { null }, if (n > 0) "$n song${if (n == 1) "" else "s"}" else null).joinToString(" · "), size = 14f, color = sc.onBgDim)
                     val busy = status != null && status.stage != DownloadStage.DONE && status.stage != DownloadStage.FAILED
@@ -1616,32 +1636,37 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
         // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
         val cols = rememberCoverColours(art)
+        // on its side the cover is at most 45% of the height, so Play and Shuffle are on the first screen; the title stays under 50 sp as drawn (DetailFit)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        val cap = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat())
         // an artist gets a round picture, as on the web; everything else the rounded square cover. The cover, the words and the buttons rise in
         // one after another as the page opens ([since]: when it opened; 0 leaves them still)
-        if (kind == "Artist") ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.62f).widthIn(max = 260.dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp, circle = true)
-        else ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.7f).widthIn(max = 300.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
+        if (kind == "Artist") ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.62f).widthIn(max = (cap * .87f).dp).aspectRatio(1f).coverShadow(200.dp, 18.dp), corner = 200.dp, circle = true)
+        else ArtImage(art, Modifier.entranceRise(since, 0).fillMaxWidth(.7f).widthIn(max = cap.dp).aspectRatio(1f).coverShadow(22.dp, 18.dp), corner = 22.dp)
         Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (kind.isNotEmpty()) MonoLabel(kind)
-            SerifTitle(title, size = if (title.length > SleeveText.LONG_TITLE) 34f else 42f, maxLines = 3)
+            SerifTitle(title, size = DetailFit.titleSp(title.length > SleeveText.LONG_TITLE, cfg.fontScale), maxLines = 3)
             if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
-            if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp))
+            if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp), maxLines = 2)
         }
-        // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
-        Row(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings); they wrap at big text
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, false, title, djKey) })
             if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
         }
     } else {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
         ArtImage(art, Modifier.size(104.dp), corner = 12.dp)
-        Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Txt(title, size = 20f, weight = FontWeight.Bold, maxLines = 2)
             if (line1.isNotEmpty()) Txt(line1, size = 13f, color = sc.onBgDim)
             if (line2.isNotEmpty()) Txt(line2, size = 12f, color = sc.onBgDim)
         }
     }
-    // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // below the art row rather than beside the title, so both buttons fit in the narrow side column of wide layouts; they wrap at big text
+    @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         GlossPill("Play", { app.player.play(tracks, 0, false, title, djKey) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
         GlossPill("Shuffle", { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, icon = Glyph.SHUFFLE, height = 40.dp)
     }
@@ -1847,7 +1872,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
                 if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 44.dp, iconScale = 0.45f)
                 // speak to search; a request to the DJ ("play my pop playlist") is carried out instead
-                else DjMicButton(size = 38.dp, tint = sc.onBg, glass = Color.Transparent, onSearch = { query = it })
+                else DjMicButton(size = 38.dp, tint = sc.onBg, glass = Color.Transparent, onSearch = { query = it }, touch = 46.dp)
             })
         val online = rememberOnline()
         if (!online) OfflineChip(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp), "Offline: searching only the music on this device")
@@ -2226,7 +2251,8 @@ private fun AlbumCard(a: WebCatalog.Album, owned: Boolean, status: DownloadStatu
         .semantics { contentDescription = "${a.cleanTitle}, ${a.kind} by ${a.artist}. " + if (owned) "In your library" else if (busy) status!!.message else "Download" }) {
         Box {
             RemoteArtImage(a.artUrl, Modifier.size(132.dp), corner = 10.dp)
-            Box(Modifier.align(Alignment.BottomEnd).padding(6.dp).height(32.dp).widthIn(min = 32.dp).clip(RoundedCornerShape(50))
+            // 40 dp (it was 32): the one place on the card that downloads, so easy to hit and hard to miss for the cover's own tap
+            Box(Modifier.align(Alignment.BottomEnd).padding(4.dp).height(40.dp).widthIn(min = 40.dp).clip(RoundedCornerShape(50))
                 .background(if (owned || busy) Color(0xCC000000) else sc.accent).clickable(onClick = { if (owned) onOpen() else if (!busy) onDownload() })
                 .semantics { contentDescription = if (owned) "Open ${a.cleanTitle}" else "Download ${a.cleanTitle}" }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                 when {
@@ -2271,12 +2297,16 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
             }
         },
         trailing = {
+            // a narrow phone or big text: Play and Download as 48 dp icons, so the title keeps its room (SearchFit); the menu is 44 dp (it was 36)
+            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+            val compact = SearchFit.compactActions(cfg.screenWidthDp.toFloat(), cfg.fontScale)
             if (picked == null) when {
-                owned != null -> GlossPill("Play", onPlay, height = 32.dp)
+                owned != null -> if (compact) IconAction(Glyph.PLAY, "Play $title", onPlay, tint = sc.accent) else GlossPill("Play", onPlay, height = 32.dp)
                 busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
-                else -> Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (onHiRes != null) IconAction(Glyph.LIST, "More download options for $title", onHiRes, size = 36.dp)
-                    GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (onHiRes != null) IconAction(Glyph.LIST, "More download options for $title", onHiRes, size = 44.dp)
+                    if (compact) IconAction(Glyph.DOWN, if (failed) "Retry $title" else actionLabel, onDownload, tint = if (failed) Color(0xFFFF9C9C) else sc.accent)
+                    else GlossPill(if (failed) "Retry" else "Download", onDownload, Modifier.semantics { contentDescription = actionLabel }, height = 32.dp)
                 }
             }
         },
@@ -2432,7 +2462,7 @@ fun totalTime(tracks: List<Track>): String {
 @Composable
 fun LetterHeader(letter: String) {
     val sc = LocalScheme.current
-    Box(Modifier.fillMaxWidth().height(24.dp).background(Brush.verticalGradient(listOf(sc.top.copy(alpha = .96f), sc.bottom.copy(alpha = .96f)))).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+    Box(Modifier.fillMaxWidth().heightIn(min = 24.dp).background(Brush.verticalGradient(listOf(sc.top.copy(alpha = .96f), sc.bottom.copy(alpha = .96f)))).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
         Txt(letter, size = 13f, weight = FontWeight.Bold, color = sc.accentLight)
     }
 }
@@ -2528,8 +2558,11 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
     val kind = when (app.prefs.accountKind) { "nas" -> "NAS"; "" -> "Not signed in"; else -> "Jellyfin" }
     androidx.compose.ui.window.Popup(alignment = Alignment.TopEnd, offset = androidx.compose.ui.unit.IntOffset(0, 140), onDismissRequest = onClose,
         properties = androidx.compose.ui.window.PopupProperties(focusable = true)) {
-        Column(Modifier.padding(end = 8.dp).widthIn(min = 220.dp, max = 280.dp).clip(RoundedCornerShape(16.dp)).background(sc.top.mix(Color.Black, .45f))
-            .border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp)).padding(vertical = 6.dp)) {
+        // at most the screen less a margin, scrolling: on a phone on its side at big text Sign out was below the screen (SheetFit)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        Column(Modifier.padding(end = 8.dp).widthIn(min = 220.dp, max = 280.dp).heightIn(max = SheetFit.popupMaxHeight(cfg.screenHeightDp.toFloat()).dp)
+            .clip(RoundedCornerShape(16.dp)).background(sc.top.mix(Color.Black, .45f))
+            .border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp)).verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(40.dp).clip(CircleShape).background(sc.accent), contentAlignment = Alignment.Center) {
                     Txt(name.take(1).uppercase().ifEmpty { "?" }, size = 18f, weight = FontWeight.Bold, color = Color.White)

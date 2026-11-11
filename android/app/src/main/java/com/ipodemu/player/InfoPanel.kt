@@ -261,25 +261,30 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
                     Box(Modifier.clip(RoundedCornerShape(12.dp)).background(badgeBg).padding(horizontal = 16.dp, vertical = 10.dp)) {
                         MonoLabel(if (info.hiRes) "Hi-Res" else info.codec.ifEmpty { "Audio" }, size = 15f, color = if (info.hiRes) Color(0xFF2A1A00) else InfoOnMain)
                     }
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    // the rest of the row, so a long tier ends in … instead of pushing past the card
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         SerifTitle(info.tier.ifEmpty { "Quality unknown" }, size = 28f, color = InfoInk)
                         MonoLabel(listOf(info.sampling, if (info.channels == 1) "Mono" else if (info.channels == 2) "Stereo" else if (info.channels > 2) "${info.channels} channels" else "").filter { it.isNotEmpty() }.joinToString(" · "), size = 11f, color = InfoDim, maxLines = 2)
                     }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val tiles = buildList {
-                        if (info.kbps > 0) add(info.kbps.toString() to "kbps")
-                        add((if (info.sampleRate > 0) "%.1f".format(info.sampleRate / 1000.0).removeSuffix(".0") else "?") to "kHz rate")
-                        if (info.bits > 0) add(info.bits.toString() to "bit")
-                        add((if (info.channels > 0) info.channels.toString() else "2") to if (info.channels == 1) "mono" else "channels")
-                    }
-                    for ((v, k) in tiles) Column(
+                val tiles = buildList {
+                    if (info.kbps > 0) add(info.kbps.toString() to "kbps")
+                    add((if (info.sampleRate > 0) "%.1f".format(info.sampleRate / 1000.0).removeSuffix(".0") else "?") to "kHz rate")
+                    if (info.bits > 0) add(info.bits.toString() to "bit")
+                    add((if (info.channels > 0) info.channels.toString() else "2") to if (info.channels == 1) "mono" else "channels")
+                }
+                // two to a row when four would cut the numbers ("1411" was "1…" on a small phone at big text; InfoFit)
+                val perRow = InfoFit.tileColumns(maxWidth.value - 28f, androidx.compose.ui.platform.LocalDensity.current.fontScale)
+                for (row in tiles.chunked(perRow)) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((v, k) in row) Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).border(1.dp, InfoInk.copy(alpha = .22f), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp),
                     ) {
                         MonoLabel(v, size = 20f, color = InfoInk, upper = false)
                         MonoLabel(k, size = 9.5f, color = InfoDim)
                     }
+                    // a short last row keeps its tiles the same width as the row above
+                    repeat(perRow - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
             // 3. the details
@@ -338,7 +343,10 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                     }
                 }
             }
-            Txt(hint(mode, sampleRate), size = 12.5f, color = InfoDim, maxLines = 3)
+            // on a short screen (a phone on its side) the hint gives way to the graph (InfoFit)
+            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+            val lines = InfoFit.hintLines(cfg.screenHeightDp - 24f, cfg.fontScale)
+            if (lines > 0) Txt(hint(mode, sampleRate), size = 12.5f, color = InfoDim, maxLines = lines)
         }
     }
 }

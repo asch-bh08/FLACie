@@ -75,13 +75,19 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, desc: String? = null,
                    choices: List<String>? = null, picked: Int = -1, onPick: ((Int) -> Unit)? = null, action: String? = null, onClick: () -> Unit = {}) {
         val tapRow = choices == null && action == null
+        // big text on a narrow phone: the value and the chip go under the name instead of pressing it to nothing (SettingsFit)
+        val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+        val shownValue = if (choices == null) value else null
+        val stacked = !toggle && (shownValue != null || action != null) &&
+            SettingsFit.stack(minOf(cfg.screenWidthDp, 620).toFloat(), cfg.fontScale, shownValue?.length ?: 0, action?.length ?: 0, chevron)
         Column(Modifier.fillMaxWidth().then(if (tapRow) Modifier.clickable { onClick(); rev++ } else Modifier).padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
                     Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = sc.onBg, maxLines = 2)
                     if (desc != null) Txt(desc, Modifier.padding(top = 2.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
                 }
-                when {
+                if (stacked) { if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim) }
+                else when {
                     toggle -> SwitchPill(value == "On")
                     action != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (value != null) Txt(value, Modifier.widthIn(max = 120.dp), size = 13f, color = sc.onBgDim, maxLines = 2)
@@ -92,6 +98,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim)
                     }
                 }
+            }
+            if (stacked) Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (shownValue != null) Txt(shownValue, Modifier.weight(1f, fill = false), size = 14f, color = sc.onBgDim, maxLines = 2)
+                if (action != null) DesignChip(action, false, { onClick(); rev++ })
             }
             // the choices wrap onto a second line on a narrow phone rather than run off the edge (a sideways scroll hid "Data saver" at 360 dp)
             if (choices != null) @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) androidx.compose.foundation.layout.FlowRow(
@@ -561,8 +571,8 @@ private fun DjLevelRow(title: String, desc: String, value: Int, onSet: (Int) -> 
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Txt(title, size = 15f)
-                Txt(desc, size = 13f, color = sc.onBgDim, maxLines = 2)
+                Txt(title, size = 15f, maxLines = 2)
+                Txt(desc, size = 13f, color = sc.onBgDim, maxLines = 4)
             }
             Txt("$shown%", size = 14f, color = sc.onBgDim)
         }

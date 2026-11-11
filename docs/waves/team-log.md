@@ -10,6 +10,10 @@
 - New emulator check np-fit-shots.mjs (with -Motion): opens Now Playing and at each size checks play/pause, next, previous, Lyrics, Up next are inside the screen, with a screenshot. Results: phone, phone at text 1.5, small phone 720x1280 at text 1.5, phone on its side, tablet 1600x2560, Fold open 1840x2208, Fold open at text 1.5: all controls on screen, nothing to scroll.
 - FOUND + FIXED: changing the phone's text size restarted the screen and dropped you to Home (MainActivity's configChanges lacked fontScale). Added fontScale; Now Playing now stays open through a text-size change.
 - Small things for Cloud (cosmetic): at text 1.5 on a 720x1280 phone the bottom row shows "Up ..." instead of "Up next"; on the open Fold at text 1.5 the Up next panel cuts "Playing from Your queue" to "Play... Yo..." and the Autoplay line.
+## 2026-11-10 ~18:15 Cloud: STOPPED (owner: "Stop cleanly")
+- Both hourly watchdog tasks are switched off (cloud :47, local :17). No agents running in the cloud.
+- Merged and pushed: phone every-screen fit (15 commits, PhoneFit.kt + PhoneFitTest, UNBUILT: see docs/phone-overhaul-unbuilt.md for the emulator check). b126 go-ahead stands as in the entries below; the phone-fit batch rides along if it builds.
+- Not merged (stopped mid-work, untested): the web every-page/every-size sweep (car dials, Up next wrapping) and the full-run test reliability fixes (1w-a11y ipod/retro, 1r-retro VOL, 1z-scroll-kept). Open items for next time.
 
 ## 2026-11-10 Cloud: NOW PLAYING FITS EVERY SCREEN, merged. RELEASE b126 NOW (hold lifted)
 - Merge origin/claude/exciting-ride-2qa9ry (e11e266c) and release b126 as in the "RELEASE b126 PLEASE" entry below.

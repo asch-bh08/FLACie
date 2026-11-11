@@ -326,7 +326,10 @@ fun Txt(
 @Composable
 fun GlossButton(
     onClick: () -> Unit, modifier: Modifier = Modifier, size: Dp = 56.dp, primary: Boolean = false, enabled: Boolean = true, label: String? = null,
-    onLongClick: (() -> Unit)? = null, content: @Composable BoxScope.() -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    /** a touch target bigger than the button drawn (48 dp for a small button in a slim bar); 0 = the button's own size */
+    touch: Dp = 0.dp,
+    content: @Composable BoxScope.() -> Unit,
 ) {
     val sc = LocalScheme.current
     val style = LocalStyle.current
@@ -337,23 +340,24 @@ fun GlossButton(
     val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else if (pressed) Palette.surface3 else Palette.surface2)
     else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
     else Brush.verticalGradient(listOf(Color(0x59FFFFFF), Color(0x1FFFFFFF)))
-    Box(
-        modifier
-            .size(size)
-            .pressSpring(pressed, 0.88f).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
-            .clip(CircleShape)
-            .background(brush)
-            .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, CircleShape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
-            .drawBehind {
-                if (style.glossy) drawOval(
-                    Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color.Transparent)),
-                    Offset(this.size.width * .1f, this.size.height * .03f), Size(this.size.width * .8f, this.size.height * .5f),
-                )
-            }
-            .then(if (label != null) Modifier.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button } else Modifier)
-            .combinedClickableNoRipple(src, enabled, onClick, onLongClick),
-        contentAlignment = Alignment.Center, content = content,
-    )
+    val body = Modifier
+        .size(size)
+        .pressSpring(pressed, 0.88f).graphicsLayer { alpha = if (enabled) 1f else 0.4f }
+        .clip(CircleShape)
+        .background(brush)
+        .then(if (modern && !focused) (if (primary) Modifier else Modifier.border(1.dp, Palette.line, CircleShape)) else Modifier.border(if (focused) 2.5.dp else 1.dp, if (focused) Color.White else Color(0x40FFFFFF), CircleShape))
+        .drawBehind {
+            if (style.glossy) drawOval(
+                Brush.verticalGradient(listOf(Color(0x66FFFFFF), Color.Transparent)),
+                Offset(this.size.width * .1f, this.size.height * .03f), Size(this.size.width * .8f, this.size.height * .5f),
+            )
+        }
+    val action = (if (label != null) Modifier.semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button } else Modifier)
+        .combinedClickableNoRipple(src, enabled, onClick, onLongClick)
+    if (touch > size) Box(modifier.size(touch).then(action), contentAlignment = Alignment.Center) {
+        Box(body, contentAlignment = Alignment.Center, content = content)
+    }
+    else Box(modifier.then(body).then(action), contentAlignment = Alignment.Center, content = content)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -460,7 +464,8 @@ fun IpodRow(
     // what wheelTracked() does, without the composed{} modifier (its remember + node chain per row was measurable on a 10 000-song list)
     val wheelFr = remember { androidx.compose.ui.focus.FocusRequester() }
     Row(
-        modifier.fillMaxWidth().height(if (Tweaks.compact) height * 0.84f else height)
+        // at least this tall, taller when big text needs it: a fixed height cut the second line of a row in half at font scale 1.5
+        modifier.fillMaxWidth().heightIn(min = if (Tweaks.compact) height * 0.84f else height)
             .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             // nothing is painted behind an idle row (it used to draw a transparent gradient shader per row, every frame)
             .then(if (hi && style.modern) Modifier.background(Palette.surface2) else if (hi) Modifier.background(Brush.verticalGradient(listOf(sc.accentLight, sc.accentDark))) else Modifier)
@@ -730,14 +735,16 @@ fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDism
                 .pointerInput(Unit) { detectTapGestures { } }
                 .padding(bottom = 12.dp),
         ) {
-            Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
-                Txt(title, size = 18f, weight = FontWeight.Bold)
-                if (subtitle != null) Txt(subtitle, size = 13f, color = sc.onBgDim)
-            }
+            // the title and the subtitle scroll with the rows: a long subtitle (the Hi-Res warning) was cut to one line, and on a phone on its side at
+            // big text a fixed header left no room for the rows
             Column(Modifier.weight(1f, fill = false).verticalScroll(androidx.compose.foundation.rememberScrollState())) {
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 14.dp)) {
+                    Txt(title, size = 18f, weight = FontWeight.Bold, maxLines = 3)
+                    if (subtitle != null) Txt(subtitle, size = 13f, color = sc.onBgDim, maxLines = 8)
+                }
                 items.forEachIndexed { i, item ->
                     IpodRow(onClick = { onDismiss(); item.onClick() }, height = 54.dp, focusRequester = if (i == 0) first else null,
-                        leading = { GlyphIcon(if (item.selected) Glyph.CHECK else item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg) }
+                        leading = { GlyphIcon(if (item.selected) Glyph.CHECK else item.glyph, Modifier.size(24.dp), if (LocalRowHi.current) Color.White else sc.onBg) }) { hi -> Txt(item.label, size = 16f, color = if (hi) Color.White else sc.onBg, maxLines = 3) }
                 }
             }
         }

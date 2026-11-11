@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.padding
@@ -151,7 +152,8 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                         var focused by remember { androidx.compose.runtime.mutableStateOf(false) }
                         val tagged = isTagged(t)   // a download tag takes a third line
                         Row(
-                            Modifier.fillMaxWidth().height(if (tagged) 78.dp else 64.dp).clip(RoundedCornerShape(10.dp))
+                            // at least that tall, taller when big text needs it (the third line ran out of the row at font scale 1.5)
+                            Modifier.fillMaxWidth().heightIn(min = if (tagged) 78.dp else 64.dp).clip(RoundedCornerShape(10.dp))
                                 .border(if (focused) 2.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(10.dp))
                                 .onFocusChanged { focused = it.isFocused }
                                 .clickable { onPlay(idx) }.padding(vertical = 6.dp),

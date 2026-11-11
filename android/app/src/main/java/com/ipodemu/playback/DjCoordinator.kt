@@ -246,6 +246,10 @@ class DjLine private constructor(val cue: DjCue, private val songAt: Long, phone
         /** The latest a slow clip may still start when the phone's voice can't stand in. */
         const val SLOW_CLIP_MS = 10_000L
         const val CLIP_MAX_MS = 20_000L
+        /** A clip that stalls once it is sounding (the new song loading over the same connection after a skip) is given this long to carry on before the
+         *  line ends; it used to end at once, a second into the line (owner, 11 Nov). */
+        const val DRY_GRACE_MS = 2_500L
+        fun dryTooLong(drySince: Long, now: Long) = now - drySince >= DRY_GRACE_MS
         const val SPEECH_SLACK_MS = 3_000L
         /** How fast a line is read out, for its time limit (the server's estimate for the voice's cost too). */
         const val WORDS_PER_S = 2.6

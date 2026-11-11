@@ -89,6 +89,8 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
             DjLine.Late.GIVE_UP -> { Diag.add("dj", "line dropped: its voice was not ready in time (clip ${if (exo?.playbackState == Player.STATE_READY) "ready" else "not loaded"}, phone voice ${if (ttsReady) "ready" else "not ready"})"); stop() }
         }
     }
+    private var drySince = -1L
+    private val dryCheck = Runnable { if (drySince >= 0 && exo?.playbackState == Player.STATE_BUFFERING && DjLine.dryTooLong(drySince, SystemClock.uptimeMillis())) { Diag.add("dj", "the DJ's voice stalled for ${DjLine.DRY_GRACE_MS / 1000.0} s: line ended"); stop() } }
     private fun watch() { handler.removeCallbacks(watchdog); line?.let { handler.postAtTime(watchdog, it.stopAt) } }
 
     private val listener = object : Player.Listener {
@@ -97,7 +99,10 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
             if (state == Player.STATE_READY && waitingForClip && line?.phoneVoice == false) { begin(); return }
             // the clip ran dry part-way through on a weak signal: the line ends there and the music comes back up, rather than the song going on for
             // seconds under a silent DJ, which in the car sounded like part of the song had gone (playback audit, 30 Oct)
-            if (state == Player.STATE_BUFFERING && line?.let { !it.phoneVoice && it.heard } == true) { stop(); return }
+            // (a short stall is waited out: after a skip the new song loads over the same connection and the clip paused for a moment, which ended the
+            // line a second in; owner, 11 Nov)
+            if (state == Player.STATE_BUFFERING && line?.let { !it.phoneVoice && it.heard } == true) { drySince = SystemClock.uptimeMillis(); handler.postDelayed(dryCheck, DjLine.DRY_GRACE_MS); return }
+            if (state == Player.STATE_READY) { handler.removeCallbacks(dryCheck); drySince = -1L }
             if (state != Player.STATE_ENDED || line?.phoneVoice != false) return
             // the line is over: a song still held back under it starts now, from the top (talk before the song)
             if (holding) { handler.removeCallbacks(letGo); letGo.run() }
@@ -270,6 +275,7 @@ class DjPlayer(private val ctx: Context, private val source: DataSource.Factory,
 
     /** Pause, a seek, a skip, the sleep timer, the app swiped away: the line stops at once and the music comes back up. The next song's cue is kept. */
     fun stop() {
+        handler.removeCallbacks(dryCheck); drySince = -1L
         handler.removeCallbacks(watchdog); handler.removeCallbacks(startClip); handler.removeCallbacks(playClip); handler.removeCallbacks(letGo)
         clearCaptions(true)
         // a song held back goes on from where it is (a skip, a pause or a seek: it is not started again)

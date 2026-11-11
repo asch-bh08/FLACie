@@ -836,6 +836,52 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
                 else app.player.play(listOf(last), 0, null, "Recently Played")
             })
         }
+        HomePickCard(nav, cols)
+    }
+}
+
+/** Home A (owner, 11 Nov): tonight's pick, a whole album as a card in the cover's colours, with Play and DJ it (the album with the DJ on). As on the web. */
+@Composable
+private fun HomePickCard(nav: PlayerNav, cols: SleeveColours) {
+    val app = LocalApp.current
+    val lib = app.library
+    // the library's revision: the pick is worked out again once the library has loaded (Home is first drawn while it is still empty)
+    val rev = rememberLibRev(lib)
+    val day = remember { java.util.Calendar.getInstance().let { it.get(java.util.Calendar.YEAR) * 400 + it.get(java.util.Calendar.DAY_OF_YEAR) } }
+    val pick = remember(day, rev, lib.songs().size) {
+        val hist = app.userData.history()
+        val byPath = lib.byPath()
+        val recent = hist.take(60).mapNotNull { byPath[it.p]?.albumKey }.toSet()
+        val liked = hist.take(300).map { com.ipodemu.library.primaryArtist(it.a) }.filter { it.isNotBlank() }.groupingBy { it }.eachCount()
+            .entries.sortedByDescending { it.value }.take(25).map { it.key }.toSet()
+        HomePick.pick(lib.albums(), recent, liked, day)
+    } ?: return
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val playIt = { dj: Boolean ->
+        app.player.play(pick.tracks, 0, context = pick.name)
+        if (dj && !app.player.djOn) djTap(app)
+        nav.coverFrom = null; nav.nowPlaying = true
+    }
+    Row(
+        Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(Color(cols.main).copy(alpha = .26f), Color.White.copy(alpha = .04f))))
+            .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(24.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(Modifier.size(104.dp).clip(RoundedCornerShape(16.dp)).semantics { contentDescription = "Play ${pick.name}"; role = androidx.compose.ui.semantics.Role.Button }.clickable { playIt(false) }) {
+            ArtImage(pick.artKey ?: pick.tracks.firstOrNull()?.artKey, Modifier.fillMaxSize(), corner = 16.dp)
+        }
+        Column(Modifier.weight(1f)) {
+            MonoLabel(if (hour >= 18) "Picked for tonight" else "Picked for today", color = Color(cols.main))
+            SerifTitle(pick.name, Modifier.padding(top = 4.dp, bottom = 2.dp), size = 24f, maxLines = 2)
+            val first = pick.tracks[0]
+            Txt(listOfNotNull(first.albumArtist.ifBlank { first.artist }, "${pick.tracks.size} songs", first.year.takeIf { it > 0 }?.toString()).joinToString(" · "), size = 13f, color = LocalScheme.current.onBg.copy(alpha = .75f), maxLines = 1)
+            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                AccentPill("Play", Glyph.PLAY, cols, { playIt(false) }, height = 40.dp)
+                if (app.player.djAvailable) TonePill("DJ it", Glyph.DJ, cols, { playIt(true) }, height = 40.dp)
+            }
+        }
     }
 }
 

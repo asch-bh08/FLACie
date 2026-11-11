@@ -199,7 +199,10 @@ else
             var day = DateTime.Now.Year * 400 + DateTime.Now.DayOfYear;
             if (pickDay == day && pickSongs == Lib.Songs.Count) return pickCache;
             pickDay = day; pickSongs = Lib.Songs.Count;
-            var albums = Lib.Albums.Where(g => g.Tracks.Count >= 4 && g.Name.Length > 0 && g.Name != "Unknown Album").ToList();
+            var named = Lib.Albums.Where(g => g.Name.Length > 0 && g.Name != "Unknown Album").ToList();
+            // whole albums first; a small library (or one of singles) still gets a pick from what it has
+            var albums = named.Where(g => g.Tracks.Count >= 4).ToList();
+            if (albums.Count == 0) albums = named.Where(g => g.Tracks.Count >= 2).ToList();
             if (albums.Count == 0) return pickCache = null;
             var recent = Session.History.Take(60).Select(h => Lib.Find(h.Title, h.Artist)?.AlbumKey).Where(k => k is not null).ToHashSet();
             var liked = Session.History.Take(300).Select(h => Matching.PrimaryArtist(h.Artist)).GroupBy(a => a).OrderByDescending(g => g.Count()).Take(25).Select(g => g.Key).ToHashSet();

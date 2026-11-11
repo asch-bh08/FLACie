@@ -88,6 +88,9 @@ for (const size of sizes) {
     await back();
   }
   await back();
+  // Home again once the library is in and a song has played (the first picture is taken while the library is still loading): tonight's pick, the shelves
+  await tab('Home'); await tab('Home'); await sleep(1500); shot(S('home-late' + tag));
+  sh(`input swipe ${W() / 2} ${h() * 0.7} ${W() / 2} ${h() * 0.35} 400`); await sleep(1200); shot(S('home-late-2' + tag));
   // a song's own menu: a long press on a row of Songs
   await tab('Library'); await tab('Library'); await tapLabel(/^Songs$/);
   { const u = dump(); const r = u && u.find((n) => /^Song \d+/.test(label(n)) && n.cy > 400); if (r) { sh(`input swipe ${r.cx} ${r.cy} ${r.cx} ${r.cy} 900`); await sleep(1500); shot(S('song-menu' + tag)); key('KEYCODE_BACK'); await sleep(1000); } }

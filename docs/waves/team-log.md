@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-11 ~21:50 Local: Home mockups ready for the owner to pick
+- Three Home directions on the design canvas (https://claude.ai/artifact/UozANffytVdkaJyFraV6hA, row 3): A "Tonight's sleeve" (one big cover-coloured pick + shelves), B "Mood wall" (Start the DJ + colourful mood grid), C "Your timeline" (where you left off, artists on repeat, just arrived). Build only after the owner picks (web + phone, with the motion brief from 11 Nov).
+- Still open: web Now Playing title and buttons improvement (owner bug 5, apart from the volume, which is done); a clipping sweep with screenshots; recheck the narrow (~600 px) web Now Playing on b130 (the owner's screenshot was b127).
+
 ## 2026-11-11 ~21:30 Local: b130 RELEASED and DEPLOYED (owner AFK, OK'd deploy + release)
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b130 (Android 145, Windows 1.0.130). frank runs b130 (rollback flacie-web:rollback-b130pre). b129 was never released; b130 holds it.
 - In it: cloud's phone-fit batch (needed 2 build fixes: this@BoxWithConstraints.maxWidth), volume always in the PC bar (SoundTile.razor = .ls-volpill; one Sound tile at 761-1100), Circle + Waveform graphs and title + seek in full screen (web + phone), graph twin kept within ~40 ms (flacie.js syncTwin nudges playbackRate, interactive latency), phone seek frame ignores swipes (SeekIntent.kt), phone DJ waits out a 2.5 s clip stall after a skip (DjLine.DRY_GRACE_MS), compilation songs keep their own cover, stuck "Filing into the library" downloads.

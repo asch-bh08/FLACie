@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-11 ~22:55 Local: owner picked Home A; b131 RELEASED and DEPLOYED
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b131 ; frank runs b131 (rollback flacie-web:rollback-b131pre).
+- Home A built web + phone: tonight's pick card (web Home.razor PickAlbum, phone HomePick in DesignI.kt + HomePickCard in PlayerUi.kt; whole albums of 4+, else 2+; artists played lately, not the last 60 plays' albums; seeded by the date; holds once picked). Play / DJ it. Headline "Put on something". Phone-width web hero fixed (one column).
+- Next for Home A from the mockup not yet done: bigger "Jump back in" covers and tall "Made for you" mix cards; the richer motion pass. Owner bugs still open: web Now Playing title/buttons, clipping sweep.
+
 ## 2026-11-11 ~21:50 Local: Home mockups ready for the owner to pick
 - Three Home directions on the design canvas (https://claude.ai/artifact/UozANffytVdkaJyFraV6hA, row 3): A "Tonight's sleeve" (one big cover-coloured pick + shelves), B "Mood wall" (Start the DJ + colourful mood grid), C "Your timeline" (where you left off, artists on repeat, just arrived). Build only after the owner picks (web + phone, with the motion brief from 11 Nov).
 - Still open: web Now Playing title and buttons improvement (owner bug 5, apart from the volume, which is done); a clipping sweep with screenshots; recheck the narrow (~600 px) web Now Playing on b130 (the owner's screenshot was b127).

@@ -1,6 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 
-// Home A (owner, 11 Nov: "Home doesn't excite me"): tonight's pick, a whole album as a card in the cover's colours, with Play and DJ it.
+// Home (owner, 11 Nov night): the resume hero with the faded cover, the moods as colourful tiles (Home B), artists on repeat and just arrived (Home C);
+// no pick card and no DJ button. And Home with the side menu folded away (owner: "when you fold the side menu away it breaks").
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.locator('#jf-form summary').click();
@@ -13,28 +14,41 @@ async function signIn(page: Page) {
 }
 
 for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
-  test(`Home shows tonight's pick at ${size.width} px, it plays the album, and nothing runs off the side`, async ({ page }) => {
+  test(`Home at ${size.width} px: mood tiles, artists on repeat, just arrived; nothing runs off the side`, async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize(size);
     await signIn(page);
     await page.goto('/');
-    const pick = page.locator('.home-pick');
-    await expect(pick).toBeVisible({ timeout: 20_000 });
-    await expect(pick.locator('h2')).toHaveText(/\S/);
-    await expect(page.locator('.home-hero h1')).toContainText(/Put on|Pick up/);
-    // the pick holds still once shown (it used to swap as the library loaded in parts)
-    const first = (await pick.locator('h2').innerText()).trim();
-    await page.waitForTimeout(2500);
-    await expect(pick.locator('h2')).toHaveText(first);
-    const b = (await pick.boundingBox())!;
-    expect(b.x).toBeGreaterThanOrEqual(0); expect(b.x + b.width).toBeLessThanOrEqual(size.width + 1);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-    await page.waitForTimeout(900);
-    await page.screenshot({ path: `test-results/home-pick-${size.width}.png` });
-    const album = (await pick.locator('h2').innerText()).trim();
-    await pick.getByRole('button', { name: 'Play', exact: true }).click();
-    await expect(page.locator('.ls-names h2, .player .bar-song').first()).toBeVisible({ timeout: 20_000 });
-    await expect.poll(() => page.evaluate(() => !(document.querySelector('audio') as HTMLAudioElement | null)?.paused), { timeout: 20_000 }).toBe(true);
-    expect(album.length).toBeGreaterThan(0);
+    await expect(page.locator('.mood-tile').first()).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.home-pick')).toHaveCount(0);
+    await expect(page.locator('.home-dj')).toHaveCount(0);
+    await expect(page.locator('section[aria-label="Just arrived"] .arrival').first()).toBeVisible();
+    const wide = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
+    expect(await wide()).toBe(true);
+    await page.screenshot({ path: `test-results/home-${size.width}.png` });
+    await page.locator('section[aria-label="Just arrived"]').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `test-results/home-${size.width}-2.png` });
+    // a mood tile shows its songs, the same tile again goes back
+    const tile = page.locator('.mood-tile').first(); const name = (await tile.innerText()).trim();
+    await tile.click(); await expect(page.locator(`section.shelf[aria-label="${name}"]`)).toBeVisible();
+    await tile.click(); await expect(page.locator(`section.shelf[aria-label="${name}"]`)).toHaveCount(0);
+    if (size.width > 1000) {
+      // a song played first, so the hero has its faded cover (the case that broke)
+      await tile.click(); await page.locator('section.shelf .pick').first().click();
+      await expect(page.getByRole('button', { name: 'Close Now Playing' })).toBeVisible({ timeout: 20_000 });
+      await page.getByRole('button', { name: 'Close Now Playing' }).click(); await page.waitForTimeout(800);
+      await tile.click(); await page.goto('/'); await expect(page.locator('.mood-tile').first()).toBeVisible({ timeout: 20_000 });
+      await page.waitForTimeout(1200);
+      await page.screenshot({ path: 'test-results/home-art.png' });
+      // the side menu folded to its icons: Home still fits and lines up
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.getByRole('button', { name: 'Menu', exact: true }).click();
+      await page.waitForTimeout(700);
+      expect(await wide()).toBe(true);
+      const rail = (await page.locator('#main-rail').boundingBox())!, hero = (await page.locator('.home-hero').boundingBox())!;
+      expect(hero.x).toBeGreaterThanOrEqual(rail.x + rail.width - 2);
+      await page.screenshot({ path: 'test-results/home-folded.png' });
+      await page.getByRole('button', { name: 'Menu', exact: true }).click();
+    }
   });
 }

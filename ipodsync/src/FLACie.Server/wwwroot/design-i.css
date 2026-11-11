@@ -169,3 +169,47 @@ section.set[hidden] { display: none !important; }
 
 /* what each search result is (owner, 7 Nov: "a label or small symbol on every result, like Spotify"): a small word before the line under its title */
 .kind-tag { display: inline-block; margin-right: 6px; padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--ink, #f4efe6) 12%, transparent); color: var(--ink, #f4efe6); font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 1px; line-height: 1.5; }
+
+/* ---- Home A (owner, 11 Nov): tonight's pick, a glass card in the cover's colours beside (PC) or under (phone) the headline ---- */
+.home-hero { min-height: clamp(260px, 40vh, 400px); }
+.home-hero::before { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: radial-gradient(90% 70% at 85% 30%, color-mix(in srgb, var(--np-accent) 30%, transparent), transparent 70%); }
+.home-hero-row { align-items: flex-end; }
+.home-pick { display: flex; align-items: center; gap: 18px; padding: 16px; border-radius: 28px; max-width: 520px; flex: 1 1 380px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--np-accent) 26%, transparent), color-mix(in srgb, var(--ink) 4%, transparent));
+  border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); box-shadow: 0 24px 60px #0006;
+  animation: home-pick-in .7s cubic-bezier(.2, 1.2, .4, 1) both .08s; }
+@keyframes home-pick-in { from { opacity: 0; transform: translateY(18px) scale(.97); } }
+.home-pick-cover { flex: none; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 20px; transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); }
+.home-pick-cover .cover { width: 168px; height: 168px; border-radius: 20px; box-shadow: 0 18px 40px #0008; }
+.home-pick-cover:hover { transform: translateY(-3px) rotate(-1.5deg); }
+.home-pick-cover:active { transform: scale(.97); }
+.home-pick-text { min-width: 0; }
+.home-pick-label { margin: 0; font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--np-accent); }
+.home-pick h2 { margin: 6px 0 4px; font-family: var(--serif); font-weight: 400; font-size: clamp(26px, 2.6vw, 34px); line-height: 1.02; overflow-wrap: anywhere; }
+.home-pick-sub { margin: 0; font-size: 13px; color: color-mix(in srgb, var(--ink) 75%, transparent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-pick-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.home-pick-actions .btn { height: 42px; border-radius: 16px; }
+.home-pick-actions .btn.primary { background: var(--np-accent); color: var(--np-accent-fg, #1a120c); }
+@media (max-width: 760px) {
+  .home-pick { flex-basis: 100%; max-width: none; padding: 12px; gap: 14px; border-radius: 24px; }
+  .home-pick-cover .cover { width: 112px; height: 112px; border-radius: 16px; }
+  .home-pick h2 { font-size: 24px; }
+}
+/* the shelves' covers a little bigger, with a springy lift on hover (transform only) */
+@media (min-width: 761px) { .shelf .card .cover, .shelf .tile .cover { transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); } .shelf .card:hover .cover, .shelf .tile:hover .cover { transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .home-pick { animation: none; } .home-pick-cover, .shelf .card .cover { transition: none; } }
+@media (min-width: 761px) { .home-hero { padding-top: 36px; } .home-hero-row { align-items: center; } }
+/* a phone: the headline fits the width (it ran off the right edge), the hero's buttons wrap, the pick's cover is smaller so Play and DJ it sit side by side */
+@media (max-width: 760px) {
+  .home-hero h1 { font-size: clamp(30px, 8.6vw, 44px); overflow-wrap: break-word; }
+  .home-hero-actions { display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%; }
+  .home-hero-actions .btn { max-width: 100%; }
+  .home-pick-cover .cover, .home-pick-cover .cover img { width: 104px !important; height: 104px !important; }
+  .home-pick-actions { margin-top: 10px; }
+  .home-pick-actions .btn { height: 38px; padding: 0 14px; }
+}
+/* a phone: the hero is one column, every part starting at the page's own edge (the row's space-between pushed the headline to the right) */
+@media (max-width: 760px) {
+  .home-hero-row { flex-direction: column; align-items: stretch; justify-content: flex-start; }
+  .home-hero-text, .home-hero-actions, .home-pick { width: 100%; margin-left: 0; margin-right: 0; flex: none; }
+}

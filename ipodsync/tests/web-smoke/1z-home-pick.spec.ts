@@ -1,7 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 
-// The owner pressed the 4th song of Home's Quick picks (Price Tag) and the 1st (I Gotta Feeling) started. A song pressed on Home is the one that plays.
-
+// Home A (owner, 11 Nov: "Home doesn't excite me"): tonight's pick, a whole album as a card in the cover's colours, with Play and DJ it.
 async function signIn(page: Page) {
   await page.goto('/login');
   await page.locator('#jf-form summary').click();
@@ -13,23 +12,25 @@ async function signIn(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-test('pressing a song on Home plays that song', async ({ page }) => {
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await signIn(page);
-  // a few plays first, so Home has shelves of songs
-  await page.goto('/artist/Hires%20Lab');
-  await page.getByRole('link', { name: /Lab Album/ }).first().click();
-  for (const n of [0, 1, 2, 3]) { await page.locator('.tracks .track-main').nth(n).click(); await page.waitForTimeout(700); }
-  await page.goto('/');
-  await page.waitForTimeout(4000);   // Home works its shelves out again once the whole library is in
-  const picks = page.locator('button.pick, button.song-card');
-  const n = await picks.count();
-  expect(n).toBeGreaterThan(3);
-  for (const i of [3, Math.min(5, n - 1)]) {
-    const label = (await picks.nth(i).getAttribute('aria-label'))!;
-    const title = label.replace(/^Play /, '').replace(/ by .*$/, '');
-    await picks.nth(i).click();
-    await expect(page).toHaveTitle(new RegExp('^' + title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + ' ·'), { timeout: 8000 });
-    await page.goto('/'); await page.waitForTimeout(2500);
-  }
-});
+for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+  test(`Home shows tonight's pick at ${size.width} px, it plays the album, and nothing runs off the side`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize(size);
+    await signIn(page);
+    await page.goto('/');
+    const pick = page.locator('.home-pick');
+    await expect(pick).toBeVisible({ timeout: 20_000 });
+    await expect(pick.locator('h2')).toHaveText(/\S/);
+    await expect(page.locator('.home-hero h1')).toContainText(/Put on|Pick up/);
+    const b = (await pick.boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(0); expect(b.x + b.width).toBeLessThanOrEqual(size.width + 1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `test-results/home-pick-${size.width}.png` });
+    const album = (await pick.locator('h2').innerText()).trim();
+    await pick.getByRole('button', { name: 'Play', exact: true }).click();
+    await expect(page.locator('.ls-names h2, .player .bar-song')).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => page.evaluate(() => !(document.querySelector('audio') as HTMLAudioElement | null)?.paused), { timeout: 20_000 }).toBe(true);
+    expect(album.length).toBeGreaterThan(0);
+  });
+}

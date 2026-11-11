@@ -14,7 +14,7 @@
         <div class="home-hero-text">
             <p class="home-greet">@Greeting.ToUpperInvariant()@(Name.Length > 0 ? ", " + Name.ToUpperInvariant() : "")</p>
             @* one heading whose words change (when the play history arrives), so it is never swapped for another element *@
-            <h1>@(lastTrack is not null ? "Pick up " : "Your ")<i>@(lastTrack is not null ? "where you left off" : "music")</i></h1>
+            <h1>@(lastTrack is not null && !Player.Playing ? "Pick up " : "Put on ")<i>@(lastTrack is not null && !Player.Playing ? "where you left off" : "something")</i></h1>
         </div>
         <div class="home-hero-actions">
             @* what "pick up where you left off" means: the song paused in the player, else the one played last *@
@@ -25,6 +25,23 @@
             }
             <button class="btn @(lastTrack is not null && !Player.Playing ? "" : "primary") shuffle-all" data-np @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
         </div>
+        @* Home A (owner, 11 Nov: "Home doesn't excite me"): tonight's pick, a whole album chosen once a day from the artists played most and not heard
+           lately, as a card in the cover's colours with Play and "DJ it" (the album with the DJ on) *@
+        @if (PickAlbum is { } pk)
+        {
+            <div class="home-pick">
+                <button class="home-pick-cover" @onclick="() => PlayPick(pk, false)" aria-label="Play @pk.Name"><Cover ArtKey="@pk.ArtKey" Size="168" /></button>
+                <div class="home-pick-text">
+                    <p class="home-pick-label">Picked for @(DateTime.Now.Hour >= 18 ? "tonight" : "today")</p>
+                    <h2>@Serif(pk.Name)</h2>
+                    <p class="home-pick-sub">@PickArtist(pk) · @pk.Tracks.Count song@(pk.Tracks.Count == 1 ? "" : "s")@(pk.Tracks[0].Year > 0 ? " · " + pk.Tracks[0].Year : "")</p>
+                    <div class="home-pick-actions">
+                        <button class="btn primary" @onclick="() => PlayPick(pk, false)"><Icon Name="play" Size="16" />Play</button>
+                        @if (Player.Dj is not null) { <button class="btn" @onclick="() => PlayPick(pk, true)"><Icon Name="dj" Size="16" />DJ it</button> }
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 </header>
 <LibraryStatus ShowLoading="@(!Waiting)" />
@@ -171,6 +188,34 @@ else
     Task CarryOn(Track t) => Player.Current?.Path == t.Path ? Player.Toggle() : Player.Play([t], 0, "Carry on", listenContext: "home");
         Track? LastPlayed => Session.History.Select(h => Lib.Find(h.Title, h.Artist)).FirstOrDefault(t => t is not null);
     string Name => Session.Jellyfin?.UserName is { Length: > 0 } u ? u : "";
+
+    // tonight's pick: an album of 4 songs or more, by an artist played lately when there is one, not one of the albums heard in the last 60 plays; the same
+    // all day (seeded by the date), so Home does not change under the person's hand
+    Group? pickCache; int pickDay = -1, pickSongs = -1;
+    Group? PickAlbum
+    {
+        get
+        {
+            var day = DateTime.Now.Year * 400 + DateTime.Now.DayOfYear;
+            if (pickDay == day && pickSongs == Lib.Songs.Count) return pickCache;
+            pickDay = day; pickSongs = Lib.Songs.Count;
+            var albums = Lib.Albums.Where(g => g.Tracks.Count >= 4 && g.Name.Length > 0 && g.Name != "Unknown Album").ToList();
+            if (albums.Count == 0) return pickCache = null;
+            var recent = Session.History.Take(60).Select(h => Lib.Find(h.Title, h.Artist)?.AlbumKey).Where(k => k is not null).ToHashSet();
+            var liked = Session.History.Take(300).Select(h => Matching.PrimaryArtist(h.Artist)).GroupBy(a => a).OrderByDescending(g => g.Count()).Take(25).Select(g => g.Key).ToHashSet();
+            var fresh = albums.Where(g => !recent.Contains(g.Tracks[0].AlbumKey)).ToList();
+            var pool = fresh.Where(g => liked.Contains(Matching.PrimaryArtist(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist))).ToList();
+            if (pool.Count == 0) pool = fresh.Count > 0 ? fresh : albums;
+            return pickCache = pool[new Random(day).Next(pool.Count)];
+        }
+    }
+    static string PickArtist(Group g) => g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist;
+    async Task PlayPick(Group g, bool dj)
+    {
+        await Player.Play(g.Tracks, 0, g.Name, listenContext: "home");
+        if (dj && !Player.DjOn) await Player.ToggleDjAsync();
+        Player.RequestFullScreen();
+    }
     [Inject] IJSRuntime Js { get; set; } = default!;
     ElementReference heroEl; string? heroFor = "";
     string Greeting { get { var h = DateTime.Now.Hour; return h >= 18 ? "Good evening" : h >= 12 ? "Good afternoon" : "Good morning"; } }

@@ -1,5 +1,9 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-11 ~23:00 Owner (going overnight): Home = resume hero + bits of B and C; no pick card
+- Owner: "remove the pick for today, keep the resume with the faded album art, add stuff from Home B and C; carry on overnight doing every possible, don't waste usage".
+- Plan (web + phone, then release b132): 1. remove the pick card (web Home.razor PickAlbum + phone HomePickCard/HomePick); 2. from B: a big "Start the DJ" gradient button (shuffles the library with the DJ on) and the moods as colourful tiles; 3. from C: "Artists on repeat" (round bubbles of the artists played most) and "Just arrived" (newest songs with their format). Then the open bugs: web Now Playing title/buttons, clipping sweep.
+
 ## 2026-11-11 ~22:55 Local: owner picked Home A; b131 RELEASED and DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b131 ; frank runs b131 (rollback flacie-web:rollback-b131pre).
 - Home A built web + phone: tonight's pick card (web Home.razor PickAlbum, phone HomePick in DesignI.kt + HomePickCard in PlayerUi.kt; whole albums of 4+, else 2+; artists played lately, not the last 60 plays' albums; seeded by the date; holds once picked). Play / DJ it. Headline "Put on something". Phone-width web hero fixed (one column).

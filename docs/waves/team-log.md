@@ -429,3 +429,11 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 ## 2026-11-11 Owner: level up the UI overhaul and animations, Home first (queued)
 - Owner: "the actual UI overhaul and animations need levelling up; focus on the Home screen, it does not excite or make me happy". Web + phone. Make Home feel alive and personal: a bold hero for what to play now (cover-coloured, big type), richer shelves, playful but smooth motion (shared-element moves, springy cards, staggered entrances, cover-colour glow), within the performance rules (no blur on moving things, transforms only, respect reduced motion). Show 2-3 directions as mockups first (design canvas), let the owner pick, then build.
 - Separate: the owner has a list of bugs to give; keep a "Bugs from the owner" section in this log and take them first as they arrive.
+
+## Bugs from the owner (11 Nov), take these first
+1. Full-screen graphs: improve them a lot and add many more graph options (more views and settings per graph). Add the song title and a seek bar inside the full-screen graph view. Web + phone.
+2. Graphs are delayed (they lag the music). Find why (analysis latency, the delayed second copy from the speed work, buffer offsets) and make them line up with what is heard.
+3. DJ on skip: talks for about 1 second, stops, then the music carries on. The DJ line must play in full on a skip (or not start at all). Web + phone; extend dj-android.mjs and the web DJ tests to check a whole line is heard after Next.
+4. Seek bar is too easy to hit by accident when swiping (phone): a swipe must not seek. Needs a deliberate press-and-drag (touch slop / short hold, ignore vertical or sideways swipes that start on it).
+5. Web full-screen Now Playing: the buttons and the title need a big improvement. Volume must be quick to reach (always visible or one tap). Redesign or improve the rest (ties in with the volume item above).
+6. Text overlapping and clipping in places (graphs and Now Playing); sweep and fix, with screenshots at 390, 768, 1280 and 1440 wide.

@@ -317,8 +317,11 @@ public class SyncTests
         // no own picture: the album's
         var s = fake.Song(30); ((JsonObject)s["ImageTags"]!).Remove("Primary");
         Assert.Equal("jf" + FakeJellyfin.Hex(100002) + "~albumtag2", KeyOf(s));
-        // a compilation's songs get their own album's cover from the catalog (the existing rule is kept), whatever pictures Jellyfin has
+        // a compilation's song keeps the picture in its file (owner, 11 Nov: Jungle Mania 2's songs each showed some single's cover although every file
+        // carries the album's); only one with no picture of its own gets a cover from the catalog
         var comp = fake.Song(40, album: "Now That's What I Call Music 99"); comp["AlbumArtist"] = "Various Artists";
+        Assert.Equal("jf" + FakeJellyfin.Hex(40) + "~own40", KeyOf(comp));
+        ((JsonObject)comp["ImageTags"]!).Remove("Primary");
         Assert.StartsWith("it", KeyOf(comp));
     }
 

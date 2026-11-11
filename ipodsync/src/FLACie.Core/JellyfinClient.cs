@@ -261,9 +261,11 @@ public sealed partial class JellyfinClient(HttpClient http, string deviceId, str
         // A song's cover is its OWN picture (the item's Primary image and its tag) when it has one. The album's picture (AlbumId + AlbumPrimaryImageTag) is only
         // the fallback for a song without one: on a real Jellyfin AlbumId is not reliable (songs of many different albums were seen sharing one AlbumId, and so one
         // wrong picture), so it must never win over what the song itself carries. A song on a compilation gets its own cover from the catalog, as before.
+        // The picture inside the file wins even on a compilation (owner, 11 Nov: Jungle Mania 2's songs each showed some single's cover although every file
+        // carries the album's); only a compilation song with no picture of its own looks one up for itself.
         var onCompilation = Art.OnCompilation(artist, Str("AlbumArtist"), Str("Album"));
-        var art = onCompilation && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
-                : o["ImageTags"]?["Primary"] is JsonValue pt ? "jf" + id + "~" + pt.ToString()
+        var art = o["ImageTags"]?["Primary"] is JsonValue pt ? "jf" + id + "~" + pt.ToString()
+                : onCompilation && Art.LookupKey(artist, "", Str("Name")) is { } own ? own
                 : albumId.Length > 0 && o["AlbumPrimaryImageTag"] is JsonValue at ? "jf" + albumId + "~" + at.ToString()
                 : Art.LookupKey(artist, Str("Album"), Str("Name"), ChainFallbacks(o));
         DateTime.TryParse(Str("DateCreated"), CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var created);

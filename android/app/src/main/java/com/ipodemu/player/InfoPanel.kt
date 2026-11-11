@@ -274,7 +274,7 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
                     add((if (info.channels > 0) info.channels.toString() else "2") to if (info.channels == 1) "mono" else "channels")
                 }
                 // two to a row when four would cut the numbers ("1411" was "1…" on a small phone at big text; InfoFit)
-                val perRow = InfoFit.tileColumns(maxWidth.value - 28f, androidx.compose.ui.platform.LocalDensity.current.fontScale)
+                val perRow = InfoFit.tileColumns(this@BoxWithConstraints.maxWidth.value - 28f, androidx.compose.ui.platform.LocalDensity.current.fontScale)
                 for (row in tiles.chunked(perRow)) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((v, k) in row) Column(
                         Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).border(1.dp, InfoInk.copy(alpha = .22f), RoundedCornerShape(14.dp)).padding(horizontal = 10.dp, vertical = 10.dp),

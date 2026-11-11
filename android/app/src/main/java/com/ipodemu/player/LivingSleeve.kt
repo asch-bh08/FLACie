@@ -613,8 +613,8 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
                     val down = awaitFirstDown(requireUnconsumed = true)
                     val cx = size.width / 2f; val cy = size.height / 2f
                     val f0 = geo.fraction(down.position.x - cx, down.position.y - cy)
-                    down.consume()
                     if (f0 == null) {
+                        down.consume()
                         // on the picture: a tap plays or pauses (a finger that slides far away is not a tap)
                         var moved = false
                         while (true) {
@@ -625,7 +625,25 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
                         }
                         return@awaitEachGesture
                     }
-                    scrub.floatValue = f0
+                    // on the frame: nothing is claimed until SeekIntent says tap or scrub; a swipe goes on to the page untouched (owner, 11 Nov)
+                    val t0 = System.nanoTime(); var at = down.position; var released = false
+                    var kind = SeekIntent.Kind.WAIT
+                    while (kind == SeekIntent.Kind.WAIT) {
+                        val ev = withTimeoutOrNull(20L) { awaitPointerEvent() }
+                        if (ev != null) {
+                            val c = ev.changes.firstOrNull { it.id == down.id }
+                            if (c == null) { kind = SeekIntent.Kind.SWIPE; break }
+                            at = c.position; released = !c.pressed
+                        }
+                        kind = SeekIntent.decide((System.nanoTime() - t0) / 1_000_000, (at - down.position).getDistance(), viewConfiguration.touchSlop, released)
+                    }
+                    when (kind) {
+                        SeekIntent.Kind.SWIPE -> return@awaitEachGesture
+                        SeekIntent.Kind.TAP -> { currentEvent.changes.forEach { it.consume() }; seek(f0); return@awaitEachGesture }
+                        else -> {}
+                    }
+                    scrub.floatValue = geo.nearest(at.x - cx, at.y - cy)
+                    currentEvent.changes.forEach { it.consume() }
                     while (true) {
                         val ev = awaitPointerEvent()
                         val c = ev.changes.firstOrNull { it.id == down.id } ?: break

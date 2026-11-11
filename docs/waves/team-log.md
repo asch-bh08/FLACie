@@ -1,5 +1,12 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-11 ~21:30 Local: b130 RELEASED and DEPLOYED (owner AFK, OK'd deploy + release)
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b130 (Android 145, Windows 1.0.130). frank runs b130 (rollback flacie-web:rollback-b130pre). b129 was never released; b130 holds it.
+- In it: cloud's phone-fit batch (needed 2 build fixes: this@BoxWithConstraints.maxWidth), volume always in the PC bar (SoundTile.razor = .ls-volpill; one Sound tile at 761-1100), Circle + Waveform graphs and title + seek in full screen (web + phone), graph twin kept within ~40 ms (flacie.js syncTwin nudges playbackRate, interactive latency), phone seek frame ignores swipes (SeekIntent.kt), phone DJ waits out a 2.5 s clip stall after a skip (DjLine.DRY_GRACE_MS), compilation songs keep their own cover, stuck "Filing into the library" downloads.
+- b129's animations-on smoke failure was the sign-in stalling once; b130 passed 23/23 three times with -Motion. One ANR came from me compiling during an emulator run: never build while the emulator runs.
+- Checks: server 2018; Android unit + release; smoke 23/23 off and on; DJ 3/3; web 87 + 36 (np-fits-all 17 sizes); MSI server ok.
+- Owner bugs still open: 5 web Now Playing title/buttons improvement (volume done), 6 clipping sweep, 8 narrow web Now Playing (~600 px window), Home + animation mockups.
+
 ## 2026-11-10 ~17:40 Local: STOPPED by the owner ("stop cleanly"); b129 NOT released
 - ui/living-sleeve is at 1.0 b129 (Android 144), pushed, with the Now Playing fit work merged and the fontScale fix. Not released, not deployed; frank runs b127.
 - b129 checks before the stop: server passed; Android unit + release green; smoke 23/23 (animations off). Smoke WITH animations on (-Motion): 6 passed, 9 failed (result-android-b129m-fast.json) - not looked at yet. b128's -Motion smoke was 23/23, so something since (the Now Playing fit merge?) or a flake. First thing next time: rerun that and read the failures.

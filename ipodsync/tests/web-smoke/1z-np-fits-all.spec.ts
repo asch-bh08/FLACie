@@ -110,13 +110,13 @@ for (const [name, w, h, dpr] of sizes) {
       await expect(page.locator('.ls-names h2')).toBeVisible();
       await page.waitForTimeout(1200);
       const main = ['.ls-top button[aria-label="Close Now Playing"]', '.ls-frame', '.ls-times', '.ls-transport > button', '.ls-transport .ls-play',
-        ...(phone ? ['.ls-opt', '.ls-actions > button', '.ls-actions .ls-more-btn'] : ['.ls-dock-l > button', '.ls-dock .ls-more-btn', '.ls-tiles .ls-tile', '.ls-tile-eq .chipbtn'])];
+        ...(phone ? ['.ls-opt', '.ls-actions > button', '.ls-actions .ls-more-btn'] : ['.ls-dock-l > button', '.ls-dock .ls-more-btn', '.ls-tiles .ls-tile', '.ls-tile-eq .chipbtn', '.ls-volpill-bar', '.ls-volpill-mute', '.ls-volpill-more'])];
       const np = await check(page, main, upright ? 90 : 0, [['.ls-frame', '.ls-times']]);
       problems.push(...np.problems.map((p) => 'Now Playing: ' + p));
       for (const need of ['Previous', 'Next', 'Pause']) if (!np.names.includes(need)) problems.push(`Now Playing: no ${need} on screen`);
       if (!(await page.locator('.ls-frame').isVisible())) problems.push('Now Playing: no seek bar');
       // the volume: the Sound tile on a PC, behind Options with rating, speed and sleep on a phone
-      if (!np.names.some((n) => n.startsWith(phone ? 'Options' : 'Sound: volume'))) problems.push('Now Playing: no way to the volume');
+      if (!np.names.some((n) => phone ? n.startsWith('Options') : n === 'Volume' || n === 'Sound options')) problems.push('Now Playing: no way to the volume');
       // the cover is still there, just smaller (never squeezed to nothing)
       const cover = (await page.locator('.ls-cover').boundingBox())!;
       if (!cover || cover.height < 90) problems.push(`Now Playing: the cover is ${Math.round(cover?.height ?? 0)}px`);

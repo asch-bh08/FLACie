@@ -32,15 +32,13 @@ test('on a slow line the sound follows the volume slider while it moves, and the
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
   await expect(page.locator('.ls-names h2')).toBeVisible();
   lag = 300;
-  await page.locator('.ls-sound > .ls-tile').hover();
-  await expect(page.locator('.ls-sound-pop')).toHaveCSS('opacity', '1');
-  const bar = page.locator('.ls-vol-bar');
+  const bar = page.locator('.ls-volpill-bar');
   const tb = (await bar.boundingBox())!;
-  const x = tb.x + tb.width / 2;
+  const y = tb.y + tb.height / 2;
   const sound = () => page.evaluate(() => (window as any).flacie.volume() as number);
-  await page.mouse.move(x, tb.y + tb.height * .9); await page.mouse.down();
+  await page.mouse.move(tb.x + tb.width * .1, y); await page.mouse.down();
   for (let i = 1; i <= 8; i++) {
-    await page.mouse.move(x, tb.y + tb.height * (.9 - i * .1));
+    await page.mouse.move(tb.x + tb.width * (.1 + i * .1), y);
     await page.waitForTimeout(40);
     const want = Number(await bar.inputValue()) / 100;
     expect(Math.abs((await sound()) - want), `sound at step ${i}`).toBeLessThan(0.02);
@@ -48,6 +46,6 @@ test('on a slow line the sound follows the volume slider while it moves, and the
   await page.mouse.up();
   const set = Number(await bar.inputValue());
   expect(set).toBeGreaterThan(80);
-  await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', `Sound: volume ${set}%`, { timeout: 10_000 });
+  await expect(page.locator(".ls-volpill-bar")).toHaveAttribute("aria-valuetext", `${set}%`, { timeout: 10_000 });
   lag = 0;
 });

@@ -156,6 +156,15 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await page.locator('.graph-play').click();
       await expect(page.locator('.graph-play')).toHaveAttribute('aria-label', 'Pause');
       await expect(page.locator('.graph-play')).toBeInViewport();
+      // the song and a seek bar in full screen (owner, 11 Nov), and the two new graphs
+      await expect(page.locator('.graph-now .graph-song b')).toHaveText(/\S/);
+      await expect(page.locator('.graph-seek input')).toBeInViewport();
+      for (const [tab, cls] of [['Circle', 'ring'], ['Waveform', 'scope']]) {
+        await page.locator('.graph-tabs [role=tab]', { hasText: tab }).click();
+        await expect(page.locator('#viz.' + cls)).toBeVisible();
+        await page.waitForTimeout(600);
+        await page.screenshot({ path: `test-results/graph-${cls}-${page.viewportSize()!.width}.png` });
+      }
       await page.locator('.graph-full-btn').click();
       await expect.poll(() => page.locator('#viz').evaluate((c) => c.getBoundingClientRect().height)).toBeLessThan(page.viewportSize()!.height * .5);
     });
@@ -239,7 +248,7 @@ test.describe('the full-screen player bar on a PC', () => {
     const bar = (await page.locator('.ls-dock').boundingBox())!;
     expect(bar.y + bar.height).toBeGreaterThanOrEqual(898);
     // Web A (owner, 8 Nov): Add, Lyrics, More on the left; Fav, EQ, Sound on the right
-    for (const sel of ['.ls-transport', '.ls-dock-l button[aria-label="Add to playlist"]', '.ls-dock-l button[aria-label="Share"]', '.ls-dock .np-more', '.ls-tiles .ls-dock-heart', '.ls-tiles .eq-menu .chipbtn', '.ls-sound > .ls-tile']) {
+    for (const sel of ['.ls-transport', '.ls-dock-l button[aria-label="Add to playlist"]', '.ls-dock-l button[aria-label="Share"]', '.ls-dock .np-more', '.ls-tiles .ls-dock-heart', '.ls-tiles .eq-menu .chipbtn', '.ls-tiles .ls-volpill']) {
       const b = (await page.locator(sel).first().boundingBox())!;
       expect(b.y, sel).toBeGreaterThanOrEqual(bar.y - 1); expect(b.y + b.height, sel).toBeLessThanOrEqual(bar.y + bar.height + 1);
     }
@@ -270,32 +279,43 @@ test.describe('the full-screen player bar on a PC', () => {
     expect(Math.abs(left.x - title.x)).toBeLessThanOrEqual(3);
     expect(Math.abs((1440 - (right.x + right.width)) - left.x)).toBeLessThanOrEqual(3);
     await page.screenshot({ path: 'test-results/web-a-bar.png' });
-    // Sound: hidden until hovered, then the volume slider moves the player's volume
-    const pop = page.locator('.ls-sound-pop');
-    await expect(pop).toHaveCSS('opacity', '0');
-    await page.locator('.ls-sound > .ls-tile').hover();
-    await expect(pop).toHaveCSS('opacity', '1');
-    // everything in it, the switch too, sits inside the pop-up
+    // the volume is in the bar itself (owner, 11 Nov: "quick to reach"): no pop-up to open first. Set, clicked, dragged, nudged with the keys and the wheel
+    const bar = page.locator('.ls-volpill-bar');
+    await expect(bar).toBeVisible();
+    const vol = () => page.evaluate(() => Math.round((window as any).flacie.volume() * 100));
+    await bar.fill('40');
+    await expect.poll(vol).toBe(40);
+    await expect(page.locator('.ls-volpill-bar')).toHaveAttribute('aria-valuetext', '40%');
+    const tb = (await bar.boundingBox())!;
+    await page.mouse.click(tb.x + tb.width * .9, tb.y + tb.height / 2);
+    await expect.poll(vol).toBeGreaterThan(80);
+    await page.mouse.move(tb.x + tb.width * .85, tb.y + tb.height / 2); await page.mouse.down();
+    await page.mouse.move(tb.x + tb.width * .2, tb.y + tb.height / 2, { steps: 6 }); await page.mouse.up();
+    await expect.poll(vol).toBeLessThan(35);
+    const set = Number(await bar.inputValue());
+    await bar.focus(); await page.keyboard.press('ArrowUp');
+    await expect.poll(() => bar.inputValue()).toBe(String(set + 1));
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height / 2); await page.mouse.wheel(0, -100);
+    await expect.poll(() => bar.inputValue()).toBe(String(set + 6));
+    await expect.poll(vol).toBe(set + 6);
+    // mute and back
+    await page.locator('.ls-volpill-mute').click();
+    await expect.poll(vol).toBe(0);
+    await page.locator('.ls-volpill-mute').click();
+    await expect.poll(vol).toBeGreaterThan(0);
+    // the sound options open on a click, everything inside the pop-up
+    await page.getByRole('button', { name: 'Sound options' }).click();
+    const pop = page.locator('.ls-volpill-pop');
+    await expect(pop.getByRole('switch', { name: 'Even out volume' })).toBeVisible();
     const pb = (await pop.boundingBox())!;
-    for (const el of await pop.locator('.switch, .seg, .ls-vol-bar, .ls-mute').all()) {
+    expect(pb.y).toBeGreaterThanOrEqual(0);
+    for (const el of await pop.locator('.switch, .seg').all()) {
       const b = (await el.boundingBox())!;
       expect(b.x).toBeGreaterThanOrEqual(pb.x); expect(b.x + b.width).toBeLessThanOrEqual(pb.x + pb.width);
     }
     await page.screenshot({ path: 'test-results/web-a-sound.png' });
-    // a plain volume slider (owner, 9 Nov): set, pressed near the top, dragged down, nudged with the arrow keys; the player follows
-    const bar = page.locator('.ls-vol-bar');
-    await bar.fill('40');
-    await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', 'Sound: volume 40%');
-    const tb = (await bar.boundingBox())!;
-    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * .1); await page.mouse.down();
-    await expect.poll(() => page.evaluate(() => Math.round((window as any).flacie.volume() * 100))).toBeGreaterThan(80);
-    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height * .7, { steps: 5 }); await page.mouse.up();
-    await expect.poll(() => page.evaluate(() => Math.round((window as any).flacie.volume() * 100))).toBeLessThan(40);
-    const set = Number(await bar.inputValue());
-    await expect(page.locator('.ls-sound > .ls-tile')).toHaveAttribute('aria-label', `Sound: volume ${set}%`);
-    await bar.focus(); await page.keyboard.press('ArrowUp');
-    await expect.poll(() => bar.inputValue()).toBe(String(set + 1));
-    await expect(pop.getByRole('switch', { name: 'Even out volume' })).toBeVisible();
+    await pop.getByRole('button', { name: 'Done' }).click();
+    await expect(pop).toHaveCount(0);
     // More holds the rating, speed and the sleep timer (paused first: the test songs are 3 s long and a new music track starts at 1x)
     await page.mouse.move(10, 10);
     await page.locator('.ls-play[aria-label="Pause"]').click();

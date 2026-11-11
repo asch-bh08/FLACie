@@ -44,6 +44,15 @@ else
             else if (unavailable) { <p class="viz-off">The live graphs aren't available in this browser.</p> }
             else if (onData && !allowData) { <p class="viz-off">The live graphs are paused on mobile data: they stream a second copy of the song, about as much data again. <button type="button" class="btn ghost" @onclick="ShowAnyway">Show anyway</button></p> }
             else { <canvas id="viz" class="viz @mode @(Info.HiRes ? "tall" : "")" role="img" aria-label="@Title" onclick="flacie.graphFull(this.closest('.graph-box'), true)"></canvas> }
+            @* in full screen: the song and a seek bar under the graph (owner, 11 Nov: "add a seek bar and title in them") *@
+            <div class="graph-now">
+                <span class="graph-song"><b>@Track.Title</b><small>@Track.Artist</small></span>
+                <span class="graph-seek">
+                    <span class="graph-pos">@Clock(Player.Position)</span>
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="--fill:@Fill()%" @onchange="Seek" />
+                    <span>@Clock(Player.Duration)</span>
+                </span>
+            </div>
             <p class="graph-hint">@Hint</p>
         </div>
 
@@ -129,11 +138,13 @@ else
         yield return ("leds", "Visualizer");
         yield return ("wall", "Spectrogram");
         yield return ("loud", "Loudness");
+        yield return ("ring", "Circle");
+        yield return ("scope", "Waveform");
         yield return ("stereo", Info!.Channels == 1 ? "Mono" : "Stereo");
         if (Info.BitrateKbps > 0) yield return ("rate", "Bit rate");
     }
 
-    string Title => mode switch { "rate" => "Bit rate", "curve" => "Spectrum", "leds" => "Visualizer", "wall" => "Spectrogram", "loud" => "Loudness", _ => "Stereo" };
+    string Title => mode switch { "rate" => "Bit rate", "curve" => "Spectrum", "leds" => "Visualizer", "wall" => "Spectrogram", "loud" => "Loudness", "ring" => "Circle", "scope" => "Waveform", _ => "Stereo" };
     string Hint => mode switch
     {
         "rate" => "How much data each second of the song uses, next to common formats.",
@@ -141,6 +152,8 @@ else
         "leds" => "The song as it plays, deep sounds on the left and high ones on the right.",
         "wall" => "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left.",
         "loud" => "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it.",
+        "ring" => "The song in a circle: deep sounds at the top, high ones round the bottom, and the ring swells with the bass.",
+        "scope" => "The sound wave itself, live: tall swings are loud, tight wiggles are high notes.",
         _ => "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side.",
     };
 
@@ -194,7 +207,11 @@ else
     // the play button in full screen follows the player (only a change of playing / paused redraws the panel)
     bool wasPlaying;
     protected override void OnInitialized() { wasPlaying = Player.Playing; Player.Changed += OnPlayer; }
+    // (the full-screen seek bar and its times are moved by the graph's own drawing loop in the page, flacie.js vizDraw: no redraw here every second)
     void OnPlayer() { if (Player.Playing == wasPlaying) return; wasPlaying = Player.Playing; _ = InvokeAsync(StateHasChanged); }
+    static string Clock(double s) { var t = TimeSpan.FromSeconds(Math.Max(0, s)); return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss"); }
+    string Fill() => (Player.Duration > 0 ? Math.Clamp(Player.Position / Player.Duration * 100, 0, 100) : 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    Task Seek(ChangeEventArgs e) => double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var v) ? Player.Seek(v) : Task.CompletedTask;
     public async ValueTask DisposeAsync() { Player.Changed -= OnPlayer; await DisposeViz(); }
     async ValueTask DisposeViz() => await Safe(() => Js.InvokeVoidAsync("flacie.vizStop").AsTask());
 

@@ -1,5 +1,9 @@
 package com.ipodemu.player
 
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.draw.drawBehind
 import android.graphics.Bitmap
 import android.graphics.Paint
 import androidx.compose.foundation.Canvas
@@ -49,6 +53,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import kotlin.math.PI
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -162,12 +167,12 @@ private var cutLabel = ""
 
 /** The graphs in the web's order (TrackInfoPanel.razor Picks); the bit rate only when the file says it. */
 internal fun infoGraphs(kbps: Int, channels: Int): List<Pair<String, String>> = buildList {
-    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness")
+    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness"); add("ring" to "Circle"); add("scope" to "Waveform")
     add("stereo" to if (channels == 1) "Mono" else "Stereo")
     if (kbps > 0) add("rate" to "Bit rate")
 }
 
-private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; else -> "Stereo" }
+private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; "ring" -> "Circle"; "scope" -> "Waveform"; else -> "Stereo" }
 
 private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
@@ -175,6 +180,8 @@ private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "leds" -> "The song as it plays, deep sounds on the left and high ones on the right."
     "wall" -> "Pitch runs up the side (deep at the bottom, high at the top) and brighter means louder. The newest sound is on the right and scrolls left."
     "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it."
+    "ring" -> "The song in a circle: deep sounds at the top, high ones round the bottom, and the ring swells with the bass."
+    "scope" -> "The sound wave itself, live: tall swings are loud, tight wiggles are high notes."
     else -> "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side."
 }
 
@@ -302,12 +309,12 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
             ), "File", toneC)
         }
     }
-    if (full) FullGraph(graphs.filter { it.first != "rate" }, mode, { mode = it }, { full = false }, analysis, snap.playing, accent, toneC, groundC, info.sampleRate)
+    if (full) FullGraph(graphs.filter { it.first != "rate" }, mode, { mode = it }, { full = false }, analysis, snap.playing, accent, toneC, groundC, info.sampleRate, t)
 }
 
 /** One live graph on the whole screen, any phone and either way round: its name and Live at the top, the other graphs as tabs (or swipe), ✕ or Back to close. */
 @Composable
-private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: (String) -> Unit, onClose: () -> Unit, analysis: LiveAnalysis, playing: Boolean, accent: Color, tone: Color, ground: Color, sampleRate: Int) {
+private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: (String) -> Unit, onClose: () -> Unit, analysis: LiveAnalysis, playing: Boolean, accent: Color, tone: Color, ground: Color, sampleRate: Int, t: Track) {
     androidx.compose.ui.window.Dialog(onClose, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Column(Modifier.fillMaxSize().background(ground).systemBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -332,8 +339,33 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                     if (dx < -60f && i < graphs.lastIndex) onMode(graphs[i + 1].first) else if (dx > 60f && i > 0) onMode(graphs[i - 1].first)
                 }) { c, d -> c.consume(); dx += d }
             }) { LiveGraph(mode, analysis, playing, maxHeight, accent, tone, ground) }
-            // previous, play / pause and next, so the music can be stopped without leaving the graph
             val app = LocalApp.current
+            // the song and a seek bar under the graph (owner, 11 Nov: "add a seek bar and title in them")
+            val pos = rememberPosition(app.player, playing)
+            var drag by remember { mutableFloatStateOf(-1f) }
+            val dur = app.player.durationMs.coerceAtLeast(1)
+            val frac = if (drag >= 0f) drag else (pos.value.toFloat() / dur).coerceIn(0f, 1f)
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Txt(t.title, size = 17f, weight = FontWeight.Bold, color = InfoInk, maxLines = 1)
+                Txt(t.artist, size = 13f, color = InfoDim, maxLines = 1)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MonoLabel(fmtTime((frac * dur).toLong()), size = 11f, color = InfoDim, upper = false)
+                    Box(Modifier.weight(1f).height(32.dp)
+                        .semantics { contentDescription = "Seek"; stateDescription = fmtTime((frac * dur).toLong()) + " of " + fmtTime(dur) }
+                        .pointerInput(Unit) { detectTapGestures { o -> app.player.seekTo(((o.x / size.width).coerceIn(0f, 1f) * app.player.durationMs).toLong()) } }
+                        .pointerInput(Unit) {
+                            detectHorizontalDragGestures(onDragStart = { o -> drag = (o.x / size.width).coerceIn(0f, 1f) }, onDragEnd = { app.player.seekTo((drag * app.player.durationMs).toLong()); drag = -1f }, onDragCancel = { drag = -1f }) { c, _ -> c.consume(); drag = (c.position.x / size.width).coerceIn(0f, 1f) }
+                        }
+                        .drawBehind {
+                            val y = size.height / 2; val hh = 5.dp.toPx()
+                            drawRoundRect(InfoInk.copy(alpha = .2f), Offset(0f, y - hh / 2), Size(size.width, hh), CornerRadius(hh))
+                            drawRoundRect(accent, Offset(0f, y - hh / 2), Size(size.width * frac, hh), CornerRadius(hh))
+                            drawCircle(InfoInk, 7.dp.toPx(), Offset(size.width * frac, y))
+                        })
+                    MonoLabel(fmtTime(dur), size = 11f, color = InfoDim, upper = false)
+                }
+            }
+            // previous, play / pause and next, so the music can be stopped without leaving the graph
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
                 for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
                     val big = label == "Pause" || label == "Play"
@@ -420,7 +452,7 @@ private fun RateBars(kbps: Int, accent: Color) {
 
 private class GraphState {
     // spectrum / visualizer
-    var peaks = FloatArray(0); var holds = FloatArray(0); var heights = FloatArray(0)
+    var peaks = FloatArray(0); var holds = FloatArray(0); var heights = FloatArray(0); var bass = 0f
     // spectrogram
     var pix = IntArray(0); var pw = 0; var ph = 0; var bmp: Bitmap? = null; var acc = 0f; var lastNs = 0L
     var lut = IntArray(0); var lutKey = 0L
@@ -475,7 +507,7 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, he
         @Suppress("UNUSED_EXPRESSION") frameNs
         val g = Gfx(this, paint, accent, tone, ground, analysis, state, frameNs, playing && analysis.active)
         when (mode) {
-            "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); else -> g.stereo()
+            "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); "ring" -> g.ring(); "scope" -> g.scope(); else -> g.stereo()
         }
     }
 }
@@ -577,6 +609,46 @@ private class Gfx(
             }
         }
         text("BASS", 0f, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+    }
+
+    // circle (owner, 11 Nov: "loads more options for the graphs"): bars radiating from a ring that swells with the bass, mirrored left and right; as on the web
+    fun ring() {
+        val n = 72; val lo = 35f; val hi = min(nyq, 16000f)
+        if (st.heights.size != n) { st.heights = FloatArray(n); st.holds = FloatArray(n) }
+        val cx = w / 2; val cy = h / 2; val r = min(w, h) * .24f; val room = min(w, h) * .24f
+        var bass = 0; for (k in 0 until max(2, (150f / nyq * a.bins).toInt())) bass = max(bass, a.freq[k])
+        st.bass = max(bass / 255f, st.bass - .03f)
+        val r0 = r * (1 + .12f * st.bass * st.bass)
+        d.drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = .28f + .3f * st.bass), accent.copy(alpha = 0f)), Offset(cx, cy), r0 * 1.15f), r0 * 1.15f, Offset(cx, cy))
+        d.drawCircle(ink.copy(alpha = .18f), r0, Offset(cx, cy), style = androidx.compose.ui.graphics.drawscope.Stroke(2 * dp))
+        val lw = max(2 * dp, (2 * PI.toFloat() * r0 / (n * 2)) * .55f)
+        for (i in 0 until n) {
+            val f0 = lo * (hi / lo).pow(i / n.toFloat()); val f1 = lo * (hi / lo).pow((i + 1) / n.toFloat())
+            val b0 = (f0 / nyq * a.bins).toInt(); val b1 = max(b0 + 1, kotlin.math.ceil(f1 / nyq * a.bins).toInt())
+            var m = 0; for (k in b0 until min(b1, a.bins)) m = max(m, a.freq[k])
+            val v = min(1f, (m / 255f).pow(1.6f) * (1 + .8f * i / n))
+            st.heights[i] = max(v, st.heights[i] - .04f); st.holds[i] = max(st.heights[i], st.holds[i] - .01f)
+            val len = 3 * dp + st.heights[i] * room
+            for (side in intArrayOf(1, -1)) {
+                val ang = -PI.toFloat() / 2 + side * (i + .5f) / n * PI.toFloat(); val ca = kotlin.math.cos(ang); val sa = kotlin.math.sin(ang)
+                val from = r0 + 4 * dp
+                d.drawLine(if (i < n / 2) accent else ink.copy(alpha = .85f), Offset(cx + ca * from, cy + sa * from), Offset(cx + ca * (from + len), cy + sa * (from + len)), lw, StrokeCap.Round)
+                if (st.holds[i] > .05f) { val pr = r0 + 8 * dp + st.holds[i] * room; d.drawCircle(ink.copy(alpha = .7f), 1.6f * dp, Offset(cx + ca * pr, cy + sa * pr)) }
+            }
+        }
+    }
+
+    // waveform: the sound itself, an oscilloscope trace that holds still on the beat (each frame starts where the wave crosses upwards); as on the web
+    fun scope() {
+        val s = a.left; val n = s.size
+        val mid = (h - 16 * dp) / 2; val amp = mid - 8 * dp
+        d.drawLine(ink.copy(alpha = .1f), Offset(0f, mid), Offset(w, mid), dp)
+        var start = 0; for (i in 1 until n / 2) if (s[i - 1] < 0f && s[i] >= 0f) { start = i; break }
+        val span = min(n - start, n / 2)
+        val path = Path().apply { for (i in 0 until span) { val x = i / (span - 1f) * w; val y = mid - s[start + i].coerceIn(-1f, 1f) * amp; if (i == 0) moveTo(x, y) else lineTo(x, y) } }
+        d.drawPath(path, accent.copy(alpha = .25f), style = androidx.compose.ui.graphics.drawscope.Stroke(8 * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        d.drawPath(path, accent, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5f * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
+        text("THE SOUND, LIVE", 0f, h - 3 * dp)
     }
 
     // spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays

@@ -1533,3 +1533,18 @@ html.buffering .play { --play-ic-dim: .55; }
   .rail-main a { flex: 1 1 0; min-width: 64px; font-size: 11px !important; }
   .account-menu .am-phone { display: flex; }
 }
+/* the full-screen graph's song and seek bar (owner, 11 Nov), shown only in full screen */
+.graph-now { display: none; }
+.graph-box:fullscreen .graph-now, .graph-box.full .graph-now { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.graph-song { display: flex; flex-direction: column; min-width: 0; flex: 0 1 34%; }
+.graph-song b { font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graph-song small { color: var(--ink-2, var(--dim)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.graph-seek { display: flex; align-items: center; gap: 10px; flex: 1 1 300px; min-width: 0; font-family: var(--mono, monospace); font-size: 13px; font-variant-numeric: tabular-nums; }
+.graph-seek input { flex: 1; min-width: 0; height: 28px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.graph-seek input::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--np-accent, var(--accent)) var(--fill), color-mix(in srgb, var(--ink, #fff) 20%, transparent) var(--fill)); }
+.graph-seek input::-moz-range-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink, #fff) 20%, transparent); }
+.graph-seek input::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--np-accent, var(--accent)); }
+.graph-seek input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -5px; border-radius: 50%; background: var(--ink, #fff); }
+.graph-seek input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--ink, #fff); }
+.viz.ring, .viz.scope { height: 220px; }
+.viz.tall.ring, .viz.tall.scope { height: 300px; }

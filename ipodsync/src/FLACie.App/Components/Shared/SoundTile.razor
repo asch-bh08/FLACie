@@ -1,19 +1,28 @@
 @inherits UserComponent
-@* The full-screen player's Sound tile on a PC (owner, 8 Nov: "when you hover it pops up with the sound and it fits the vibe"): the volume as a tall slider in
-   the cover's colour beside bars that move with the music, and the two sound switches (even out volume, fade between songs). Hovering opens it, as does a
-   click or Tab (for touch screens and the keyboard); moving away or Escape closes it. *@
-<div class="ls-sound @(open ? "open" : "")" @onmouseleave="() => open = false" @onkeydown="Key">
-    <button class="ls-tile" @onclick="() => open = !open" aria-label="Sound: volume @Pct%" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" Size="22" /><span>Sound</span></button>
-    <div class="ls-sound-pop @(Player.Playing ? "live" : "")" role="dialog" aria-label="Sound">
-        <div class="ls-sound-level">
-            <i class="ls-eqbars" aria-hidden="true"><b></b><b></b><b></b><b></b><b></b></i>
-            @* a plain volume slider (owner, 9 Nov: "just make a volume bar"): the sound follows it as it moves (here in the page), the player is told when it is let go *@
-            <input class="ls-vol-bar" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%"
-                   oninput="flacie.volume(this.value / 100); this.nextElementSibling.textContent = this.value" @onchange="OnVolume" />
-            <b class="ls-vol-num">@Pct</b>
-            <button class="ls-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : "volume-2")" Size="18" /></button>
-        </div>
-        <div class="ls-sound-opts">
+@* The full-screen player's volume on a PC (owner, 11 Nov: "the volume bar must be quick to reach; the pop-up is terrible, doesn't work and looks bad"):
+   always in the bar, no pop-up to open first. A mute button, a wide slider in the cover's colour (drag, click, the wheel and the arrow keys all move it;
+   the sound follows as it moves and the player is told when it is let go) and the level in numbers. The two sound switches (even out volume, fade between
+   songs) are behind the small button beside it, which opens on a click (not on hover: a pop-up that came and went under the pointer was the complaint). *@
+<div class="ls-volpill @(open ? "open" : "")" @onkeydown="Key">
+    <button type="button" class="ls-volpill-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")" title="@(Player.Volume == 0 ? "Unmute" : "Mute")">
+        <Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" Size="22" />
+    </button>
+    <input class="ls-volpill-bar" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%" style="--fill:@Pct%"
+           oninput="flacie.volume(this.value / 100); this.style.setProperty('--fill', this.value + '%'); this.nextElementSibling.textContent = this.value + '%'"
+           onwheel="event.preventDefault(); this.value = Math.max(0, Math.min(100, Number(this.value) + (event.deltaY < 0 ? 5 : -5))); this.dispatchEvent(new Event('input', { bubbles: true })); this.dispatchEvent(new Event('change', { bubbles: true }))"
+           @onchange="OnVolume" />
+    <b class="ls-volpill-num" aria-hidden="true">@Pct%</b>
+    <button type="button" class="ls-volpill-more @(Player.LevelVolume || Player.FadeSecs > 0 ? "on" : "")" @onclick="() => open = !open" aria-label="Sound options" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")" title="Sound options">
+        <Icon Name="sliders" Size="18" /><span class="ls-volpill-label">Sound</span>
+    </button>
+    @if (open)
+    {
+        <div class="ls-volpill-pop" role="dialog" aria-label="Sound options">
+            @* on a narrow window (a tablet, a zoomed laptop) the bar has no room for the slider: it is here instead *@
+            <label class="ls-volpill-popbar"><button type="button" class="ls-volpill-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" @onclick:preventDefault="true" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : "volume-2")" Size="20" /></button>
+                <input class="ls-volpill-bar" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%" style="--fill:@Pct%"
+                       oninput="flacie.volume(this.value / 100); this.style.setProperty('--fill', this.value + '%')" @onchange="OnVolume" />
+            </label>
             <label class="switch-row sound-row">
                 <span><b>Even out volume</b><small>Loud songs down, quiet ones up</small></span>
                 <input type="checkbox" role="switch" aria-label="Even out volume" checked="@Player.LevelVolume" @onchange="e => Player.SetLevelVolumeAsync((bool)(e.Value ?? false))" />
@@ -29,8 +38,9 @@
                     }
                 </div>
             </div>
+            <button type="button" class="ls-volpill-close" @onclick="() => open = false">Done</button>
         </div>
-    </div>
+    }
 </div>
 @code {
     bool open;

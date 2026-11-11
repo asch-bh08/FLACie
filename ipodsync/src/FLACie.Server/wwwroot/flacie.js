@@ -261,8 +261,11 @@ window.flacie = (() => {
   const syncTwin = () => {
     if (!twin || !audio.src) return;
     if (twin.src !== audio.src) twin.src = audio.src;
-    if (Math.abs(twin.currentTime - audio.currentTime) > 0.3) { try { twin.currentTime = audio.currentTime; } catch { } }
-    if (twin.playbackRate !== audio.playbackRate) twin.playbackRate = audio.playbackRate;
+    // kept within about 40 ms of what is heard (owner, 11 Nov: "the graphs are delayed"): it used to be corrected only once 0.3 s out, by a jump that
+    // stalls it; now a small gap is closed by running the copy a touch faster or slower, and only a big one (a seek, a new song) jumps
+    const gap = audio.currentTime - twin.currentTime;
+    if (Math.abs(gap) > 0.5) { try { twin.currentTime = audio.currentTime; } catch { } twin.playbackRate = audio.playbackRate; }
+    else { const nudge = Math.abs(gap) > 0.04 ? Math.max(-0.06, Math.min(0.06, gap * 0.6)) : 0; const r = audio.playbackRate * (1 + nudge); if (Math.abs(twin.playbackRate - r) > 0.001) twin.playbackRate = r; }
     if (audio.paused !== twin.paused) { if (audio.paused) twin.pause(); else twin.play().catch(() => { }); }
   };
   ["play", "pause", "seeked", "loadstart", "ratechange"].forEach(ev => audio.addEventListener(ev, syncTwin));
@@ -277,12 +280,12 @@ window.flacie = (() => {
     if (actx && ctxKey === key) return true;
     closeGraph();
     try {
-      try { actx = rate >= 8000 && rate <= 192000 ? new AC({ sampleRate: rate, latencyHint: "playback" }) : new AC(); } catch { actx = new AC(); }
+      try { actx = rate >= 8000 && rate <= 192000 ? new AC({ sampleRate: rate, latencyHint: "interactive" }) : new AC(); } catch { actx = new AC(); }
       twin = new Audio(); twin.preload = "auto";
       const src = actx.createMediaElementSource(twin);
       // nothing here reaches the speakers: the analysers feed a gain of zero (which keeps them running)
       const sink = actx.createGain(); sink.gain.value = 0; sink.connect(actx.destination);
-      const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.7; src.connect(a); a.connect(sink);
+      const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.5; src.connect(a); a.connect(sink);
       // left and right on their own; the gain node first turns a mono file into two equal channels, so a mono song reads the same on both sides
       const up = actx.createGain(); up.channelCount = 2; up.channelCountMode = "explicit"; up.channelInterpretation = "speakers";
       const split = actx.createChannelSplitter(2);
@@ -465,14 +468,69 @@ window.flacie = (() => {
     for (const d of [0, -12, -24, -36, -48]) { const y = mb - X(d) * mhh; g.fillText(d + "", tx, y + 4 * dpr); }
   };
 
-  const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo };
+  // ---- circle (owner, 11 Nov: "loads more options for the graphs"): bars radiating from a ring that swells with the bass, mirrored left and right ----
+  const drawRing = (f) => {
+    const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2, bins = data.length;
+    const N = 72, lo = 35, hi = Math.min(nyq, 16000);
+    if (!vh || vh.length !== N) { vh = new Float32Array(N); vp = new Float32Array(N); }
+    g.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = h / 2, R = Math.min(w, h) * 0.24, room = Math.min(w, h) * 0.24;
+    let bass = 0; for (let k = 0; k < Math.max(2, Math.floor(150 / nyq * bins)); k++) bass = Math.max(bass, data[k]); bass /= 255;
+    vs.b = Math.max(bass, (vs.b || 0) - 0.03);
+    const r0 = R * (1 + 0.12 * Math.pow(vs.b, 2));
+    const glow = g.createRadialGradient(cx, cy, r0 * 0.2, cx, cy, r0 * 1.15); glow.addColorStop(0, rgba(c.accent, 0.28 + 0.3 * vs.b)); glow.addColorStop(1, rgba(c.accent, 0));
+    g.fillStyle = glow; g.beginPath(); g.arc(cx, cy, r0 * 1.15, 0, 7); g.fill();
+    g.strokeStyle = rgba(c.ink, 0.18); g.lineWidth = 2 * dpr; g.beginPath(); g.arc(cx, cy, r0, 0, 7); g.stroke();
+    g.lineCap = "round"; g.lineWidth = Math.max(2 * dpr, (2 * Math.PI * r0 / (N * 2)) * 0.55);
+    for (let i = 0; i < N; i++) {
+      const f0 = lo * Math.pow(hi / lo, i / N), f1 = lo * Math.pow(hi / lo, (i + 1) / N);
+      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
+      let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
+      const v = Math.min(1, Math.pow(m / 255, 1.6) * (1 + 0.8 * i / N));
+      vh[i] = Math.max(v, vh[i] - 0.04); vp[i] = Math.max(vh[i], vp[i] - 0.01);
+      const len = 3 * dpr + vh[i] * room;
+      for (const side of [1, -1]) {
+        const a = -Math.PI / 2 + side * (i + 0.5) / N * Math.PI, ca = Math.cos(a), sa = Math.sin(a);
+        g.strokeStyle = i / N < 0.5 ? c.accent : rgba(c.ink, 0.85);
+        g.beginPath(); g.moveTo(cx + ca * (r0 + 4 * dpr), cy + sa * (r0 + 4 * dpr)); g.lineTo(cx + ca * (r0 + 4 * dpr + len), cy + sa * (r0 + 4 * dpr + len)); g.stroke();
+        if (vp[i] > 0.05) { const pr = r0 + 8 * dpr + vp[i] * room; g.fillStyle = rgba(c.ink, 0.7); g.beginPath(); g.arc(cx + ca * pr, cy + sa * pr, 1.6 * dpr, 0, 7); g.fill(); }
+      }
+    }
+  };
+
+  // ---- waveform: the sound itself, an oscilloscope trace that holds still on the beat (it starts each frame where the wave crosses upwards) ----
+  const drawScope = (f) => {
+    const { g, w, h, dpr, c } = f;
+    const n = an.fftSize, d = new Uint8Array(n); an.getByteTimeDomainData(d);
+    g.clearRect(0, 0, w, h);
+    const mid = (h - 16 * dpr) / 2, amp = mid - 8 * dpr;
+    g.strokeStyle = rgba(c.ink, 0.1); g.lineWidth = dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
+    let start = 0; for (let i = 1; i < n / 2; i++) if (d[i - 1] < 128 && d[i] >= 128) { start = i; break; }
+    const span = Math.min(n - start, Math.floor(n / 2));
+    const path = () => { g.beginPath(); for (let i = 0; i < span; i++) { const x = i / (span - 1) * w, y = mid - (d[start + i] - 128) / 128 * amp; if (i) g.lineTo(x, y); else g.moveTo(x, y); } };
+    g.lineJoin = "round"; g.lineCap = "round";
+    g.strokeStyle = rgba(c.accent, 0.25); g.lineWidth = 8 * dpr; path(); g.stroke();
+    g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; path(); g.stroke();
+    labelFont(f); g.textAlign = "left"; g.fillText("THE SOUND, LIVE", 0, h - 3 * dpr);
+  };
+
+  const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo, ring: drawRing, scope: drawScope };
   let lastSync = 0;
   const vizDraw = (ts) => {
     if (!vizOn) return;
     requestAnimationFrame(vizDraw);
     const cv = document.getElementById("viz"); if (!cv) return;
     if (!an && !buildGraph(vizRate)) return;   // (closed while the tab was hidden)
-    if (ts - lastSync > 500) { lastSync = ts; syncTwin(); }
+    if (ts - lastSync > 200) {
+      lastSync = ts; syncTwin();
+      // the full-screen graph's seek bar and time follow the song (TrackInfoPanel's .graph-now; not while it is being dragged)
+      const box = cv.closest(".graph-box");
+      if (box && (box.classList.contains("full") || document.fullscreenElement === box)) {
+        const inp = box.querySelector(".graph-seek input"), pos = box.querySelector(".graph-pos");
+        if (inp && document.activeElement !== inp && isFinite(audio.duration)) { inp.max = String(Math.max(1, Math.floor(audio.duration))); inp.value = String(Math.floor(audio.currentTime)); inp.style.setProperty("--fill", (audio.currentTime / audio.duration * 100).toFixed(1) + "%"); }
+        if (pos) { const t = Math.floor(audio.currentTime), m = Math.floor(t / 60); pos.textContent = (m >= 60 ? Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0") : m) + ":" + String(t % 60).padStart(2, "0"); }
+      }
+    }
     const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
     if (!w || !h) return;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; vs = {}; }

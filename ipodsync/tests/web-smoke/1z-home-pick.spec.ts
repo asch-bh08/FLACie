@@ -22,6 +22,10 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) 
     await expect(pick).toBeVisible({ timeout: 20_000 });
     await expect(pick.locator('h2')).toHaveText(/\S/);
     await expect(page.locator('.home-hero h1')).toContainText(/Put on|Pick up/);
+    // the pick holds still once shown (it used to swap as the library loaded in parts)
+    const first = (await pick.locator('h2').innerText()).trim();
+    await page.waitForTimeout(2500);
+    await expect(pick.locator('h2')).toHaveText(first);
     const b = (await pick.boundingBox())!;
     expect(b.x).toBeGreaterThanOrEqual(0); expect(b.x + b.width).toBeLessThanOrEqual(size.width + 1);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
@@ -29,7 +33,7 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) 
     await page.screenshot({ path: `test-results/home-pick-${size.width}.png` });
     const album = (await pick.locator('h2').innerText()).trim();
     await pick.getByRole('button', { name: 'Play', exact: true }).click();
-    await expect(page.locator('.ls-names h2, .player .bar-song')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('.ls-names h2, .player .bar-song').first()).toBeVisible({ timeout: 20_000 });
     await expect.poll(() => page.evaluate(() => !(document.querySelector('audio') as HTMLAudioElement | null)?.paused), { timeout: 20_000 }).toBe(true);
     expect(album.length).toBeGreaterThan(0);
   });

@@ -198,6 +198,8 @@ else
         {
             var day = DateTime.Now.Year * 400 + DateTime.Now.DayOfYear;
             if (pickDay == day && pickSongs == Lib.Songs.Count) return pickCache;
+            // once picked, the pick stays for the day while its album is still there: it swapped (or went for a moment) as the library loaded in parts
+            if (pickDay == day && pickCache is { } kept && Lib.Albums.Any(g => g.Tracks.Count > 0 && g.Tracks[0].AlbumKey == kept.Tracks[0].AlbumKey)) { pickSongs = Lib.Songs.Count; return pickCache; }
             pickDay = day; pickSongs = Lib.Songs.Count;
             var named = Lib.Albums.Where(g => g.Name.Length > 0 && g.Name != "Unknown Album").ToList();
             // whole albums first; a small library (or one of singles) still gets a pick from what it has

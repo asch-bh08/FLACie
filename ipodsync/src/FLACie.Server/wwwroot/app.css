@@ -1548,3 +1548,10 @@ html.buffering .play { --play-ic-dim: .55; }
 .graph-seek input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--ink, #fff); }
 .viz.ring, .viz.scope { height: 220px; }
 .viz.tall.ring, .viz.tall.scope { height: 300px; }
+/* a short screen in full screen (a phone on its side, a zoomed laptop): the graph keeps its room; the hint and the artist go */
+@media (max-height: 560px) {
+  .graph-box:fullscreen .graph-hint, .graph-box.full .graph-hint, .graph-box:fullscreen .graph-song small, .graph-box.full .graph-song small { display: none; }
+  .graph-box:fullscreen, .graph-box.full { gap: 6px; }
+  .graph-box:fullscreen .graph-now, .graph-box.full .graph-now { flex-wrap: nowrap; }
+  .graph-box:fullscreen .graph-song b, .graph-box.full .graph-song b { font-size: 15px; }
+}

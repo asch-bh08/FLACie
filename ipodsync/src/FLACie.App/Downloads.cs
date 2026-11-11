@@ -39,6 +39,9 @@ public sealed class DownloadJob(string id, string label, string? artKey, string 
     {
         lock (Trail)
         {
+            // several sources race for a song: once one has said Done, a slower one still reporting ("Filing into the library...") must not put the job back
+            // to running (owner, 11 Nov: 22 jobs stuck for hours with their files long arrived); after a Failed, only a late Done counts
+            if (Stage == DownloadStage.Done || (Stage == DownloadStage.Failed && st.Stage != DownloadStage.Done)) return;
             if (!st.Miss) { Stage = st.Stage; Message = st.Message; if (st.Source is not null) Current = st.Source; }
             if (st.Stage == DownloadStage.Done) { Source = st.Source; HiRes = st.HiRes; if (st.NewTracks is { Count: > 0 } t) { File = FileOf(t[0].Path); TrackPath = t[0].Path; } }
             if (Trail.Count == 0 || Trail[^1].Text != st.Message || Trail[^1].Source != st.Source) { Trail.Add(new(DateTime.UtcNow, st.Source, st.Message, st.Miss)); if (Trail.Count > 40) Trail.RemoveAt(1); }

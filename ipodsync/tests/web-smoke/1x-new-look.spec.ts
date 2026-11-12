@@ -148,6 +148,9 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       await page.locator('.graph-full-btn').click();
       await expect.poll(() => page.locator('#viz').evaluate((c) => c.getBoundingClientRect().height)).toBeGreaterThan(page.viewportSize()!.height * .5);
       await page.screenshot({ path: `test-results/graph-full-${page.viewportSize()!.width}.png` });
+      // the tabs are never cut off at the bottom (owner, 12 Nov)
+      const tr = (await page.locator('.graph-box .graph-tabs').boundingBox())!, tb = (await page.locator('.graph-box .gtab').first().boundingBox())!;
+      expect(tb.y + tb.height).toBeLessThanOrEqual(tr.y + tr.height + 0.5);
       await page.locator('.graph-tabs [role=tab]', { hasText: 'Spectrum' }).click();
       await expect(page.locator('#viz.curve')).toBeVisible();
       // play / pause without leaving the graph

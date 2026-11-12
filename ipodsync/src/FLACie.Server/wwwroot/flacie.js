@@ -1316,7 +1316,14 @@ window.flacie = (() => {
     npGo(url) {
       const go = () => window.Blazor ? Blazor.navigateTo(url) : (location.href = url);
       if (!npPushed) { go(); return; }
-      const after = () => { window.removeEventListener("popstate", after); setTimeout(go, 0); };
+      // the player slides away first, then the page changes (owner, 12 Nov: Settings from the player "the animation is just weird": the two used to run
+      // on top of each other); at most 450 ms, then the page changes anyway
+      const after = () => {
+        window.removeEventListener("popstate", after);
+        const t0 = performance.now();
+        const wait = () => { if (!document.querySelector(".np") || performance.now() - t0 > 450) go(); else requestAnimationFrame(wait); };
+        requestAnimationFrame(wait);
+      };
       window.addEventListener("popstate", after);
       history.back();
     },

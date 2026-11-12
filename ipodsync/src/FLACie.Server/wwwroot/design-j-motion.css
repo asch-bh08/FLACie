@@ -124,3 +124,35 @@
   :is(.home-hero-art .cover, .mood-tile, .mood-tile::before, .mood-tile::after, .artist-bubble, .artist-bubble.playing::before, .arrivals li, .shelf-head h2) { animation: none !important; }
   .mood-tile::after { display: none; }
 }
+
+/* ==== Home, 12 Nov evening (owner: "scroll animations, better space, aliveness, vibeyness"). All of it cheap: transform and opacity only, the scroll
+   ones run by the browser itself off the main thread (scroll-driven animations; a browser without them just shows everything). Off with Animations off
+   and for less motion. ==== */
+/* a glow in the cover's colours behind Home: three soft blobs drifting slowly under the shelves */
+main.content:has(.home-hero) { isolation: isolate; position: relative; }
+.home-aura { position: absolute; left: 0; right: 0; top: clamp(200px, 30vh, 360px); height: 160vh; z-index: -1; pointer-events: none; overflow: hidden; }
+.home-aura i { position: absolute; width: 60vw; aspect-ratio: 1; border-radius: 50%; filter: blur(80px); opacity: .16; will-change: transform; }
+.home-aura i:nth-child(1) { left: -15vw; top: 0; background: var(--accent); animation: aura-a 26s ease-in-out infinite alternate; }
+.home-aura i:nth-child(2) { right: -20vw; top: 25vh; background: var(--tone, #24525a); opacity: .35; animation: aura-b 32s ease-in-out infinite alternate; }
+.home-aura i:nth-child(3) { left: 25vw; top: 70vh; background: var(--accent-2, var(--accent)); opacity: .1; animation: aura-a 38s ease-in-out infinite alternate-reverse; }
+@keyframes aura-a { to { transform: translate3d(18vw, 12vh, 0) scale(1.25); } }
+@keyframes aura-b { to { transform: translate3d(-16vw, -8vh, 0) scale(.85); } }
+@supports (animation-timeline: view()) {
+  /* each shelf rises and fades in as it scrolls into view */
+  @keyframes a-reveal { from { opacity: 0; transform: translateY(40px) scale(.98); } to { opacity: 1; transform: none; } }
+  main.content .shelf { animation: a-reveal linear both; animation-timeline: view(); animation-range: entry 0% entry 35%; }
+  /* the cards in a row come in one after another as the row is scrolled sideways */
+  @keyframes a-card { from { opacity: 0; transform: translateX(30px) scale(.94); } to { opacity: 1; transform: none; } }
+  .row-scroll > .card, .row-scroll > .artist-bubble, .mood-cards > .mood-tile { animation: a-card linear both; animation-timeline: view(inline); animation-range: entry 0% entry 60%; }
+}
+@supports (animation-timeline: scroll()) {
+  /* the hero's cover sinks slower than the page and its words lift and fade as you scroll down: depth */
+  @keyframes a-par { to { transform: translateY(30%); } }
+  .home-hero-art { animation: a-par linear both; animation-timeline: scroll(root); animation-range: 0 60vh; }
+  @keyframes a-lift { to { opacity: 0; transform: translateY(-40px); } }
+  .home-hero-row { animation: a-lift linear both; animation-timeline: scroll(root); animation-range: 0 45vh; }
+}
+:root.pref-calm :is(.home-aura i, main.content .shelf, .row-scroll > .card, .row-scroll > .artist-bubble, .mood-cards > .mood-tile, .home-hero-art, .home-hero-row) { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.home-aura i, main.content .shelf, .row-scroll > .card, .row-scroll > .artist-bubble, .mood-cards > .mood-tile, .home-hero-art, .home-hero-row) { animation: none !important; }
+}

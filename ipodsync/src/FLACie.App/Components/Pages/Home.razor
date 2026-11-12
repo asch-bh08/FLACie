@@ -7,6 +7,8 @@
 <PageTitle>FLACie</PageTitle>
 @* design I: the cover of what played last runs across the top and fades into the page, in its own colours (flacie.npAccent); a mono greeting over a serif headline *@
 @{ var lastTrack = LastPlayed; }
+@* a slow glow in the cover's colours behind the whole of Home (owner, 12 Nov: "aliveness, vibeyness") *@
+<div class="home-aura" aria-hidden="true"><i></i><i></i><i></i></div>
 <header class="home-hero" @ref="heroEl">
     @if (lastTrack is not null) { <div class="home-hero-art" aria-hidden="true"><Cover ArtKey="@(lastTrack.ArtKey)" Full="true" /></div> }
     <i class="home-fade" aria-hidden="true"></i>
@@ -53,6 +55,9 @@
 @if (Waiting) { <Skeleton Label="Loading your music…" Kind="cards" Count="6" /> }
 else
 {
+@* the order (owner, 12 Nov: "push the important stuff to the top"): Quick picks (one press plays), then the moods, then what you play most, then your
+   artists and playlists, then the rest *@
+@if (mood is null && shelves.FirstOrDefault(x => x.Id == "quick-picks") is { } qp) { @ShelfView(qp) }
 @* the moods (owner, 12 Nov: "these huge random relax workout party buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from
    its own songs, so you can see what is in it; a card again goes back to everything *@
 @if (moods.Count > 0)
@@ -88,6 +93,7 @@ else
 }
 else
 {
+    @if (shelves.FirstOrDefault(x => x.Id == "frequently-played") is { } fp) { @ShelfView(fp) }
     @* from Home C (owner, 11 Nov): the artists played most as round faces, and the songs that came in last with what they are *@
     @if (RepeatArtists is { Count: > 0 } reps)
     {
@@ -117,71 +123,77 @@ else
             </div>
         </section>
     }
-    @foreach (var sh in shelves)
+    @* the rest of the shelves, after the ones Home puts at the top *@
+    @foreach (var sh in shelves.Where(x => !TopShelves.Contains(x.Id)))
     {
-        <section class="shelf" aria-label="@sh.Title">
-            <div class="shelf-head">
-                <div><h2>@Serif(sh.Title)</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
-                <span class="shelf-nav">
-                    @if (sh.Tracks.Count > 0) { <button class="chip small" data-np @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
-                    @if (sh.Id != "quick-picks") { <Arrows /> }
-                </span>
-            </div>
-            @if (sh.Id == "quick-picks")
-            {
-                <ul class="pick-grid">
-                    @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
-                    {
-                        var idx = i; var t = sh.Tracks[i];
-                        <li @key="t.Path"><button class="pick" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
-                    }
-                </ul>
-            }
-            else if (sh.Tracks.Count > 0 || sh.New.Count > 0)
-            {
-                <div class="row-scroll">
-                    @for (var i = 0; i < sh.Tracks.Count; i++)
-                    {
-                        var idx = i; var t = sh.Tracks[i];
-                        <button class="card song-card" data-np @key="t.Path" data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
-                            <Cover ArtKey="@(t.ArtKey)" Class="square" />
-                            <span class="card-title">@t.Title</span>
-                            <span class="card-sub">@t.Artist</span>
-                            <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
-                        </button>
-                    }
-                    @* songs the person does not have yet: tagged New, and a press fetches one the way Search's Download does (only where the server downloads at all) *@
-                    @foreach (var n in Downloads.Allowed ? sh.New : [])
-                    {
-                        var job = Downloads.JobFor(Session, n.Artist, n.Title);
-                        <button class="card song-card new-song" @key="@("new:" + n.Artist + "|" + n.Title)" disabled="@(!Session.Services.Any || job is { Finished: false })" @onclick="() => Downloads.Song(Session, n)" aria-label="@("Get " + n.Title + " by " + n.Artist)">
-                            <Cover ArtKey="@(n.ArtUrl is null ? null : Art.ExternalKey(n.ArtUrl))" Class="square" />
-                            <span class="card-title">@n.Title</span>
-                            <span class="card-sub">@n.Artist</span>
-                            <span class="badge new-tag">@(job is { Finished: false } ? "Downloading…" : "New")</span>
-                            <DownloadTag Session="Session" Artist="@n.Artist" Title="@n.Title" />
-                        </button>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="row-scroll">
-                    @foreach (var g in sh.Albums)
-                    {
-                        <a class="card" href="@AlbumLink(g)">
-                            <Cover ArtKey="@(g.ArtKey)" Class="square" />
-                            <span class="card-title">@g.Name</span>
-                            <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
-                        </a>
-                    }
-                </div>
-            }
-        </section>
+        @ShelfView(sh)
     }
 }
 }
 @code {
+    static readonly HashSet<string> TopShelves = ["quick-picks", "frequently-played"];
+    RenderFragment ShelfView(Shelf sh) => @<text>
+        <section class="shelf" aria-label="@sh.Title">
+    <div class="shelf-head">
+        <div><h2>@Serif(sh.Title)</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
+        <span class="shelf-nav">
+            @if (sh.Tracks.Count > 0) { <button class="chip small" data-np @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
+            @if (sh.Id != "quick-picks") { <Arrows /> }
+        </span>
+    </div>
+    @if (sh.Id == "quick-picks")
+    {
+        <ul class="pick-grid">
+            @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
+            {
+                var idx = i; var t = sh.Tracks[i];
+                <li @key="t.Path"><button class="pick" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+            }
+        </ul>
+    }
+    else if (sh.Tracks.Count > 0 || sh.New.Count > 0)
+    {
+        <div class="row-scroll">
+            @for (var i = 0; i < sh.Tracks.Count; i++)
+            {
+                var idx = i; var t = sh.Tracks[i];
+                <button class="card song-card" data-np @key="t.Path" data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)">
+                    <Cover ArtKey="@(t.ArtKey)" Class="square" />
+                    <span class="card-title">@t.Title</span>
+                    <span class="card-sub">@t.Artist</span>
+                    <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
+                </button>
+            }
+            @* songs the person does not have yet: tagged New, and a press fetches one the way Search's Download does (only where the server downloads at all) *@
+            @foreach (var n in Downloads.Allowed ? sh.New : [])
+            {
+                var job = Downloads.JobFor(Session, n.Artist, n.Title);
+                <button class="card song-card new-song" @key="@("new:" + n.Artist + "|" + n.Title)" disabled="@(!Session.Services.Any || job is { Finished: false })" @onclick="() => Downloads.Song(Session, n)" aria-label="@("Get " + n.Title + " by " + n.Artist)">
+                    <Cover ArtKey="@(n.ArtUrl is null ? null : Art.ExternalKey(n.ArtUrl))" Class="square" />
+                    <span class="card-title">@n.Title</span>
+                    <span class="card-sub">@n.Artist</span>
+                    <span class="badge new-tag">@(job is { Finished: false } ? "Downloading…" : "New")</span>
+                    <DownloadTag Session="Session" Artist="@n.Artist" Title="@n.Title" />
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="row-scroll">
+            @foreach (var g in sh.Albums)
+            {
+                <a class="card" href="@AlbumLink(g)">
+                    <Cover ArtKey="@(g.ArtKey)" Class="square" />
+                    <span class="card-title">@g.Name</span>
+                    <span class="card-sub">@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</span>
+                </a>
+            }
+        </div>
+    }
+</section>
+    </text>;
+
     // the shelves are built from the account's profile (plays, favourites, playlists), so they wait for it rather than show a version with none of it
     bool Waiting => !Session.ProfileLoaded && Session.Loading;
     // playing from Home opens the full-screen player

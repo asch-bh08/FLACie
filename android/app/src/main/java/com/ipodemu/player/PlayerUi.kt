@@ -702,7 +702,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) }
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
-        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
+        // a slow glow in the cover's colours drifts behind Home (owner, 12 Nov: "aliveness, vibeyness"; as the web's)
+        LazyColumn(Modifier.fillMaxSize().then(if (modern) Modifier.blob(LocalScheme.current.accent.copy(alpha = .5f), 0) else Modifier), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (modern) item(key = "hero") {
                 val last = snap.track ?: recentsKey?.let { lib.byPath()[it] ?: lib.resolve(it, app.userData.meta[it]) }
                 HomeHero(last, nav, onShuffleAll = { val s = lib.songs(); if (s.isNotEmpty()) app.player.shuffleAll(s) }) { AccountAction() }
@@ -716,6 +717,18 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             // the chips wrap onto more lines rather than run off the right edge (owner, 9 Nov: nothing may hang off the screen; "Offline music" was
             // cut in half at the edge of a phone). Each chip has its own 6 dp above and below, so the lines need no extra gap
             // the moods as colourful tiles (owner, 11 Nov: "Home B"), two to a row with the first one wide; a tile again goes back to everything. As on the web
+            // Quick picks first (owner, 12 Nov: "push the important stuff to the top"): one press plays. As on the web
+            if (modern && mood == null) shelves.firstOrNull { it.id == "quick-picks" }?.let { sh ->
+                item(key = "quick-picks-top") {
+                    Column(Modifier.entranceRise(entrance, 1)) {
+                        Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f)) { SectionHeader(sh.title) }
+                            GlossPill("Play all", { app.player.play(sh.tracks.filterNot { com.ipodemu.library.HomeShelves.isNew(it) }, 0, null, sh.title, from = "home") }, icon = Glyph.PLAY, height = 28.dp)
+                        }
+                        QuickPicks(sh.tracks, nav) { i -> sh.tracks.getOrNull(i)?.let { playShelf(app, sh.tracks, it, sh.title) } }
+                    }
+                }
+            }
             // the moods (owner, 12 Nov: "these huge random buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from its own
             // songs, so you can see what is in it; a card again goes back to everything. As on the web
             if (modern && moodList.isNotEmpty()) {
@@ -801,8 +814,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
-            if (mood == null) itemsIndexed(shelves, key = { _, sh -> sh.id }) { i, sh ->
-                Column(Modifier.entranceRise(entrance, i + 2)) {
+            // (Quick picks is drawn at the top on the new Home, above the moods)
+            if (mood == null) itemsIndexed(if (modern) shelves.filter { it.id != "quick-picks" } else shelves, key = { _, sh -> sh.id }) { i, sh ->
+                // each shelf rises in as it scrolls into view (owner, 12 Nov: "scroll animations"; as the web's), and with Home as it opens
+                Column(Modifier.entranceRise(entrance, i + 2).riseIn(key = sh.id, riseDp = 24f)) {
                     if (sh.id == "quick-picks") {
                         Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Box(Modifier.weight(1f)) { SectionHeader(sh.title) }

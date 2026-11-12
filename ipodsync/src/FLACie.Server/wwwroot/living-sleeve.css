@@ -707,10 +707,9 @@ body.np-open .dj-bar { display: none; }
    one size (48px, in the cover's tone) on both sides, the transport in the middle with a seek bar and the times under it. The sides hug the edges with
    the same gaps, so they balance. The volume pill is as tall as the buttons. ==== */
 @media (min-width: 761px) {
-  /* 120px: the buttons on both sides centred on the transport (its middle 70px up), the seek bar under it all */
-  .ls-dock { height: 120px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); column-gap: 24px; align-items: start; }
-  .ls-dock-l, .ls-dock-r { margin-top: 16px; }
-  .ls-dock-c { width: min(520px, 40vw); height: auto; align-self: end; padding-bottom: 14px; pointer-events: auto; }
+  /* the buttons on both sides centred on the transport; no seek bar in the bar (owner, 12 Nov: the frame round the cover is the seek bar) */
+  .ls-dock { height: 96px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); column-gap: 24px; align-items: center; }
+  .ls-dock-c { width: min(450px, 36vw); height: 1px; }
   .ls-dock-seek { display: flex; align-items: center; gap: 10px; font: 500 12px var(--mono, 'DM Mono', monospace); color: color-mix(in srgb, var(--ink) 72%, transparent); font-variant-numeric: tabular-nums; }
   .ls-dock-seek span { flex: none; width: 44px; } .ls-dock-seek span:first-child { text-align: right; }
   .ls-dock-seek input { --fill: 0%; flex: 1; min-width: 0; height: 20px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
@@ -721,7 +720,7 @@ body.np-open .dj-bar { display: none; }
   .ls-dock-seek input:hover::-webkit-slider-thumb, .ls-dock-seek input:focus-visible::-webkit-slider-thumb { opacity: 1; }
   .ls-dock-seek input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink); }
   /* the transport above the seek bar; the DJ and the mic are with the buttons on the right now, as in the player bar */
-  .ls-transport { bottom: 50px; }
+  .ls-transport { bottom: 18px; }
   .ls-transport .ls-dj, .ls-transport .dj-mic { display: none !important; }
   .ls-transport.has-dj, .ls-transport.has-dj:has(.dj-mic) { gap: 14px; }
   .ls-dock-l, .ls-dock-r .ls-tiles { gap: 10px; }
@@ -738,5 +737,8 @@ body.np-open .dj-bar { display: none; }
   .ls-volpill-mute, .ls-volpill-more { width: 40px; height: 40px; }
 }
 /* a narrow window: the DJ and the mic are in the top bar, so they leave the bar */
-@media (min-width: 761px) and (max-width: 900px) { .ls-dock-r .ls-dj, .ls-dock-mic { display: none !important; } .ls-dock-c { width: min(380px, 40vw); } }
+@media (min-width: 761px) and (max-width: 900px) { .ls-dock-l .ls-dj, .ls-dock-mic { display: none !important; } .ls-dock-c { width: min(380px, 40vw); } }
 @media (min-width: 761px) and (max-width: 1100px) { .ls-tiles .ls-volpill { padding: 0; background: none; } .ls-volpill-more { width: 48px; height: 48px; border-radius: 24px; } .ls-volpill-more .ls-volpill-label { display: none; } }
+
+/* the volume pill a touch narrower, so the right side (mic, favourite, EQ, volume) is as wide as the left (DJ, add, share, devices, more) */
+@media (min-width: 1101px) { .ls-tiles .ls-volpill-bar { width: 76px; } .ls-tiles .ls-volpill-num { display: none; } }

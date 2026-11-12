@@ -1594,3 +1594,8 @@ html.buffering .play { --play-ic-dim: .55; }
   .graph-box:fullscreen .graph-transport .icon-btn, .graph-box.full .graph-transport .icon-btn { width: 44px; height: 40px; }
   .graph-box:fullscreen .graph-play, .graph-box.full .graph-play { width: 60px; height: 46px; }
 }
+
+/* the page never scrolls sideways (owner, 12 Nov: with the side menu open the whole page sat ~28px to the left, the menu's words cut off): anything a
+   touch too wide is clipped instead. clip, not hidden, so nothing becomes a scroll box and sticky bars still stick */
+html, body { overflow-x: clip; }
+main.content { min-width: 0; }

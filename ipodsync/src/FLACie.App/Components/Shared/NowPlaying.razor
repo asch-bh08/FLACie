@@ -205,30 +205,24 @@
            its middle. Phone: the bar is not drawn; its rating, speed, sleep and sound buttons open from the top bar's Options as before *@
         <footer class="ls-dock">
             @* PC (owner, 12 Nov: "make the now playing controls similar to the player bar on the home screen, the same features"; "the right side buttons
-               bigger than the left and uneven pisses me off"): the same round buttons on both sides at one size, the transport in the middle with a seek bar
-               and the times under it, as in the player bar. Left: add, share, devices, more. Right: the DJ, the mic, favourite, EQ, and the volume *@
+               bigger than the left and uneven pisses me off"): the same round buttons on both sides at one size, the transport in the middle (the frame round the
+               cover is the seek bar: owner, 12 Nov: "remove the mini seek bar"). Left: the DJ, add, share, devices, more. Right: the mic, favourite, EQ, the volume *@
             <div class="ls-dock-l">
-                <button class="ls-dbtn" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist" title="Add to playlist"><Icon Name="plus" Size="22" /></button>
-                <button class="ls-dbtn" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
-                @if (AppHost.DevicePicker is { } picker) { <span class="ls-dbtn-wrap"><DynamicComponent Type="picker" /></span> }
-                @MoreMenu("d", t)
-            </div>
-            <div class="ls-dock-c">
-                <div class="ls-dock-seek">
-                    <span class="ls-dock-pos">@Time(Player.Position)</span>
-                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="--fill:@SeekFill()%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
-                    <span>@Time(Player.Duration)</span>
-                </div>
-            </div>
-            <div class="ls-dock-r">
-                @* the phone's Options pop-up (on a PC these sit in More and the tiles) *@
-                <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
-                <div class="ls-tiles">
                 @if (Player.Dj is not null)
                 {
                     var djDock = Player.DjOn;
                     <button class="ls-dbtn ls-dj @(djDock ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djDock ? "true" : "false")" title="@(djDock ? "DJ on for this queue" : "DJ off for this queue"). Right-click for Settings → DJ."><Icon Name="dj" Size="22" /></button>
                 }
+                <button class="ls-dbtn" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist" title="Add to playlist"><Icon Name="plus" Size="22" /></button>
+                <button class="ls-dbtn" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
+                @if (AppHost.DevicePicker is { } picker) { <span class="ls-dbtn-wrap"><DynamicComponent Type="picker" /></span> }
+                @MoreMenu("d", t)
+            </div>
+            <div class="ls-dock-c" aria-hidden="true"></div>
+            <div class="ls-dock-r">
+                @* the phone's Options pop-up (on a PC these sit in More and the tiles) *@
+                <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
+                <div class="ls-tiles">
                 <span class="ls-dbtn-wrap ls-dock-mic"><DjMic Class="ls-dbtn" Size="22" /></span>
                 <button class="ls-dbtn ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="Favourite"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
                 <div class="ls-tile-eq ls-dbtn-wrap"><EqMenu /></div>
@@ -532,6 +526,5 @@
 
     static string SourceName(Track t) => SourceLabel.PlayingFrom(t.Source);
     readonly SeekHold hold = new();
-    string SeekFill() { var d = Player.Duration; var v = hold.Value(Player.Position); return (d > 0 ? Math.Clamp(v / d * 100, 0, 100) : 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture); }
     Task OnSeek(ChangeEventArgs e) { if (!SeekHold.Parse(e.Value, out var s)) return Task.CompletedTask; hold.Changed(s); return Player.Seek(s); }
 }

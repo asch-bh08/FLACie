@@ -241,7 +241,7 @@ test.describe('the shape is ready instantly', () => {
 });
 
 test.describe('the full-screen player bar on a PC', () => {
-  test('every button sits in one bar along the bottom with a seek bar, all one size, and its menus open upwards on screen', async ({ page }) => {
+  test('every button sits in one bar along the bottom with no seek bar in it, all one size, and its menus open upwards on screen', async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page); await openPlayer(page);
@@ -252,9 +252,13 @@ test.describe('the full-screen player bar on a PC', () => {
       const b = (await page.locator(sel).first().boundingBox())!;
       expect(b.y, sel).toBeGreaterThanOrEqual(bar.y - 1); expect(b.y + b.height, sel).toBeLessThanOrEqual(bar.y + bar.height + 1);
     }
-    // like the player bar on Home (owner, 12 Nov): a seek bar with the times under the transport, and the buttons on both sides one size
-    await expect(page.locator('.ls-dock-seek input[type=range][aria-label="Seek"]')).toBeVisible();
-    const sizes = await page.locator('.ls-dock-l > button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => Math.round(e.getBoundingClientRect().height)));
+    // like the player bar on Home (owner, 12 Nov), the buttons on both sides one size, the DJ on the left and the mic on the right so they balance;
+    // no seek bar in the bar ("remove the mini seek bar": the frame round the cover is the seek bar)
+    await expect(page.locator('.ls-dock input[type=range][aria-label="Seek"]')).toHaveCount(0);
+    await expect(page.locator('.ls-dock-l .ls-dj')).toBeVisible(); await expect(page.locator('.ls-dock-r .ls-dock-mic button')).toBeVisible();
+    const lw = (await page.locator('.ls-dock-l').boundingBox())!.width, rw = (await page.locator('.ls-tiles').boundingBox())!.width;
+    expect(Math.abs(lw - rw)).toBeLessThan(60);
+    const sizes = await page.locator('.ls-dock-l > button, .ls-dock-mic button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => Math.round(e.getBoundingClientRect().height)));
     expect(sizes.length).toBeGreaterThanOrEqual(5);
     for (const h of sizes) expect(h).toBe(48);
     // the top bar holds only close, where it plays from and Retro

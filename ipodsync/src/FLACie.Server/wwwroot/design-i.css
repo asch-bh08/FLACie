@@ -217,13 +217,14 @@ section.set[hidden] { display: none !important; }
 /* ---- Home, 11 Nov night (owner: "the resume with the faded art, plus Home B and C"): mood tiles, artists on repeat, just arrived ---- */
 /* the moods, 12 Nov (owner: "huge random buttons"): cards in one row that scrolls, deep colours so the white name always reads, a fan of the mood's own
    covers on the right */
-.mood-cards { grid-auto-columns: 230px; gap: 12px; }
+.mood-cards { grid-auto-columns: minmax(210px, 1fr); gap: 12px; padding-bottom: 22px; margin-bottom: -14px; }
+.mood-tile { width: auto !important; }
 @media (max-width: 760px) { .mood-cards { grid-auto-columns: 190px; } }
 .mood-tile { position: relative; flex: none; width: 230px; height: 128px; display: flex; align-items: flex-end; padding: 14px 16px; border: 0; border-radius: 22px; cursor: pointer;
   overflow: hidden; text-align: left; font-family: var(--sans); color: #fff;
   background: radial-gradient(120% 140% at 0% 100%, hsl(calc(var(--h) * 57 + 150) 55% 22%), transparent 70%),
               linear-gradient(135deg, hsl(calc(var(--h) * 57 + 150) 50% 18%), hsl(calc(var(--h) * 57 + 200) 60% 34%));
-  box-shadow: 0 12px 28px #0006, inset 0 0 0 1px #ffffff14; transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); }
+  box-shadow: 0 8px 16px #0005, inset 0 0 0 1px #ffffff14; transition: transform .25s cubic-bezier(.3, 1.5, .5, 1); }
 .mood-name { position: relative; z-index: 2; font-size: 20px; font-weight: 800; letter-spacing: -.01em; text-shadow: 0 2px 10px #0009; }
 .mood-fan { position: absolute; right: -6px; top: 14px; width: 120px; height: 90px; z-index: 1; pointer-events: none; }
 .mood-fan .cover { position: absolute; width: 64px; height: 64px; border-radius: 10px; box-shadow: 0 8px 18px #0008; transition: transform .35s cubic-bezier(.3, 1.4, .5, 1); }

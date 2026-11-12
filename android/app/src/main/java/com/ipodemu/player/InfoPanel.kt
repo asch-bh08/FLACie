@@ -214,8 +214,8 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
     val info = rememberAudioInfo(app, t)
     val ctx = androidx.compose.ui.platform.LocalContext.current
     val analysis = remember {
-        val am = ctx.getSystemService(android.content.Context.AUDIO_SERVICE) as android.media.AudioManager
-        LiveAnalysis(app.player.live) { app.player.volume * (am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC).toFloat() / am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC).coerceAtLeast(1)) }
+        // the song itself, at full level whatever the volume (as the web's graphs read it; owner, 12 Nov: the values were wrong: they sank with the volume)
+        LiveAnalysis(app.player.live)
     }
     cutHz = if (info.codec.equals("MP3", true) && info.kbps > 0) (if (info.kbps <= 96) 15000 else if (info.kbps <= 128) 16000 else if (info.kbps <= 160) 17500 else if (info.kbps <= 192) 19000 else if (info.kbps <= 256) 20000 else 20500) else 16000
     cutLabel = if (info.codec.equals("MP3", true) && info.kbps > 0) "${info.kbps} kbps MP3 usually ends here" else "MP3 usually ends here"

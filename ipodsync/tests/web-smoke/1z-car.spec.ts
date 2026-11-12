@@ -40,7 +40,10 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, {
     // a click on the visualiser moves to the next one
     const viz = page.locator('.car-viz');
     await expect(viz).toHaveAttribute('aria-label', /Visualizer/);
-    await viz.click(); await expect(viz).toHaveAttribute('aria-label', /Circle/);
+    await viz.click(); await expect(viz).toHaveAttribute('aria-label', /Spectrum/);
+    // every graph is there: the arrows go forward and back (owner, 12 Nov)
+    await page.getByRole('button', { name: 'Previous graph' }).click(); await expect(viz).toHaveAttribute('aria-label', /Visualizer/);
+    await page.getByRole('button', { name: 'Previous graph' }).click(); await expect(viz).toHaveAttribute('aria-label', /Stereo/);
     await page.screenshot({ path: `test-results/car-${size.width}x${size.height}.png` });
     await page.locator('.car').getByRole('button', { name: 'Exit car mode' }).click();
     await expect(page.locator('.car')).toHaveCount(0);

@@ -23,10 +23,15 @@
         <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="--fill:@Fill()%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
         <span>@Time(Player.Duration)</span>
     </div>
-    <button type="button" class="car-viz" @onclick="NextVisual" aria-label="Visualiser: @VisualName. Click for the next one">
-        <canvas id="viz" class="viz @viz" aria-hidden="true"></canvas>
-        <span class="car-viz-name">@VisualName</span>
-    </button>
+    @* every graph, one after another (owner, 12 Nov: "car mode should have all the graphs, just scrollable"): the arrows or a click on the graph *@
+    <div class="car-viz-wrap">
+        <button type="button" class="car-viz" @onclick="NextVisual" aria-label="Graph: @VisualName. Click for the next one">
+            <canvas id="viz" class="viz @viz" aria-hidden="true"></canvas>
+            <span class="car-viz-name">@VisualName</span>
+        </button>
+        <button type="button" class="car-viz-arrow prev" @onclick="PrevVisual" aria-label="Previous graph"><Icon Name="chevron-left" Size="26" /></button>
+        <button type="button" class="car-viz-arrow next" @onclick="NextVisual" aria-label="Next graph"><Icon Name="chevron-right" Size="26" /></button>
+    </div>
     <div class="car-controls">
         <button type="button" class="car-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="40" /></button>
         <button type="button" class="car-btn car-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="48" /></button>
@@ -50,7 +55,9 @@
 </div>
 @code {
     /// <summary>The visualisers car mode goes through, a click each: the lively ones, readable at a glance (as CarMode.kt CarVisuals).</summary>
-    public static readonly (string Id, string Name)[] Visuals = [("leds", "Visualizer"), ("ring", "Circle"), ("scope", "Waveform"), ("curve", "Spectrum")];
+    public static readonly (string Id, string Name)[] Visuals = [("leds", "Visualizer"), ("curve", "Spectrum"), ("wall", "Spectrogram"), ("loud", "Loudness"), ("ring", "Circle"),
+        ("scope", "Waveform"), ("orbit", "Orbit"), ("skyline", "Skyline"), ("bars", "Bars"), ("aura", "Aura"), ("stereo", "Stereo")];
+    public static string PrevVisual(string id) { var i = Array.FindIndex(Visuals, v => v.Id == id); return Visuals[(Math.Max(i, 0) + Visuals.Length - 1) % Visuals.Length].Id; }
     /// <summary>The next visualiser after <paramref name="id"/>, round to the first after the last; an unknown one starts at the first.</summary>
     public static string NextVisual(string id) { var i = Array.FindIndex(Visuals, v => v.Id == id); return Visuals[(i + 1) % Visuals.Length].Id; }
 
@@ -63,6 +70,12 @@
     string viz = "leds";
     string? shown;
     string VisualName => Visuals.FirstOrDefault(v => v.Id == viz).Name ?? "";
+
+    async Task PrevVisual()
+    {
+        viz = PrevVisual(viz); shown = null;
+        try { await Js.InvokeVoidAsync("localStorage.setItem", "flacie.carVisual", viz); } catch (Exception) { }
+    }
 
     async Task NextVisual()
     {

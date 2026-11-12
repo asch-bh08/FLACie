@@ -342,7 +342,11 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
         ) {
             BoxWithConstraints(Modifier.weight(.45f).fillMaxHeight().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
-                if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
+                if (card == null) {
+                    // car mode: the cover swipes sideways through every live graph (CarMode.kt)
+                    if (app.ui.carOpen) CarPager(side, p.main.value, p.tone.value, p.ground.value, snap.playing) { SleeveFrame(snap, t, p, side - 40.dp, pos, dur, scrub, fit.compactBand) }
+                    else SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
+                }
                 else SleeveCard(card, snap, t, p, Modifier.width(maxWidth - 16.dp).fillMaxHeight()) { onOpen(card) }
             }
             Column(Modifier.weight(.55f).fillMaxHeight().padding(end = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -373,7 +377,11 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             // compacting the band and putting the secondary things away, so the time, the title and the controls below are always on screen
             BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
-                if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
+                if (card == null) {
+                    // car mode: the cover swipes sideways through every live graph (CarMode.kt)
+                    if (app.ui.carOpen) CarPager(side, p.main.value, p.tone.value, p.ground.value, snap.playing) { SleeveFrame(snap, t, p, side - 40.dp, pos, dur, scrub, fit.compactBand) }
+                    else SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
+                }
                 // Lyrics and Info take all the room above the controls, not just the cover's square: on an S22 the graph and the lyrics were below the fold (owner, 1 Nov)
                 else SleeveCard(card, snap, t, p, Modifier.width(minOf(maxWidth - 16.dp, 560.dp)).fillMaxHeight()) { onOpen(card) }
             }
@@ -451,6 +459,15 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
                 Modifier.clip(RoundedCornerShape(50)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp).basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500),
                 family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f, maxLines = 1,
             )
+        }
+        // car mode is on: a chip that says so and turns it off
+        if (app.ui.carOpen) Box(Modifier.padding(end = 6.dp).height(40.dp).clip(RoundedCornerShape(20.dp)).background(p.main.value)
+            .semantics { contentDescription = "Car mode on. Turn off"; role = Role.Button }.clickable { app.ui.carOpen = false }.padding(horizontal = 12.dp),
+            contentAlignment = Alignment.Center) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                GlyphIcon(Glyph.CAR, Modifier.size(18.dp), Color(DesignColour.readableOn(p.main.value.toArgb())))
+                SText(AnnotatedString("Car"), size = 13f, weight = FontWeight.Bold, color = Color(DesignColour.readableOn(p.main.value.toArgb())))
+            }
         }
         // a running sleep timer stays in sight: Options alone would hide it
         if (sleepLeft != null) SleepChip(sleepLeft) { nav.sheet = sleepSheet(app) }
@@ -537,7 +554,8 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
     // shuffle, previous | play | next, repeat. Play is a plain rounded square in the cover's colour
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
         // the DJ and the mic are in the top bar (owner, 8 Nov), so these five are always full size
-        val k = (maxWidth / 330.dp).coerceIn(.8f, 1f)
+        // car mode: the same buttons, bigger (owner, 12 Nov: "a bit more car friendly")
+        val k = (maxWidth / 330.dp).coerceIn(.8f, 1f) * (if (app.ui.carOpen) CarScale else 1f)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() },
                 tint = if (snap.shuffle) p.main.value else InkDim, size = 48.dp * k, iconScale = .48f, dot = snap.shuffle)
@@ -1020,7 +1038,7 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                 }
                 // Settings from the player too (owner, 12 Nov: "on that page where is the settings")
                 add(MoreRow("Settings", { GlyphIcon(Glyph.GEAR, Modifier.size(24.dp), it) }, null, true, close { nav.nowPlaying = false; nav.push(Screen.Settings) }))
-                add(MoreRow("Car mode", { GlyphIcon(Glyph.CAR, Modifier.size(24.dp), it) }, null, true, close { nav.nowPlaying = false; app.ui.carOpen = true }))
+                add(MoreRow("Car mode", { GlyphIcon(Glyph.CAR, Modifier.size(24.dp), it) }, if (app.ui.carOpen) "On" else "Off", true, close { app.ui.carOpen = !app.ui.carOpen }))
                 add(MoreRow("Retro", { GlyphIcon(Glyph.CASSETTE, Modifier.size(24.dp), it) }, null, true, close { openRetro(ctx) }))
             }
             val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)

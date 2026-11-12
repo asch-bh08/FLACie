@@ -22,6 +22,29 @@ public static partial class SoundCloudSets
         return u.Count > 0 && a.SequenceEqual(u);
     }
 
+    /// <summary>Anyone's public sets found by name (flacie-ytdl /find-sets: {sets: [{title, url, uploader, tracks, likes, art}]}; owner, 12 Nov: "if I
+    /// search for a playlist I saw on Spotify or my mate's one it should be in my library"). Lists of their own (Kind Other, the uploader as subject),
+    /// their songs read only when one is opened or played, like the artists' sets. Only soundcloud.com set links count; the cover only from SoundCloud's
+    /// own image host.</summary>
+    public static List<WebPlaylist> FromSearch(string json)
+    {
+        using var doc = JsonDocument.Parse(json);
+        if (!doc.RootElement.TryGetProperty("sets", out var sets) || sets.ValueKind != JsonValueKind.Array) return [];
+        var lists = new List<WebPlaylist>();
+        foreach (var s in sets.EnumerateArray().Take(20))
+        {
+            string Str(string n) => s.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+            long Num(string n) => s.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var x) ? x : 0;
+            var title = SpotifyEmbed.Clean(Str("title"));
+            if (title.Length == 0 || SetUrl().Match(Str("url")) is not { Success: true } m) continue;
+            var art = Str("art");
+            var picture = art.StartsWith("https://i1.sndcdn.com/", StringComparison.Ordinal) && art.Length <= 400 ? art.Replace("-large.", "-t500x500.") : null;
+            lists.Add(new("soundcloud", m.Groups[1].Value, title, WebPlaylistKind.Other, SpotifyEmbed.Clean(Str("uploader")), [],
+                Likes: Math.Max(0, Num("likes")), Size: (int)Math.Clamp(Num("tracks"), 0, 10000), Picture: picture));
+        }
+        return lists;
+    }
+
     public static List<WebPlaylist> FromAnswer(string json, string artist, IEnumerable<string> libraryAlbums)
     {
         using var doc = JsonDocument.Parse(json);

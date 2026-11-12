@@ -109,6 +109,33 @@ public class PlaylistLinksTests
         ]}
         """;
 
+    // anyone's SoundCloud playlists found by name (owner, 12 Nov: "a playlist I saw on Spotify or my mate's one should be in my library")
+    const string FoundSets = """
+        {"sets": [
+          {"title": "White Girl Summer 2000/2010s Playlist", "url": "https://soundcloud.com/user-272982561/sets/2010-white-girl-bangers", "uploader": "Collin", "tracks": 325, "likes": 1360, "art": "https://i1.sndcdn.com/artworks-x-large.jpg"},
+          {"title": "Not a set", "url": "https://soundcloud.com/someone/a-track", "uploader": "x", "tracks": 1, "likes": 0, "art": ""},
+          {"title": "White Girl Summer 2000/2010s Playlist", "url": "https://evil.example/sets/x", "uploader": "y", "tracks": 3, "likes": 0, "art": ""}
+        ]}
+        """;
+
+    [Fact]
+    public void Anyones_sets_found_by_name_become_lazy_playlists_with_their_size_likes_and_cover()
+    {
+        var sets = SoundCloudSets.FromSearch(FoundSets);
+        var l = Assert.Single(sets);
+        Assert.Equal(("soundcloud", "user-272982561/sets/2010-white-girl-bangers", "White Girl Summer 2000/2010s Playlist"), (l.Source, l.Id, l.Name));
+        Assert.Equal(WebPlaylistKind.Other, l.Kind);
+        Assert.Equal("Collin", l.Subject);
+        Assert.Equal((325, 1360L), (l.Size, l.Likes));
+        Assert.Equal("https://i1.sndcdn.com/artworks-x-t500x500.jpg", l.Picture);   // the bigger size SoundCloud keeps
+        Assert.Empty(l.Tracks);   // songs read when it is opened or played
+        // its cover can be shown (SoundCloud's image host is a public cover host); a look-alike host cannot
+        Assert.Equal(l.Picture, Art.ExternalUrl(Art.ExternalKey(l.Picture!)));
+        Assert.Null(Art.ExternalUrl(Art.ExternalKey("https://sndcdn.com.evil.example/x.jpg")));
+        Assert.Empty(SoundCloudSets.FromSearch("""{"sets": []}"""));
+        Assert.Empty(SoundCloudSets.FromSearch("""{"oops": 1}"""));
+    }
+
     [Fact]
     public void An_artists_sets_are_found_duplicates_and_owned_albums_dropped_remix_sets_kept_beside_a_best_of()
     {

@@ -19,7 +19,7 @@ ROOT = os.path.realpath(os.environ.get("FILEMOVE_ROOT", "/data"))
 REPLACED = ".flacie-replaced"
 # what this file mover can do, for GET /health: FLACie Web's upgrade worker only swaps files when "retire" is listed (an older file mover without it
 # would leave two copies of a song in the library)
-ROUTES = ["move", "fetch", "probe", "ytdl", "file", "retire", "purge", "playlist", "artist-sets"]
+ROUTES = ["move", "fetch", "probe", "ytdl", "file", "retire", "purge", "playlist", "artist-sets", "find-sets"]
 MAX_FETCH = 700 * 1024 * 1024
 YTDL_BASE = "http://172.17.0.1:8091"
 
@@ -64,7 +64,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if not self._authed():
             return
-        if self.path in ("/ytdl", "/probe", "/playlist", "/artist-sets"):
+        if self.path in ("/ytdl", "/probe", "/playlist", "/artist-sets", "/find-sets"):
             self._forward(self.path)
             return
         if self.path == "/fetch":
@@ -93,7 +93,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             self._reply(400, {"error": str(e)})
 
     def _forward(self, path):
-        """POST /ytdl, /probe, /playlist and /artist-sets: forwards to the flacie-ytdl container (yt-dlp and ffprobe). The caller's key is passed on as is."""
+        """POST /ytdl, /probe, /playlist, /artist-sets and /find-sets: forwards to the flacie-ytdl container (yt-dlp and ffprobe). The caller's key is passed on as is."""
         length = int(self.headers.get("Content-Length", 0))
         data = self.rfile.read(length)
         try:

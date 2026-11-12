@@ -704,8 +704,8 @@ public static class Art
         try
         {
             var u = new Uri(Encoding.UTF8.GetString(Convert.FromBase64String(b)));
-            // only public cover hosts, so this can't be pointed at anything on the server's own network
-            return u.Scheme == "https" && new[] { "dzcdn.net", "mzstatic.com", "deezer.com", "lidarr.audio" }.Any(h => u.Host == h || u.Host.EndsWith("." + h)) ? u.ToString() : null;
+            // only public cover hosts, so this can't be pointed at anything on the server's own network (sndcdn.com: SoundCloud's, for a playlist found by name)
+            return u.Scheme == "https" && new[] { "dzcdn.net", "mzstatic.com", "deezer.com", "lidarr.audio", "sndcdn.com" }.Any(h => u.Host == h || u.Host.EndsWith("." + h)) ? u.ToString() : null;
         }
         catch (Exception) { return null; }
     }

@@ -17,7 +17,10 @@ public enum WebPlaylistKind { Artist, Decade, Genre, Chart, Other }
 public sealed record WebPlaylist(string Source, string Id, string Name, WebPlaylistKind Kind, string Subject, IReadOnlyList<WebTrack> Tracks,
     long Likes = 0, long Plays = 0, long Reposts = 0, DateTime? PostedUtc = null, bool Verified = false, bool Editor = false, int Size = 0, string? Picture = null)
 {
-    public const int MaxText = 200, MaxTracks = 100;
+    // (500 songs: a SoundCloud playlist found by name can be long, 325 in the owner's example; Spotify's embed gives 100 at most anyway)
+    public const int MaxText = 200, MaxTracks = 500;
+    /// <summary>What Spotify's embed and Deezer's open API give at once: 100 songs.</summary>
+    public const int PageTracks = 100;
     /// <summary>What it is for: one list per purpose is shown (<see cref="WebPlaylistPick.OnePerPurpose"/>).</summary>
     public string Purpose => Kind switch { WebPlaylistKind.Other => $"other:{Source}:{Id}", _ => $"{Kind}:{Matching.NormTitle(Subject)}".ToLowerInvariant() };
 }
@@ -53,7 +56,7 @@ public static partial class SpotifyEmbed
         static string S(JsonNode? n) => n is JsonValue v && v.TryGetValue<string>(out var s) ? s : "";
         var tracks = list.OfType<JsonObject>()
             .Select(t => new WebTrack(Clean(S(t["title"])), Clean(LeadArtist(S(t["subtitle"]))), t["duration"] is JsonValue d && d.TryGetValue<double>(out var ms) ? (long)ms : 0))
-            .Where(t => t.Title.Length > 0 && t.Artist.Length > 0).Take(WebPlaylist.MaxTracks).ToList();
+            .Where(t => t.Title.Length > 0 && t.Artist.Length > 0).Take(WebPlaylist.PageTracks).ToList();
         var name = Clean(S(entity["name"]) is { Length: > 0 } n ? n : S(entity["title"]));
         return name.Length == 0 || tracks.Count == 0 ? null : (name, tracks);
     }

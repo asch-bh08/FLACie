@@ -79,6 +79,34 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             downloads.Song(s, new CatalogSong(t.Artist, t.Title, "", null, t.DurationMs, 0, 0), kind: "Playlist");
     }
 
+    /// <summary>Anyone's SoundCloud playlists by name (flacie-ytdl /find-sets; owner, 12 Nov: "a playlist I saw on Spotify or my mate's one should be in
+    /// my library"): asked once a day per search, kept in the store like the others, so they show at once from then on (and to everyone); their songs
+    /// are read when one is opened or played, and opening one downloads what is missing (Interest, FetchTrigger.Opened).</summary>
+    public static readonly TimeSpan FindKept = TimeSpan.FromDays(1);
+    readonly Dictionary<string, DateTime> findAsked = [];
+
+    List<WebPlaylist> FoundBefore(string query) =>
+        store.All.Where(l => l.Source == "soundcloud" && l.Kind == WebPlaylistKind.Other && WebPlaylistPick.Relevance(l, query) > 0).ToList();
+
+    async Task<List<WebPlaylist>> FindSetsAsync(UserSession s, string query, CancellationToken ct)
+    {
+        var key = Matching.NormTitle(query);
+        if (s.Services.FileMoverUrl.Length == 0 || key.Length < 3) return [];
+        lock (findAsked) { if (findAsked.TryGetValue(key, out var at) && now() - at < FindKept) return FoundBefore(query); }
+        if (!gate.TryTake("soundcloud")) return FoundBefore(query);
+        try
+        {
+            var answer = await MoverAsync(s, "/find-sets", new System.Text.Json.Nodes.JsonObject { ["q"] = query.Trim() }, ct);
+            if (answer is null) { gate.Failed("soundcloud"); return FoundBefore(query); }
+            lock (findAsked) { findAsked[key] = now(); if (findAsked.Count > 2000) findAsked.Clear(); }
+            var sets = SoundCloudSets.FromSearch(answer);
+            foreach (var l in sets) if (store.Use(l.Source, l.Id) is null) store.Put(l);
+            store.Save();
+            return sets.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();
+        }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("soundcloud"); return FoundBefore(query); }
+    }
+
     /// <summary>F25.3: the sets of the artist's own SoundCloud account, by name (flacie-ytdl /artist-sets), remembered 7 days.</summary>
     public static readonly TimeSpan AccountKept = TimeSpan.FromDays(7);
     readonly Dictionary<string, (DateTime At, List<WebPlaylist> Sets)> soundcloud = [];
@@ -180,6 +208,8 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             // F25.3: the artist's own SoundCloud sets, quietly (names only; songs read when one is opened)
             asks.Add(Task.Run(() => SoundCloudSetsAsync(s, artist.Name, lib, CancellationToken.None)));
         }
+        // anyone's SoundCloud playlists named like the search (not on an artist search: that has the artist's own sets above)
+        if (artist is null && query.Trim().Length >= 3) asks.Add(Task.Run(() => FindSetsAsync(s, query, CancellationToken.None)));
         if (asks.Count > 0)
         {
             try { await Task.WhenAny(Task.WhenAll(asks), Task.Delay(FirstAnswer, ct)); } catch (OperationCanceledException) { }
@@ -200,6 +230,8 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         var artist = kind == PlaylistQueryKind.Artist ? SearchRankTop.Artist(lib.Artists, query, s.PlayStats) : null;
         foreach (var f in Fixed)
             if (store.All.FirstOrDefault(l => l.Source == "spotify" && l.Id == f.Id) is { } known && (artist is not null || WebPlaylistPick.Relevance(known, query) > 0)) found.Add(known);
+        // playlists found by name before (by anyone): at once
+        if (artist is null) found.AddRange(FoundBefore(query));
         if (artist is not null)
         {
             found.AddRange(Saved("deezer", artist.Name));
@@ -353,9 +385,9 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     async Task<WebPlaylist> DeezerTracksAsync(WebPlaylist l, CancellationToken ct)
     {
         static string S(JsonNode? n, string k) => n?[k] is JsonValue v && v.TryGetValue<string>(out var x) ? x : "";
-        var tracks = (JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/playlist/{l.Id}/tracks?limit={WebPlaylist.MaxTracks}", ct))?["data"] as JsonArray ?? [])
+        var tracks = (JsonNode.Parse(await http.GetStringAsync($"https://api.deezer.com/playlist/{l.Id}/tracks?limit={WebPlaylist.PageTracks}", ct))?["data"] as JsonArray ?? [])
             .OfType<JsonObject>().Select(t => new WebTrack(SpotifyEmbed.Clean(S(t, "title")), SpotifyEmbed.Clean(S(t["artist"], "name")), (t["duration"] is JsonValue dv && dv.TryGetValue<long>(out var sec) ? sec : 0) * 1000))
-            .Where(t => t.Title.Length > 0).Take(WebPlaylist.MaxTracks).ToList();
+            .Where(t => t.Title.Length > 0).Take(WebPlaylist.PageTracks).ToList();
         return l with { Tracks = tracks };
     }
 }

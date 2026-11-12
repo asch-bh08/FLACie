@@ -42,6 +42,7 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
             (HttpStatusCode, string) a = u.Contains("open.spotify.com/embed/playlist/")
                 ? spotifyUp ? (HttpStatusCode.OK, File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "TestAudio", "embed", "this-is-the-prodigy.html")).Replace("This Is The Prodigy", "All Out 90s")) : (HttpStatusCode.TooManyRequests, "")
                 : u.Contains("api.deezer.com/search/playlist") ? (HttpStatusCode.OK, DeezerSearch)
+                : u == "http://mover.test/find-sets" ? (HttpStatusCode.OK, """{"sets": [{"title": "White Girl Summer 2000/2010s Playlist", "url": "https://soundcloud.com/user-272982561/sets/2010-white-girl-bangers", "uploader": "Collin", "tracks": 325, "likes": 1360, "art": ""}]}""")
                 : u == "http://mover.test/artist-sets" ? (HttpStatusCode.OK, """{"account": "https://soundcloud.com/the-prodigy", "sets": [{"title": "Experience: Expanded (Remixes & B-sides)", "url": "https://soundcloud.com/the-prodigy/sets/experience-expanded"}]}""")
                 : u == "http://mover.test/playlist" ? (HttpStatusCode.OK, """{"name": "Experience: Expanded", "tracks": [{"title": "Charly", "artist": "The Prodigy"}, {"title": "Your Love", "artist": "The Prodigy"}]}""")
                 : u.Contains("api.deezer.com/playlist/9001/tracks") ? (HttpStatusCode.OK, """{"data": [{"title": "Firestarter", "duration": 280, "artist": {"name": "The Prodigy"}}, {"title": "Breathe", "duration": 335, "artist": {"name": "The Prodigy"}}, {"title": "Omen", "duration": 216, "artist": {"name": "The Prodigy"}}]}""")
@@ -143,6 +144,26 @@ public sealed class SpotifyEmbedServiceTests : IDisposable
         Assert.Equal(1, web.Asked("http://mover.test/artist-sets"));
         await svc.ForSearchAsync(me, "prodigy", default);
         Assert.Equal(1, web.Asked("http://mover.test/artist-sets"));               // the account and its sets are remembered for 7 days
+    }
+
+    [Fact]
+    public async Task A_playlist_searched_by_name_is_found_on_soundcloud_and_shown_from_then_on_at_once()
+    {
+        // owner, 12 Nov: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library"
+        var (svc, web, dl, me, _) = Rig(spotifyUp: true);
+        me.Profile["services"] = System.Text.Json.Nodes.JsonNode.Parse("""{"filemover": {"url": "http://mover.test", "key": "k"}}""");
+        var shown = await svc.ForSearchAsync(me, "White Girl Summer 2000/2010s Playlist", default);
+        var set = Assert.Single(shown, l => l.Source == "soundcloud");
+        Assert.Equal(("White Girl Summer 2000/2010s Playlist", "Collin", 325), (set.Name, set.Subject, set.Size));
+        Assert.Equal(1, web.Asked("http://mover.test/find-sets"));
+        // saved: the quick answer (no one asked) has it at once, and the same search again within a day does not ask SoundCloud again
+        var quick = await svc.ForSearchAsync(me, "white girl summer", default, quick: true);
+        Assert.Contains(quick, l => l.Source == "soundcloud" && l.Id == set.Id);
+        await svc.ForSearchAsync(me, "White Girl Summer 2000/2010s Playlist", default);
+        Assert.Equal(1, web.Asked("http://mover.test/find-sets"));
+        // a word or two is not asked about (an artist or a song search)
+        await svc.ForSearchAsync(me, "xy", default);
+        Assert.Equal(1, web.Asked("http://mover.test/find-sets"));
     }
 
     [Fact]

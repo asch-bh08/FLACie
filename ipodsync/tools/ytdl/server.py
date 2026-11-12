@@ -210,6 +210,31 @@ def artist_sets(q):
     return {"account": account, "sets": sets}
 
 
+FIND_MAX = 12
+
+
+def find_sets(q):
+    """POST /find-sets {"q"} (owner, 12 Nov: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library"): anyone's
+    public SoundCloud playlists whose name matches, through yt-dlp's own SoundCloud API access (search/playlists; names, links and counts only, cheap;
+    their songs are read with /playlist when one is opened). Answers {sets: [{title, url, uploader, tracks, likes, art}]}."""
+    q = (q or "").strip()[:120]
+    if len(q) < 3:
+        raise ValueError("missing name")
+    import yt_dlp
+    ydl = yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True})
+    ie = ydl.get_info_extractor("SoundcloudSearch")
+    ie.initialize()
+    r = ie._call_api(ie._API_V2_BASE + "search/playlists", q, query={"q": q, "limit": FIND_MAX, "linked_partitioning": 1}, headers=ie._HEADERS)
+    sets = []
+    for e in (r.get("collection") or [])[:FIND_MAX]:
+        url = (e or {}).get("permalink_url") or ""
+        if not url.startswith("https://soundcloud.com/") or "/sets/" not in url:
+            continue
+        sets.append({"title": (e.get("title") or "")[:200], "url": url, "uploader": ((e.get("user") or {}).get("username") or "")[:200],
+                     "tracks": int(e.get("track_count") or 0), "likes": int(e.get("likes_count") or 0), "art": (e.get("artwork_url") or "")[:400]})
+    return {"sets": sets}
+
+
 def probe(rel):
     """ffprobe of a file under /data: what the Info panel shows for songs that were just downloaded."""
     full = resolve(rel)
@@ -370,13 +395,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 return self._reply(404, {"error": str(e)})
             except Exception as e:
                 return self._reply(400, {"error": str(e)})
-        if self.path in ("/playlist", "/artist-sets"):
+        if self.path in ("/playlist", "/artist-sets", "/find-sets"):
             try:
                 body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
             except Exception as e:
                 return self._reply(400, {"error": str(e)})
             with GATE:
                 try:
+                    if self.path == "/find-sets":
+                        return self._reply(200, find_sets(str(body.get("q") or "")))
                     return self._reply(200, read_playlist(str(body.get("url") or "")) if self.path == "/playlist" else artist_sets(str(body.get("q") or "")))
                 except ValueError as e:
                     return self._reply(400, {"error": str(e)})

@@ -1,5 +1,12 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 12 Nov afternoon: b134 RELEASED + DEPLOYED
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b134 ; frank runs b134 (rollback flacie-web:rollback-b134pre; b133pre, b132pre kept).
+- PC Now Playing bar: no seek in it, DJ left / mic right, narrower volume pill; page never scrolls sideways (html/body overflow-x: clip); Home order Quick picks > moods > frequently played > artists > playlists > rest, scroll-driven reveal, hero parallax, aura glow; Settings-from-player waits for the player to close.
+- Icon audit: docs/icons.md is the map (web Icon name <-> phone Glyph); keep it current.
+- Player bar volume (VolumeControl) moves locally, commits on change. Full-screen graph + car mode have shuffle/repeat (+ fav/DJ/mic on the phone graph, seek in car).
+- smoke-android.mjs retypes the server address (emulator dropped keys twice); v1-shots saves the newest ANR file. Two RetroActivity ANRs seen in 4 tour runs since b133, none in the last two; cause not found.
+
 ## 12 Nov midday: b133 RELEASED + DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b133 ; frank runs b133 (rollback flacie-web:rollback-b133pre; b132pre, b131pre kept).
 - Car mode (web /car + phone overlay), Home alive animations, graphs Orbit/Skyline/Bars/Aura, web graph pre-load (one next copy, none on mobile data), Settings from Now Playing.

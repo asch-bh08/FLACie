@@ -349,3 +349,10 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 .home-hero-art.now .hero-now { animation: hero-pan 60s ease-in-out infinite alternate, hero-in 2s ease both; will-change: transform; }
 :root.pref-calm .home-hero-art.now .hero-now { animation: none; transform: scale(1.1); }
 @media (prefers-reduced-motion: reduce) { .home-hero-art.now .hero-now { animation: none; transform: scale(1.1); } }
+
+/* Search, Top result beside Songs only when both have room (owner, 12 Nov: "lana del ray" at a 800 px window drew the artist's name one letter per line
+   and the songs as "S..."): two columns of at least 420 px, else one above the other, whatever the window or the side menu do */
+.sr-top { grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)) !important; }
+.sr-top-main .sr-hero { min-width: 0; }
+.sr-hero-text { min-width: 0; }
+.sr-hero-title { overflow-wrap: anywhere; writing-mode: horizontal-tb; }

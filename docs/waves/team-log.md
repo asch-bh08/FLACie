@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 12 Nov ~16:00: b135 RELEASED + DEPLOYED
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b135 ; frank runs b135 (rollback flacie-web:rollback-b135pre; b134a, b134pre kept).
+- Home: hero picture under the see-through menu and to both window edges (clip-path inset negative, --gap for >1800px), masked fades (no hard lines); hero crossfades 5 covers (CSS hero-cycle web, Crossfade phone); --bg/--surface tinted by --accent (dark theme, @property --accent transition); hover play button reworked; graph labels at 7px in.
+- Owner rule: soft edges by the menu/search are fine; hard lines are not.
+
 ## QUEUED 12 Nov (owner: "just queue a full overhaul on all this anyway"): RETRO OVERHAUL (Android RetroActivity + web /retro)
 Not started. Do it as its own piece of work, test-first, then release.
 - Freezes: 2 ANRs in RetroActivity in 4 emulator tours (v1-shots swipes between scenes), Input dispatching timed out on a MOVE. Get the trace (v1-shots now saves the newest /data/anr file), find what blocks the main thread: RetroBridge calls (anything waiting on the main thread while it waits for the WebView), art() runBlocking cover loads, scene swipes rebuilding the page, the desk analyser.

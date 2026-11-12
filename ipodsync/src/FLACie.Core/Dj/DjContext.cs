@@ -84,6 +84,13 @@ public sealed class DjContext
     public IReadOnlyList<string> Lines { get { lock (gate) return lines.ToList(); } }
     public IReadOnlyList<Song> Songs { get { lock (gate) return songs.ToList(); } }
 
+    /// <summary>The DJ just asked who a song is by ("that's the only one I've got, tell me who it's by"): a short reply within a minute is the artist for
+    /// that song (owner, 12 Nov: "Corona" after that question was taken as a new request and nothing played).</summary>
+    public void AwaitWhoBy(string title, DateTime now) { if (title.Length > 0) lock (gate) whoBy = (title, now); }
+    /// <summary>The title it asked about, once (null when it did not ask, or over a minute ago).</summary>
+    public string? TakeWhoBy(DateTime now) { lock (gate) { var w = whoBy is { } x && now - x.At < TimeSpan.FromMinutes(1) ? x.Title : null; whoBy = null; return w; } }
+    (string Title, DateTime At)? whoBy;
+
     /// <summary>Forgets everything said (asks, answers, the request and the subject).</summary>
     public void Forget() { lock (gate) { talk.Clear(); request = null; subject = null; } }
 

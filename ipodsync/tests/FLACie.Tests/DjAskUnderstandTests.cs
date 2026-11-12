@@ -177,6 +177,23 @@ public class DjAskUnderstandTests
         Assert.Equal("Corona", a.Wait?.Artist);
     }
 
+    // owner, 12 Nov (in the car): "the other one" -> "who's it by?" -> "Corona" -> "couldn't get that one", nothing played. The short answer is the artist
+    // for the song it asked about
+    [Theory]
+    [InlineData("corona")]
+    [InlineData("it's by corona")]
+    public async Task Answering_who_its_by_gets_that_song_by_them(string reply)
+    {
+        var u = WithDeBarge();
+        u.Fetch = w => new AlexaRequested("Corona", "The Rhythm of the Night");
+        var e = new DjAskEngine();
+        var q = await e.AnswerAsync(u, "the other one", "/p/DeBarge/Rhythm of the Night", []);
+        Assert.Contains("who it’s by", q.Say);
+        var a = await e.AnswerAsync(u, reply, "/p/DeBarge/Rhythm of the Night", []);
+        Assert.Contains(u.Fetched, w => w.Contains("rhythm of the night", StringComparison.OrdinalIgnoreCase) && w.Contains("corona", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Corona", a.Wait?.Artist);
+    }
+
     [Fact]
     public async Task Not_that_one_with_no_other_version_says_how_to_name_the_right_one()
     {

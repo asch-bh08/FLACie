@@ -85,6 +85,9 @@ public static partial class DjAskRules
     [GeneratedRegex(@"^(play|put on) (.+?) (?:and )?(?:then )?add (?:it|that|this) to (?:my |the )?(.+?)(?: playlist)?$")] private static partial Regex PlayAddRx();
     // F22: "play my favourite prodigy songs", "my favourite 90s songs", "my favorite fat of the land tracks"
     [GeneratedRegex(@"^(?:play |put on |shuffle |give me )?(?:some of )?my (?:favourite|favorite|fave|fav)s? (.+?)(?: songs| tracks| tunes| music| ones)?$")] private static partial Regex FavouritesOfRx();
+    // the answer to "who's it by?": "corona", "it's by corona", "by corona", "the one by corona"
+    [GeneratedRegex(@"^(?:(?:it s|its|it is|that s|thats|the one|the version)\s+)?(?:by\s+)?(.+?)(?:\s+(?:please|one|version))?$")] internal static partial Regex WhoByRx();
+
     // F11: "not that one", "the other one", "the corona one"
     [GeneratedRegex(@"^(?:no )?(?:not that one|not that|wrong one|the other one|the other version|other one|(?:play )?the (.+?) (?:one|version)|(?:play )?the (?:one|version) by (.+))$")] private static partial Regex OtherRx();
     /// <summary>Where a playlist's name stops and the next ask starts: "pop playlist and shuffle pop" is Pop, then a shuffle.</summary>
@@ -435,8 +438,13 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         var ctx = Contexts.For(u.Account);
         var cur = current is { Length: > 0 } ? u.Find(current) : null;
         var at = now();
+        // the answer to "who's it by?": a few words that are not a command name the artist of the song it asked about ("corona", "it's by corona")
+        AskParse? whoByParse = null;
+        if (ctx.TakeWhoBy(at) is not null && cur is not null && DjAskRules.Instant(text) is null
+            && DjAskRules.WhoByRx().Match(DjAskRules.Normalise(text)) is { Success: true } wb && wb.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length is > 0 and <= 4)
+            whoByParse = new(AskIntent.OtherOne, wb.Groups[1].Value.Trim());
         // "play more from them": the artist the conversation is about, else the one playing
-        AskParse? parse = null; string? answered = null;
+        AskParse? parse = whoByParse; string? answered = null;
         if (MoreFromThem().IsMatch(DjAskRules.Normalise(text)) && (ctx.Subject(at) ?? cur?.Artist) is { Length: > 0 } them) parse = new(AskIntent.Play, them);
         // a plain control is done at once; anything else the model understands first (owner: "I want it to know what I mean all the time, and if it
         // doesn't, ask me"), and the quick rules are what's left when the model has no answer (not set up, over the cap, too slow)
@@ -459,6 +467,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         else if (answered is not null) answer = DjAskAnswer.Said(answered, "Answer");
         else answer = DjAskAnswer.Said(DidntCatch);
         Remember(u, ctx, text, parse, answer, cur, at);
+        // it asked who the song is by: the next short reply is the answer
+        if (cur is not null && answer.Say.Contains("who it’s by", StringComparison.Ordinal)) ctx.AwaitWhoBy(cur.Title, at);
         return answer;
     }
 

@@ -1,5 +1,13 @@
 # Team log (newest at the top; see TEAM.md)
 
+## QUEUED 12 Nov (owner: "just queue a full overhaul on all this anyway"): RETRO OVERHAUL (Android RetroActivity + web /retro)
+Not started. Do it as its own piece of work, test-first, then release.
+- Freezes: 2 ANRs in RetroActivity in 4 emulator tours (v1-shots swipes between scenes), Input dispatching timed out on a MOVE. Get the trace (v1-shots now saves the newest /data/anr file), find what blocks the main thread: RetroBridge calls (anything waiting on the main thread while it waits for the WebView), art() runBlocking cover loads, scene swipes rebuilding the page, the desk analyser.
+- Speed: profile scene changes and the desk on a mid phone (emulator software GPU is slow; also test on the owner's phone read-only); cut work on swipe (keep scenes alive or prerender), cap canvas sizes, pause hidden scenes' animations.
+- Look and feel: same overhaul rules as the rest of the app (alive but cheap motion, consistent icons per docs/icons.md, controls even on both sides, nothing cut off at any size).
+- Parity: every Retro change on web /retro, Android RetroActivity and Windows.
+- Tests: a scene-swipe stress driver on the emulator that fails on any ANR; web tests for /retro at phone and PC sizes.
+
 ## 12 Nov afternoon: b134 RELEASED + DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b134 ; frank runs b134 (rollback flacie-web:rollback-b134pre; b133pre, b132pre kept).
 - PC Now Playing bar: no seek in it, DJ left / mic right, narrower volume pill; page never scrolls sideways (html/body overflow-x: clip); Home order Quick picks > moods > frequently played > artists > playlists > rest, scroll-driven reveal, hero parallax, aura glow; Settings-from-player waits for the player to close.

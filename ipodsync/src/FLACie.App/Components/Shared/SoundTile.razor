@@ -1,4 +1,5 @@
 @inherits UserComponent
+@inject IJSRuntime PopJs
 @* The full-screen player's volume on a PC (owner, 11 Nov: "the volume bar must be quick to reach; the pop-up is terrible, doesn't work and looks bad"):
    always in the bar, no pop-up to open first. A mute button, a wide slider in the cover's colour (drag, click, the wheel and the arrow keys all move it;
    the sound follows as it moves and the player is told when it is let go) and the level in numbers. The two sound switches (even out volume, fade between
@@ -12,7 +13,7 @@
            onwheel="event.preventDefault(); this.value = Math.max(0, Math.min(100, Number(this.value) + (event.deltaY < 0 ? 5 : -5))); this.dispatchEvent(new Event('input', { bubbles: true })); this.dispatchEvent(new Event('change', { bubbles: true }))"
            @onchange="OnVolume" />
     <b class="ls-volpill-num" aria-hidden="true">@Pct%</b>
-    <button type="button" class="ls-volpill-more @(Player.LevelVolume || Player.FadeSecs > 0 ? "on" : "")" @onclick="() => open = !open" aria-label="Sound options" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")" title="Sound options">
+    <button type="button" class="ls-volpill-more @(Player.LevelVolume || Player.FadeSecs > 0 ? "on" : "")" @onclick="Toggle" aria-label="Sound options" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")" title="Sound options">
         <Icon Name="wave" Size="18" /><span class="ls-volpill-label">Sound</span>
     </button>
     @if (open)
@@ -38,7 +39,7 @@
                     }
                 </div>
             </div>
-            <button type="button" class="ls-volpill-close" @onclick="() => open = false">Done</button>
+            <button type="button" class="ls-volpill-close" @onclick="Close">Done</button>
         </div>
     }
 </div>
@@ -46,5 +47,16 @@
     bool open;
     int Pct => (int)Math.Round(Player.Volume * 100);
     Task OnVolume(ChangeEventArgs e) => int.TryParse(e.Value?.ToString(), out var v) ? Player.SetVolumeAsync(v / 100.0) : Task.CompletedTask;
-    void Key(KeyboardEventArgs e) { if (e.Key == "Escape") open = false; }
+    void Key(KeyboardEventArgs e) { if (e.Key == "Escape") _ = Close(); }
+    // a click anywhere outside the pop-up (or Esc) closes it, as the other menus do (owner, 12 Nov: "make this one clickable to exit it, like click out of it")
+    DotNetObjectReference<SoundTile>? me;
+    async Task Toggle()
+    {
+        open = !open;
+        me ??= DotNetObjectReference.Create(this);
+        try { if (open) await PopJs.InvokeVoidAsync("flacie.watchOutside", ".ls-volpill", me); else await PopJs.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { }
+    }
+    async Task Close() { open = false; try { await PopJs.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
+    [JSInvokable] public void Dismiss() => InvokeAsync(() => { if (!open) return; open = false; StateHasChanged(); });
+    public override void Dispose() { base.Dispose(); if (open) _ = PopJs.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); me?.Dispose(); }
 }

@@ -326,6 +326,11 @@ test.describe('the full-screen player bar on a PC', () => {
     await page.screenshot({ path: 'test-results/web-a-sound.png' });
     await pop.getByRole('button', { name: 'Done' }).click();
     await expect(pop).toHaveCount(0);
+    // a click outside it closes it too (owner, 12 Nov: "make this one clickable to exit it")
+    await page.getByRole('button', { name: 'Sound options' }).click();
+    await expect(pop).toBeVisible();
+    await page.mouse.click(700, 300);
+    await expect(pop).toHaveCount(0);
     // More holds the rating, speed and the sleep timer (paused first: the test songs are 3 s long and a new music track starts at 1x)
     await page.mouse.move(10, 10);
     await page.locator('.ls-play[aria-label="Pause"]').click();

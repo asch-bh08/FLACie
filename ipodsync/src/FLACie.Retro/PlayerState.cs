@@ -1129,6 +1129,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                     return;
                 }
             }
+            // ten minutes and still not here: said, rather than the DJ going quiet about it (owner, 12 Nov)
+            DjAskSaid?.Invoke($"Couldn't get {w.Title} in time, sorry. If it comes in later it'll be in your library.");
         }
         finally { if (DjState == DjBarState.Downloading) SetDjState(DjBarState.None); }
     }

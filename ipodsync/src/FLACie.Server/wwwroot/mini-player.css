@@ -33,3 +33,12 @@ body.wide .mp-extra { position: absolute; top: 6px; right: 10px; gap: 0; }
 body.wide .mp-extra .mp-b { width: 32px; height: 32px; }
 body.wide .mp-next { text-align: left; }
 body.wide .mp-lyric { display: none; }
+/* 12 Nov (owner: "needs a button back and a redesign like Now Playing"): a Back to FLACie pill at the top; play is Now Playing's rounded square in the
+   cover's colour, previous / next its tinted pills */
+.mp { position: relative; }
+.mp-back { position: absolute; top: 8px; left: 8px; z-index: 3; display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px 0 8px; border: 0; border-radius: 15px;
+  background: #0000006b; color: #f4efe6; font: 600 12px/1 system-ui, sans-serif; cursor: pointer; backdrop-filter: none; }
+.mp-back:hover { background: #000000a0; }
+.mp-play { width: 64px; height: 50px; border-radius: 18px; }
+.mp-b[data-do="prev"], .mp-b[data-do="next"] { width: 48px; height: 40px; border-radius: 20px; background: #ffffff1f; }
+body.wide .mp-back { top: 6px; left: 6px; height: 26px; }

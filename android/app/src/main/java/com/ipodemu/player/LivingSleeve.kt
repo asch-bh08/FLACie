@@ -16,6 +16,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -446,8 +447,9 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         Box(Modifier.weight(1f).padding(end = 8.dp)) {
             SText(
                 SleeveText.where(t.album, t.trackNo, fallback),
-                Modifier.clip(RoundedCornerShape(50)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp),
-                family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f,
+                // a name too long for the room left by DJ and mic scrolls slowly instead of being cut ("JUNGLE M..."; owner, 12 Nov)
+                Modifier.clip(RoundedCornerShape(50)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp).basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500),
+                family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f, maxLines = 1,
             )
         }
         // a running sleep timer stays in sight: Options alone would hide it
@@ -479,7 +481,7 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
             val (lead, last) = remember(t.title) { SleeveText.split(t.title) }
             val title = remember(lead, last) { buildAnnotatedString { append(lead); withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(last) } } }
             // on a short screen the title is smaller, then one line (NowPlayingFit), so the controls below stay on screen
-            SText(title, family = SleeveFonts.serif, size = minOf(if (t.title.length > SleeveText.LONG_TITLE) 40f else 52f, fit.titleSp), weight = FontWeight.Normal, maxLines = fit.titleLines, spacing = -.01f, lineHeight = .98f)
+            SText(title, family = SleeveFonts.serif, size = minOf(if (t.title.length > 44) 30f else if (t.title.length > SleeveText.LONG_TITLE) 38f else 52f, fit.titleSp), weight = FontWeight.Normal, maxLines = if (t.title.length > SleeveText.LONG_TITLE) maxOf(fit.titleLines, 3) else fit.titleLines, spacing = -.01f, lineHeight = .98f)
             // the chips wrap under the artist on a narrow screen rather than squeezing the name down to a few letters; on a short screen only the
             // artist is here (the format is in Song info, the download in More)
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)

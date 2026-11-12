@@ -48,7 +48,7 @@
                 </div>
                 <div class="ls-title">
                     <div class="ls-names">
-                        <h2 class="@(t.Title.Length > 26 ? "long" : "")">@Lead(t.Title)<i>@Last(t.Title)</i></h2>
+                        <h2 class="@(t.Title.Length > 44 ? "long longer" : t.Title.Length > 26 ? "long" : "")" title="@t.Title">@Lead(t.Title)<i>@Last(t.Title)</i></h2>
                         <div class="ls-byline">
                             <p class="ls-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@if (AlbumOf(t).Length > 0) { <span class="ls-album"> · <a href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">@AlbumOf(t)</a></span> }</p>
                             @* one chip for the file: what it is (or Hi-Res) and its sampling; nothing until this song's own facts are in *@

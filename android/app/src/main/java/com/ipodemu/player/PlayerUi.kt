@@ -4,6 +4,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.graphics.toArgb
 import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
@@ -684,6 +685,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val online = rememberOnline()
     // the chips and the first shelves come in with a short rise as Home opens (as the web's page does), not again on scrolling
     val entrance = rememberEntrance()
+    // Artists on repeat and Just arrived: worked out once per library or history change, not on every redraw of the list (it froze the app, 12 Nov)
+    val homeRev = LocalLibRev.current
+    val historyRev = app.userData.rev
+    val reps = remember(homeRev, historyRev) { repeatArtists(app, lib) }
+    val fresh = remember(homeRev) { lib.songs().sortedByDescending { it.mtime }.take(6) }
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
         if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "FLACie", nav, showBack = false) {
@@ -703,17 +709,34 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             // design I: Favourites, Recent, Downloads, Recently added and the moods as outlined chips (the chosen mood filled); Shuffle all is in the hero
             // the chips wrap onto more lines rather than run off the right edge (owner, 9 Nov: nothing may hang off the screen; "Offline music" was
             // cut in half at the edge of a phone). Each chip has its own 6 dp above and below, so the lines need no extra gap
+            // the moods as colourful tiles (owner, 11 Nov: "Home B"), two to a row with the first one wide; a tile again goes back to everything. As on the web
+            if (modern && moodList.isNotEmpty()) item(key = "mood-tiles") {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).entranceRise(entrance, 1), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    val rows = listOf(moodList.take(1)) + moodList.drop(1).chunked(2)
+                    var hue = 0
+                    rows.forEachIndexed { ri, row ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (m in row) { MoodTile(m, hue++, mood == m, Modifier.weight(1f)) { mood = if (mood == m) null else m } }
+                            if (row.size == 1 && ri > 0) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+            }
+            // the shortcuts in one tidy row of three (owner, 12 Nov: "why are there so many of these buttons"): the moods are the tiles above and Recently
+            // added is the Just arrived shelf below, so four rows of chips became this
             if (modern) item {
-                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp).entranceRise(entrance, 1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // the moods first, as on the web ("All" filled while no mood is picked), then the shortcuts the old Home had
-                    DesignChip("All", mood == null, { mood = null })
-                    moodList.forEach { m -> DesignChip(m, mood == m, { mood = if (mood == m) null else m }) }
-                    DesignChip("Favourites", false, { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART)
-                    DesignChip("Recent", false, { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK)
-                    // "Downloads" is the songs kept for listening without signal; "Recently added" is new music fetched into the library
-                    DesignChip("Offline music", false, { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED)
-                    DesignChip("Recently added", false, { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS)
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).entranceRise(entrance, 1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((label, glyph, go) in listOf<Triple<String, Glyph, () -> Unit>>(
+                        Triple("Favourites", Glyph.HEART) { nav.push(Screen.Detail(DetailKind.FAVORITES)) },
+                        Triple("Recent", Glyph.CLOCK) { nav.push(Screen.Detail(DetailKind.RECENT)) },
+                        Triple("Offline", Glyph.DOWNLOADED) { nav.push(Screen.Downloads) },
+                    )) {
+                        Column(
+                            Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(18.dp)).background(LocalScheme.current.onBg.copy(alpha = .07f))
+                                .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable(onClick = go),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
+                        ) { GlyphIcon(glyph, Modifier.size(20.dp), LocalScheme.current.onBg); Txt(label, Modifier.padding(top = 4.dp), size = 12.5f, weight = FontWeight.SemiBold, maxLines = 1) }
+                    }
                 }
             } else item {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -734,6 +757,34 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 item {
                     LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         itemsIndexed(ts) { i, t -> TrackCard(t, Modifier.width(130.dp)) { app.player.play(ts, i, null, mname, from = "home") } }
+                    }
+                }
+            }
+            // from Home C (owner, 11 Nov): the artists played most as round faces, and the songs that came in last with what they are. As on the web
+            if (modern && mood == null) {
+                if (reps.isNotEmpty()) {
+                    item(key = "repeat-head") { SectionHeader("Artists on repeat") }
+                    item(key = "repeat") {
+                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            items(reps.size) { i ->
+                                val (name, art) = reps[i]
+                                Column(Modifier.width(84.dp).clickable { nav.push(Screen.Detail(DetailKind.ARTIST, name)) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.size(76.dp).border(2.dp, LocalScheme.current.accent, CircleShape).padding(4.dp).clip(CircleShape)) { ArtImage(art, Modifier.fillMaxSize(), corner = 38.dp) }
+                                    Txt(name, Modifier.padding(top = 6.dp), size = 12.5f, weight = FontWeight.SemiBold, maxLines = 1)
+                                }
+                            }
+                        }
+                    }
+                }
+                if (fresh.isNotEmpty()) {
+                    item(key = "arrived-head") { SectionHeader("Just arrived") }
+                    items(fresh.size, key = { "arrived-" + fresh[it].path }) { i ->
+                        val t = fresh[i]
+                        Row(Modifier.fillMaxWidth().clickable { app.player.play(fresh, i, null, "Just arrived", from = "home") }.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            ArtImage(t.artKey, Modifier.size(48.dp), corner = 10.dp)
+                            Column(Modifier.weight(1f)) { Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1); Txt(t.artist, size = 13f, color = LocalScheme.current.onBgDim, maxLines = 1) }
+                            MonoLabel(formatOf(t), size = 10f, color = LocalScheme.current.accent)
+                        }
                     }
                 }
             }
@@ -836,54 +887,9 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
                 else app.player.play(listOf(last), 0, null, "Recently Played")
             })
         }
-        HomePickCard(nav, cols)
     }
 }
 
-/** Home A (owner, 11 Nov): tonight's pick, a whole album as a card in the cover's colours, with Play and DJ it (the album with the DJ on). As on the web. */
-@Composable
-private fun HomePickCard(nav: PlayerNav, cols: SleeveColours) {
-    val app = LocalApp.current
-    val lib = app.library
-    // the library's revision: the pick is worked out again once the library has loaded (Home is first drawn while it is still empty)
-    val rev = rememberLibRev(lib)
-    val day = remember { java.util.Calendar.getInstance().let { it.get(java.util.Calendar.YEAR) * 400 + it.get(java.util.Calendar.DAY_OF_YEAR) } }
-    val pick = remember(day, rev, lib.songs().size) {
-        val hist = app.userData.history()
-        val byPath = lib.byPath()
-        val recent = hist.take(60).mapNotNull { byPath[it.p]?.albumKey }.toSet()
-        val liked = hist.take(300).map { com.ipodemu.library.primaryArtist(it.a) }.filter { it.isNotBlank() }.groupingBy { it }.eachCount()
-            .entries.sortedByDescending { it.value }.take(25).map { it.key }.toSet()
-        HomePick.pick(lib.albums(), recent, liked, day)
-    } ?: return
-    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
-    val playIt = { dj: Boolean ->
-        app.player.play(pick.tracks, 0, context = pick.name)
-        if (dj && !app.player.djOn) djTap(app)
-        nav.coverFrom = null; nav.nowPlaying = true
-    }
-    Row(
-        Modifier.padding(horizontal = 16.dp).padding(bottom = 12.dp).fillMaxWidth().clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(Color(cols.main).copy(alpha = .26f), Color.White.copy(alpha = .04f))))
-            .border(1.dp, Color.White.copy(alpha = .12f), RoundedCornerShape(24.dp)).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Box(Modifier.size(104.dp).clip(RoundedCornerShape(16.dp)).semantics { contentDescription = "Play ${pick.name}"; role = androidx.compose.ui.semantics.Role.Button }.clickable { playIt(false) }) {
-            ArtImage(pick.artKey ?: pick.tracks.firstOrNull()?.artKey, Modifier.fillMaxSize(), corner = 16.dp)
-        }
-        Column(Modifier.weight(1f)) {
-            MonoLabel(if (hour >= 18) "Picked for tonight" else "Picked for today", color = Color(cols.main))
-            SerifTitle(pick.name, Modifier.padding(top = 4.dp, bottom = 2.dp), size = 24f, maxLines = 2)
-            val first = pick.tracks[0]
-            Txt(listOfNotNull(first.albumArtist.ifBlank { first.artist }, "${pick.tracks.size} songs", first.year.takeIf { it > 0 }?.toString()).joinToString(" · "), size = 13f, color = LocalScheme.current.onBg.copy(alpha = .75f), maxLines = 1)
-            @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
-            androidx.compose.foundation.layout.FlowRow(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                AccentPill("Play", Glyph.PLAY, cols, { playIt(false) }, height = 40.dp)
-                if (app.player.djAvailable) TonePill("DJ it", Glyph.DJ, cols, { playIt(true) }, height = 40.dp)
-            }
-        }
-    }
-}
 
 @Composable
 fun SectionHeader(text: String) {
@@ -1214,36 +1220,43 @@ private fun NewPlaylistRow(nav: PlayerNav, withField: Boolean = true) {
  */
 @Composable
 private fun NewPlaylistTile() {
+    // a small "+ New playlist" button across the top of the grid that opens into the name field and Create (owner, 12 Nov: "that add new playlist is
+    // way too big": it was a whole cover-sized tile with a field and a button under it)
     val app = LocalApp.current
     val sc = LocalScheme.current
+    var open by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     val fr = remember { androidx.compose.ui.focus.FocusRequester() }
-    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = "" } }
-    Column(Modifier.padding(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)).border(1.5.dp, sc.onBg.copy(alpha = .28f), RoundedCornerShape(12.dp))
-                .clickable { try { fr.requestFocus() } catch (_: Exception) {} },
-            contentAlignment = Alignment.Center,
-        ) { GlyphIcon(Glyph.PLUS, Modifier.size(34.dp), sc.onBgDim) }
+    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = ""; open = false } }
+    if (!open) {
+        Row(
+            Modifier.padding(4.dp).height(44.dp).clip(RoundedCornerShape(50)).border(1.dp, sc.onBg.copy(alpha = .28f), RoundedCornerShape(50))
+                .semantics { contentDescription = "New playlist"; role = androidx.compose.ui.semantics.Role.Button }.clickable { open = true }.padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) { GlyphIcon(Glyph.PLUS, Modifier.size(18.dp), sc.onBg); Txt("New playlist", size = 14.5f, weight = FontWeight.SemiBold) }
+        return
+    }
+    LaunchedEffect(Unit) { try { fr.requestFocus() } catch (_: Exception) {} }
+    Row(Modifier.fillMaxWidth().padding(4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         androidx.compose.foundation.text.BasicTextField(
             name, { name = it }, singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = 14.sp, fontFamily = DesignFonts.sans),
+            textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = 15.sp, fontFamily = DesignFonts.sans),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(sc.accent),
             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
             keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { create() }),
-            modifier = Modifier.fillMaxWidth().height(44.dp).focusRequester(fr).semantics { contentDescription = "New playlist name" },
+            modifier = Modifier.weight(1f).height(44.dp).focusRequester(fr).semantics { contentDescription = "New playlist name" },
             decorationBox = { inner ->
                 Box(Modifier.fillMaxSize().clip(RoundedCornerShape(50)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(50)).padding(horizontal = 14.dp), contentAlignment = Alignment.CenterStart) {
-                    if (name.isEmpty()) Txt("New playlist name", size = 14f, color = sc.onBgDim)
+                    if (name.isEmpty()) Txt("Playlist name", size = 14.5f, color = sc.onBgDim)
                     inner()
                 }
             },
         )
         Box(
             Modifier.height(44.dp).clip(RoundedCornerShape(50)).background(if (name.isBlank()) sc.accent.copy(alpha = .35f) else sc.accent)
-                .semantics { contentDescription = "Create" }.clickable(enabled = name.isNotBlank()) { create() }.padding(horizontal = 20.dp),
+                .semantics { contentDescription = "Create" }.clickable(enabled = name.isNotBlank()) { create() }.padding(horizontal = 18.dp),
             contentAlignment = Alignment.Center,
-        ) { Txt("Create", size = 15f, weight = FontWeight.SemiBold, color = if (name.isBlank()) sc.onBg.copy(alpha = .5f) else sc.accent.readableInk()) }
+        ) { Txt("Create", size = 14.5f, weight = FontWeight.SemiBold, color = if (name.isBlank()) sc.onBg.copy(alpha = .5f) else sc.accent.readableInk()) }
     }
 }
 
@@ -1307,7 +1320,7 @@ private fun PlaylistsGrid(nav: PlayerNav) {
         BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)) {
         LazyVerticalGrid(GridCells.Fixed(GridFit.columns(maxWidth.value)), Modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp, 4.dp, 12.dp, 24.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            item(key = "new") { Box(Modifier.entranceRise(entrance, 0)) { NewPlaylistTile() } }
+            item(key = "new", span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) { Box(Modifier.entranceRise(entrance, 0)) { NewPlaylistTile() } }
             item(key = "favs") {
                 PlaylistCard("Favourites", songCount(ud.favorites.size), null, Modifier.entranceRise(entrance, 1), heart = true) { nav.push(Screen.Detail(DetailKind.FAVORITES)) }
             }
@@ -2831,3 +2844,34 @@ private fun WelcomeCard(onDone: () -> Unit) {
 private var welcomedState: androidx.compose.runtime.MutableState<Boolean>? = null
 private fun welcomed(app: com.ipodemu.App): androidx.compose.runtime.MutableState<Boolean> =
     welcomedState ?: androidx.compose.runtime.mutableStateOf(app.prefs.welcomed).also { welcomedState = it }
+
+
+/** A mood as a colourful tile (owner, 11 Nov: Home B): a gradient of its own (by its place in the list), white words, a ring when chosen. */
+@Composable
+private fun MoodTile(name: String, hue: Int, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val h = (hue * 57 + 150) % 360f
+    Box(
+        modifier.height(76.dp).clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(Color.hsl(h, .45f, .30f), Color.hsl((h + 40) % 360f, .70f, .58f))))
+            .then(if (on) Modifier.border(3.dp, LocalScheme.current.onBg, RoundedCornerShape(20.dp)) else Modifier)
+            .semantics { contentDescription = name; role = androidx.compose.ui.semantics.Role.Button; selected = on }.clickable(onClick = onClick).padding(14.dp),
+        contentAlignment = Alignment.BottomStart,
+    ) { Txt(name, size = 17f, weight = FontWeight.ExtraBold, color = Color.White, maxLines = 1) }
+}
+
+/** The artists played most (from the play history), each with a cover of theirs: Home's "Artists on repeat". */
+private fun repeatArtists(app: com.ipodemu.App, lib: com.ipodemu.library.Library): List<Pair<String, String?>> {
+    val counts = app.userData.history().take(300).map { com.ipodemu.library.primaryArtist(it.a) }.filter { it.isNotBlank() }.groupingBy { it }.eachCount()
+    if (counts.isEmpty()) return emptyList()
+    val byArtist = HashMap<String, Track>()
+    for (t in lib.songs()) if (t.artKey != null) byArtist.putIfAbsent(com.ipodemu.library.primaryArtist(t.artist), t)
+    return counts.entries.sortedByDescending { it.value }.mapNotNull { e -> byArtist[e.key]?.let { it.artist to it.artKey } }.take(12)
+}
+
+/** What a song's file is, short ("FLAC", "MP3", "HI-RES"), for Just arrived. */
+private fun formatOf(t: Track): String {
+    val p = t.filePath.ifBlank { t.path }
+    if (p.contains("[Hi-Res]", ignoreCase = true)) return "HI-RES"
+    val i = p.lastIndexOf('.')
+    return if (i > 0 && p.length - i <= 6) p.substring(i + 1).uppercase() else ""
+}

@@ -9,13 +9,13 @@
     @* importing a playlist (iTunes, M3U, a text list) lives here now, not in the menu *@
     @if (AppHost.Server && Downloads.MayBulk(Session)) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
 </header>
-@* a new playlist is the first tile, where the playlists are (owner, overhaul 9 Nov) *@
+@* a new playlist: one small line above the playlists (owner, 12 Nov: the cover-sized "new playlist" tile was far too big) *@
+<form class="pl-newbar" @onsubmit="Create">
+    <span class="pl-newbar-plus" aria-hidden="true"><Icon Name="plus" Size="18" /></span>
+    <input @bind="name" @bind:event="oninput" placeholder="New playlist" aria-label="New playlist name" />
+    <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
+</form>
 <div class="grid pl-grid">
-    <form class="card pl-new" @onsubmit="Create">
-        <span class="pl-new-art" aria-hidden="true"><Icon Name="plus" Size="34" /></span>
-        <input @bind="name" @bind:event="oninput" placeholder="New playlist name" aria-label="New playlist name" />
-        <button class="btn primary" type="submit" disabled="@string.IsNullOrWhiteSpace(name)">Create</button>
-    </form>
     @foreach (var p in Session.Playlists)
     {
         var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);

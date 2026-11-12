@@ -225,20 +225,3 @@ object DesignColour {
     }
 }
 
-/**
- * Home A (owner, 11 Nov: "Home doesn't excite me"): tonight's pick, a whole album of 4 songs or more chosen once a day, by an artist played lately when
- * there is one and not one of the albums heard in the last 60 plays. The same all day ([day] seeds it), so Home does not change under the person's hand.
- * As on the web (Home.razor PickAlbum).
- */
-object HomePick {
-    fun pick(albums: List<com.ipodemu.library.Group>, recentAlbumKeys: Set<String>, likedArtists: Set<String>, day: Int): com.ipodemu.library.Group? {
-        val named = albums.filter { it.name.isNotBlank() && it.name != "Unknown Album" }
-        // whole albums first; a small library (or one of singles) still gets a pick from what it has
-        val ok = named.filter { it.tracks.size >= 4 }.ifEmpty { named.filter { it.tracks.size >= 2 } }
-        if (ok.isEmpty()) return null
-        val fresh = ok.filter { it.tracks[0].albumKey !in recentAlbumKeys }
-        val liked = fresh.filter { com.ipodemu.library.primaryArtist(it.tracks[0].albumArtist.ifBlank { it.tracks[0].artist }) in likedArtists }
-        val pool = liked.ifEmpty { fresh.ifEmpty { ok } }
-        return pool[java.util.Random(day.toLong()).nextInt(pool.size)]
-    }
-}

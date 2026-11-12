@@ -83,3 +83,9 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
   .grid > .card .cover, .grid > .card img { transition: none; }
   .grid > .card:hover .cover, .grid > .card:hover > img { transform: none; }
 }
+/* a new playlist: one small line (owner, 12 Nov) */
+.pl-newbar { display: flex; align-items: center; gap: 8px; max-width: 460px; margin: 4px 0 18px; padding: 4px 4px 4px 14px; border-radius: 999px; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 4%, transparent); }
+.pl-newbar:focus-within { border-color: var(--accent); }
+.pl-newbar-plus { display: grid; place-items: center; color: var(--dim); }
+.pl-newbar input { flex: 1; min-width: 0; height: 36px; border: 0; background: none; color: var(--ink); font: inherit; outline: none; }
+.pl-newbar .btn { height: 36px; border-radius: 999px; }

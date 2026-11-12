@@ -25,6 +25,7 @@ window.flaciePip = (() => {
     const st = d.createElement('style'); st.textContent = css; d.head.append(st);
     d.title = 'FLACie';
     d.body.innerHTML = `<main class="mp" data-testid="mini-player">
+      <button class="mp-back" data-back aria-label="Back to FLACie"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M15.4 6.4L14 5l-7 7 7 7 1.4-1.4L9.8 12z"/></svg>FLACie</button>
       <div class="mp-art"><img alt=""></div>
       <div class="mp-side">
         <div class="mp-text"><b class="mp-title"></b><span class="mp-artist"></span><span class="mp-lyric" aria-live="off"></span></div>
@@ -53,6 +54,8 @@ window.flaciePip = (() => {
       else ctl(what)?.click();
       setTimeout(() => paint(v, audio), 150);
     }));
+    // back to the tab (owner, 12 Nov: "the pop-up needs a button back"): the page comes forward and the mini player closes
+    q('[data-back]').addEventListener('click', () => { try { window.focus(); } catch { } try { win.close(); } catch { } });
     v.seek.addEventListener('input', () => { audio.currentTime = +v.seek.value; paint(v, audio); });
     // one bar with the cover on the left when the window is wider than it is tall
     const shape = () => { d.body.classList.toggle('wide', win.innerWidth > win.innerHeight * 1.25); paint(v, audio); };

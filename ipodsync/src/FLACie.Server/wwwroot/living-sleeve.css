@@ -693,3 +693,6 @@ body.np-open .dj-bar { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .ls-volpill-pop { animation: none; } }
 @media (min-width: 1101px) and (max-width: 1600px) { .ls-tile, .ls-dock .np-more.d .ls-more-btn { width: 66px; } .ls-dock .ls-tile-eq .chipbtn { min-width: 66px; padding: 0 8px; } .ls-dock-l, .ls-tiles { gap: 8px; } }
+/* a very long title (owner, 12 Nov: "Iniquity Worker (Number of the Beas..."): smaller and up to three lines, so all of it shows; the full title is its tooltip */
+.ls-names h2.longer { -webkit-line-clamp: 3; font-size: 30px !important; line-height: 1.02; }
+@media (max-width: 760px) { .ls-names h2.longer { font-size: 26px !important; } }

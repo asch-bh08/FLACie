@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 // Screenshots of the Android app's main screens for a look-over before 1.0 (owner, 1 Nov: "no spacing bugs", "fits any phone"): Home, Library,
 // Songs, an album, Playlists, Offline music, Search with the keyboard up and after, the full-screen player with its Lyrics and Info cards, and
 // Settings. Started like the smoke test, which brings the emulator up:
@@ -100,5 +101,8 @@ for (const size of sizes) {
   for (let i = 2; i <= 9; i++) { sh(`input swipe ${W() / 2} ${h() * 0.75} ${W() / 2} ${h() * 0.3} 400`); await sleep(1200); shot(S('settings-' + i + tag)); }
   if (size !== 'native') { sh('wm size reset'); sh('wm density reset'); await sleep(3000); }
 }
+// the phone's log and any freeze report, for finding an ANR afterwards
+try { fs.writeFileSync(path.join(SHOTS, 'logcat.txt'), String(sh('logcat -d -t 6000', { quiet: true }) ?? '')); } catch { }
+try { fs.writeFileSync(path.join(SHOTS, 'anr.txt'), String(sh("su 0 sh -c 'cat /data/anr/anr_* 2>/dev/null | head -400'", { quiet: true }) ?? '')); } catch { }
 console.log('done; playing: ' + mediaSession().state);
 process.exit(0);

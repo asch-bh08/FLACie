@@ -25,6 +25,8 @@
         }
         <div class="rail-group rail-extra">
             <p class="rail-label">More</p>
+            @* Settings on every page (owner, 12 Nov), not only behind the account picture *@
+            <NavLink href="/settings"><Icon Name="settings" />Settings</NavLink>
             <NavLink href="/headphones"><Icon Name="headphones" />Headphone test</NavLink>
             @if (AppHost.Server) { <AdminLink /> }
         </div>

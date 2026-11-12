@@ -488,6 +488,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     if (landed) {
                         // the phone's library learns of the song at its next sync; by title until then nothing is played
                         val t = App.of(ctx).library.let { it.findSong(title, artist) ?: it.findLoose(title, artist) }
+                        // here on the server but not on the phone yet: Jellyfin's changes are fetched now, not at the next sync (owner, 12 Nov: the DJ said
+                        // "getting that one", then "still getting it" a song later, and never played it)
+                        if (t == null) App.of(ctx).library.lookAgain()
                         if (t != null) {
                             handler.post {
                                 // "... and add it to pop (and shuffle pop)": added now it is here, then that playlist shuffled with it first
@@ -507,6 +510,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                         }
                     }
                 }
+                // ten minutes and still not here: said, rather than the DJ going quiet about it
+                handler.post { done(DjAskAnswer(DjAskDo.NONE, "Couldn't get $title in time, sorry. If it comes in later it'll be in your library.")) }
             }, "dj-ask-wait").apply { isDaemon = true }.start()
         }
     }

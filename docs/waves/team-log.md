@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-12 ~01:45 Local: b132 RELEASED + DEPLOYED; morning list for the owner
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b132 ; frank runs b132 (rollback flacie-web:rollback-b132pre).
+- DONE: 1 Home buttons (tiles + one row), 3 Playlists New playlist small, 8 mini player Back + restyle, 9 Settings in the web menu, 10 long titles + where pill, 12 DJ download follow-up (message + phone sync), Home B/C bits, no pick card. Phone ANR on Home found and fixed (lists computed once per change).
+- NOT DONE (next session, in this order): 2 animations visible and alive (web + phone); 11 car mode (web wake lock + phone keep-screen-on, big controls, visualiser, easy toggle); 4 parity audit (full-screen graph button, shuffle buttons, mobile vs web); 5 more graph options + phone full-screen optimisation; 7 check the graph start delay; 6 graph axis "20 kHz / 4 Hz" and 13 folded menu: need the owner's screenshots.
+
 ## 2026-11-12 ~00:25 Local PROGRESS on the overnight list (context nearly full; continue from here)
 - COMMITTED, NOT YET TESTED TOGETHER: web Home (no pick, mood tiles, Artists on repeat, Just arrived; test 1z-home-pick passes), phone Home (no pick, MoodTile tiles, one row of 3 shortcuts, Artists on repeat + Just arrived computed once per lib/history change), New playlist small on web (.pl-newbar) and phone (button that opens a field), Now Playing long titles (web .longer / phone 3 lines + smaller) and the where pill marquee (phone basicMarquee), DJ download wait: phone calls library.lookAgain() when the server says it landed, both say "Couldn't get X in time" after 10 min, web side menu has Settings, mini player has a Back to FLACie button + Now Playing-like buttons.
 - OPEN BUG FOUND: phone ANR ("FLACie isn't responding") on the emulator tour after Retro -> Now Playing -> Home (v1-shots). b131 did not have it. A rerun with logcat.txt + anr.txt saved to C:/FLACie-handoff/shots-home is running (task: v1-shots homeBC2). Find the main-thread block (suspects: new Home items, MoodTile, the phone seek-frame loop, the where-pill marquee) and fix BEFORE releasing.

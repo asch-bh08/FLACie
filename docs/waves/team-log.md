@@ -28,6 +28,17 @@
   rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
 - Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
 
+## 12 Nov ~22:00 DONE + NEW
+- DONE (server, commits 49a2d4f7, e2482dd6): DJ "who's it by?" follow-up (DjContext.AwaitWhoBy/TakeWhoBy, DjAskRules.WhoByRx); Autoplay AutoplaySpread
+  (max 2 of the seed artist, no artist twice in a row, fetch only 2 of theirs). e2482dd6 deploy may not have finished: check frank's image date.
+- NEW, playlist versions drift (owner, screenshots): a playlist entry played "Dreamer", then "Dreamer 7\" Remastered", then "Dreamer (Janice Robinson
+  Vocal)" (Hi-Res 24/96), and the playlist now shows Dreamer twice (one "Re-Original 7-inch Mix"). Suspects: Session.Resolve falling back from a
+  PlaylistEntry's Path to a title/artist match when the file moved (Hi-Res upgrades replace files) and picking any version; the Hi-Res upgrade or smart
+  download fetching a different mix (vocal/remaster/mix words not matched). Fix: keep entries pinned to the same version (store the match key with its
+  version words; prefer the same version; never a different mix), make the upgrade refuse different mixes, and de-duplicate playlist rows of one entry.
+  Also: "why do I even have Dreamer Janice Robinson Vocal": find which job fetched it (download log) and stop that path.
+- NEXT 3 still open: Up next shows the whole playlist being played.
+
 ## 12 Nov ~21:30 STATE + NEXT (owner's latest reports; context nearly full)
 - Committed, not released: phone b138 work (graph tap refcount + synchronized update, shorter Home hero, car mode BACK to its own CarScreen with every
   graph / tap-swipe on the graph / shuffle repeat seek, Home backdrop = now-playing cover panning). b138 smoke: 23/23 before the car revert; after it one

@@ -360,6 +360,10 @@ class Prefs(ctx: Context) {
     var lyricsInCar: Boolean
         get() = sp.getBoolean("lyricsInCar", false)
         set(v) = sp.edit().putBoolean("lyricsInCar", v).apply()
+    /** The visualiser car mode last showed ("leds", "ring", "scope", "curve"). */
+    var carVisual: String
+        get() = sp.getString("carVisual", "") ?: ""
+        set(v) = sp.edit().putString("carVisual", v).apply()
     /** Streaming quality: 0 = automatic (full quality, a lower bitrate only when the connection can't keep up), 1 = always full, 2 = always data saver. */
     var streamQuality: Int
         get() = sp.getInt("streamQuality", 0)

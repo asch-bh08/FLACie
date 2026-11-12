@@ -249,18 +249,39 @@ window.flacie = (() => {
   // Once the music itself goes through Web Audio (the EQ or Mega Bass is on), the graphs read that instead, and the twin (a second download) is let go.
   let npWaveRaf = 0, npWaveBusy = false, waveChain = Promise.resolve(), waveNow = '';
   const waveCache = new Map(), waveAsking = new Map();   // shapes kept for the songs about to play, and the ones being asked for
+  let twinNext = null, bus = null, nextFor = "";   // the next song's copy, loaded ahead while the graphs are open; where every copy is plugged in; the next song's address
   let actx = null, an = null, anL = null, anR = null, twin = null, vizOn = false, vizStyle = "curve", vs = {}, vh = null, vp = null, cp = null, ctxKey = "", vizCut = 0, vizCutLabel = "";
   const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const AC = window.AudioContext || window.webkitAudioContext;
   const closeGraph = () => {
     if (twin) { try { twin.pause(); twin.removeAttribute("src"); twin.load(); } catch { } twin = null; }
+    dropTwinNext(); bus = null;
     if (actx && actx !== toneCtx) { try { actx.close(); } catch { } }   // (the playback graph is the music itself: never closed here)
     actx = an = anL = anR = null; ctxKey = "";
   };
   onPlaybackGraph = () => { if (twin || (actx && actx !== toneCtx)) closeGraph(); };
+  const dropTwinNext = () => { if (twinNext) { try { twinNext.pause(); if (twinNext._node) twinNext._node.disconnect(); twinNext.removeAttribute("src"); twinNext.load(); } catch { } twinNext = null; } };
+  // a copy plugged into the graphs (an audio element can be plugged in only once, so its plug is kept on the element)
+  const plugIn = (el) => { const n = actx.createMediaElementSource(el); n.connect(bus); el._node = n; return el; };
+  // the graph started late on each new song (owner, 12 Nov: "graph delay when a song first plays"): its copy only began downloading when the song
+  // began. Now the next song's copy loads while this one plays and is swapped in the moment the song changes
+  const warmTwin = (u) => {
+    if (u) nextFor = u;
+    if (!nextFor || !actx || !bus || !twin || actx === toneCtx) return;
+    const abs = new URL(nextFor, location.href).href;
+    if (twinNext && twinNext.src === abs) return;
+    dropTwinNext();
+    try { const el = new Audio(); el.preload = "auto"; el.src = abs; twinNext = plugIn(el); } catch { twinNext = null; }
+  };
   const syncTwin = () => {
     if (!twin || !audio.src) return;
-    if (twin.src !== audio.src) twin.src = audio.src;
+    if (twin.src !== audio.src) {
+      if (twinNext && twinNext.src === audio.src) {
+        const old = twin; twin = twinNext; twinNext = null; window.__flacieTwinSwaps = (window.__flacieTwinSwaps || 0) + 1;
+        try { old.pause(); if (old._node) old._node.disconnect(); old.removeAttribute("src"); old.load(); } catch { }
+      } else twin.src = audio.src;
+    }
+    warmTwin();
     // kept within about 40 ms of what is heard (owner, 11 Nov: "the graphs are delayed"): it used to be corrected only once 0.3 s out, by a jump that
     // stalls it; now a small gap is closed by running the copy a touch faster or slower, and only a big one (a seek, a new song) jumps
     const gap = audio.currentTime - twin.currentTime;
@@ -281,8 +302,9 @@ window.flacie = (() => {
     closeGraph();
     try {
       try { actx = rate >= 8000 && rate <= 192000 ? new AC({ sampleRate: rate, latencyHint: "interactive" }) : new AC(); } catch { actx = new AC(); }
-      twin = new Audio(); twin.preload = "auto";
-      const src = actx.createMediaElementSource(twin);
+      // every copy of the song goes into one bus, so the next song's copy can be swapped in without touching the analysers
+      bus = actx.createGain(); const src = bus;
+      twin = plugIn(Object.assign(new Audio(), { preload: "auto" }));
       // nothing here reaches the speakers: the analysers feed a gain of zero (which keeps them running)
       const sink = actx.createGain(); sink.gain.value = 0; sink.connect(actx.destination);
       const a = actx.createAnalyser(); a.fftSize = 2048; a.smoothingTimeConstant = 0.5; src.connect(a); a.connect(sink);
@@ -293,7 +315,7 @@ window.flacie = (() => {
       src.connect(up); up.connect(split); split.connect(l, 0); split.connect(r, 1); l.connect(sink); r.connect(sink);
       an = a; anL = l; anR = r; ctxKey = key;
       if (actx.state === "suspended") actx.resume().catch(() => { });
-      syncTwin();
+      syncTwin(); warmTwin();
       return true;
     } catch { closeGraph(); return false; }
   };
@@ -514,7 +536,56 @@ window.flacie = (() => {
     labelFont(f); g.textAlign = "left"; g.fillText("THE SOUND, LIVE", 0, h - 3 * dpr);
   };
 
-  const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo, ring: drawRing, scope: drawScope };
+  // the average loudness (0-1) of the pitches from f0 to f1 Hz
+  const bandOf = (data, nyq, f0, f1) => { const bins = data.length, b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins)); let s = 0, n = 0; for (let k = b0; k < b1 && k < bins; k++) { s += data[k]; n++; } return n ? s / n / 255 : 0; };
+  // ---- orbit (owner, 12 Nov: "many more graph options"): three rings, bass inside, mids, highs outside, each swelling and glowing with its part of the
+  //      sound, with dots circling them faster the louder it is (the middle ones the other way). The same on Android (InfoPanel.kt orbit) ----
+  const drawOrbit = (f) => {
+    const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2;
+    g.clearRect(0, 0, w, h);
+    const cx = w / 2, cy = (h - 14 * dpr) / 2, base = Math.min(w, h - 14 * dpr) / 2 - 10 * dpr;
+    if (!vs.a) { vs.a = [0, 1, 2]; vs.e = [0, 0, 0]; }
+    const bands = [[30, 160], [160, 2000], [2000, 12000]], lift = [1, 1.5, 2.6];
+    for (let i = 0; i < 3; i++) {
+      const e = Math.min(1, Math.pow(bandOf(data, nyq, bands[i][0], bands[i][1]), 1.2) * lift[i]);
+      vs.e[i] = Math.max(e, vs.e[i] - 0.025); const v = vs.e[i];
+      const r = base * (0.34 + 0.3 * i) * (1 + 0.1 * v);
+      g.lineWidth = (6 + 14 * v) * dpr; g.strokeStyle = rgba(c.accent, 0.08 + 0.12 * v); g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
+      g.lineWidth = (1.5 + 3 * v) * dpr; g.strokeStyle = i === 1 ? rgba(c.ink, 0.35 + 0.6 * v) : rgba(c.accent, 0.35 + 0.65 * v); g.beginPath(); g.arc(cx, cy, r, 0, 7); g.stroke();
+      if (f.playing) vs.a[i] += (0.004 + 0.06 * v) * (i === 1 ? -1 : 1);
+      g.fillStyle = i === 1 ? c.accent : c.ink;
+      for (let k = 0; k < 3; k++) { const an2 = vs.a[i] + k * 2.0944; g.beginPath(); g.arc(cx + Math.cos(an2) * r, cy + Math.sin(an2) * r, (2.5 + 4 * v) * dpr, 0, 7); g.fill(); }
+    }
+    const core = g.createRadialGradient(cx, cy, 0, cx, cy, base * 0.3); core.addColorStop(0, rgba(c.accent, 0.25 + 0.5 * vs.e[0])); core.addColorStop(1, rgba(c.accent, 0));
+    g.fillStyle = core; g.beginPath(); g.arc(cx, cy, base * 0.3, 0, 7); g.fill();
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS IN THE MIDDLE, HIGHS OUTSIDE", 2 * dpr, h - 3 * dpr);
+  };
+  // ---- skyline: the spectrum as a city at night, bass in the middle and the highs out to both sides, mirrored in the water below ----
+  const drawSkyline = (f) => {
+    const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2, bins = data.length;
+    const half = Math.max(12, Math.min(48, Math.floor(w / (16 * dpr)))), N = half * 2, lo = 35, hi = Math.min(nyq, 16000);
+    if (!vh || vh.length !== N) { vh = new Float32Array(N); vp = new Float32Array(N); }
+    g.clearRect(0, 0, w, h);
+    const slot = w / N, bw = Math.max(2 * dpr, slot * 0.7), base = (h - 14 * dpr) * 0.7, top = base - 8 * dpr;
+    const grad = g.createLinearGradient(0, base - top, 0, base); grad.addColorStop(0, rgba(c.ink, .95)); grad.addColorStop(.45, c.accent); grad.addColorStop(1, rgba(c.accent, .55));
+    for (let j = 0; j < half; j++) {
+      const f0 = lo * Math.pow(hi / lo, j / half), f1 = lo * Math.pow(hi / lo, (j + 1) / half);
+      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
+      let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
+      const v = Math.min(1, Math.pow(m / 255, 1.6) * (1 + 0.8 * j / half));
+      for (const i of [half - 1 - j, half + j]) {
+        vh[i] = Math.max(v, vh[i] - 0.03); vp[i] = Math.max(vh[i], vp[i] - 0.006);
+        const x = i * slot + (slot - bw) / 2, bh = Math.max(2 * dpr, vh[i] * top);
+        g.fillStyle = grad; g.beginPath(); g.roundRect(x, base - bh, bw, bh, [bw / 2, bw / 2, 0, 0]); g.fill();
+        g.fillStyle = rgba(c.accent, 0.18); g.fillRect(x, base + 2 * dpr, bw, bh * 0.35);
+        if (vp[i] > .03) { g.fillStyle = c.ink; g.fillRect(x, base - vp[i] * top - 4 * dpr, bw, 2 * dpr); }
+      }
+    }
+    g.fillStyle = rgba(c.ink, .12); g.fillRect(0, base, w, dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("HIGHS", 2 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("BASS", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("HIGHS", w - 4 * dpr, h - 3 * dpr);
+  };
+
+  const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo, ring: drawRing, scope: drawScope, orbit: drawOrbit, skyline: drawSkyline };
   let lastSync = 0;
   const vizDraw = (ts) => {
     if (!vizOn) return;
@@ -862,6 +933,7 @@ window.flacie = (() => {
       lastLoadAt = now;
       if (pendingLoad) { clearTimeout(pendingLoad); pendingLoad = 0; }
       if (burst) { audio.pause(); audio.removeAttribute("src"); audio.load(); pendingLoad = setTimeout(open, 150); } else open();
+      nextFor = nextUrl || "";   // the graphs load their copy of it once this song's copy is in place (syncTwin)
       prefetch(nextUrl);   // after the new source is set (or the old one cleared): "can play" then means this song
     },
     loadsStarted() { return lastLoadAt; },
@@ -1185,6 +1257,19 @@ window.flacie = (() => {
     },
     playerTipDone() { try { localStorage.setItem("flacie.playerTips", 3); } catch { } const tip = document.getElementById("ls-tip"); if (tip) tip.hidden = true; },
     // a link inside the full-screen player: drop the player's #now-playing history entry (history.back), then go, so Back from the new page returns to the page under the player
+    // car mode keeps the screen awake while it is open (the browser's wake lock; it is dropped when the tab is hidden, so it is taken again when the tab comes back)
+    async carWake(on) {
+      const w = flacie._carWake || (flacie._carWake = { lock: null, on: false, back: () => { if (w.on && document.visibilityState === "visible") flacie.carWake(true); } });
+      w.on = on;
+      if (on) {
+        document.removeEventListener("visibilitychange", w.back); document.addEventListener("visibilitychange", w.back);
+        try { if (navigator.wakeLock && !w.lock) { w.lock = await navigator.wakeLock.request("screen"); w.lock.addEventListener("release", () => { w.lock = null; }); } } catch { }
+      } else {
+        document.removeEventListener("visibilitychange", w.back);
+        try { if (w.lock) await w.lock.release(); } catch { } w.lock = null;
+      }
+      return !!w.lock;
+    },
     npGo(url) {
       const go = () => window.Blazor ? Blazor.navigateTo(url) : (location.href = url);
       if (!npPushed) { go(); return; }

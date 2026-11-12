@@ -77,9 +77,12 @@ else
         <section class="shelf" aria-label="Artists on repeat">
             <div class="shelf-head"><div><h2>Artists on <i>repeat</i></h2></div></div>
             <div class="row-scroll artist-bubbles">
-                @foreach (var (name, art) in reps)
+                @for (var ri = 0; ri < reps.Count; ri++)
                 {
-                    <a class="artist-bubble" href="/artist/@Uri.EscapeDataString(name)"><Cover ArtKey="@art" Class="round" /><span>@name</span></a>
+                    var (name, art) = reps[ri];
+                    @* the artist playing now has a ring that turns (owner, 12 Nov: "animations visible and alive") *@
+                    var on = Player.Current is { } cur && (cur.Artist.Contains(name, StringComparison.OrdinalIgnoreCase) || cur.AlbumArtist.Equals(name, StringComparison.OrdinalIgnoreCase));
+                    <a class="artist-bubble @(on ? "playing" : "")" style="--i:@ri" href="/artist/@Uri.EscapeDataString(name)"><Cover ArtKey="@art" Class="round" /><span>@name</span></a>
                 }
             </div>
         </section>
@@ -92,7 +95,7 @@ else
                 @for (var ai = 0; ai < fresh.Count; ai++)
                 {
                     var idx = ai; var t = fresh[ai];
-                    <li @key="t.Path"><button class="arrival" data-np @onclick='() => PlayFull(fresh, idx, "Just arrived")' aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span class="arrival-text"><b>@t.Title</b><small>@t.Artist</small></span><span class="arrival-fmt">@FormatOf(t)</span></button></li>
+                    <li @key="t.Path" style="--i:@idx"><button class="arrival @(Player.Current?.Path == t.Path ? "playing" : "")" data-np @onclick='() => PlayFull(fresh, idx, "Just arrived")' aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span class="arrival-text"><b>@t.Title</b><small>@t.Artist</small></span>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }<span class="arrival-fmt">@FormatOf(t)</span></button></li>
                 }
             </ul>
         </section>

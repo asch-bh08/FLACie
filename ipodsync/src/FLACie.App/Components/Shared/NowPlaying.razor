@@ -307,6 +307,12 @@
         CloseMore();
         try { await Js.InvokeVoidAsync("flacie.npGo", DjSettingsUrl); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo(DjSettingsUrl); }
     }
+    // car mode (owner, 12 Nov): out of the player to /car, big buttons and a visualiser
+    async Task GoCar()
+    {
+        CloseMore();
+        try { await Js.InvokeVoidAsync("flacie.npGo", "/car"); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo("/car"); }
+    }
     void CloseMore() { more = false; plOpen = nopeOpen = djOpen = rateOpen = speedOpen = sleepOpen = false; _ = Js.InvokeVoidAsync("flacie.unwatchOutside").AsTask().ContinueWith(_ => { }); }
     void Plain(Action act, string message) { act(); Toast.Show(message); CloseMore(); }
     static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");
@@ -391,6 +397,7 @@
                         @if (Player.SleepMode != SleepMode.Off) { <button role="menuitem" class="sub danger" @onclick="() => Sleep(Player.SetSleepAsync(SleepMode.Off))">Turn off</button> }
                     }
                 }
+                <button role="menuitem" @onclick="GoCar"><Icon Name="car" Size="18" /> Car mode</button>
                 <hr class="menu-sep" />
                 <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
                 @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }

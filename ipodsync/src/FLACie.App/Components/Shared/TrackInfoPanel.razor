@@ -29,7 +29,7 @@ else
                         <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
                         <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
                     </span>
-                    <button type="button" class="icon-btn graph-full-btn" onclick="flacie.graphFull(this.closest('.graph-box'))" aria-label="Full screen" title="Full screen"><Icon Name="expand" Size="20" /></button>
+                    <button type="button" class="icon-btn graph-full-btn" onclick="flacie.graphFull(this.closest('.graph-box'))" aria-label="Full screen" title="Full screen"><Icon Name="expand" Size="18" /><span class="graph-full-word">Full screen</span></button>
                 }
             </div>
             @if (mode == "rate")
@@ -140,11 +140,13 @@ else
         yield return ("loud", "Loudness");
         yield return ("ring", "Circle");
         yield return ("scope", "Waveform");
+        yield return ("orbit", "Orbit");
+        yield return ("skyline", "Skyline");
         yield return ("stereo", Info!.Channels == 1 ? "Mono" : "Stereo");
         if (Info.BitrateKbps > 0) yield return ("rate", "Bit rate");
     }
 
-    string Title => mode switch { "rate" => "Bit rate", "curve" => "Spectrum", "leds" => "Visualizer", "wall" => "Spectrogram", "loud" => "Loudness", "ring" => "Circle", "scope" => "Waveform", _ => "Stereo" };
+    string Title => mode switch { "rate" => "Bit rate", "curve" => "Spectrum", "leds" => "Visualizer", "wall" => "Spectrogram", "loud" => "Loudness", "ring" => "Circle", "scope" => "Waveform", "orbit" => "Orbit", "skyline" => "Skyline", _ => "Stereo" };
     string Hint => mode switch
     {
         "rate" => "How much data each second of the song uses, next to common formats.",
@@ -154,6 +156,8 @@ else
         "loud" => "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it.",
         "ring" => "The song in a circle: deep sounds at the top, high ones round the bottom, and the ring swells with the bass.",
         "scope" => "The sound wave itself, live: tall swings are loud, tight wiggles are high notes.",
+        "orbit" => "Three rings: the bass in the middle, the mids, the highs outside. Each swells and glows with its part of the song, and its dots circle faster the louder it is.",
+        "skyline" => "The song as a city at night: the bass in the middle, the highs out to both sides, mirrored in the water below.",
         _ => "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side.",
     };
 

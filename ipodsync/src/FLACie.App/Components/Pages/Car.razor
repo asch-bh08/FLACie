@@ -1,0 +1,85 @@
+@page "/car"
+@attribute [Authorize]
+@inherits UserComponent
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@* Car mode (owner, 12 Nov: "easy on/off, keeps the screen on, less clutter, nice visualisers and buttons"): the song big, a live visualiser (a click changes it)
+   and only the buttons a driver needs, each big: previous, play / pause, next, favourite, the DJ and the mic. The screen is kept awake while it is open
+   (the browser's wake lock). Exit or Esc goes back. The same as the phone's car mode (CarMode.kt). *@
+<PageTitle>Car mode · FLACie</PageTitle>
+@{ var t = Player.Current; }
+<div class="car" @onkeydown="Key" tabindex="-1" @ref="root">
+    <header class="car-top">
+        <span class="car-tag"><i aria-hidden="true"></i>Car mode</span>
+        <button type="button" class="car-exit" @onclick="Exit" aria-label="Exit car mode"><Icon Name="x" Size="22" />Exit</button>
+    </header>
+    <div class="car-song">
+        <Cover ArtKey="@(t?.ArtKey)" Class="car-cover" Full="true" />
+        <div><b class="car-title">@(t?.Title ?? "Nothing playing")</b><span class="car-artist">@(t?.Artist ?? "Pick something on Home")</span></div>
+    </div>
+    <button type="button" class="car-viz" @onclick="NextVisual" aria-label="Visualiser: @VisualName. Click for the next one">
+        <canvas id="viz" class="viz @viz" aria-hidden="true"></canvas>
+        <span class="car-viz-name">@VisualName</span>
+    </button>
+    <div class="car-controls">
+        <button type="button" class="car-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="40" /></button>
+        <button type="button" class="car-btn car-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="48" /></button>
+        <button type="button" class="car-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="40" /></button>
+    </div>
+    <div class="car-extras">
+        @if (t is not null)
+        {
+            var fav = Session.IsFavorite(t);
+            <button type="button" class="car-btn small @(fav ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(fav ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(fav ? "heart-fill" : "heart")" Size="30" /></button>
+        }
+        @if (Player.Dj is not null)
+        {
+            var dj = Player.DjOn;
+            <button type="button" class="car-btn small @(dj ? "on" : "")" @onclick="Player.ToggleDjAsync" aria-label="DJ" aria-pressed="@(dj ? "true" : "false")" title="@(dj ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="32" /></button>
+            <span class="car-btn small car-mic"><DjMic Class="car-mic-btn" Size="30" /></span>
+        }
+    </div>
+</div>
+@code {
+    /// <summary>The visualisers car mode goes through, a click each: the lively ones, readable at a glance (as CarMode.kt CarVisuals).</summary>
+    public static readonly (string Id, string Name)[] Visuals = [("leds", "Visualizer"), ("ring", "Circle"), ("scope", "Waveform"), ("curve", "Spectrum")];
+    /// <summary>The next visualiser after <paramref name="id"/>, round to the first after the last; an unknown one starts at the first.</summary>
+    public static string NextVisual(string id) { var i = Array.FindIndex(Visuals, v => v.Id == id); return Visuals[(i + 1) % Visuals.Length].Id; }
+
+    ElementReference root;
+    string viz = "leds";
+    string? shown;
+    string VisualName => Visuals.FirstOrDefault(v => v.Id == viz).Name ?? "";
+
+    async Task NextVisual()
+    {
+        viz = NextVisual(viz); shown = null;
+        try { await Js.InvokeVoidAsync("localStorage.setItem", "flacie.carVisual", viz); } catch (Exception) { }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool first)
+    {
+        try
+        {
+            if (first)
+            {
+                try { var saved = await Js.InvokeAsync<string?>("localStorage.getItem", "flacie.carVisual"); if (saved is not null && Visuals.Any(v => v.Id == saved)) viz = saved; } catch (Exception) { }
+                await Js.InvokeVoidAsync("flacie.carWake", true);
+                await root.FocusAsync();
+            }
+            var key = viz + "|" + Player.Current?.Path;
+            if (shown == key || Player.Current is null) return;
+            shown = key;
+            await Js.InvokeAsync<bool>("flacie.viz", "viz", viz, 0, 0, "");
+        }
+        catch (Exception) { shown = null; }
+    }
+
+    void Key(KeyboardEventArgs e) { if (e.Key == "Escape") Exit(); else if (e.Key == " ") _ = Player.Toggle(); else if (e.Key == "ArrowRight") _ = Player.Next(); else if (e.Key == "ArrowLeft") _ = Player.Prev(); }
+    void Exit() => Nav.NavigateTo("/");
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await Js.InvokeVoidAsync("flacie.vizStop"); await Js.InvokeVoidAsync("flacie.carWake", false); } catch (Exception) { }
+    }
+}

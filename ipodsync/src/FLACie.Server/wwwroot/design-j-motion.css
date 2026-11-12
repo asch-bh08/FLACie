@@ -88,3 +88,39 @@
   .m-ghost, .m-pill { display: none !important; }
   ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) { animation: none !important; }
 }
+
+/* ==== Alive (owner, 12 Nov: "new animations need to be visible and alive"). Home moves on its own, gently, all the time: the faded cover behind the
+   greeting drifts and breathes, light sweeps across the mood tiles one after another, the artist playing now has a ring that turns, the song
+   playing now dances in Just arrived, and everything springs in one after another when Home opens. Still only transform and opacity (cheap for the
+   GPU); this is the one place things run for ever, and they all stop under Animations off and for a computer asking for less motion. ==== */
+@keyframes a-drift { 0% { transform: scale(1.08) translate3d(0, 0, 0); } 50% { transform: scale(1.16) translate3d(-2.5%, 1.5%, 0); } 100% { transform: scale(1.1) translate3d(2%, -1%, 0); } }
+.home-hero-art .cover { animation: a-drift 28s ease-in-out infinite alternate; will-change: transform; }
+@keyframes a-sheen { 0%, 70% { transform: translateX(-120%) skewX(-18deg); } 100% { transform: translateX(260%) skewX(-18deg); } }
+.mood-tile::after { content: ""; position: absolute; inset: -10% auto -10% 0; width: 45%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #ffffff38, transparent); transform: translateX(-120%) skewX(-18deg);
+  animation: a-sheen 7s ease-in-out infinite; animation-delay: calc(var(--h, 0) * .7s + 1.2s); }
+@keyframes a-blob { 0% { transform: translate3d(-10%, 10%, 0) scale(1); } 100% { transform: translate3d(40%, -25%, 0) scale(1.35); } }
+.mood-tile::before { content: ""; position: absolute; width: 70%; aspect-ratio: 1; left: -10%; top: 10%; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(closest-side, hsl(calc(var(--h) * 57 + 210) 90% 70% / .45), transparent); animation: a-blob 9s ease-in-out infinite alternate;
+  animation-delay: calc(var(--h, 0) * -1.3s); }
+.mood-tile { isolation: isolate; animation: a-rise .5s var(--m-spring) backwards; animation-delay: calc(var(--h, 0) * 55ms); }
+.mood-tile::before, .mood-tile::after { z-index: -1; }
+.artist-bubble { animation: m-pop .5s var(--m-ease) backwards; animation-delay: calc(var(--i, 0) * 60ms + 120ms); }
+.artist-bubble { position: relative; }
+.artist-bubble.playing .cover { box-shadow: 0 0 0 3px var(--bg); }
+@keyframes a-turn { to { transform: rotate(1turn); } }
+.artist-bubble.playing::before { content: ""; position: absolute; top: -4px; left: calc(50% - 52px); width: 104px; height: 104px; border-radius: 50%; z-index: -1;
+  background: conic-gradient(var(--accent), transparent 35%, var(--accent) 60%, transparent 85%, var(--accent)); animation: a-turn 3.2s linear infinite; }
+.arrivals li { animation: a-slide .45s var(--m-ease) backwards; animation-delay: calc(var(--i, 0) * 70ms + 180ms); }
+@keyframes a-slide { from { opacity: 0; transform: translateY(14px); } }
+/* (rises, never grows or slides sideways: a full-width tile a touch bigger, or a row slid right, would make a phone's page wider than the screen while it plays) */
+@keyframes a-rise { from { opacity: 0; transform: translateY(18px); } }
+.arrival.playing { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.arrival.playing b { color: var(--accent-text, var(--accent)); }
+.home .shelf-head h2, .shelf-head h2 { animation: m-fade .4s var(--m-ease) backwards; }
+:root.pref-calm :is(.home-hero-art .cover, .mood-tile, .mood-tile::before, .mood-tile::after, .artist-bubble, .artist-bubble.playing::before, .arrivals li, .shelf-head h2) { animation: none !important; }
+:root.pref-calm .mood-tile::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.home-hero-art .cover, .mood-tile, .mood-tile::before, .mood-tile::after, .artist-bubble, .artist-bubble.playing::before, .arrivals li, .shelf-head h2) { animation: none !important; }
+  .mood-tile::after { display: none; }
+}

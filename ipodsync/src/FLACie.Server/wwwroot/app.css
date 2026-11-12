@@ -1501,7 +1501,11 @@ html.buffering .play { --play-ic-dim: .55; }
 /* the row that starts playing still flashes (its own animation wins over the flow-in) */
 .tracks:not(.virtual) > .track.now:nth-child(n), .tracks.virtual > .track.now { animation: row-pulse .9s ease-out; }
 /* the Info tab's graph on the whole screen (flacie.graphFull): the tabs, its name and Live on top, the graph filling the rest, on any screen either way round */
-.graph-head .graph-full-btn { margin-left: 8px; }
+/* the same pill as the phone's (owner, 12 Nov: "the full-screen graph button differs between web and mobile"): the four arrows and the words, on a soft tint */
+.graph-head .graph-full-btn { margin-left: 8px; width: auto; height: 40px; padding: 0 14px; gap: 8px; border-radius: 20px; display: inline-flex; align-items: center;
+  background: color-mix(in srgb, var(--ink, #fff) 14%, transparent); font: 600 13px/1 var(--sans, inherit); color: var(--ink); }
+.graph-box:fullscreen .graph-full-word, .graph-box.full .graph-full-word { display: none; }
+@media (max-width: 420px) { .graph-head .graph-full-word { display: none; } .graph-head .graph-full-btn { width: 40px; padding: 0; justify-content: center; } }
 .graph-box:fullscreen, .graph-box.full { position: fixed; inset: 0; z-index: 300; display: flex; flex-direction: column; gap: 12px; box-sizing: border-box; width: 100%; height: 100%;
   padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
   border: 0; border-radius: 0; background: var(--ground, #0b0b0e); }
@@ -1511,7 +1515,7 @@ html.buffering .play { --play-ic-dim: .55; }
 .graph-head:has(.graph-full-btn) { justify-content: flex-start; } .graph-head:has(.graph-full-btn) .tag { margin-left: auto; }
 /* in full screen the same button is a big ✕ that closes it */
 .graph-box:fullscreen .graph-full-btn svg, .graph-box.full .graph-full-btn svg { display: none; }
-.graph-box:fullscreen .graph-full-btn, .graph-box.full .graph-full-btn { width: 48px; height: 48px; border-radius: 24px; background: color-mix(in srgb, var(--ink, #fff) 14%, transparent); }
+.graph-box:fullscreen .graph-full-btn, .graph-box.full .graph-full-btn { width: 48px; height: 48px; padding: 0; justify-content: center; border-radius: 24px; background: color-mix(in srgb, var(--ink, #fff) 14%, transparent); }
 .graph-box:fullscreen .graph-full-btn::before, .graph-box.full .graph-full-btn::before { content: "✕"; font-size: 20px; font-weight: 700; }
 .graph-transport { display: none; }
 .graph-box:fullscreen .graph-transport, .graph-box.full .graph-transport { display: flex; align-items: center; gap: 6px; margin-left: 16px; }

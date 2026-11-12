@@ -76,6 +76,8 @@
 .ls-transport { display: flex; align-items: center; justify-content: space-between; margin: 0 -12px; }
 .ls-plain { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 22px; background: none; color: var(--ink-2); cursor: pointer; }
 .ls-plain:hover { color: var(--ink); } .ls-plain.on { color: var(--np-accent); }
+/* on: a dot under it as well as the colour, as on the phone (owner, 12 Nov: "shuffle buttons differ") */
+.ls-plain { position: relative; } .ls-plain.on::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: currentColor; }
 .ls-pillbtn { display: grid; place-items: center; width: 58px; height: 52px; border: 0; border-radius: 26px; background: var(--tone); color: var(--tonefg); cursor: pointer; transition: transform .12s; }
 .ls-pillbtn svg, .ls-play svg { fill: currentColor; }
 .ls-pillbtn:active, .ls-play:active { transform: scale(.95); }

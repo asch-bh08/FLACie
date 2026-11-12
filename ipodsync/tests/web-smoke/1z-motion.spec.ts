@@ -137,3 +137,16 @@ test('a computer asking for less motion gets no view transitions either', async 
   await page.waitForTimeout(400);
   expect(await runs(page)).toBe(before);
 });
+
+// Home is alive (owner, 12 Nov: "new animations need to be visible and alive"): the hero's cover drifts and light sweeps the mood tiles for ever, and
+// Animations off stills all of it
+for (const calm of [false, true]) {
+  test(`Home moves on its own${calm ? ', and not with Animations off' : ''}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    await signIn(page, calm);
+    await page.goto('/');
+    await expect(page.locator('.mood-tile').first()).toBeVisible({ timeout: 20_000 });
+    const sheen = () => page.evaluate(() => getComputedStyle(document.querySelector('.mood-tile')!, '::after').animationName);
+    if (calm) expect(await sheen()).toBe('none'); else expect(await sheen()).toBe('a-sheen');
+  });
+}

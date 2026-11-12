@@ -230,6 +230,7 @@ fun LibraryHome(nav: PlayerNav) {
             item { LibRow("Recently Added", Glyph.PLUS, "${ud.downloads.size}") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) } }
             item { LibRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
             if (!app.ui.guest) item { LibRow(if (app.jam.inJam) "In a Jam" else "Jam", Glyph.JAM, "") { app.ui.jamOpen = true } }
+            item { LibRow("Car mode", Glyph.CAR, "") { app.ui.carOpen = true } }
             item { LibRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) } }
             item { LibRow("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) } }
             item { LibRow("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) } }

@@ -159,7 +159,7 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       // the song and a seek bar in full screen (owner, 11 Nov), and the two new graphs
       await expect(page.locator('.graph-now .graph-song b')).toHaveText(/\S/);
       await expect(page.locator('.graph-seek input')).toBeInViewport();
-      for (const [tab, cls] of [['Circle', 'ring'], ['Waveform', 'scope']]) {
+      for (const [tab, cls] of [['Circle', 'ring'], ['Waveform', 'scope'], ['Orbit', 'orbit'], ['Skyline', 'skyline']]) {
         await page.locator('.graph-tabs [role=tab]', { hasText: tab }).click();
         await expect(page.locator('#viz.' + cls)).toBeVisible();
         await page.waitForTimeout(600);

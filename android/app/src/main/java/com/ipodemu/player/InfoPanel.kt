@@ -167,12 +167,12 @@ private var cutLabel = ""
 
 /** The graphs in the web's order (TrackInfoPanel.razor Picks); the bit rate only when the file says it. */
 internal fun infoGraphs(kbps: Int, channels: Int): List<Pair<String, String>> = buildList {
-    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness"); add("ring" to "Circle"); add("scope" to "Waveform")
+    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness"); add("ring" to "Circle"); add("scope" to "Waveform"); add("orbit" to "Orbit"); add("skyline" to "Skyline")
     add("stereo" to if (channels == 1) "Mono" else "Stereo")
     if (kbps > 0) add("rate" to "Bit rate")
 }
 
-private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; "ring" -> "Circle"; "scope" -> "Waveform"; else -> "Stereo" }
+private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; "ring" -> "Circle"; "scope" -> "Waveform"; "orbit" -> "Orbit"; "skyline" -> "Skyline"; else -> "Stereo" }
 
 private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
@@ -182,6 +182,8 @@ private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "loud" -> "How loud the song is right now, in dB (0 is the loudest a file can go), and the last ten seconds of it."
     "ring" -> "The song in a circle: deep sounds at the top, high ones round the bottom, and the ring swells with the bass."
     "scope" -> "The sound wave itself, live: tall swings are loud, tight wiggles are high notes."
+    "orbit" -> "Three rings: the bass in the middle, the mids, the highs outside. Each swells and glows with its part of the song, and its dots circle faster the louder it is."
+    "skyline" -> "The song as a city at night: the bass in the middle, the highs out to both sides, mirrored in the water below."
     else -> "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side."
 }
 
@@ -245,8 +247,13 @@ fun TrackInfoPanel(t: Track, snap: PlayerSnap, modifier: Modifier, tint: Color? 
                     // the graph on the whole screen (owner, 8 Nov): this button, or a tap on the graph
                     if (mode != "rate") {
                         Spacer(Modifier.width(8.dp))
-                        Box(Modifier.size(44.dp).clip(CircleShape).background(InfoInk.copy(alpha = .14f)).semantics { contentDescription = "Full screen"; role = androidx.compose.ui.semantics.Role.Button }
-                            .clickable { full = true }, contentAlignment = Alignment.Center) { ExpandIcon(InfoInk) }
+                        // the same pill as the web's: the four arrows and the words (owner, 12 Nov: the button differed); the arrows alone on a narrow phone
+                        val roomy = this@BoxWithConstraints.maxWidth > 360.dp
+                        Row(Modifier.height(44.dp).clip(RoundedCornerShape(22.dp)).background(InfoInk.copy(alpha = .14f)).semantics { contentDescription = "Full screen"; role = androidx.compose.ui.semantics.Role.Button }
+                            .clickable { full = true }.padding(horizontal = if (roomy) 14.dp else 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ExpandIcon(InfoInk)
+                            if (roomy) Txt("Full screen", size = 13f, weight = FontWeight.SemiBold, color = InfoInk)
+                        }
                     }
                 }
                 Box(Modifier.clickable(enabled = mode != "rate", onClickLabel = "Full screen") { full = true }.pointerInput(mode) {
@@ -453,6 +460,8 @@ private fun RateBars(kbps: Int, accent: Color) {
 private class GraphState {
     // spectrum / visualizer
     var peaks = FloatArray(0); var holds = FloatArray(0); var heights = FloatArray(0); var bass = 0f
+    // orbit: each ring's level and where its dots are
+    val bands = FloatArray(3); val angles = floatArrayOf(0f, 1f, 2f)
     // spectrogram
     var pix = IntArray(0); var pw = 0; var ph = 0; var bmp: Bitmap? = null; var acc = 0f; var lastNs = 0L
     var lut = IntArray(0); var lutKey = 0L
@@ -484,7 +493,7 @@ internal fun hzLabel(hz: Float): String = if (hz == 0f) "0" else "${(hz / 1000).
 
 @OptIn(UnstableApi::class)
 @Composable
-private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, height: androidx.compose.ui.unit.Dp, accent: Color, tone: Color, ground: Color) {
+internal fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, height: androidx.compose.ui.unit.Dp, accent: Color, tone: Color, ground: Color) {
     val state = remember(mode) { GraphState() }
     var frameNs by remember { mutableLongStateOf(0L) }
     // the tap on the sound is only on while a graph is shown
@@ -507,7 +516,7 @@ private fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, he
         @Suppress("UNUSED_EXPRESSION") frameNs
         val g = Gfx(this, paint, accent, tone, ground, analysis, state, frameNs, playing && analysis.active)
         when (mode) {
-            "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); "ring" -> g.ring(); "scope" -> g.scope(); else -> g.stereo()
+            "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); "ring" -> g.ring(); "scope" -> g.scope(); "orbit" -> g.orbit(); "skyline" -> g.skyline(); else -> g.stereo()
         }
     }
 }
@@ -609,6 +618,58 @@ private class Gfx(
             }
         }
         text("BASS", 0f, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+    }
+
+    /** The average loudness (0-1) of the pitches from [f0] to [f1] Hz. */
+    private fun band(f0: Float, f1: Float): Float {
+        val b0 = (f0 / nyq * a.bins).toInt(); val b1 = max(b0 + 1, kotlin.math.ceil(f1 / nyq * a.bins).toInt())
+        var sum = 0f; var n = 0; for (k in b0 until min(b1, a.bins)) { sum += a.freq[k]; n++ }
+        return if (n > 0) sum / n / 255f else 0f
+    }
+
+    // orbit (owner, 12 Nov: "many more graph options"): three rings, bass inside, mids, highs outside, each swelling and glowing with its part of the sound,
+    // with dots circling them faster the louder it is (the middle ones the other way); as on the web
+    fun orbit() {
+        val cx = w / 2; val cy = (h - 14 * dp) / 2; val base = min(w, h - 14 * dp) / 2 - 10 * dp
+        val ranges = arrayOf(30f to 160f, 160f to 2000f, 2000f to 12000f); val lift = floatArrayOf(1f, 1.5f, 2.6f)
+        for (i in 0..2) {
+            val e = min(1f, band(ranges[i].first, ranges[i].second).pow(1.2f) * lift[i])
+            st.bands[i] = max(e, st.bands[i] - 0.025f); val v = st.bands[i]
+            val r = base * (0.34f + 0.3f * i) * (1 + 0.1f * v)
+            d.drawCircle(accent.copy(alpha = .08f + .12f * v), r, Offset(cx, cy), style = Stroke((6 + 14 * v) * dp))
+            d.drawCircle(if (i == 1) ink.copy(alpha = .35f + .6f * v) else accent.copy(alpha = .35f + .65f * v), r, Offset(cx, cy), style = Stroke((1.5f + 3 * v) * dp))
+            if (playing) st.angles[i] += (0.004f + 0.06f * v) * (if (i == 1) -1 else 1)
+            for (k in 0..2) {
+                val an = st.angles[i] + k * 2.0944f
+                d.drawCircle(if (i == 1) accent else ink, (2.5f + 4 * v) * dp, Offset(cx + kotlin.math.cos(an) * r, cy + kotlin.math.sin(an) * r))
+            }
+        }
+        val cr = base * .3f
+        d.drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = .25f + .5f * st.bands[0]), Color.Transparent), Offset(cx, cy), cr), cr, Offset(cx, cy))
+        text("BASS IN THE MIDDLE, HIGHS OUTSIDE", 2 * dp, h - 3 * dp)
+    }
+
+    // skyline: the spectrum as a city at night, bass in the middle and the highs out to both sides, mirrored in the water below; as on the web
+    fun skyline() {
+        val half = max(12, min(48, (w / (16 * dp)).toInt())); val n = half * 2; val lo = 35f; val hi = min(nyq, 16000f)
+        if (st.heights.size != n) { st.heights = FloatArray(n); st.holds = FloatArray(n) }
+        val slot = w / n; val bw = max(2 * dp, slot * 0.7f); val base = (h - 14 * dp) * 0.7f; val top = base - 8 * dp
+        val grad = Brush.verticalGradient(0f to ink.copy(alpha = .95f), .45f to accent, 1f to accent.copy(alpha = .55f), startY = base - top, endY = base)
+        for (j in 0 until half) {
+            val f0 = lo * (hi / lo).pow(j / half.toFloat()); val f1 = lo * (hi / lo).pow((j + 1) / half.toFloat())
+            val b0 = (f0 / nyq * a.bins).toInt(); val b1 = max(b0 + 1, kotlin.math.ceil(f1 / nyq * a.bins).toInt())
+            var m = 0; for (k in b0 until min(b1, a.bins)) m = max(m, a.freq[k])
+            val v = min(1f, (m / 255f).pow(1.6f) * (1 + 0.8f * j / half))
+            for (i in intArrayOf(half - 1 - j, half + j)) {
+                st.heights[i] = max(v, st.heights[i] - 0.03f); st.holds[i] = max(st.heights[i], st.holds[i] - 0.006f)
+                val x = i * slot + (slot - bw) / 2; val bh = max(2 * dp, st.heights[i] * top)
+                d.drawRoundRect(grad, Offset(x, base - bh), Size(bw, bh), CornerRadius(bw / 2))
+                d.drawRect(accent.copy(alpha = .18f), Offset(x, base + 2 * dp), Size(bw, bh * 0.35f))
+                if (st.holds[i] > .03f) d.drawRect(ink, Offset(x, base - st.holds[i] * top - 4 * dp), Size(bw, 2 * dp))
+            }
+        }
+        d.drawRect(ink.copy(alpha = .12f), Offset(0f, base), Size(w, dp))
+        text("HIGHS", 2 * dp, h - 3 * dp); text("BASS", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("HIGHS", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     // circle (owner, 11 Nov: "loads more options for the graphs"): bars radiating from a ring that swells with the bass, mirrored left and right; as on the web

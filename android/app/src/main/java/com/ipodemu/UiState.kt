@@ -23,6 +23,8 @@ class UiState(private val prefs: Prefs) {
     /** The full-screen remote for music playing on another device (RemoteUi.kt). */
     var remoteOpen by mutableStateOf(false)
     var jamOpen by mutableStateOf(false)
+    /** Car mode (CarMode.kt): big buttons, a visualiser, the screen kept on. */
+    var carOpen by mutableStateOf(false)
     /** Search text, kept while switching tabs. */
     var searchQuery by mutableStateOf("")
     var viewMode by mutableIntStateOf(0)

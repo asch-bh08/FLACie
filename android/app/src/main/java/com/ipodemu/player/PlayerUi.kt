@@ -1,5 +1,7 @@
 package com.ipodemu.player
 
+import androidx.compose.ui.draw.clipToBounds
+
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -722,7 +724,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
-            // the shortcuts in one tidy row of three (owner, 12 Nov: "why are there so many of these buttons"): the moods are the tiles above and Recently
+            // the shortcuts in one tidy row of four (owner, 12 Nov: "why are there so many of these buttons"): the moods are the tiles above and Recently
             // added is the Just arrived shelf below, so four rows of chips became this
             if (modern) item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).entranceRise(entrance, 1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -730,6 +732,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                         Triple("Favourites", Glyph.HEART) { nav.push(Screen.Detail(DetailKind.FAVORITES)) },
                         Triple("Recent", Glyph.CLOCK) { nav.push(Screen.Detail(DetailKind.RECENT)) },
                         Triple("Offline", Glyph.DOWNLOADED) { nav.push(Screen.Downloads) },
+                        // car mode one tap from Home (owner, 12 Nov: "easy on/off")
+                        Triple("Car", Glyph.CAR) { app.ui.carOpen = true },
                     )) {
                         Column(
                             Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(18.dp)).background(LocalScheme.current.onBg.copy(alpha = .07f))
@@ -768,8 +772,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             items(reps.size) { i ->
                                 val (name, art) = reps[i]
-                                Column(Modifier.width(84.dp).clickable { nav.push(Screen.Detail(DetailKind.ARTIST, name)) }, horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Box(Modifier.size(76.dp).border(2.dp, LocalScheme.current.accent, CircleShape).padding(4.dp).clip(CircleShape)) { ArtImage(art, Modifier.fillMaxSize(), corner = 38.dp) }
+                                // the artist playing now has a ring that turns; they pop in one after another (owner, 12 Nov: "alive")
+                                val now = snap.track?.let { it.artist.contains(name, ignoreCase = true) || it.albumArtist.equals(name, ignoreCase = true) } == true
+                                Column(Modifier.width(84.dp).popIn(Unit).riseIn(delayMs = 120 + i * 60, riseDp = 14f).clickable { nav.push(Screen.Detail(DetailKind.ARTIST, name)) }, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Box(Modifier.size(76.dp).then(if (now) Modifier.turningRing(LocalScheme.current.accent, true) else Modifier.border(2.dp, LocalScheme.current.accent, CircleShape)).padding(4.dp).clip(CircleShape)) { ArtImage(art, Modifier.fillMaxSize(), corner = 38.dp) }
                                     Txt(name, Modifier.padding(top = 6.dp), size = 12.5f, weight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
@@ -780,9 +786,10 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     item(key = "arrived-head") { SectionHeader("Just arrived") }
                     items(fresh.size, key = { "arrived-" + fresh[it].path }) { i ->
                         val t = fresh[i]
-                        Row(Modifier.fillMaxWidth().clickable { app.player.play(fresh, i, null, "Just arrived", from = "home") }.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        val playingNow = snap.track?.path == t.path
+                        Row(Modifier.fillMaxWidth().entranceRise(entrance, 3 + i).then(if (playingNow) Modifier.background(LocalScheme.current.accent.copy(alpha = .12f)) else Modifier).clickable { app.player.play(fresh, i, null, "Just arrived", from = "home") }.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             ArtImage(t.artKey, Modifier.size(48.dp), corner = 10.dp)
-                            Column(Modifier.weight(1f)) { Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1); Txt(t.artist, size = 13f, color = LocalScheme.current.onBgDim, maxLines = 1) }
+                            Column(Modifier.weight(1f)) { Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1, color = if (playingNow) LocalScheme.current.accent else LocalScheme.current.onBg); Txt(t.artist, size = 13f, color = LocalScheme.current.onBgDim, maxLines = 1) }
                             MonoLabel(formatOf(t), size = 10f, color = LocalScheme.current.accent)
                         }
                     }
@@ -855,7 +862,8 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
     Column {
         Box(Modifier.fillMaxWidth().height(hero.height.dp)) {
             if (last?.artKey != null) {
-                ArtImage(last.artKey, Modifier.fillMaxSize(), corner = 0.dp)
+                // the cover drifts and breathes behind the greeting (owner, 12 Nov: "alive"), clipped to the hero
+                Box(Modifier.fillMaxSize().clipToBounds()) { ArtImage(last.artKey, Modifier.fillMaxSize().drift(), corner = 0.dp) }
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
             } else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(cols.tone), Palette.bg))))
             // the web's top bar: the search box at the left (a tap opens Search), then Settings and the account
@@ -2851,8 +2859,10 @@ private fun welcomed(app: com.ipodemu.App): androidx.compose.runtime.MutableStat
 private fun MoodTile(name: String, hue: Int, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val h = (hue * 57 + 150) % 360f
     Box(
-        modifier.height(60.dp).clip(RoundedCornerShape(18.dp))
+        modifier.riseIn(delayMs = hue * 55, riseDp = 18f).height(60.dp).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color.hsl(h, .45f, .30f), Color.hsl((h + 40) % 360f, .70f, .58f))))
+            // a glow wanders inside and light sweeps across now and then, each tile in its own time (owner, 12 Nov: "alive"; as the web)
+            .blob(Color.hsl((h + 60) % 360f, .9f, .7f), hue).sheen(hue)
             .then(if (on) Modifier.border(3.dp, LocalScheme.current.onBg, RoundedCornerShape(20.dp)) else Modifier)
             .semantics { contentDescription = name; role = androidx.compose.ui.semantics.Role.Button; selected = on }.clickable(onClick = onClick).padding(14.dp),
         contentAlignment = Alignment.BottomStart,

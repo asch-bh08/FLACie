@@ -103,6 +103,8 @@ enum class Glyph {
     NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE, DJ,
     /** The downloaded mark: a ring with an arrow down into it (Spotify's green arrow, drawn in the app's own line style). */
     DOWNLOADED,
+    /** Car mode: a car from the front, its roof, body and two wheels. */
+    CAR,
 }
 
 @Composable
@@ -226,6 +228,14 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawCircle(c, s * .38f, Offset(x(.5f), y(.5f)), style = line)
             drawLine(c, Offset(x(.5f), y(.5f)), Offset(x(.5f), y(.28f)), w, StrokeCap.Round)
             drawLine(c, Offset(x(.5f), y(.5f)), Offset(x(.66f), y(.6f)), w, StrokeCap.Round)
+        }
+        Glyph.CAR -> {
+            drawPath(path { moveTo(x(.22f), y(.48f)); lineTo(x(.3f), y(.26f)); lineTo(x(.7f), y(.26f)); lineTo(x(.78f), y(.48f)) }, c, style = line)
+            drawRoundRect(c, Offset(x(.12f), y(.48f)), Size(s * .76f, s * .24f), androidx.compose.ui.geometry.CornerRadius(s * .08f), style = line)
+            drawCircle(c, s * .05f, Offset(x(.3f), y(.6f)))
+            drawCircle(c, s * .05f, Offset(x(.7f), y(.6f)))
+            drawLine(c, Offset(x(.22f), y(.72f)), Offset(x(.22f), y(.82f)), w, StrokeCap.Round)
+            drawLine(c, Offset(x(.78f), y(.72f)), Offset(x(.78f), y(.82f)), w, StrokeCap.Round)
         }
         Glyph.CASSETTE -> {
             // Retro's mark, as on the web: a cassette, its two reels and the window between them

@@ -153,7 +153,7 @@ private val Glass = Color(0x47000000)
 private val Line = Color(0x40F4EFE6)
 
 /** The cover's colours, as States: read inside draw blocks they repaint without recomposing anything. */
-private class SleevePalette(val main: State<Color>, val second: State<Color>, val ground: State<Color>, val tone: State<Color>, val toneFg: State<Color>)
+internal class SleevePalette(val main: State<Color>, val second: State<Color>, val ground: State<Color>, val tone: State<Color>, val toneFg: State<Color>)
 
 /** The three faces of design I, now shared with the rest of the app (DesignI.kt). */
 private val SleeveFonts = DesignFonts
@@ -273,7 +273,7 @@ private fun SleevePane(id: String, snap: PlayerSnap, nav: PlayerNav, t: Track, p
 
 /** The cover's colours, read once per cover off the main thread from a 24 px copy; a song with no cover gets the default, and one whose cover is still loading keeps the last colours until it is in. */
 @Composable
-private fun rememberSleevePalette(t: Track): SleevePalette {
+internal fun rememberSleevePalette(t: Track): SleevePalette {
     val bmp = rememberArt(t.artKey, thumb = false, full = true)
     var cols by remember { mutableStateOf(SleeveColours.DEFAULT) }
     LaunchedEffect(bmp, t.artKey) {
@@ -1016,6 +1016,7 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     add(MoreRow(if (app.jam.inJam) "In a Jam" else "Jam", { GlyphIcon(Glyph.JAM, Modifier.size(24.dp), it) }, null, true, close { app.ui.jamOpen = true }))
                     add(MoreRow("Devices", { GlyphIcon(Glyph.DEVICES, Modifier.size(24.dp), it) }, null, true, close { app.ui.devicesOpen = true }))
                 }
+                add(MoreRow("Car mode", { GlyphIcon(Glyph.CAR, Modifier.size(24.dp), it) }, null, true, close { nav.nowPlaying = false; app.ui.carOpen = true }))
                 add(MoreRow("Retro", { GlyphIcon(Glyph.CASSETTE, Modifier.size(24.dp), it) }, null, true, close { openRetro(ctx) }))
             }
             val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)

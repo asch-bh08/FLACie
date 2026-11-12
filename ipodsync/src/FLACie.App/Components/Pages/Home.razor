@@ -67,7 +67,7 @@
         <button class="btn primary" @onclick="() => { Session.MarkWelcomed(); SaveProfile(); }">Got it</button>
     </section>
 }
-@if (Waiting) { <Skeleton Label="Loading your music…" Kind="cards" Count="6" /> }
+@if (Waiting || (shelves.Count == 0 && building)) { <Skeleton Label="Loading your music…" Kind="cards" Count="6" /> }
 else
 {
 @* the order (owner, 12 Nov: "push the important stuff to the top"): Quick picks (one press plays), then the moods, then what you play most, then your
@@ -82,7 +82,7 @@ else
         <section class="home-split" aria-label="Quick picks and your playlists">
             @if (qp is not null)
             {
-                <div class="home-feature">
+                <div class="home-feature" role="region" aria-label="Quick picks">
                     <div class="shelf-head"><div><h2>Quick <i>picks</i></h2><small>@qp.Subtitle</small></div><button class="chip small" data-np @onclick="() => PlayFull(qp.Tracks, 0, qp.Title)"><Icon Name="play" Size="16" />Play all</button></div>
                     <ul class="home-picklist">
                         @for (var i = 0; i < qp.Tracks.Count && i < 12; i++)
@@ -269,11 +269,11 @@ else
 
     // Home C: the artists played most (as Quick picks weighs them), each with a cover of theirs, worked out with the shelves (not on every redraw)
     List<(string Name, string? Art)> RepeatArtists = [];
-    void BuildRepeat()
+    static List<(string Name, string? Art)> Repeat(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favs, IReadOnlyList<FLACie.Core.Playlist> lists, DateTime now, IReadOnlyList<JfPlay> stats)
     {
         var byArtist = new Dictionary<string, Track>();
-        foreach (var t in Lib.Songs) if (t.ArtKey is not null) byArtist.TryAdd(Matching.PrimaryArtist(t.Artist), t);
-        RepeatArtists = HomeBuilder.TopArtists(Lib, Session.History, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, 12)
+        foreach (var t in lib.Songs) if (t.ArtKey is not null) byArtist.TryAdd(Matching.PrimaryArtist(t.Artist), t);
+        return HomeBuilder.TopArtists(lib, history, favs, lists, now, stats, 12)
             .Select(a => byArtist.TryGetValue(Matching.PrimaryArtist(a), out var t) ? (t.Artist, t.ArtKey) : ((string, string?)?)null)
             .Where(x => x is not null).Select(x => x!.Value).ToList();
     }
@@ -333,18 +333,40 @@ else
         var last = history.FirstOrDefault()?.At ?? 0;
         if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last && builtRev == Session.ProfileRev) return;
         builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last; builtRev = Session.ProfileRev;
-        BuildRepeat(); moodCovers.Clear();
+        moodCovers.Clear();
         // the shelves of the last visit, while nothing they come from has changed: opening Home again shows them at once instead of working them out again
         var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
         // shelves already on screen never change under the person's pointer (Quick picks used to swap two or three times as Home opened: the library loading,
         // then the play counts arriving; owner, 1 Nov): newer ones are kept and show the next time Home opens, as on Android
-        if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { if (shelves.Count == 0) { shelves = b.Shelves; moods = b.Moods; } BuildHeroArt(); return; }
-        var fresh = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits, AppHost.ListenLog(Session), AppHost.Vibe);
-        var freshMoods = HomeBuilder.MoodsAvailable(Lib);
-        built.AddOrUpdate(Session, new Built(key, fresh, freshMoods));
-        if (shelves.Count == 0) { shelves = fresh; moods = freshMoods; }
+        built.TryGetValue(Session, out var b);
+        if (b is not null && shelves.Count == 0) { shelves = b.Shelves; moods = b.Moods; RepeatArtists = b.Repeat; }
+        if (b is not null && b.Key.Equals(key)) { BuildHeroArt(); return; }
+        // working them out takes a while with a big library and a long listening log, and ran on the thread that answers clicks: pressing Home kept the
+        // album page on screen for ~20 s (owner, 12 Nov). It runs in the background now; the last shelves (or the loading cards) show at once
+        if (building) return;
+        building = true;
+        var lib = Lib; var s = Session; var favs = s.Favorites; var lists = s.Playlists; var stats = s.PlayStats; var h = hits; var log = AppHost.ListenLog(s); var vibe = AppHost.Vibe;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                var now = DateTime.UtcNow;
+                var fresh = HomeBuilder.Build(lib, history, favs, lists, now, stats, h, log, vibe);
+                var freshMoods = HomeBuilder.MoodsAvailable(lib);
+                var repeat = Repeat(lib, history, favs, lists, now, stats);
+                built.AddOrUpdate(s, new Built(key, fresh, freshMoods, repeat));
+                return (fresh, freshMoods, repeat);
+            }
+            finally { building = false; }
+        }).ContinueWith(async t =>
+        {
+            if (t.IsFaulted) return;
+            var (fresh, freshMoods, repeat) = t.Result;
+            await InvokeAsync(() => { if (shelves.Count == 0) { shelves = fresh; moods = freshMoods; RepeatArtists = repeat; } BuildHeroArt(); StateHasChanged(); });
+        }, TaskScheduler.Default);
         BuildHeroArt();
     }
-    sealed record Built((long, int, long, int, int, long) Key, List<Shelf> Shelves, List<string> Moods);
+    volatile bool building;
+    sealed record Built((long, int, long, int, int, long) Key, List<Shelf> Shelves, List<string> Moods, List<(string Name, string? Art)> Repeat);
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UserSession, Built> built = new();
 }

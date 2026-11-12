@@ -157,7 +157,7 @@ test('Quick picks learn from what Jellyfin says was played: songs of that artist
   // played also rank high, so the test looks for the counted artist's songs in the row, not for which song is first.)
   await expect(async () => {
     await page.goto('/');
-    const shelf = page.locator('section.shelf[aria-label="Quick picks"]');
+    const shelf = page.locator('[aria-label="Quick picks"]');
     await expect(shelf.locator('.pick').first()).toBeVisible({ timeout: 2500 });
     await expect(shelf.locator('.pick[aria-label$=" by Aurora Vale"]')).not.toHaveCount(0, { timeout: 2500 });
     expect(await shelf.locator('.pick[aria-label$=" by Aurora Vale"]').count()).toBeGreaterThanOrEqual(3);   // the artist whose songs Jellyfin counted

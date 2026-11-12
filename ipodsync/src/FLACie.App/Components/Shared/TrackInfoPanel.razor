@@ -9,12 +9,17 @@ else
     <div class="info">
         @* one graph at a time, picked from tabs; every one but the bit rate moves with the song *@
         <div class="graph-box">
-            <div class="graph-tabs" role="tablist" aria-label="Graph to show">
-                @foreach (var (id, name) in Picks())
-                {
-                    var m = id;
-                    <button role="tab" class="gtab @(mode == m ? "on" : "")" aria-selected="@((mode == m) ? "true" : "false")" @onclick="() => Pick(m)">@name</button>
-                }
+            @* the tabs scroll sideways: arrows at both ends and the mouse wheel (owner, 12 Nov: "I can't reach the last graph") *@
+            <div class="graph-tabs-row">
+                <button type="button" class="graph-tabs-arrow prev" aria-label="Earlier graphs" onclick="this.parentElement.querySelector('.graph-tabs').scrollBy({ left: -240, behavior: 'smooth' })"><Icon Name="chevron-left" Size="18" /></button>
+                <div class="graph-tabs" role="tablist" aria-label="Graph to show" onwheel="if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && this.scrollWidth > this.clientWidth) { event.preventDefault(); this.scrollLeft += event.deltaY; }">
+                    @foreach (var (id, name) in Picks())
+                    {
+                        var m = id;
+                        <button role="tab" class="gtab @(mode == m ? "on" : "")" aria-selected="@((mode == m) ? "true" : "false")" @onclick="() => Pick(m)">@name</button>
+                    }
+                </div>
+                <button type="button" class="graph-tabs-arrow next" aria-label="More graphs" onclick="this.parentElement.querySelector('.graph-tabs').scrollBy({ left: 240, behavior: 'smooth' })"><Icon Name="chevron-right" Size="18" /></button>
             </div>
             <div class="graph-head">
                 <h4>@Title</h4>

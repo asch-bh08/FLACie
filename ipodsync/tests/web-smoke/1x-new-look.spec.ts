@@ -173,6 +173,14 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       }
       await page.locator('.graph-full-btn').click();
       await expect.poll(() => page.locator('#viz').evaluate((c) => c.getBoundingClientRect().height)).toBeLessThan(page.viewportSize()!.height * .5);
+      // the arrow reaches the graphs off the end of the row (owner, 12 Nov: "I can't reach the last graph")
+      const row = page.locator('.graph-tabs').first();
+      if (await row.evaluate((e) => e.scrollWidth > e.clientWidth + 2)) {
+        await page.locator('.graph-tabs-arrow.next').first().click();
+        await expect.poll(() => row.evaluate((e) => e.scrollLeft)).toBeGreaterThan(0);
+        await page.locator('.graph-tabs-arrow.prev').first().click();
+        await expect.poll(() => row.evaluate((e) => e.scrollLeft)).toBe(0);
+      }
     });
 
     test('a press on the frame seeks: the middle of its right side is a quarter of the song', async ({ page }) => {

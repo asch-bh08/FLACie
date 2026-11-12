@@ -269,6 +269,10 @@ window.flacie = (() => {
     if (u) nextFor = u;
     if (!nextFor || !actx || !bus || !twin || actx === toneCtx) return;
     if (twinNext && twinNext._for === nextFor) return;   // (asked for by the address it was given: the element's own src is written differently)
+    // only once the song playing has fully downloaded (owner, 12 Nov: the next song once took ~30 s to start): the graphs' copy of the next song must
+    // never take the line from the music itself
+    const b = audio.buffered, d = audio.duration;
+    if (!(isFinite(d) && d > 0 && b.length && b.end(b.length - 1) >= d - 1)) return;
     dropTwinNext();
     if (flacie.metered()) return;   // on mobile data the copy is a second download of every song: not ahead of time as well
     try { const el = new Audio(); el.preload = "auto"; el._for = nextFor; el.src = new URL(nextFor, location.href).href; twinNext = plugIn(el); } catch { twinNext = null; }

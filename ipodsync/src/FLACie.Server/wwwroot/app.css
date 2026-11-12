@@ -1607,3 +1607,10 @@ main.content { min-width: 0; }
 /* the graph tabs keep their full height in full screen (a scrolling row in a column was squeezed and cut at the bottom: owner, 12 Nov "bad clips with
    the buttons at the top"), with a little room so a tab's outline is never cut */
 .graph-box .graph-tabs { flex-shrink: 0; padding-top: 2px; padding-bottom: 2px; }
+/* the graph tabs' arrows: small round buttons at both ends of the row, over its faded edge */
+.graph-tabs-row { position: relative; display: flex; align-items: center; gap: 4px; flex-shrink: 0; min-width: 0; }
+.graph-tabs-row .graph-tabs { flex: 1; min-width: 0; }
+.graph-tabs-arrow { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 50%; cursor: pointer;
+  background: color-mix(in srgb, var(--ink, #fff) 14%, transparent); color: var(--ink, #fff); }
+.graph-tabs-arrow:hover { background: color-mix(in srgb, var(--ink, #fff) 24%, transparent); }
+@media (hover: none) { .graph-tabs-arrow { display: none; } }

@@ -20,9 +20,11 @@ Plan:
   search/playlists; a direct _get_collection call from Python 404'd on 12 Nov even for /search/tracks, so first find how scsearch sets its client)
   and YouTube playlists (ytsearch with playlist filter). Spotify playlist search needs an official Spotify API app (owner's own key; never the web
   player's), so ask the owner before adding it; a pasted Spotify link already works.
-- Save to library: "Add to my library" keeps the list as a lazy playlist (names only, source link, cover), no downloads.
-- Fill as you go: playing it plays what is in the library at once and fetches the next missing songs a few ahead (the existing smart download
-  queue); missing songs show as "Not downloaded yet" rows that start a fetch when tapped; it keeps itself up to date from the source weekly.
+- OWNER'S CHANGES (12 Nov): a playlist found by search is already in the library (no "Add" step), as the catalog playlists are; it has a Download
+  button (fetch every missing song). Missing songs of any playlist someone has VIEWED or SAVED are downloaded automatically in the background, for all
+  users (respect DownloadPolicy and the download queue's limits; one fetch per song for everyone; skip on a metered phone).
+- Playing it plays what is in the library at once and fetches the next missing songs a few ahead; missing rows say "Not downloaded yet" and fetch
+  first when tapped; it refreshes from the source weekly.
 - Same on phone and Windows. Tests: mock flacie-ytdl answers, web + emulator.
 
 ## QUEUED 12 Nov (owner: "just queue a full overhaul on all this anyway"): RETRO OVERHAUL (Android RetroActivity + web /retro)

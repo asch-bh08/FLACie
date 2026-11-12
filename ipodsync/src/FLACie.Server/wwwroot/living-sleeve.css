@@ -751,3 +751,6 @@ body.np-open .dj-bar { display: none; }
   .ls.swapped .ls-stage { order: 2; }
   .ls.swapped .ls-side { order: 1; }
 }
+
+/* the player's menus are solid: the title behind showed through (owner screenshot, 12 Nov) */
+.ls .menu.np-menu { background: #16161b; border-color: #ffffff1f; }

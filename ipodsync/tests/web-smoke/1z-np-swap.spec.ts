@@ -48,3 +48,16 @@ test('a phone: no Swap sides (one side at a time)', async ({ page }) => {
   await signIn(page); await openPlayer(page);
   await expect(page.getByTestId('np-swap')).toBeHidden();
 });
+
+test('a PC: More is first in the dock and the DJ last on that side (owner, 12 Nov)', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page); await openPlayer(page);
+  const left = page.locator('.ls-dock-l');
+  await expect(left.locator('> *').first()).toHaveClass(/np-more/);
+  const dj = left.locator('.ls-dj');
+  if (await dj.count()) await expect(left.locator('> *').last()).toHaveClass(/ls-dj/);
+  await left.getByRole('button', { name: 'More options' }).click();
+  await expect(page.getByRole('menu').first()).toBeVisible();
+  await page.screenshot({ path: 'test-results/np-dock-more.png' });
+});

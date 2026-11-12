@@ -208,17 +208,18 @@
         <footer class="ls-dock">
             @* PC (owner, 12 Nov: "make the now playing controls similar to the player bar on the home screen, the same features"; "the right side buttons
                bigger than the left and uneven pisses me off"): the same round buttons on both sides at one size, the transport in the middle (the frame round the
-               cover is the seek bar: owner, 12 Nov: "remove the mini seek bar"). Left: the DJ, add, share, devices, more. Right: the mic, favourite, EQ, the volume *@
+               cover is the seek bar: owner, 12 Nov: "remove the mini seek bar"). Left: more, add, share, devices, the DJ. Right: the mic, favourite, EQ, the volume *@
             <div class="ls-dock-l">
+                @* More first and the DJ last, beside the transport (owner, 12 Nov: "swap the DJ button and the three dots") *@
+                @MoreMenu("d", t)
+                <button class="ls-dbtn" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist" title="Add to playlist"><Icon Name="plus" Size="22" /></button>
+                <button class="ls-dbtn" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
+                @if (AppHost.DevicePicker is { } picker) { <span class="ls-dbtn-wrap"><DynamicComponent Type="picker" /></span> }
                 @if (Player.Dj is not null)
                 {
                     var djDock = Player.DjOn;
                     <button class="ls-dbtn ls-dj @(djDock ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djDock ? "true" : "false")" title="@(djDock ? "DJ on for this queue" : "DJ off for this queue"). Right-click for Settings → DJ."><Icon Name="dj" Size="22" /></button>
                 }
-                <button class="ls-dbtn" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist" title="Add to playlist"><Icon Name="plus" Size="22" /></button>
-                <button class="ls-dbtn" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
-                @if (AppHost.DevicePicker is { } picker) { <span class="ls-dbtn-wrap"><DynamicComponent Type="picker" /></span> }
-                @MoreMenu("d", t)
             </div>
             <div class="ls-dock-c" aria-hidden="true"></div>
             <div class="ls-dock-r">
@@ -412,8 +413,8 @@
                         @if (Player.SleepMode != SleepMode.Off) { <button role="menuitem" class="sub danger" @onclick="() => Sleep(Player.SetSleepAsync(SleepMode.Off))">Turn off</button> }
                     }
                 }
-                <button role="menuitem" @onclick="GoCar"><Icon Name="car" Size="18" /> Car mode</button>
-                <button role="menuitem" @onclick="GoSettings"><Icon Name="settings" Size="18" /> Settings</button>
+                <button role="menuitem" @onclick="GoCar">Car mode</button>
+                <button role="menuitem" @onclick="GoSettings">Settings</button>
                 <hr class="menu-sep" />
                 <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
                 @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }

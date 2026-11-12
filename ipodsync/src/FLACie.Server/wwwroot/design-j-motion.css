@@ -229,13 +229,14 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 /* ==== The hero's covers crossfade (owner, 12 Nov: "change, faded nicely, through a playlist or recommended or frequently played"): five slides, each
    seven seconds on, a slow two-second fade between, each still drifting. And the picture reaches both edges of a very wide window (the page is at most
    1800px wide; the picture used to stop there in a hard line) ==== */
-.home-hero-art.cycle .hero-slide { opacity: 0; animation: a-drift 28s ease-in-out infinite alternate, hero-cycle 35s linear infinite both; }
-.home-hero-art.cycle .s0 { animation-delay: 0s, -2s; }
-.home-hero-art.cycle .s1 { animation-delay: -6s, 5s; }
-.home-hero-art.cycle .s2 { animation-delay: -12s, 12s; }
-.home-hero-art.cycle .s3 { animation-delay: -18s, 19s; }
-.home-hero-art.cycle .s4 { animation-delay: -24s, 26s; }
-@keyframes hero-cycle { 0% { opacity: 0; } 5.7% { opacity: 1; } 20% { opacity: 1; } 25.7% { opacity: 0; } 100% { opacity: 0; } }
+.home-hero-art.cycle .hero-slide { opacity: 0; animation: a-drift 28s ease-in-out infinite alternate, hero-cycle 75s linear infinite both; }
+/* (owner, 12 Nov: "the album art changes far too quickly"): fifteen seconds each, a three-second fade */
+.home-hero-art.cycle .s0 { animation-delay: 0s, -3s; }
+.home-hero-art.cycle .s1 { animation-delay: -6s, 12s; }
+.home-hero-art.cycle .s2 { animation-delay: -12s, 27s; }
+.home-hero-art.cycle .s3 { animation-delay: -18s, 42s; }
+.home-hero-art.cycle .s4 { animation-delay: -24s, 57s; }
+@keyframes hero-cycle { 0% { opacity: 0; } 4% { opacity: 1; } 20% { opacity: 1; } 24% { opacity: 0; } 100% { opacity: 0; } }
 :root.pref-calm .home-hero-art.cycle .hero-slide { animation: none; opacity: 0; } :root.pref-calm .home-hero-art.cycle .s0 { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { .home-hero-art.cycle .hero-slide { animation: none; opacity: 0; } .home-hero-art.cycle .s0 { opacity: 1; } }
 @media (min-width: 761px) {
@@ -258,3 +259,12 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 :root:not([data-theme="light"]) .player { background: color-mix(in srgb, var(--bg) 92%, transparent); }
 :root:not([data-theme="light"]) body { background: var(--bg); }
 :root.pref-calm { transition: none; }
+
+/* the covers are a little bigger than the hero, so their slow drift can never show an edge */
+.home-hero-art .cover { inset: -6% !important; width: auto !important; height: auto !important; }
+/* the menu's and the search bar's dividing lines are back on Home (owner, 12 Nov: "the sidebar not having a section line is weird, same with search"):
+   soft, over the picture, with the menu a light frosted panel */
+@media (min-width: 761px) {
+  body:has(.home-hero) .rail { background: color-mix(in srgb, var(--bg) 35%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-right: 1px solid #f4efe61f; }
+  body:has(.home-hero) .topbar { border-bottom: 1px solid #f4efe61a; }
+}

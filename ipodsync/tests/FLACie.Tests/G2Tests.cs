@@ -9,7 +9,7 @@ public class G2Tests
     public void Version_is_the_beta_string_unless_overridden()
     {
         if (Environment.GetEnvironmentVariable("FLACIE_VERSION") is { Length: > 0 }) return;
-        Assert.Equal("1.0 b135", AppInfo.Version);
+        Assert.Equal("1.0 b136", AppInfo.Version);
     }
 
     [Fact]

@@ -873,11 +873,11 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, art
     Column {
         Box(Modifier.fillMaxWidth().height(hero.height.dp)) {
             if (arts.isNotEmpty()) {
-                // the covers drift and breathe behind the greeting, one fading into the next every seven seconds (owner, 12 Nov: "alive", "faded nicely")
+                // the covers drift and breathe behind the greeting, one fading into the next every fifteen seconds (owner, 12 Nov: "alive", "faded nicely")
                 var shown by remember(arts) { androidx.compose.runtime.mutableIntStateOf(0) }
-                if (arts.size > 1 && Tweaks.motion) LaunchedEffect(arts) { while (true) { kotlinx.coroutines.delay(7000); shown = (shown + 1) % arts.size } }
+                if (arts.size > 1 && Tweaks.motion) LaunchedEffect(arts) { while (true) { kotlinx.coroutines.delay(15000); shown = (shown + 1) % arts.size } }
                 Box(Modifier.fillMaxSize().clipToBounds()) {
-                    androidx.compose.animation.Crossfade(arts[shown.coerceIn(0, arts.lastIndex)], animationSpec = androidx.compose.animation.core.tween(2000), label = "heroArt") { key ->
+                    androidx.compose.animation.Crossfade(arts[shown.coerceIn(0, arts.lastIndex)], animationSpec = androidx.compose.animation.core.tween(3000), label = "heroArt") { key ->
                         ArtImage(key, Modifier.fillMaxSize().drift(), corner = 0.dp)
                     }
                 }

@@ -18,6 +18,16 @@
 - Not done from the plan: YouTube playlists by name; Spotify by name (needs the owner's own API key; ask); "Not downloaded yet" rows in Made; weekly refresh.
 - Not tested live (needs the owner's sign-in): owner to search "White Girl Summer 2000/2010s Playlist".
 
+## 12 Nov ~18:30: b137 RELEASED; web on the same commit (rollback flacie-web:rollback-b137pre)
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b137
+- Phone car mode = LivingSleeve with ui.carOpen: CarScale 1.3 controls, CarPager (cover + every graph, swipe never skips), Car chip turns it off;
+  the old CarScreen overlay is gone. Web /car: all 11 graphs with arrows.
+- Phone graphs: LiveAnalysis without the volume gain (as the web's). The owner's "graphs not loading on the phone" is NOT found yet.
+- Web: warmTwin waits for the playing song to be fully buffered (a next song took ~30 s); Home = split layout (Jump back in | Quick picks,
+  playlists | albums for you), darker mood cards and aura, aura masked at its foot, no hero parallax (it drew a moving line), ☰ padded, content up to 2400px,
+  rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
+- Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
+
 ## QUEUED 12 Nov (owner): FIND ANY PLAYLIST BY NAME, KEEP IT IN THE LIBRARY, FILL IT AS IT PLAYS
 Owner: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library, not downloaded with all the songs, and populate as we go".
 Example: SoundCloud "White Girl Summer 2000/2010s Playlist" (Collin, 325 tracks) searched by name in FLACie found nothing.

@@ -1,5 +1,21 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-12 00:05 Owner's overnight list (AFK till morning; OK to release + deploy). Work it top-down, log each item DONE/NOT
+1. Home: far too many chip buttons (moods + Favourites/Recent/Offline/Recently added wrap to 4 rows). Moods are tiles now; make the shortcuts one tidy row. Web + phone.
+2. Animations: "I still don't see the new animations; they need to be visible and alive". Bigger, obvious motion (entrances, cover flights, springy taps, live backgrounds) on web + phone, within the perf rules.
+3. Playlists page is ugly; the "New playlist" tile is far too big (phone shows a giant + tile plus a name field and Create). Small "+ New playlist" button; tidy page. Web + phone.
+4. Every change must be on web AND phone. Audit parity: full-screen graph button differs between web and phone (should match, like Spotify mobile/web); shuffle buttons differ; find more.
+5. Full-screen visualisers: optimise for phone; many more graph options.
+6. Full-screen graphs broken: axis says only "20 kHz" and "4 Hz" / full range only (labels wrong in full screen).
+7. Graph delay when a song first starts: check it is gone; fix if not.
+8. Browser mini player (PiP when switching tabs): needs a "back to FLACie" button and a redesign like Now Playing.
+9. Settings reachable from every page (web + phone).
+10. Now Playing: long titles cut ("Iniquity Worker (Number of the Beas..."), the top "playing from" pill cut ("JUNGLE M..."). Better: smaller type / more lines / scroll.
+11. Car mode: easy to switch on/off; keeps the screen on, less clutter, big buttons, nice visualiser. Web + phone.
+12. DJ + downloads: asked the DJ to play a song, it said "getting that one", 10 min later on the next song said "still getting that song", it never played it; unknown if it downloaded. Make the DJ follow the download, play it when ready, or say it failed.
+13. Folded side menu "breaks" Home (web): could not reproduce with or without art; ask for a screenshot.
+Then: beta + web deploy, and a done/not-done list for the morning.
+
 ## 2026-11-11 ~23:00 Owner (going overnight): Home = resume hero + bits of B and C; no pick card
 - Owner: "remove the pick for today, keep the resume with the faded album art, add stuff from Home B and C; carry on overnight doing every possible, don't waste usage".
 - Plan (web + phone, then release b132): 1. remove the pick card (web Home.razor PickAlbum + phone HomePickCard/HomePick); 2. from B: a big "Start the DJ" gradient button (shuffles the library with the DJ on) and the moods as colourful tiles; 3. from C: "Artists on repeat" (round bubbles of the artists played most) and "Just arrived" (newest songs with their format). Then the open bugs: web Now Playing title/buttons, clipping sweep.

@@ -156,7 +156,8 @@ object HomeFit {
 
     fun hero(width: Float, height: Float, fontScale: Float = 1f): Hero {
         val fs = fontScale.coerceAtLeast(.85f)
-        val h = if (width > height) (height * .6f).coerceIn(180f, 300f) else 300f
+        // 240 upright (owner, 12 Nov: the 300 left an empty band over the greeting: "misused space")
+        val h = if (width > height) (height * .6f).coerceIn(180f, 240f) else 240f
         var sp = 40f
         fun need() = TOP + fitLine(11f, fs) + 6f + 2 * sp * 1.05f * fs + 8f
         while (sp > 24f && (need() > h || sp * fs > 52f)) sp -= 2f

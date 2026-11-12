@@ -30,6 +30,10 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
     private var encoding = C.ENCODING_PCM_16BIT
     /** Only while a live graph is on screen: otherwise every decoded buffer is left alone (the tap used to convert every sample of every song, on the audio thread, for nobody). */
     @Volatile var watching = false
+    /** How many graphs are on screen (the Info card's, the full-screen one over it, car mode's): the tap runs while any is. A graph closing used to
+     *  switch it off for all, and the one left behind stopped (owner, 12 Nov: "the graphs weren't loading"). */
+    private val watchers = java.util.concurrent.atomic.AtomicInteger()
+    fun watch(on: Boolean) { val n = if (on) watchers.incrementAndGet() else watchers.updateAndGet { maxOf(0, it - 1) }; watching = n > 0 }
 
     override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
         this.sampleRate = sampleRateHz; channels = channelCount; this.encoding = encoding
@@ -112,11 +116,13 @@ class LiveAnalysis(private val live: LiveAudio, private val gain: () -> Float = 
     private val sinT = FloatArray(fftSize / 2) { sin(2 * PI * it / fftSize).toFloat() }
 
     /** Switches the tap on while a graph is shown. */
-    fun watch(on: Boolean) { live.watching = on }
+    fun watch(on: Boolean) = live.watch(on)
 
     private var gainAt = 0L; private var gainNow = 1f
 
-    /** Runs off the main thread (about 40 times a second); the screen only reads the finished numbers. */
+    /** Runs off the main thread (about 40 times a second); the screen only reads the finished numbers. One at a time: two graphs on screen (the
+     *  full-screen one over the Info card) each ran it, over the same buffers, and the spectrum came out pinned at the top (owner's recording, 12 Nov). */
+    @Synchronized
     fun update() {
         active = live.latest(left, right, fftSize)
         // the graphs show what comes out of the speaker: the player's volume and the phone's volume are applied to the tapped sound

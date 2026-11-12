@@ -702,8 +702,8 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) }
             TopAction(Glyph.GEAR, "Settings") { nav.push(Screen.Settings) }
         }
-        // a slow glow in the cover's colours drifts behind Home (owner, 12 Nov: "aliveness, vibeyness"; as the web's)
-        LazyColumn(Modifier.fillMaxSize().then(if (modern) Modifier.blob(LocalScheme.current.accent.copy(alpha = .5f), 0) else Modifier), contentPadding = PaddingValues(bottom = 24.dp)) {
+        // (no glow drawn over the list: it sat still while the list scrolled and left a red patch with an edge: owner, 12 Nov "hard bars")
+        LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (modern) item(key = "hero") {
                 val last = snap.track ?: recentsKey?.let { lib.byPath()[it] ?: lib.resolve(it, app.userData.meta[it]) }
                 // the covers behind the greeting crossfade through what you play most and Quick picks (owner, 12 Nov; as the web's hero)
@@ -881,7 +881,7 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, art
                         ArtImage(key, Modifier.fillMaxSize().drift(), corner = 0.dp)
                     }
                 }
-                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
+                Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .25f to Color.Transparent, .45f to Palette.bg.copy(alpha = .35f), .8f to Palette.bg.copy(alpha = .9f), 1f to Palette.bg)))
             } else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(cols.tone), Palette.bg))))
             // the web's top bar: the search box at the left (a tap opens Search), then Settings and the account
             Row(Modifier.align(Alignment.TopStart).fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 6.dp), verticalAlignment = Alignment.CenterVertically) {

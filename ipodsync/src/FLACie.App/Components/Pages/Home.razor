@@ -12,7 +12,14 @@
 <header class="home-hero" @ref="heroEl">
     @* the picture behind the greeting (owner, 12 Nov: "instead of the last played album art it should change, faded nicely, through a playlist or
        recommended or frequently played"): up to five covers from what you play most, Quick picks and your playlists, crossfading one into the next *@
-    @if (HeroArt is { Count: > 0 } heroArt)
+    @* the song playing now is the backdrop, slowly panning (owner, 12 Nov: "the now playing album art should be the backdrop, alive"); with nothing
+       playing the covers you play most take turns *@
+    @{ var nowArt = Player.Current?.ArtKey; }
+    @if (nowArt is not null)
+    {
+        <div class="home-hero-art now" aria-hidden="true"><Cover @key="@nowArt" ArtKey="@nowArt" Full="true" Class="hero-now" /></div>
+    }
+    else if (HeroArt is { Count: > 0 } heroArt)
     {
         <div class="home-hero-art @(heroArt.Count > 1 ? "cycle" : "")" aria-hidden="true">
             @* five slides always (fewer covers repeat), so the crossfade keeps one rhythm *@

@@ -707,8 +707,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             if (modern) item(key = "hero") {
                 val last = snap.track ?: recentsKey?.let { lib.byPath()[it] ?: lib.resolve(it, app.userData.meta[it]) }
                 // the covers behind the greeting crossfade through what you play most and Quick picks (owner, 12 Nov; as the web's hero)
-                val heroArts = remember(last?.artKey, shelves) {
-                    (listOfNotNull(last?.artKey) + shelves.filter { it.id == "frequently-played" || it.id == "quick-picks" }.flatMap { sh -> sh.tracks.mapNotNull { it.artKey } }).distinct().take(5)
+                // the song playing now is the backdrop, panning slowly (owner, 12 Nov); with nothing playing the covers you play most take turns
+                val nowArt = snap.track?.artKey
+                val heroArts = remember(last?.artKey, shelves, nowArt) {
+                    if (nowArt != null) listOf(nowArt)
+                    else (listOfNotNull(last?.artKey) + shelves.filter { it.id == "frequently-played" || it.id == "quick-picks" }.flatMap { sh -> sh.tracks.mapNotNull { it.artKey } }).distinct().take(5)
                 }
                 HomeHero(last, nav, onShuffleAll = { val s = lib.songs(); if (s.isNotEmpty()) app.player.shuffleAll(s) }, arts = heroArts) { AccountAction() }
             }
@@ -878,7 +881,7 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, art
                 if (arts.size > 1 && Tweaks.motion) LaunchedEffect(arts) { while (true) { kotlinx.coroutines.delay(15000); shown = (shown + 1) % arts.size } }
                 Box(Modifier.fillMaxSize().clipToBounds()) {
                     androidx.compose.animation.Crossfade(arts[shown.coerceIn(0, arts.lastIndex)], animationSpec = androidx.compose.animation.core.tween(3000), label = "heroArt") { key ->
-                        ArtImage(key, Modifier.fillMaxSize().drift(), corner = 0.dp)
+                        ArtImage(key, Modifier.fillMaxSize().then(if (arts.size == 1) Modifier.pan() else Modifier.drift()), corner = 0.dp)
                     }
                 }
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .25f to Color.Transparent, .45f to Palette.bg.copy(alpha = .35f), .8f to Palette.bg.copy(alpha = .9f), 1f to Palette.bg)))

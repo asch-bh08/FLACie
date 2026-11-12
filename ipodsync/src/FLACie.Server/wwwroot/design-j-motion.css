@@ -341,3 +341,11 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 .home-plgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 1400px) { .home-plgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .home-plgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* the song playing now behind the greeting (owner, 12 Nov): it pans slowly from side to side and breathes a little (a minute each way), and a new song's
+   cover fades in over two seconds */
+@keyframes hero-pan { 0% { transform: scale(1.14) translate3d(-3.5%, 0, 0); } 50% { transform: scale(1.18) translate3d(0, -1%, 0); } 100% { transform: scale(1.14) translate3d(3.5%, 0, 0); } }
+@keyframes hero-in { from { opacity: 0; } }
+.home-hero-art.now .hero-now { animation: hero-pan 60s ease-in-out infinite alternate, hero-in 2s ease both; will-change: transform; }
+:root.pref-calm .home-hero-art.now .hero-now { animation: none; transform: scale(1.1); }
+@media (prefers-reduced-motion: reduce) { .home-hero-art.now .hero-now { animation: none; transform: scale(1.1); } }

@@ -89,3 +89,15 @@ fun Modifier.turningRing(color: Color, on: Boolean, width: Float = 3f): Modifier
         }
     }
 }
+
+/** A slow pan from side to side, breathing a little (a minute each way): the song playing now behind Home's greeting (owner, 12 Nov). */
+@Composable
+fun Modifier.pan(): Modifier {
+    if (!Tweaks.motion) return this.graphicsLayer { scaleX = 1.1f; scaleY = 1.1f }
+    val t = rememberInfiniteTransition(label = "pan")
+    val k by t.animateFloat(-1f, 1f, infiniteRepeatable(tween(60000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "panK")
+    return this.graphicsLayer {
+        val s = 1.14f + .04f * (1f - k * k); scaleX = s; scaleY = s
+        translationX = size.width * .035f * k
+    }
+}

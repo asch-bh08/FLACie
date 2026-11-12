@@ -31,6 +31,8 @@
                 <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
             }
             <a class="ls-icon ls-tint np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a>
+            @* Settings from the player too (owner, 12 Nov: "on that page where is the settings"): beside Retro on a PC, in More on a phone *@
+            <button type="button" class="ls-icon ls-tint np-settings" @onclick="GoSettings" aria-label="Settings" title="Settings"><Icon Name="settings" Size="22" /></button>
         </div>
     </header>
     @if (t is not null)
@@ -202,23 +204,35 @@
         @* PC: one now-playing bar along the bottom holding every button (no seek bar or time: the frame round the cover is the seek bar); the transport sits in
            its middle. Phone: the bar is not drawn; its rating, speed, sleep and sound buttons open from the top bar's Options as before *@
         <footer class="ls-dock">
-            @* Web A (owner, 8 Nov): worded tiles round the transport. Add, Lyrics and More on the left; Fav, EQ and Sound on the right. Rating, speed and the
-               sleep timer are in More *@
+            @* PC (owner, 12 Nov: "make the now playing controls similar to the player bar on the home screen, the same features"; "the right side buttons
+               bigger than the left and uneven pisses me off"): the same round buttons on both sides at one size, the transport in the middle with a seek bar
+               and the times under it, as in the player bar. Left: add, share, devices, more. Right: the DJ, the mic, favourite, EQ, and the volume *@
             <div class="ls-dock-l">
-                <button class="ls-tile" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist"><Icon Name="plus" Size="22" /><span>Add</span></button>
-                @* Share, where Lyrics was: the lyrics are already a tab of the panel beside the cover (owner, 8 Nov: "replace it with something relevant") *@
-                <button class="ls-tile" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share"><Icon Name="share" Size="22" /><span>Share</span></button>
+                <button class="ls-dbtn" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist" title="Add to playlist"><Icon Name="plus" Size="22" /></button>
+                <button class="ls-dbtn" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
+                @if (AppHost.DevicePicker is { } picker) { <span class="ls-dbtn-wrap"><DynamicComponent Type="picker" /></span> }
                 @MoreMenu("d", t)
             </div>
-            @* the room the transport takes in the middle of the bar (it is placed over this from the page), so the two sides never reach under it *@
-            <div class="ls-dock-c" aria-hidden="true"></div>
+            <div class="ls-dock-c">
+                <div class="ls-dock-seek">
+                    <span class="ls-dock-pos">@Time(Player.Position)</span>
+                    <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="--fill:@SeekFill()%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+                    <span>@Time(Player.Duration)</span>
+                </div>
+            </div>
             <div class="ls-dock-r">
                 @* the phone's Options pop-up (on a PC these sit in More and the tiles) *@
                 <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
                 <div class="ls-tiles">
-                    <button class="ls-tile ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /><span>Fav</span></button>
-                    <div class="ls-tile-eq"><EqMenu /></div>
-                    <SoundTile />
+                @if (Player.Dj is not null)
+                {
+                    var djDock = Player.DjOn;
+                    <button class="ls-dbtn ls-dj @(djDock ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djDock ? "true" : "false")" title="@(djDock ? "DJ on for this queue" : "DJ off for this queue"). Right-click for Settings → DJ."><Icon Name="dj" Size="22" /></button>
+                }
+                <span class="ls-dbtn-wrap ls-dock-mic"><DjMic Class="ls-dbtn" Size="22" /></span>
+                <button class="ls-dbtn ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="Favourite"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
+                <div class="ls-tile-eq ls-dbtn-wrap"><EqMenu /></div>
+                <SoundTile />
                 </div>
             </div>
         </footer>
@@ -306,6 +320,11 @@
     {
         CloseMore();
         try { await Js.InvokeVoidAsync("flacie.npGo", DjSettingsUrl); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo(DjSettingsUrl); }
+    }
+    async Task GoSettings()
+    {
+        CloseMore();
+        try { await Js.InvokeVoidAsync("flacie.npGo", "/settings"); } catch (Exception) { await OnClose.InvokeAsync(); Nav.NavigateTo("/settings"); }
     }
     // car mode (owner, 12 Nov): out of the player to /car, big buttons and a visualiser
     async Task GoCar()
@@ -398,6 +417,7 @@
                     }
                 }
                 <button role="menuitem" @onclick="GoCar"><Icon Name="car" Size="18" /> Car mode</button>
+                <button role="menuitem" @onclick="GoSettings"><Icon Name="settings" Size="18" /> Settings</button>
                 <hr class="menu-sep" />
                 <a role="menuitem" href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">Go to artist</a>
                 @if (t.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">Go to album</a> }
@@ -512,5 +532,6 @@
 
     static string SourceName(Track t) => SourceLabel.PlayingFrom(t.Source);
     readonly SeekHold hold = new();
+    string SeekFill() { var d = Player.Duration; var v = hold.Value(Player.Position); return (d > 0 ? Math.Clamp(v / d * 100, 0, 100) : 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture); }
     Task OnSeek(ChangeEventArgs e) { if (!SeekHold.Parse(e.Value, out var s)) return Task.CompletedTask; hold.Changed(s); return Player.Seek(s); }
 }

@@ -159,7 +159,7 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       // the song and a seek bar in full screen (owner, 11 Nov), and the two new graphs
       await expect(page.locator('.graph-now .graph-song b')).toHaveText(/\S/);
       await expect(page.locator('.graph-seek input')).toBeInViewport();
-      for (const [tab, cls] of [['Circle', 'ring'], ['Waveform', 'scope'], ['Orbit', 'orbit'], ['Skyline', 'skyline']]) {
+      for (const [tab, cls] of [['Circle', 'ring'], ['Waveform', 'scope'], ['Orbit', 'orbit'], ['Skyline', 'skyline'], ['Bars', 'bars'], ['Aura', 'aura']]) {
         await page.locator('.graph-tabs [role=tab]', { hasText: tab }).click();
         await expect(page.locator('#viz.' + cls)).toBeVisible();
         await page.waitForTimeout(600);
@@ -241,7 +241,7 @@ test.describe('the shape is ready instantly', () => {
 });
 
 test.describe('the full-screen player bar on a PC', () => {
-  test('every button sits in one bar along the bottom, with no seek bar or time in it, and its menus open upwards on screen', async ({ page }) => {
+  test('every button sits in one bar along the bottom with a seek bar, all one size, and its menus open upwards on screen', async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page); await openPlayer(page);
@@ -252,8 +252,11 @@ test.describe('the full-screen player bar on a PC', () => {
       const b = (await page.locator(sel).first().boundingBox())!;
       expect(b.y, sel).toBeGreaterThanOrEqual(bar.y - 1); expect(b.y + b.height, sel).toBeLessThanOrEqual(bar.y + bar.height + 1);
     }
-    await expect(page.locator('.ls-dock input[type=range][aria-label="Seek"]')).toHaveCount(0);
-    await expect(page.locator('.ls-dock .ls-times')).toHaveCount(0);
+    // like the player bar on Home (owner, 12 Nov): a seek bar with the times under the transport, and the buttons on both sides one size
+    await expect(page.locator('.ls-dock-seek input[type=range][aria-label="Seek"]')).toBeVisible();
+    const sizes = await page.locator('.ls-dock-l > button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(sizes.length).toBeGreaterThanOrEqual(5);
+    for (const h of sizes) expect(h).toBe(48);
     // the top bar holds only close, where it plays from and Retro
     await expect(page.locator('.ls-top .ls-toolset')).toHaveCount(0);
     // More opens upwards, fully on screen

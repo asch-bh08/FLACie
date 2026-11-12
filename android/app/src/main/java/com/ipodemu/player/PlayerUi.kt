@@ -687,11 +687,15 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
     val online = rememberOnline()
     // the chips and the first shelves come in with a short rise as Home opens (as the web's page does), not again on scrolling
     val entrance = rememberEntrance()
-    // Artists on repeat and Just arrived: worked out once per library or history change, not on every redraw of the list (it froze the app, 12 Nov)
+    // Artists on repeat and the mood covers: worked out once per library or history change, not on every redraw of the list (it froze the app, 12 Nov)
     val homeRev = LocalLibRev.current
     val historyRev = app.userData.rev
     val reps = remember(homeRev, historyRev) { repeatArtists(app, lib) }
-    val fresh = remember(homeRev) { lib.songs().sortedByDescending { it.mtime }.take(6) }
+    // a few covers from each mood's own songs, for its card
+    // (off the main thread: a mood's songs come from the whole library, and doing that on the main thread froze Home once already)
+    val moodCovers by androidx.compose.runtime.produceState(emptyMap<String, List<String>>(), homeRev, moodList) {
+        value = kotlinx.coroutines.withContext(Dispatchers.Default) { moodList.associateWith { m -> com.ipodemu.library.HomeShelves.moodTracks(lib, m).mapNotNull { it.artKey }.distinct().take(3) } }
+    }
     Column(Modifier.fillMaxSize()) {
         val modern = LocalStyle.current.modern
         if (!modern) TopBar(if (app.prefs.timeInTitle) clock else "FLACie", nav, showBack = false) {
@@ -712,20 +716,20 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
             // the chips wrap onto more lines rather than run off the right edge (owner, 9 Nov: nothing may hang off the screen; "Offline music" was
             // cut in half at the edge of a phone). Each chip has its own 6 dp above and below, so the lines need no extra gap
             // the moods as colourful tiles (owner, 11 Nov: "Home B"), two to a row with the first one wide; a tile again goes back to everything. As on the web
-            if (modern && moodList.isNotEmpty()) item(key = "mood-tiles") {
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).entranceRise(entrance, 1), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val rows = listOf(moodList.take(1)) + moodList.drop(1).chunked(2)
-                    var hue = 0
-                    rows.forEachIndexed { ri, row ->
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (m in row) { MoodTile(m, hue++, mood == m, Modifier.weight(1f)) { mood = if (mood == m) null else m } }
-                            if (row.size == 1 && ri > 0) Spacer(Modifier.weight(1f))
+            // the moods (owner, 12 Nov: "these huge random buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from its own
+            // songs, so you can see what is in it; a card again goes back to everything. As on the web
+            if (modern && moodList.isNotEmpty()) {
+                item(key = "mood-head") { SectionHeader("Browse by mood") }
+                item(key = "mood-cards") {
+                    LazyRow(Modifier.entranceRise(entrance, 1), contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(moodList.size, key = { moodList[it] }) { i ->
+                            val m = moodList[i]
+                            MoodTile(m, i, mood == m, moodCovers[m].orEmpty(), Modifier.width(190.dp)) { mood = if (mood == m) null else m }
                         }
                     }
                 }
             }
-            // the shortcuts in one tidy row of four (owner, 12 Nov: "why are there so many of these buttons"): the moods are the tiles above and Recently
-            // added is the Just arrived shelf below, so four rows of chips became this
+            // the shortcuts in one tidy row of four (owner, 12 Nov: "why are there so many of these buttons"): the moods are the cards above
             if (modern) item {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).entranceRise(entrance, 1), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     for ((label, glyph, go) in listOf<Triple<String, Glyph, () -> Unit>>(
@@ -779,18 +783,6 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                                     Txt(name, Modifier.padding(top = 6.dp), size = 12.5f, weight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
-                        }
-                    }
-                }
-                if (fresh.isNotEmpty()) {
-                    item(key = "arrived-head") { SectionHeader("Just arrived") }
-                    items(fresh.size, key = { "arrived-" + fresh[it].path }) { i ->
-                        val t = fresh[i]
-                        val playingNow = snap.track?.path == t.path
-                        Row(Modifier.fillMaxWidth().entranceRise(entrance, 3 + i).then(if (playingNow) Modifier.background(LocalScheme.current.accent.copy(alpha = .12f)) else Modifier).clickable { app.player.play(fresh, i, null, "Just arrived", from = "home") }.padding(horizontal = 16.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            ArtImage(t.artKey, Modifier.size(48.dp), corner = 10.dp)
-                            Column(Modifier.weight(1f)) { Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1, color = if (playingNow) LocalScheme.current.accent else LocalScheme.current.onBg); Txt(t.artist, size = 13f, color = LocalScheme.current.onBgDim, maxLines = 1) }
-                            MonoLabel(formatOf(t), size = 10f, color = LocalScheme.current.accent)
                         }
                     }
                 }
@@ -2854,19 +2846,25 @@ private fun welcomed(app: com.ipodemu.App): androidx.compose.runtime.MutableStat
     welcomedState ?: androidx.compose.runtime.mutableStateOf(app.prefs.welcomed).also { welcomedState = it }
 
 
-/** A mood as a colourful tile (owner, 11 Nov: Home B): a gradient of its own (by its place in the list), white words, a ring when chosen. */
+/** A mood as a card (owner, 12 Nov): deep colours so the white name always reads, a fan of the mood's own covers on the right, a ring when chosen; a glow
+ *  wanders inside and light sweeps across now and then (AliveMotion). */
 @Composable
-private fun MoodTile(name: String, hue: Int, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun MoodTile(name: String, hue: Int, on: Boolean, covers: List<String>, modifier: Modifier, onClick: () -> Unit) {
     val h = (hue * 57 + 150) % 360f
     Box(
-        modifier.riseIn(delayMs = hue * 55, riseDp = 18f).height(60.dp).clip(RoundedCornerShape(18.dp))
-            .background(Brush.linearGradient(listOf(Color.hsl(h, .45f, .30f), Color.hsl((h + 40) % 360f, .70f, .58f))))
-            // a glow wanders inside and light sweeps across now and then, each tile in its own time (owner, 12 Nov: "alive"; as the web)
+        modifier.riseIn(delayMs = hue * 55, riseDp = 18f).height(112.dp).clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(Color.hsl(h, .50f, .18f), Color.hsl((h + 50) % 360f, .60f, .34f))))
             .blob(Color.hsl((h + 60) % 360f, .9f, .7f), hue).sheen(hue)
             .then(if (on) Modifier.border(3.dp, LocalScheme.current.onBg, RoundedCornerShape(20.dp)) else Modifier)
-            .semantics { contentDescription = name; role = androidx.compose.ui.semantics.Role.Button; selected = on }.clickable(onClick = onClick).padding(14.dp),
-        contentAlignment = Alignment.BottomStart,
-    ) { Txt(name, size = 17f, weight = FontWeight.ExtraBold, color = Color.White, maxLines = 1) }
+            .semantics { contentDescription = name; role = androidx.compose.ui.semantics.Role.Button; selected = on }.clickable(onClick = onClick),
+    ) {
+        // the fan: up to three covers, turned a little each way
+        for ((k, art) in covers.withIndex()) {
+            val (dx, dy, rot) = listOf(Triple(-58, 18, -14f), Triple(-30, 6, -3f), Triple(-4, 16, 10f))[k]
+            ArtImage(art, Modifier.align(Alignment.TopEnd).offset(x = dx.dp, y = dy.dp).size(56.dp).graphicsLayer { rotationZ = rot; alpha = if (k == 2) 1f else .85f }, thumb = true, corner = 9.dp)
+        }
+        Txt(name, Modifier.align(Alignment.BottomStart).padding(14.dp), size = 18f, weight = FontWeight.ExtraBold, color = Color.White, maxLines = 1)
+    }
 }
 
 /** The artists played most (from the play history), each with a cover of theirs: Home's "Artists on repeat". */
@@ -2878,10 +2876,3 @@ private fun repeatArtists(app: com.ipodemu.App, lib: com.ipodemu.library.Library
     return counts.entries.sortedByDescending { it.value }.mapNotNull { e -> byArtist[e.key]?.let { it.artist to it.artKey } }.take(12)
 }
 
-/** What a song's file is, short ("FLAC", "MP3", "HI-RES"), for Just arrived. */
-private fun formatOf(t: Track): String {
-    val p = t.filePath.ifBlank { t.path }
-    if (p.contains("[Hi-Res]", ignoreCase = true)) return "HI-RES"
-    val i = p.lastIndexOf('.')
-    return if (i > 0 && p.length - i <= 6) p.substring(i + 1).uppercase() else ""
-}

@@ -49,7 +49,12 @@ test('on Wi-Fi the Info tab\'s live graphs start at once', async ({ page }) => {
   await playAndOpenInfo(page);
   await expect(page.locator('canvas#viz')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Show anyway' })).toHaveCount(0);
-  await expect.poll(() => page.evaluate(() => (window as any).twins)).toBe(1);
+  // this song's copy, and the next song's loaded ahead (12 Nov: the graph started late on each new song). The test songs are 3 s long, so a new next
+  // copy comes with each new song; a bug made one every 200 ms (15 in 3 s)
+  await expect.poll(() => page.evaluate(() => (window as any).twins)).toBeGreaterThanOrEqual(2);
+  const at = await page.evaluate(() => (window as any).twins);
+  await page.waitForTimeout(3000);
+  expect(await page.evaluate(() => (window as any).twins) - at).toBeLessThanOrEqual(2);
 });
 
 test('on mobile data the iPod desk plays without a second copy of the song', async ({ page }) => {

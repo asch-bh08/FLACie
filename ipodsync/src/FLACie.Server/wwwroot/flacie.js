@@ -268,10 +268,10 @@ window.flacie = (() => {
   const warmTwin = (u) => {
     if (u) nextFor = u;
     if (!nextFor || !actx || !bus || !twin || actx === toneCtx) return;
-    const abs = new URL(nextFor, location.href).href;
-    if (twinNext && twinNext.src === abs) return;
+    if (twinNext && twinNext._for === nextFor) return;   // (asked for by the address it was given: the element's own src is written differently)
     dropTwinNext();
-    try { const el = new Audio(); el.preload = "auto"; el.src = abs; twinNext = plugIn(el); } catch { twinNext = null; }
+    if (flacie.metered()) return;   // on mobile data the copy is a second download of every song: not ahead of time as well
+    try { const el = new Audio(); el.preload = "auto"; el._for = nextFor; el.src = new URL(nextFor, location.href).href; twinNext = plugIn(el); } catch { twinNext = null; }
   };
   const syncTwin = () => {
     if (!twin || !audio.src) return;
@@ -390,7 +390,7 @@ window.flacie = (() => {
       g.fillStyle = grad; g.beginPath(); g.roundRect(x, mid - bh, bw, bh * 2, bw / 2); g.fill();
       if (vp[i] > .03) { g.fillStyle = c.ink; const py = vp[i] * half + 4 * dpr; g.beginPath(); g.arc(x + bw / 2, mid - py, bw / 2.4, 0, 7); g.arc(x + bw / 2, mid + py, bw / 2.4, 0, 7); g.fill(); }
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 0, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 4 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 3 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 4 * dpr, h - 3 * dpr);
   };
 
   // ---- spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays ----
@@ -435,7 +435,7 @@ window.flacie = (() => {
     // readout
     const num = vs.r <= -59 ? "−∞" : vs.r.toFixed(1);
     g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = c.ink; g.font = `500 ${34 * dpr}px 'DM Mono', ui-monospace, monospace`;
-    g.fillText(num, 0, 34 * dpr); const tw = g.measureText(num).width;
+    g.fillText(num, 3 * dpr, 34 * dpr); const tw = g.measureText(num).width;
     labelFont(f, 11); g.fillText("DB AVERAGE NOW", tw + 10 * dpr, 32 * dpr);
     g.textAlign = "right"; g.fillStyle = c.ink; g.fillText(`PEAK ${vs.ph <= -89 ? "−∞" : vs.ph.toFixed(1)} DB`, w - 4 * dpr, 32 * dpr);
     // meter: capsules that light up to the level; the last few turn warm near 0 dB
@@ -453,7 +453,7 @@ window.flacie = (() => {
       g.beginPath(); g.moveTo(px(0), hy1); for (let i = 0; i < hist.length; i++) g.lineTo(px(i), py(i)); g.lineTo(px(hist.length - 1), hy1); g.closePath(); g.fillStyle = gr; g.fill();
       g.save(); g.shadowColor = c.accent; g.shadowBlur = 10 * dpr; g.beginPath(); for (let i = 0; i < hist.length; i++) i ? g.lineTo(px(i), py(i)) : g.moveTo(px(i), py(i)); g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; g.lineJoin = "round"; g.stroke(); g.restore();
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 0, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w - 4 * dpr, h - 4 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 3 * dpr, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w - 4 * dpr, h - 4 * dpr);
   };
 
   // ---- stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side ----
@@ -533,7 +533,7 @@ window.flacie = (() => {
     g.lineJoin = "round"; g.lineCap = "round";
     g.strokeStyle = rgba(c.accent, 0.25); g.lineWidth = 8 * dpr; path(); g.stroke();
     g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; path(); g.stroke();
-    labelFont(f); g.textAlign = "left"; g.fillText("THE SOUND, LIVE", 0, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("THE SOUND, LIVE", 3 * dpr, h - 3 * dpr);
   };
 
   // the average loudness (0-1) of the pitches from f0 to f1 Hz
@@ -558,7 +558,7 @@ window.flacie = (() => {
     }
     const core = g.createRadialGradient(cx, cy, 0, cx, cy, base * 0.3); core.addColorStop(0, rgba(c.accent, 0.25 + 0.5 * vs.e[0])); core.addColorStop(1, rgba(c.accent, 0));
     g.fillStyle = core; g.beginPath(); g.arc(cx, cy, base * 0.3, 0, 7); g.fill();
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS IN THE MIDDLE, HIGHS OUTSIDE", 2 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS IN THE MIDDLE, HIGHS OUTSIDE", 3 * dpr, h - 3 * dpr);
   };
   // ---- skyline: the spectrum as a city at night, bass in the middle and the highs out to both sides, mirrored in the water below ----
   const drawSkyline = (f) => {
@@ -582,10 +582,53 @@ window.flacie = (() => {
       }
     }
     g.fillStyle = rgba(c.ink, .12); g.fillRect(0, base, w, dpr);
-    labelFont(f); g.textAlign = "left"; g.fillText("HIGHS", 2 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("BASS", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("HIGHS", w - 4 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("HIGHS", 3 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("BASS", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("HIGHS", w - 4 * dpr, h - 3 * dpr);
   };
 
-  const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo, ring: drawRing, scope: drawScope, orbit: drawOrbit, skyline: drawSkyline };
+  // ---- bars (owner, 12 Nov: "make more graphs"): the classic analyser, bars standing up from the floor, bass on the left, a cap that falls slowly ----
+  const drawBars = (f) => {
+    const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2, bins = data.length;
+    const N = Math.max(16, Math.min(72, Math.floor(w / (12 * dpr)))), lo = 35, hi = Math.min(nyq, 18000);
+    if (!vh || vh.length !== N) { vh = new Float32Array(N); vp = new Float32Array(N); }
+    g.clearRect(0, 0, w, h);
+    const slot = w / N, bw = Math.max(3 * dpr, slot * 0.72), floor = h - 16 * dpr, top = floor - 6 * dpr;
+    const grad = g.createLinearGradient(0, floor - top, 0, floor); grad.addColorStop(0, rgba(c.ink, .95)); grad.addColorStop(.4, c.accent); grad.addColorStop(1, rgba(c.accent, .6));
+    for (let i = 0; i < N; i++) {
+      const f0 = lo * Math.pow(hi / lo, i / N), f1 = lo * Math.pow(hi / lo, (i + 1) / N);
+      const b0 = Math.floor(f0 / nyq * bins), b1 = Math.max(b0 + 1, Math.ceil(f1 / nyq * bins));
+      let m = 0; for (let k = b0; k < b1 && k < bins; k++) m = Math.max(m, data[k]);
+      const v = Math.min(1, Math.pow(m / 255, 1.5) * (1 + 0.7 * i / N));
+      vh[i] = Math.max(v, vh[i] - 0.03); vp[i] = Math.max(vh[i], vp[i] - 0.005);
+      const x = i * slot + (slot - bw) / 2, bh = Math.max(2 * dpr, vh[i] * top);
+      g.fillStyle = rgba(c.ink, .05); g.beginPath(); g.roundRect(x, floor - top, bw, top, bw / 3); g.fill();
+      g.fillStyle = grad; g.beginPath(); g.roundRect(x, floor - bh, bw, bh, [bw / 3, bw / 3, 2 * dpr, 2 * dpr]); g.fill();
+      if (vp[i] > .02) { g.fillStyle = c.ink; g.fillRect(x, floor - vp[i] * top - 5 * dpr, bw, 2.5 * dpr); }
+    }
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 3 * dpr, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 4 * dpr, h - 3 * dpr);
+  };
+  // ---- aura: the song as light. The bass a big glow rising from the bottom, the mids on the left, the highs on the right, all in the cover's colours ----
+  const drawAura = (f) => {
+    const { g, w, h, dpr, c } = f, data = freqData(), nyq = actx.sampleRate / 2;
+    if (!vs.e) vs.e = [0, 0, 0];
+    const parts = [[30, 160, 1], [160, 2000, 1.5], [2000, 12000, 2.6]];
+    for (let i = 0; i < 3; i++) { const e = Math.min(1, Math.pow(bandOf(data, nyq, parts[i][0], parts[i][1]), 1.2) * parts[i][2]); vs.e[i] = Math.max(e, vs.e[i] - 0.02); }
+    vs.t = (vs.t || 0) + (f.playing ? 0.006 + 0.02 * vs.e[1] : 0);
+    g.clearRect(0, 0, w, h);
+    g.save(); g.globalCompositeOperation = "lighter";
+    const blob = (x, y, r, col, a) => { const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, rgba(col, a)); gr.addColorStop(1, rgba(col, 0)); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); };
+    const m = Math.max(w, h);
+    blob(w / 2, h * 1.05, m * (0.35 + 0.35 * vs.e[0]), c.accent, 0.35 + 0.5 * vs.e[0]);
+    blob(w * (0.25 + 0.06 * Math.sin(vs.t * 1.3)), h * (0.45 + 0.1 * Math.cos(vs.t)), m * (0.18 + 0.22 * vs.e[1]), c.accent, 0.18 + 0.4 * vs.e[1]);
+    blob(w * (0.75 + 0.06 * Math.cos(vs.t * 1.7)), h * (0.35 + 0.1 * Math.sin(vs.t * 1.1)), m * (0.12 + 0.2 * vs.e[2]), c.ink, 0.12 + 0.35 * vs.e[2]);
+    g.restore();
+    // a horizon that ripples with the bass
+    g.strokeStyle = rgba(c.ink, 0.35 + 0.4 * vs.e[0]); g.lineWidth = 2 * dpr; g.beginPath();
+    for (let x = 0; x <= w; x += 6 * dpr) { const y = h * 0.72 + Math.sin(x / w * 12 + vs.t * 6) * (4 + 26 * vs.e[0]) * dpr * Math.sin(x / w * Math.PI); if (x) g.lineTo(x, y); else g.moveTo(x, y); }
+    g.stroke();
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS BELOW, MIDS LEFT, HIGHS RIGHT", 3 * dpr, h - 3 * dpr);
+  };
+
+  const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo, ring: drawRing, scope: drawScope, orbit: drawOrbit, skyline: drawSkyline, bars: drawBars, aura: drawAura };
   let lastSync = 0;
   const vizDraw = (ts) => {
     if (!vizOn) return;

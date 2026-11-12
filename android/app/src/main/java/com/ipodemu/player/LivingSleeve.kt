@@ -467,6 +467,8 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
         Spacer(Modifier.width(gap + 2.dp))
         GlassButton("Retro", { openRetro(ctx) }) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) }
+        // Settings up here where there is room (a tablet, an open Fold); on a phone it is in More (owner, 12 Nov)
+        if (!narrow && this@BoxWithConstraints.maxWidth >= 600.dp) { Spacer(Modifier.width(gap + 2.dp)); GlassButton("Settings", { nav.nowPlaying = false; nav.push(Screen.Settings) }) { GlyphIcon(Glyph.GEAR, Modifier.size(22.dp), Color.White) } }
     }
     }
 }
@@ -1016,6 +1018,8 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     add(MoreRow(if (app.jam.inJam) "In a Jam" else "Jam", { GlyphIcon(Glyph.JAM, Modifier.size(24.dp), it) }, null, true, close { app.ui.jamOpen = true }))
                     add(MoreRow("Devices", { GlyphIcon(Glyph.DEVICES, Modifier.size(24.dp), it) }, null, true, close { app.ui.devicesOpen = true }))
                 }
+                // Settings from the player too (owner, 12 Nov: "on that page where is the settings")
+                add(MoreRow("Settings", { GlyphIcon(Glyph.GEAR, Modifier.size(24.dp), it) }, null, true, close { nav.nowPlaying = false; nav.push(Screen.Settings) }))
                 add(MoreRow("Car mode", { GlyphIcon(Glyph.CAR, Modifier.size(24.dp), it) }, null, true, close { nav.nowPlaying = false; app.ui.carOpen = true }))
                 add(MoreRow("Retro", { GlyphIcon(Glyph.CASSETTE, Modifier.size(24.dp), it) }, null, true, close { openRetro(ctx) }))
             }

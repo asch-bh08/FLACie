@@ -104,7 +104,7 @@
   background: radial-gradient(closest-side, hsl(calc(var(--h) * 57 + 210) 90% 70% / .45), transparent); animation: a-blob 9s ease-in-out infinite alternate;
   animation-delay: calc(var(--h, 0) * -1.3s); }
 .mood-tile { isolation: isolate; animation: a-rise .5s var(--m-spring) backwards; animation-delay: calc(var(--h, 0) * 55ms); }
-.mood-tile::before, .mood-tile::after { z-index: -1; }
+.mood-tile::before { z-index: 0; } .mood-tile::after { z-index: 3; }
 .artist-bubble { animation: m-pop .5s var(--m-ease) backwards; animation-delay: calc(var(--i, 0) * 60ms + 120ms); }
 .artist-bubble { position: relative; }
 .artist-bubble.playing .cover { box-shadow: 0 0 0 3px var(--bg); }

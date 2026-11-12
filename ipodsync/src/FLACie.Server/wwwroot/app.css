@@ -1559,3 +1559,38 @@ html.buffering .play { --play-ic-dim: .55; }
   .graph-box:fullscreen .graph-now, .graph-box.full .graph-now { flex-wrap: nowrap; }
   .graph-box:fullscreen .graph-song b, .graph-box.full .graph-song b { font-size: 15px; }
 }
+
+/* ==== The full-screen graph, 12 Nov (owner: "clipping, ugly and not space optimised, that seek bar is bad"): the name and ✕ on one slim line, the graphs as
+   a row of tabs, the graph taking everything else, and one card along the bottom like the player bar: the song on the left, previous / play / next in the
+   middle, a full-width seek bar with the times under them. The explanation stays in the panel (it took room from the graph here). ==== */
+.graph-box:fullscreen, .graph-box.full { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 10px; }
+.graph-box:fullscreen .graph-tabs, .graph-box.full .graph-tabs { grid-row: 2; }
+.graph-box:fullscreen .graph-head, .graph-box.full .graph-head { grid-row: 1; flex-wrap: nowrap; }
+.graph-box:fullscreen .viz, .graph-box.full .viz { grid-row: 3; width: 100%; height: 100% !important; }
+.graph-box:fullscreen .graph-now, .graph-box.full .graph-now { grid-row: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-areas: "song ctl ." "seek seek seek";
+  align-items: center; gap: 8px 16px; padding: 14px 20px 10px; border-radius: 24px; background: color-mix(in srgb, var(--tone, #24525a) 55%, transparent); box-shadow: 0 -10px 40px #0005; }
+.graph-box:fullscreen .graph-hint, .graph-box.full .graph-hint, .graph-box:fullscreen .graph-head .tag, .graph-box.full .graph-head .tag { display: none; }
+.graph-box:fullscreen .graph-head h4, .graph-box.full .graph-head h4 { font-size: 26px; margin: 0; flex: 1; }
+.graph-box .graph-song { grid-area: song; flex: none; }
+.graph-box .graph-transport { grid-area: ctl; display: none; }
+.graph-box:fullscreen .graph-transport, .graph-box.full .graph-transport { display: flex; align-items: center; gap: 12px; margin: 0; }
+.graph-box:fullscreen .graph-transport .icon-btn, .graph-box.full .graph-transport .icon-btn { width: 52px; height: 48px; border-radius: 24px; background: color-mix(in srgb, var(--ink, #fff) 12%, transparent); }
+.graph-box:fullscreen .graph-play, .graph-box.full .graph-play { width: 72px; height: 56px; border-radius: 20px; color: var(--np-accent-fg, #1a120c); }
+.graph-box .graph-seek { grid-area: seek; flex: none; }
+.graph-box:fullscreen .graph-seek input, .graph-box.full .graph-seek input { height: 32px; }
+.graph-box:fullscreen .graph-seek input::-webkit-slider-runnable-track, .graph-box.full .graph-seek input::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; }
+.graph-box:fullscreen .graph-seek input::-webkit-slider-thumb, .graph-box.full .graph-seek input::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -6px; box-shadow: 0 2px 8px #0008; }
+.graph-box:fullscreen .graph-seek input::-moz-range-track, .graph-box.full .graph-seek input::-moz-range-track,
+.graph-box:fullscreen .graph-seek input::-moz-range-progress, .graph-box.full .graph-seek input::-moz-range-progress { height: 8px; border-radius: 4px; }
+/* a phone upright: the song over the buttons, both centred */
+@media (max-width: 600px) {
+  .graph-box:fullscreen .graph-now, .graph-box.full .graph-now { grid-template-columns: minmax(0, 1fr); grid-template-areas: "song" "ctl" "seek"; justify-items: center; text-align: center; padding: 12px 14px 8px; }
+  .graph-box .graph-song { max-width: 100%; align-items: center; }
+  .graph-box .graph-seek { width: 100%; }
+}
+/* a short screen (a phone on its side, a zoomed laptop): one line, song, buttons and the seek bar side by side */
+@media (max-height: 560px) {
+  .graph-box:fullscreen .graph-now, .graph-box.full .graph-now { grid-template-columns: minmax(0, .8fr) auto minmax(0, 1.4fr); grid-template-areas: "song ctl seek"; padding: 8px 14px; }
+  .graph-box:fullscreen .graph-transport .icon-btn, .graph-box.full .graph-transport .icon-btn { width: 44px; height: 40px; }
+  .graph-box:fullscreen .graph-play, .graph-box.full .graph-play { width: 60px; height: 46px; }
+}

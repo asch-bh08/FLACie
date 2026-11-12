@@ -23,6 +23,14 @@
                 var resume = Player.Current ?? lastTrack;
                 <button class="btn primary carry-on" @onclick="() => CarryOn(resume)"><Icon Name="play" Size="18" />Carry on: <span class="carry-title">@resume.Title</span></button>
             }
+            @* playing now: the song as a live card (its cover, bars that move, the name), a press opens the full-screen player (owner, 12 Nov: "alive") *@
+            @if (Player.Playing && Player.Current is { } now)
+            {
+                <button class="home-now" data-np @onclick="Player.RequestFullScreen" aria-label="@("Playing now: " + now.Title + " by " + now.Artist + ". Open the player")">
+                    <Cover ArtKey="@(now.ArtKey)" Size="56" />
+                    <span class="home-now-text"><small><span class="eq on" aria-hidden="true"><i></i><i></i><i></i></span>Playing now</small><b>@now.Title</b><span>@now.Artist</span></span>
+                </button>
+            }
             <button class="btn @(lastTrack is not null && !Player.Playing ? "" : "primary") shuffle-all" data-np @onclick='() => ShuffleFull(Lib.Songs, "Your library")' disabled="@(Lib.Songs.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle all</button>
         </div>
     </div>
@@ -45,16 +53,25 @@
 @if (Waiting) { <Skeleton Label="Loading your music…" Kind="cards" Count="6" /> }
 else
 {
-@* from Home B (owner, 11 Nov): the moods as colourful tiles (a tile again goes back to everything) *@
+@* the moods (owner, 12 Nov: "these huge random relax workout party buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from
+   its own songs, so you can see what is in it; a card again goes back to everything *@
 @if (moods.Count > 0)
 {
-    <div class="mood-tiles" role="group" aria-label="Moods">
-        @for (var mi = 0; mi < moods.Count; mi++)
-        {
-            var name = moods[mi]; var hue = mi;
-            <button class="mood-tile @(mood == name ? "on" : "")" style="--h:@(hue)" aria-pressed="@((mood == name) ? "true" : "false")" @onclick="() => Pick(name)">@name</button>
-        }
-    </div>
+    <section class="shelf mood-shelf" aria-label="Browse by mood">
+        <div class="shelf-head"><div><h2>Browse by <i>mood</i></h2></div><span class="shelf-nav"><Arrows /></span></div>
+        <div class="row-scroll mood-cards" role="group" aria-label="Moods">
+            @for (var mi = 0; mi < moods.Count; mi++)
+            {
+                var name = moods[mi]; var hue = mi;
+                <button class="mood-tile @(mood == name ? "on" : "")" style="--h:@(hue)" aria-pressed="@((mood == name) ? "true" : "false")" @onclick="() => Pick(name)">
+                    <span class="mood-name">@name</span>
+                    <span class="mood-fan" aria-hidden="true">
+                        @foreach (var art in MoodCovers(name)) { <Cover ArtKey="@art" Size="64" /> }
+                    </span>
+                </button>
+            }
+        </div>
+    </section>
 }
 @if (mood is not null)
 {
@@ -85,19 +102,6 @@ else
                     <a class="artist-bubble @(on ? "playing" : "")" style="--i:@ri" href="/artist/@Uri.EscapeDataString(name)"><Cover ArtKey="@art" Class="round" /><span>@name</span></a>
                 }
             </div>
-        </section>
-    }
-    @if (JustArrived is { Count: > 0 } fresh)
-    {
-        <section class="shelf" aria-label="Just arrived">
-            <div class="shelf-head"><div><h2>Just <i>arrived</i></h2><small>The newest in your library</small></div><button class="chip small" data-np @onclick='() => PlayFull(fresh, 0, "Just arrived")'><Icon Name="play" Size="16" />Play all</button></div>
-            <ul class="arrivals">
-                @for (var ai = 0; ai < fresh.Count; ai++)
-                {
-                    var idx = ai; var t = fresh[ai];
-                    <li @key="t.Path" style="--i:@idx"><button class="arrival @(Player.Current?.Path == t.Path ? "playing" : "")" data-np @onclick='() => PlayFull(fresh, idx, "Just arrived")' aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span class="arrival-text"><b>@t.Title</b><small>@t.Artist</small></span>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }<span class="arrival-fmt">@FormatOf(t)</span></button></li>
-                }
-            </ul>
         </section>
     }
     @if (Session.Playlists.Count > 0)
@@ -211,9 +215,14 @@ else
             .Select(a => byArtist.TryGetValue(Matching.PrimaryArtist(a), out var t) ? (t.Artist, t.ArtKey) : ((string, string?)?)null)
             .Where(x => x is not null).Select(x => x!.Value).ToList();
     }
-    List<Track> JustArrived => justArrived ??= Lib.Songs.Where(t => t.AddedMs > 0).OrderByDescending(t => t.AddedMs).Take(6).ToList();
-    List<Track>? justArrived;
-    static string FormatOf(Track t) { var p = t.FilePath is { Length: > 0 } f ? f : t.Path; var i = p.LastIndexOf('.'); var e = i > 0 && p.Length - i <= 6 ? p[(i + 1)..].ToUpperInvariant() : ""; return p.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase) ? "HI-RES" : e; }
+    // a few covers from each mood's own songs, for its card (worked out with the shelves, not on every redraw)
+    readonly Dictionary<string, List<string?>> moodCovers = [];
+    List<string?> MoodCovers(string m)
+    {
+        if (moodCovers.TryGetValue(m, out var c)) return c;
+        c = HomeBuilder.MoodTracks(Lib, m, DateTime.UtcNow, 12).Select(t => t.ArtKey).Where(k => k is not null).Distinct().Take(3).ToList();
+        moodCovers[m] = c; return c;
+    }
 
 
     [Inject] IJSRuntime Js { get; set; } = default!;
@@ -262,7 +271,7 @@ else
         var last = history.FirstOrDefault()?.At ?? 0;
         if (slot == builtSlot && builtSongs == Lib.Songs.Count && builtLast == last && builtRev == Session.ProfileRev) return;
         builtSlot = slot; builtSongs = Lib.Songs.Count; builtLast = last; builtRev = Session.ProfileRev;
-        BuildRepeat(); justArrived = null;
+        BuildRepeat(); moodCovers.Clear();
         // the shelves of the last visit, while nothing they come from has changed: opening Home again shows them at once instead of working them out again
         var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
         // shelves already on screen never change under the person's pointer (Quick picks used to swap two or three times as Home opened: the library loading,

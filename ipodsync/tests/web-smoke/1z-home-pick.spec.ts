@@ -22,14 +22,16 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) 
     await expect(page.locator('.mood-tile').first()).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.home-pick')).toHaveCount(0);
     await expect(page.locator('.home-dj')).toHaveCount(0);
-    await expect(page.locator('section[aria-label="Just arrived"] .arrival').first()).toBeVisible();
+    // Just arrived is gone (owner, 12 Nov: "pointless"); each mood card shows covers from its songs
+    await expect(page.locator('section[aria-label="Just arrived"]')).toHaveCount(0);
+    await expect(page.locator('.mood-tile .mood-fan .cover').first()).toBeVisible();
     const wide = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     expect(await wide()).toBe(true);
     await page.screenshot({ path: `test-results/home-${size.width}.png` });
-    await page.locator('section[aria-label="Just arrived"]').scrollIntoViewIfNeeded();
+    await page.locator('section[aria-label="Artists on repeat"]').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `test-results/home-${size.width}-2.png` });
     // a mood tile shows its songs, the same tile again goes back
-    const tile = page.locator('.mood-tile').first(); const name = (await tile.innerText()).trim();
+    const tile = page.locator('.mood-tile').first(); const name = (await tile.locator('.mood-name').innerText()).trim();
     await tile.click(); await expect(page.locator(`section.shelf[aria-label="${name}"]`)).toBeVisible();
     await tile.click(); await expect(page.locator(`section.shelf[aria-label="${name}"]`)).toHaveCount(0);
     if (size.width > 1000) {

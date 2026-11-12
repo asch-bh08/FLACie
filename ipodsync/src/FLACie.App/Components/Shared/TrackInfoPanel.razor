@@ -23,12 +23,6 @@ else
                 {
                     <span class="tag live"><i aria-hidden="true"></i>Live</span>
                     @* the graph on the whole screen (owner, 8 Nov): this button or a click on the graph; Esc, ✕ or the button again closes it *@
-                    @* in full screen: previous, play/pause and next beside the name, so the music can be stopped without leaving the graph *@
-                    <span class="graph-transport">
-                        <button type="button" class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
-                        <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
-                        <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
-                    </span>
                     <button type="button" class="icon-btn graph-full-btn" onclick="flacie.graphFull(this.closest('.graph-box'))" aria-label="Full screen" title="Full screen"><Icon Name="expand" Size="18" /><span class="graph-full-word">Full screen</span></button>
                 }
             </div>
@@ -47,6 +41,12 @@ else
             @* in full screen: the song and a seek bar under the graph (owner, 11 Nov: "add a seek bar and title in them") *@
             <div class="graph-now">
                 <span class="graph-song"><b>@Track.Title</b><small>@Track.Artist</small></span>
+                @* the song, previous / play / next and a seek bar, like the player bar along the bottom (owner, 12 Nov) *@
+                <span class="graph-transport">
+                    <button type="button" class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
+                    <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
+                    <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
+                </span>
                 <span class="graph-seek">
                     <span class="graph-pos">@Clock(Player.Position)</span>
                     <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@Player.Position" aria-label="Seek" style="--fill:@Fill()%" @onchange="Seek" />
@@ -142,11 +142,13 @@ else
         yield return ("scope", "Waveform");
         yield return ("orbit", "Orbit");
         yield return ("skyline", "Skyline");
+        yield return ("bars", "Bars");
+        yield return ("aura", "Aura");
         yield return ("stereo", Info!.Channels == 1 ? "Mono" : "Stereo");
         if (Info.BitrateKbps > 0) yield return ("rate", "Bit rate");
     }
 
-    string Title => mode switch { "rate" => "Bit rate", "curve" => "Spectrum", "leds" => "Visualizer", "wall" => "Spectrogram", "loud" => "Loudness", "ring" => "Circle", "scope" => "Waveform", "orbit" => "Orbit", "skyline" => "Skyline", _ => "Stereo" };
+    string Title => mode switch { "rate" => "Bit rate", "curve" => "Spectrum", "leds" => "Visualizer", "wall" => "Spectrogram", "loud" => "Loudness", "ring" => "Circle", "scope" => "Waveform", "orbit" => "Orbit", "skyline" => "Skyline", "bars" => "Bars", "aura" => "Aura", _ => "Stereo" };
     string Hint => mode switch
     {
         "rate" => "How much data each second of the song uses, next to common formats.",
@@ -158,6 +160,8 @@ else
         "scope" => "The sound wave itself, live: tall swings are loud, tight wiggles are high notes.",
         "orbit" => "Three rings: the bass in the middle, the mids, the highs outside. Each swells and glows with its part of the song, and its dots circle faster the louder it is.",
         "skyline" => "The song as a city at night: the bass in the middle, the highs out to both sides, mirrored in the water below.",
+        "bars" => "The classic analyser: a bar for each pitch, deep on the left and high on the right, with a cap that falls slowly from the last peak.",
+        "aura" => "The song as light: the bass glows up from the bottom, the mids drift on the left, the highs sparkle on the right.",
         _ => "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side.",
     };
 

@@ -698,3 +698,45 @@ body.np-open .dj-bar { display: none; }
 /* a very long title (owner, 12 Nov: "Iniquity Worker (Number of the Beas..."): smaller and up to three lines, so all of it shows; the full title is its tooltip */
 .ls-names h2.longer { -webkit-line-clamp: 3; font-size: 30px !important; line-height: 1.02; }
 @media (max-width: 760px) { .ls-names h2.longer { font-size: 26px !important; } }
+
+/* Settings beside Retro on a PC; on a phone the top bar is full (DJ, mic, Options, Retro), so it is in More there */
+.ls-tools .np-settings { border: 0; cursor: pointer; }
+@media (max-width: 760px) { .ls-tools .np-settings { display: none; } }
+
+/* ==== The PC bar like the player bar on Home (owner, 12 Nov: "the same features"; "the right side bigger than the left and uneven"): round buttons all
+   one size (48px, in the cover's tone) on both sides, the transport in the middle with a seek bar and the times under it. The sides hug the edges with
+   the same gaps, so they balance. The volume pill is as tall as the buttons. ==== */
+@media (min-width: 761px) {
+  /* 120px: the buttons on both sides centred on the transport (its middle 70px up), the seek bar under it all */
+  .ls-dock { height: 120px; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); column-gap: 24px; align-items: start; }
+  .ls-dock-l, .ls-dock-r { margin-top: 16px; }
+  .ls-dock-c { width: min(520px, 40vw); height: auto; align-self: end; padding-bottom: 14px; pointer-events: auto; }
+  .ls-dock-seek { display: flex; align-items: center; gap: 10px; font: 500 12px var(--mono, 'DM Mono', monospace); color: color-mix(in srgb, var(--ink) 72%, transparent); font-variant-numeric: tabular-nums; }
+  .ls-dock-seek span { flex: none; width: 44px; } .ls-dock-seek span:first-child { text-align: right; }
+  .ls-dock-seek input { --fill: 0%; flex: 1; min-width: 0; height: 20px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
+  .ls-dock-seek input::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(to right, var(--np-accent) var(--fill), color-mix(in srgb, var(--ink) 20%, transparent) var(--fill)); }
+  .ls-dock-seek input::-moz-range-track { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 20%, transparent); }
+  .ls-dock-seek input::-moz-range-progress { height: 6px; border-radius: 3px; background: var(--np-accent); }
+  .ls-dock-seek input::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--ink); opacity: 0; transition: opacity .15s; }
+  .ls-dock-seek input:hover::-webkit-slider-thumb, .ls-dock-seek input:focus-visible::-webkit-slider-thumb { opacity: 1; }
+  .ls-dock-seek input::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--ink); }
+  /* the transport above the seek bar; the DJ and the mic are with the buttons on the right now, as in the player bar */
+  .ls-transport { bottom: 50px; }
+  .ls-transport .ls-dj, .ls-transport .dj-mic { display: none !important; }
+  .ls-transport.has-dj, .ls-transport.has-dj:has(.dj-mic) { gap: 14px; }
+  .ls-dock-l, .ls-dock-r .ls-tiles { gap: 10px; }
+  .ls-dock-l { justify-content: flex-start; }
+  .ls-dbtn, .ls-dbtn-wrap > button, .ls-dbtn-wrap .icon-btn, .ls-dock .np-more.d .ls-more-btn, .ls-dock .ls-tile-eq .chipbtn {
+    display: grid !important; place-items: center; width: 48px !important; min-width: 48px !important; height: 48px !important; padding: 0 !important; margin: 0; border: 0; border-radius: 24px !important;
+    background: var(--tone) !important; color: var(--tonefg) !important; cursor: pointer; transition: transform .15s cubic-bezier(.3, 1.4, .5, 1), filter .15s; }
+  .ls-dbtn:hover, .ls-dbtn-wrap > button:hover, .ls-dock .np-more.d .ls-more-btn:hover, .ls-dock .ls-tile-eq .chipbtn:hover { transform: translateY(-2px); filter: brightness(1.15); }
+  .ls-dbtn.on, .ls-dbtn-wrap .on, .ls-dock .ls-tile-eq .chip-menu.on > .chipbtn { color: var(--np-accent) !important; }
+  .ls-dock .np-more.d .ls-more-btn span, .ls-dock .ls-tile-eq .chipbtn span, .ls-dbtn-wrap .icon-btn span { display: none; }
+  .ls-dock .ls-tile-eq .chipbtn svg { width: 22px; height: 22px; }
+  .ls-dbtn-wrap { display: contents; }
+  .ls-tiles .ls-volpill { height: 48px; padding: 0 6px 0 2px; border-radius: 24px; }
+  .ls-volpill-mute, .ls-volpill-more { width: 40px; height: 40px; }
+}
+/* a narrow window: the DJ and the mic are in the top bar, so they leave the bar */
+@media (min-width: 761px) and (max-width: 900px) { .ls-dock-r .ls-dj, .ls-dock-mic { display: none !important; } .ls-dock-c { width: min(380px, 40vw); } }
+@media (min-width: 761px) and (max-width: 1100px) { .ls-tiles .ls-volpill { padding: 0; background: none; } .ls-volpill-more { width: 48px; height: 48px; border-radius: 24px; } .ls-volpill-more .ls-volpill-label { display: none; } }

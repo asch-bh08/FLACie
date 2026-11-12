@@ -167,12 +167,12 @@ private var cutLabel = ""
 
 /** The graphs in the web's order (TrackInfoPanel.razor Picks); the bit rate only when the file says it. */
 internal fun infoGraphs(kbps: Int, channels: Int): List<Pair<String, String>> = buildList {
-    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness"); add("ring" to "Circle"); add("scope" to "Waveform"); add("orbit" to "Orbit"); add("skyline" to "Skyline")
+    add("curve" to "Spectrum"); add("leds" to "Visualizer"); add("wall" to "Spectrogram"); add("loud" to "Loudness"); add("ring" to "Circle"); add("scope" to "Waveform"); add("orbit" to "Orbit"); add("skyline" to "Skyline"); add("bars" to "Bars"); add("aura" to "Aura")
     add("stereo" to if (channels == 1) "Mono" else "Stereo")
     if (kbps > 0) add("rate" to "Bit rate")
 }
 
-private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; "ring" -> "Circle"; "scope" -> "Waveform"; "orbit" -> "Orbit"; "skyline" -> "Skyline"; else -> "Stereo" }
+private fun graphTitle(mode: String) = when (mode) { "rate" -> "Bit rate"; "curve" -> "Spectrum"; "leds" -> "Visualizer"; "wall" -> "Spectrogram"; "loud" -> "Loudness"; "ring" -> "Circle"; "scope" -> "Waveform"; "orbit" -> "Orbit"; "skyline" -> "Skyline"; "bars" -> "Bars"; "aura" -> "Aura"; else -> "Stereo" }
 
 private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "rate" -> "How much data each second of the song uses, next to common formats."
@@ -184,6 +184,8 @@ private fun hint(mode: String, sampleRate: Int = 0) = when (mode) {
     "scope" -> "The sound wave itself, live: tall swings are loud, tight wiggles are high notes."
     "orbit" -> "Three rings: the bass in the middle, the mids, the highs outside. Each swells and glows with its part of the song, and its dots circle faster the louder it is."
     "skyline" -> "The song as a city at night: the bass in the middle, the highs out to both sides, mirrored in the water below."
+    "bars" -> "The classic analyser: a bar for each pitch, deep on the left and high on the right, with a cap that falls slowly from the last peak."
+    "aura" -> "The song as light: the bass glows up from the bottom, the mids drift on the left, the highs sparkle on the right."
     else -> "The dots show what left and right do together: a thin vertical line is the same sound in both, a wide cloud is a wide stereo picture. The bars are the level of each side."
 }
 
@@ -347,45 +349,57 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                 }) { c, d -> c.consume(); dx += d }
             }) { LiveGraph(mode, analysis, playing, maxHeight, accent, tone, ground) }
             val app = LocalApp.current
-            // the song and a seek bar under the graph (owner, 11 Nov: "add a seek bar and title in them")
+            // one card along the bottom like the player bar (owner, 12 Nov: "not space optimised, that seek bar is bad"): the song and previous / play / next,
+            // then a full-width seek bar with the times; on its side all three in one line. The explanation stays in the Info card (it took the graph's room)
             val pos = rememberPosition(app.player, playing)
             var drag by remember { mutableFloatStateOf(-1f) }
             val dur = app.player.durationMs.coerceAtLeast(1)
             val frac = if (drag >= 0f) drag else (pos.value.toFloat() / dur).coerceIn(0f, 1f)
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Txt(t.title, size = 17f, weight = FontWeight.Bold, color = InfoInk, maxLines = 1)
-                Txt(t.artist, size = 13f, color = InfoDim, maxLines = 1)
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MonoLabel(fmtTime((frac * dur).toLong()), size = 11f, color = InfoDim, upper = false)
-                    Box(Modifier.weight(1f).height(32.dp)
+            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+            val side = cfg.screenWidthDp > cfg.screenHeightDp
+            val song: @Composable (Modifier) -> Unit = { m ->
+                Column(m) {
+                    Txt(t.title, size = 17f, weight = FontWeight.Bold, color = InfoInk, maxLines = 1)
+                    Txt(t.artist, size = 13f, color = InfoDim, maxLines = 1)
+                }
+            }
+            val controls: @Composable () -> Unit = {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
+                        val big = label == "Pause" || label == "Play"
+                        Box(Modifier.size(if (big) 72.dp else 52.dp, if (big) 56.dp else 48.dp).clip(RoundedCornerShape(if (big) 20.dp else 24.dp)).background(if (big) accent else InfoInk.copy(alpha = .12f))
+                            .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable { act() }, contentAlignment = Alignment.Center) {
+                            GlyphIcon(g, Modifier.size(if (big) 28.dp else 22.dp), if (big) Color(DesignColour.readableOn(accent.toArgb())) else InfoInk)
+                        }
+                    }
+                }
+            }
+            val seek: @Composable (Modifier) -> Unit = { m ->
+                Row(m, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    MonoLabel(fmtTime((frac * dur).toLong()), size = 12f, color = InfoDim, upper = false)
+                    Box(Modifier.weight(1f).height(40.dp)
                         .semantics { contentDescription = "Seek"; stateDescription = fmtTime((frac * dur).toLong()) + " of " + fmtTime(dur) }
                         .pointerInput(Unit) { detectTapGestures { o -> app.player.seekTo(((o.x / size.width).coerceIn(0f, 1f) * app.player.durationMs).toLong()) } }
                         .pointerInput(Unit) {
                             detectHorizontalDragGestures(onDragStart = { o -> drag = (o.x / size.width).coerceIn(0f, 1f) }, onDragEnd = { app.player.seekTo((drag * app.player.durationMs).toLong()); drag = -1f }, onDragCancel = { drag = -1f }) { c, _ -> c.consume(); drag = (c.position.x / size.width).coerceIn(0f, 1f) }
                         }
                         .drawBehind {
-                            val y = size.height / 2; val hh = 5.dp.toPx()
+                            val y = size.height / 2; val hh = 8.dp.toPx()
                             drawRoundRect(InfoInk.copy(alpha = .2f), Offset(0f, y - hh / 2), Size(size.width, hh), CornerRadius(hh))
                             drawRoundRect(accent, Offset(0f, y - hh / 2), Size(size.width * frac, hh), CornerRadius(hh))
-                            drawCircle(InfoInk, 7.dp.toPx(), Offset(size.width * frac, y))
+                            drawCircle(InfoInk, (if (drag >= 0f) 12 else 9).dp.toPx(), Offset(size.width * frac, y))
                         })
-                    MonoLabel(fmtTime(dur), size = 11f, color = InfoDim, upper = false)
+                    MonoLabel(fmtTime(dur), size = 12f, color = InfoDim, upper = false)
                 }
             }
-            // previous, play / pause and next, so the music can be stopped without leaving the graph
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-                for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
-                    val big = label == "Pause" || label == "Play"
-                    Box(Modifier.size(if (big) 76.dp else 60.dp, if (big) 58.dp else 50.dp).clip(RoundedCornerShape(if (big) 20.dp else 25.dp)).background(if (big) accent else tone)
-                        .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable { act() }, contentAlignment = Alignment.Center) {
-                        GlyphIcon(g, Modifier.size(if (big) 28.dp else 22.dp), if (big) Color(DesignColour.readableOn(accent.toArgb())) else InfoInk)
-                    }
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(tone.copy(alpha = .55f)).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (side) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    song(Modifier.weight(.8f)); controls(); seek(Modifier.weight(1.4f))
+                } else {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { song(Modifier.weight(1f)); controls() }
+                    seek(Modifier.fillMaxWidth())
                 }
             }
-            // on a short screen (a phone on its side) the hint gives way to the graph (InfoFit)
-            val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-            val lines = InfoFit.hintLines(cfg.screenHeightDp - 24f, cfg.fontScale)
-            if (lines > 0) Txt(hint(mode, sampleRate), size = 12.5f, color = InfoDim, maxLines = lines)
         }
     }
 }
@@ -462,6 +476,8 @@ private class GraphState {
     var peaks = FloatArray(0); var holds = FloatArray(0); var heights = FloatArray(0); var bass = 0f
     // orbit: each ring's level and where its dots are
     val bands = FloatArray(3); val angles = floatArrayOf(0f, 1f, 2f)
+    // aura: how far its drift has gone
+    var drift = 0f
     // spectrogram
     var pix = IntArray(0); var pw = 0; var ph = 0; var bmp: Bitmap? = null; var acc = 0f; var lastNs = 0L
     var lut = IntArray(0); var lutKey = 0L
@@ -516,7 +532,7 @@ internal fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, h
         @Suppress("UNUSED_EXPRESSION") frameNs
         val g = Gfx(this, paint, accent, tone, ground, analysis, state, frameNs, playing && analysis.active)
         when (mode) {
-            "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); "ring" -> g.ring(); "scope" -> g.scope(); "orbit" -> g.orbit(); "skyline" -> g.skyline(); else -> g.stereo()
+            "curve" -> g.curve(); "leds" -> g.leds(); "wall" -> g.wall(); "loud" -> g.loud(); "ring" -> g.ring(); "scope" -> g.scope(); "orbit" -> g.orbit(); "skyline" -> g.skyline(); "bars" -> g.bars(); "aura" -> g.aura(); else -> g.stereo()
         }
     }
 }
@@ -617,7 +633,7 @@ private class Gfx(
                 d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid - py)); d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid + py))
             }
         }
-        text("BASS", 0f, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("BASS", 3 * dp, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     /** The average loudness (0-1) of the pitches from [f0] to [f1] Hz. */
@@ -646,7 +662,47 @@ private class Gfx(
         }
         val cr = base * .3f
         d.drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = .25f + .5f * st.bands[0]), Color.Transparent), Offset(cx, cy), cr), cr, Offset(cx, cy))
-        text("BASS IN THE MIDDLE, HIGHS OUTSIDE", 2 * dp, h - 3 * dp)
+        text("BASS IN THE MIDDLE, HIGHS OUTSIDE", 3 * dp, h - 3 * dp)
+    }
+
+    // bars (owner, 12 Nov: "make more graphs"): the classic analyser, bars standing up from the floor, bass on the left, a cap that falls slowly; as on the web
+    fun bars() {
+        val n = max(16, min(72, (w / (12 * dp)).toInt())); val lo = 35f; val hi = min(nyq, 18000f)
+        if (st.heights.size != n) { st.heights = FloatArray(n); st.holds = FloatArray(n) }
+        val slot = w / n; val bw = max(3 * dp, slot * 0.72f); val floor = h - 16 * dp; val top = floor - 6 * dp
+        val grad = Brush.verticalGradient(0f to ink.copy(alpha = .95f), .4f to accent, 1f to accent.copy(alpha = .6f), startY = floor - top, endY = floor)
+        for (i in 0 until n) {
+            val f0 = lo * (hi / lo).pow(i / n.toFloat()); val f1 = lo * (hi / lo).pow((i + 1) / n.toFloat())
+            val b0 = (f0 / nyq * a.bins).toInt(); val b1 = max(b0 + 1, kotlin.math.ceil(f1 / nyq * a.bins).toInt())
+            var m = 0; for (k in b0 until min(b1, a.bins)) m = max(m, a.freq[k])
+            val v = min(1f, (m / 255f).pow(1.5f) * (1 + 0.7f * i / n))
+            st.heights[i] = max(v, st.heights[i] - 0.03f); st.holds[i] = max(st.heights[i], st.holds[i] - 0.005f)
+            val x = i * slot + (slot - bw) / 2; val bh = max(2 * dp, st.heights[i] * top)
+            d.drawRoundRect(ink.copy(alpha = .05f), Offset(x, floor - top), Size(bw, top), CornerRadius(bw / 3))
+            d.drawRoundRect(grad, Offset(x, floor - bh), Size(bw, bh), CornerRadius(bw / 3))
+            if (st.holds[i] > .02f) d.drawRect(ink, Offset(x, floor - st.holds[i] * top - 5 * dp), Size(bw, 2.5f * dp))
+        }
+        text("BASS", 3 * dp, h - 3 * dp); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+    }
+
+    // aura: the song as light; the bass a big glow rising from the bottom, the mids on the left, the highs on the right, in the cover's colours; as on the web
+    fun aura() {
+        val ranges = arrayOf(30f to 160f, 160f to 2000f, 2000f to 12000f); val lift = floatArrayOf(1f, 1.5f, 2.6f)
+        for (i in 0..2) { val e = min(1f, band(ranges[i].first, ranges[i].second).pow(1.2f) * lift[i]); st.bands[i] = max(e, st.bands[i] - 0.02f) }
+        if (playing) st.drift += 0.006f + 0.02f * st.bands[1]
+        val t = st.drift; val m = max(w, h)
+        fun blob(x: Float, y: Float, r: Float, c: Color, al: Float) =
+            d.drawCircle(Brush.radialGradient(listOf(c.copy(alpha = al.coerceIn(0f, 1f)), Color.Transparent), Offset(x, y), r), r, Offset(x, y), blendMode = androidx.compose.ui.graphics.BlendMode.Plus)
+        blob(w / 2, h * 1.05f, m * (0.35f + 0.35f * st.bands[0]), accent, 0.35f + 0.5f * st.bands[0])
+        blob(w * (0.25f + 0.06f * kotlin.math.sin(t * 1.3f)), h * (0.45f + 0.1f * kotlin.math.cos(t)), m * (0.18f + 0.22f * st.bands[1]), accent, 0.18f + 0.4f * st.bands[1])
+        blob(w * (0.75f + 0.06f * kotlin.math.cos(t * 1.7f)), h * (0.35f + 0.1f * kotlin.math.sin(t * 1.1f)), m * (0.12f + 0.2f * st.bands[2]), ink, 0.12f + 0.35f * st.bands[2])
+        val path = Path(); var x = 0f
+        while (x <= w) {
+            val y = h * 0.72f + kotlin.math.sin(x / w * 12 + t * 6) * (4 + 26 * st.bands[0]) * dp * kotlin.math.sin(x / w * Math.PI.toFloat())
+            if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y); x += 6 * dp
+        }
+        d.drawPath(path, ink.copy(alpha = .35f + .4f * st.bands[0]), style = Stroke(2 * dp))
+        text("BASS BELOW, MIDS LEFT, HIGHS RIGHT", 3 * dp, h - 3 * dp)
     }
 
     // skyline: the spectrum as a city at night, bass in the middle and the highs out to both sides, mirrored in the water below; as on the web
@@ -669,7 +725,7 @@ private class Gfx(
             }
         }
         d.drawRect(ink.copy(alpha = .12f), Offset(0f, base), Size(w, dp))
-        text("HIGHS", 2 * dp, h - 3 * dp); text("BASS", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("HIGHS", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("HIGHS", 3 * dp, h - 3 * dp); text("BASS", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("HIGHS", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     // circle (owner, 11 Nov: "loads more options for the graphs"): bars radiating from a ring that swells with the bass, mirrored left and right; as on the web
@@ -709,7 +765,7 @@ private class Gfx(
         val path = Path().apply { for (i in 0 until span) { val x = i / (span - 1f) * w; val y = mid - s[start + i].coerceIn(-1f, 1f) * amp; if (i == 0) moveTo(x, y) else lineTo(x, y) } }
         d.drawPath(path, accent.copy(alpha = .25f), style = androidx.compose.ui.graphics.drawscope.Stroke(8 * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
         d.drawPath(path, accent, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5f * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-        text("THE SOUND, LIVE", 0f, h - 3 * dp)
+        text("THE SOUND, LIVE", 3 * dp, h - 3 * dp)
     }
 
     // spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays
@@ -789,7 +845,7 @@ private class Gfx(
             d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .6f), accent.copy(alpha = 0f)), startY = hy0, endY = hy1))
             glow(Path().apply { moveTo(xs[0], ys[0]); for (i in 1 until n2) lineTo(xs[i], ys[i]) }, 2.5f * dp)
         }
-        text("10 S AGO", 0f, h - 4 * dp); text("NOW", w - 4 * dp, h - 4 * dp, align = Paint.Align.RIGHT)
+        text("10 S AGO", 3 * dp, h - 4 * dp); text("NOW", w - 4 * dp, h - 4 * dp, align = Paint.Align.RIGHT)
     }
 
     // stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side

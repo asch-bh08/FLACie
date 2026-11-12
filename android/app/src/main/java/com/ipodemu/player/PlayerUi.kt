@@ -540,7 +540,7 @@ private fun trackMoreSheet(app: App, nav: PlayerNav, t: Track): SheetSpec {
     // the DJ's choice for this song (kept on the account by title and artist): the one in force is ticked
     if (t.isMusic && app.player.djAvailable && com.ipodemu.playback.DjRules.songKey(t.title, t.artist).isNotEmpty())
         for ((label, choice, on) in com.ipodemu.playback.DjRules.songMenu(app.player.djSettings, t.title, t.artist))
-            items += SheetItem(label, Glyph.MORE, selected = on, group = "DJ") {
+            items += SheetItem(label, Glyph.DJ, selected = on, group = "DJ") {
                 app.player.setDjSong(t.title, t.artist, choice) { app.ui.say("Couldn't save the DJ choice: $it") }
                 app.ui.say(when (choice) { true -> "The DJ will always introduce \"${t.title}\""; false -> "The DJ won't talk over \"${t.title}\""; null -> "The DJ treats \"${t.title}\" as usual" })
             }
@@ -2650,11 +2650,11 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
             for (pick in accountPicks(app.ui.isAdmin && !app.ui.guest, app.prefs.accountKind.isNotEmpty())) {
                 val (label, glyph) = when (pick) {
                     AccountPick.ACCOUNT -> "Account" to Glyph.ARTIST
-                    AccountPick.DASHBOARD -> "Server admin" to Glyph.INFO
+                    AccountPick.DASHBOARD -> "Server admin" to Glyph.SHIELD
                     AccountPick.DOWNLOADS -> "Download log" to Glyph.DOWN
                     AccountPick.RETRO -> "Retro" to Glyph.CASSETTE
                     AccountPick.SETTINGS -> "Settings" to Glyph.GEAR
-                    AccountPick.SIGN_OUT -> "Sign out" to Glyph.CLOSE
+                    AccountPick.SIGN_OUT -> "Sign out" to Glyph.LOGOUT
                 }
                 Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = androidx.compose.ui.semantics.Role.Button) { onPick(pick) }.padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically) {

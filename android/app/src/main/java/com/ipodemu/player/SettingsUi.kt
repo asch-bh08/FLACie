@@ -144,7 +144,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         for ((id, label) in listOf("playback" to "Playback", "dj" to "DJ", "look" to "Appearance", "sources" to "Library", "account" to "Account", "about" to "About"))
                             DesignChip(label, false, { val n = list.layoutInfo.totalItemsCount; val i = when (id) { "account" -> n - 2; "about" -> n - 1; else -> at[id] ?: 0 }; scope.launch { list.animateScrollToItem(i.coerceAtLeast(0)) } })
-                        if (canAdmin) DesignChip("Server admin", false, { nav.push(Screen.Dashboard) }, icon = Glyph.GEAR)
+                        if (canAdmin) DesignChip("Server admin", false, { nav.push(Screen.Dashboard) }, icon = Glyph.SHIELD)
                     }
                 }
                 at["playback"] = 1

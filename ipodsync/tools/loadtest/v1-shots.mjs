@@ -103,6 +103,6 @@ for (const size of sizes) {
 }
 // the phone's log and any freeze report, for finding an ANR afterwards
 try { fs.writeFileSync(path.join(SHOTS, 'logcat.txt'), String(sh('logcat -d -t 6000', { quiet: true }) ?? '')); } catch { }
-try { fs.writeFileSync(path.join(SHOTS, 'anr.txt'), String(sh("su 0 sh -c 'cat /data/anr/anr_* 2>/dev/null | head -400'", { quiet: true }) ?? '')); } catch { }
+try { fs.writeFileSync(path.join(SHOTS, 'anr.txt'), String(sh("su 0 sh -c 'f=$(ls -t /data/anr/anr_* 2>/dev/null | head -1); [ -n \"$f\" ] && head -600 $f'", { quiet: true }) ?? '')); } catch { }
 console.log('done; playing: ' + mediaSession().state);
 process.exit(0);

@@ -4,7 +4,7 @@
    presets as words and a slider per band. It sets the player's own five-band EQ (flacie.eq), the one the Retro scenes' preamp, sliders and EQ keys set, so
    all of them agree; the browser keeps it for next time. *@
 <div class="eq-menu">
-    <ChipMenu Label="Equaliser" Text="@PillText" IconName="sliders" Active="@(!flat)" CloseOnChoice="false" Class="eq-pop">
+    <ChipMenu Label="Equaliser" Text="@PillText" IconName="eq" Active="@(!flat)" CloseOnChoice="false" Class="eq-pop">
         <div class="seg eq-presets" role="group" aria-label="Presets">
             @foreach (var p in SceneEq.Presets)
             {

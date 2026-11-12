@@ -132,6 +132,7 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
     val app = LocalApp.current
     val sc = LocalScheme.current
     val pages = remember(tracks) { tracks.chunked(4) }
+    val nowPath = rememberSnap(app.player, app.prefs).track?.path
     // the screen width (not BoxWithConstraints: a SubcomposeLayout nested in a lazy item was a suspect in a Compose slot-table crash)
     val maxWidth = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp
     Box(Modifier.fillMaxWidth()) {
@@ -154,6 +155,8 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                         Row(
                             // at least that tall, taller when big text needs it (the third line ran out of the row at font scale 1.5)
                             Modifier.fillMaxWidth().heightIn(min = if (tagged) 78.dp else 64.dp).clip(RoundedCornerShape(10.dp))
+                                // the song playing now is lit (owner, 12 Nov: "alive"; as the web's Quick picks)
+                                .then(if (nowPath == t.path) Modifier.background(sc.accent.copy(alpha = .14f)) else Modifier)
                                 .border(if (focused) 2.dp else 0.dp, if (focused) sc.accent else Color.Transparent, RoundedCornerShape(10.dp))
                                 .onFocusChanged { focused = it.isFocused }
                                 .clickable { onPlay(idx) }.padding(vertical = 6.dp),

@@ -159,6 +159,9 @@ for (const [w, h] of [[1280, 720], [1440, 900]]) {
       // the song and a seek bar in full screen (owner, 11 Nov), and the two new graphs
       await expect(page.locator('.graph-now .graph-song b')).toHaveText(/\S/);
       await expect(page.locator('.graph-seek input')).toBeInViewport();
+      // shuffle and repeat beside the transport, as in the player bar (owner, 12 Nov)
+      await expect(page.locator('.graph-transport button[aria-label^="Shuffle"]')).toBeInViewport();
+      await expect(page.locator('.graph-transport button[aria-label^="Repeat"]')).toBeInViewport();
       for (const [tab, cls] of [['Circle', 'ring'], ['Waveform', 'scope'], ['Orbit', 'orbit'], ['Skyline', 'skyline'], ['Bars', 'bars'], ['Aura', 'aura']]) {
         await page.locator('.graph-tabs [role=tab]', { hasText: tab }).click();
         await expect(page.locator('#viz.' + cls)).toBeVisible();

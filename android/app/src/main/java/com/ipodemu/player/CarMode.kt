@@ -6,6 +6,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -120,6 +122,8 @@ fun CarScreen(onExit: () -> Unit) {
                 }
             }
         }
+        val pos = rememberPosition(app.player, snap.playing)
+        val seek: @Composable () -> Unit = { CarSeek(pos.value, app.player.durationMs, accent, ink) { app.player.seekTo(it) } }
         val graph: @Composable (Modifier) -> Unit = { m ->
             BoxWithConstraints(
                 m.clip(RoundedCornerShape(24.dp)).background(ground.copy(alpha = .5f))
@@ -136,7 +140,10 @@ fun CarScreen(onExit: () -> Unit) {
                     }
                     CarButton("Next", Modifier.weight(1f), 88.dp, tone, ink, onClick = { app.player.next() }) { GlyphIcon(Glyph.NEXT, Modifier.size(36.dp), ink) }
                 }
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                // the player bar's other buttons too (owner, 12 Nov: "keep this, or what you can of it, in car mode"): shuffle and repeat at the ends
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    CarButton(if (snap.shuffle) "Shuffle on" else "Shuffle off", Modifier.weight(1f), 72.dp, if (snap.shuffle) accent.copy(alpha = .3f) else ink.copy(alpha = .12f), ink, on = snap.shuffle,
+                        onClick = { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(28.dp), if (snap.shuffle) accent else ink) }
                     app.userData.rev
                     val fav = t != null && app.userData.isFavorite(t)
                     CarButton(if (fav) "Remove from favourites" else "Favourite", Modifier.weight(1f), 72.dp, ink.copy(alpha = .12f), ink, onClick = { t?.let { app.userData.toggleFavorite(it) } }) {
@@ -150,16 +157,20 @@ fun CarScreen(onExit: () -> Unit) {
                             DjMicButton(64.dp, tint = ink, glass = Color.Transparent, lit = accent)
                         }
                     }
+                    val rep = snap.repeat != com.ipodemu.playback.RepeatCycle.OFF
+                    CarButton(com.ipodemu.playback.RepeatCycle.label(snap.repeat), Modifier.weight(1f), 72.dp, if (rep) accent.copy(alpha = .3f) else ink.copy(alpha = .12f), ink, on = rep, onClick = { repeatTap(app) }) {
+                        GlyphIcon(if (snap.repeat == com.ipodemu.playback.RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, Modifier.size(28.dp), if (rep) accent else ink)
+                    }
                 }
             }
         }
         if (wide) Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                top(); song(Modifier.fillMaxWidth()); graph(Modifier.weight(1f).fillMaxWidth())
+                top(); song(Modifier.fillMaxWidth()); seek(); graph(Modifier.weight(1f).fillMaxWidth())
             }
             controls(Modifier.weight(1f).fillMaxHeight().padding(top = 72.dp))
         } else Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            top(); song(Modifier.fillMaxWidth()); graph(Modifier.weight(1f).fillMaxWidth()); controls(Modifier.fillMaxWidth())
+            top(); song(Modifier.fillMaxWidth()); seek(); graph(Modifier.weight(1f).fillMaxWidth()); controls(Modifier.fillMaxWidth())
         }
     }
 }
@@ -176,4 +187,29 @@ private fun CarButton(label: String, modifier: Modifier, height: Dp, bg: Color, 
             .clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { icon() }
+}
+
+
+/** Car mode's seek bar: thick, a tap or a drag anywhere on it moves the song, the times beside it. */
+@Composable
+private fun CarSeek(posMs: Long, durMs: Long, accent: Color, ink: Color, onSeek: (Long) -> Unit) {
+    var drag by remember { mutableStateOf(-1f) }
+    val dur = durMs.coerceAtLeast(1)
+    val frac = if (drag >= 0f) drag else (posMs.toFloat() / dur).coerceIn(0f, 1f)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        MonoLabel(fmtTime((frac * dur).toLong()), size = 13f, color = ink.copy(alpha = .7f), upper = false)
+        Box(Modifier.weight(1f).height(44.dp)
+            .semantics { contentDescription = "Seek"; stateDescription = fmtTime((frac * dur).toLong()) + " of " + fmtTime(dur) }
+            .pointerInput(durMs) { detectTapGestures { o -> onSeek(((o.x / size.width).coerceIn(0f, 1f) * durMs).toLong()) } }
+            .pointerInput(durMs) {
+                detectHorizontalDragGestures(onDragStart = { o -> drag = (o.x / size.width).coerceIn(0f, 1f) }, onDragEnd = { onSeek((drag * durMs).toLong()); drag = -1f }, onDragCancel = { drag = -1f }) { c, _ -> c.consume(); drag = (c.position.x / size.width).coerceIn(0f, 1f) }
+            }
+            .drawBehind {
+                val y = size.height / 2; val hh = 10.dp.toPx()
+                drawRoundRect(ink.copy(alpha = .2f), androidx.compose.ui.geometry.Offset(0f, y - hh / 2), androidx.compose.ui.geometry.Size(size.width, hh), androidx.compose.ui.geometry.CornerRadius(hh))
+                drawRoundRect(accent, androidx.compose.ui.geometry.Offset(0f, y - hh / 2), androidx.compose.ui.geometry.Size(size.width * frac, hh), androidx.compose.ui.geometry.CornerRadius(hh))
+                drawCircle(ink, (if (drag >= 0f) 14 else 11).dp.toPx(), androidx.compose.ui.geometry.Offset(size.width * frac, y))
+            })
+        MonoLabel(fmtTime(dur), size = 13f, color = ink.copy(alpha = .7f), upper = false)
+    }
 }

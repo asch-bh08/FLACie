@@ -1,7 +1,12 @@
 @inherits UserComponent
 <div class="vol">
     <button class="icon-btn" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" /></button>
-    <input type="range" min="0" max="100" step="1" value="@((int)Math.Round(Player.Volume * 100))" aria-label="Volume" style="--fill:@((int)Math.Round(Player.Volume * 100))%" @oninput="OnVolume" />
+    @* the sound and the bar follow the pointer in the page itself; the player is told once it is let go (owner, 12 Nov: "glitchy, jumps with the mouse": each
+       move went to the server and back, and a redraw in between put the old level back under the pointer). The wheel moves it 5 a notch *@
+    <input type="range" min="0" max="100" step="1" value="@((int)Math.Round(Player.Volume * 100))" aria-label="Volume" aria-valuetext="@((int)Math.Round(Player.Volume * 100))%" style="--fill:@((int)Math.Round(Player.Volume * 100))%"
+           oninput="flacie.volume(this.value / 100); this.style.setProperty('--fill', this.value + '%')"
+           onwheel="event.preventDefault(); this.value = Math.max(0, Math.min(100, Number(this.value) + (event.deltaY < 0 ? 5 : -5))); this.dispatchEvent(new Event('input', { bubbles: true })); this.dispatchEvent(new Event('change', { bubbles: true }))"
+           @onchange="OnVolume" />
 </div>
 @code {
     Task OnVolume(ChangeEventArgs e) => int.TryParse(e.Value?.ToString(), out var v) ? Player.SetVolumeAsync(v / 100.0) : Task.CompletedTask;

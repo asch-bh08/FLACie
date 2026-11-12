@@ -92,7 +92,7 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
 
 /* ---- Car mode (/car, Car.razor; owner, 12 Nov): the whole window, the song big, a live visualiser, and only big buttons. In the cover's colours. ---- */
 .car { position: fixed; inset: 0; z-index: 250; display: grid; gap: 16px; padding: max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
-    grid-template: "top" auto "song" auto "viz" 1fr "ctl" auto "ext" auto / 1fr;
+    grid-template: "top" auto "song" auto "seek" auto "viz" 1fr "ctl" auto "ext" auto / 1fr;
     background: linear-gradient(180deg, var(--tone, #24525a), var(--ground, #101416) 55%, #000); color: #f4efe6; outline: none;
     --ink: #f4efe6; --ink-2: #f4efe6a6; }
 .car-top { grid-area: top; display: flex; align-items: center; justify-content: space-between; }
@@ -122,8 +122,17 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
 .car-btn:focus-visible, .car-exit:focus-visible, .car-viz:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 /* sideways (a phone in a holder, a wide window): the song and the visualiser on the left, the buttons on the right */
 @media (orientation: landscape) and (min-width: 700px) {
-    .car { grid-template: "top top" auto "song ctl" auto "viz ctl" 1fr "viz ext" auto / 1.2fr 1fr; }
+    .car { grid-template: "top top" auto "song ctl" auto "seek ctl" auto "viz ctl" 1fr "viz ext" auto / 1.2fr 1fr; }
     .car-controls { align-self: center; }
     .car-btn { height: 110px; }
 }
 @media (prefers-reduced-motion: reduce) { .car-tag i { animation: none; } .car-btn { transition: none; } }
+
+/* car mode's seek bar: thick and easy to hit, the times beside it */
+.car-seek { grid-area: seek; display: flex; align-items: center; gap: 12px; font: 500 13px var(--mono, 'DM Mono', monospace); color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.car-seek input { --fill: 0%; flex: 1; min-width: 0; height: 40px; margin: 0; background: none; appearance: none; -webkit-appearance: none; cursor: pointer; }
+.car-seek input::-webkit-slider-runnable-track { height: 10px; border-radius: 5px; background: linear-gradient(to right, var(--accent) var(--fill), #ffffff33 var(--fill)); }
+.car-seek input::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -6px; border-radius: 50%; background: var(--ink); box-shadow: 0 2px 8px #0008; }
+.car-seek input::-moz-range-track { height: 10px; border-radius: 5px; background: #ffffff33; }
+.car-seek input::-moz-range-progress { height: 10px; border-radius: 5px; background: var(--accent); }
+.car-seek input::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--ink); }

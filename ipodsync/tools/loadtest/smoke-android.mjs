@@ -71,7 +71,14 @@ async function main() {
   tapNode(find(ui, 'Sign in with Jellyfin'));
   ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
   const field = ui?.find((n) => /EditText/.test(n.cls));
-  tapAt(field.cx, field.cy); await sleep(600); typeText(DEVICE_MOCK); await sleep(600); key('KEYCODE_BACK'); await sleep(800);
+  // typed again until the box holds the whole address (the emulator sometimes drops keys: "http://1" once, 12 Nov), as v1-shots does
+  for (let i = 0; i < 4; i++) {
+    tapAt(field.cx, field.cy); await sleep(600); key('KEYCODE_MOVE_END'); key('--longpress KEYCODE_DEL'); await sleep(300);
+    for (let k = 0; k < 3; k++) key('KEYCODE_DEL ' + 'KEYCODE_DEL '.repeat(12));
+    typeText(DEVICE_MOCK); await sleep(1000);
+    if ((dump() || []).some((n) => /EditText/.test(n.cls) && n.text === DEVICE_MOCK)) break;
+  }
+  key('KEYCODE_BACK'); await sleep(800);
   ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 20000, 1000);
   tapNode(find(ui, 'Sign in with Quick Connect'));
   const gone = await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);

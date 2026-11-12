@@ -298,8 +298,8 @@ private fun NpExtras(snap: PlayerSnap, nav: PlayerNav, size: Float = 44f) {
             // one size for the row (ClassicFit.extrasSize): six of them fit a phone on its side; the favourite was 40 dp, now as big as the rest
             val b = size.dp; val ic = (size * .5f).dp
             GlossButton({ app.userData.toggleFavorite(t) }, label = if (fav) "Unfavorite" else "Favorite", size = b, primary = fav) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(ic), Color.White) }
-            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = b) { GlyphIcon(Glyph.LIST, Modifier.size(ic), Color.White) }
-            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = b, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.CLOCK, Modifier.size(ic), Color.White) }
+            GlossButton({ nav.sheet = eqSheet(app) }, label = "Equalizer", size = b) { GlyphIcon(Glyph.EQ, Modifier.size(ic), Color.White) }
+            GlossButton({ nav.sheet = sleepSheet(app) }, label = "Sleep timer", size = b, primary = app.player.sleepMode != com.ipodemu.playback.SleepMode.OFF) { GlyphIcon(Glyph.MOON, Modifier.size(ic), Color.White) }
             // the AI DJ for this queue (lit when on); a long press opens its settings. Not there without FLACie Web
             snap.dj?.let { on ->
                 GlossButton({ djTap(app) }, label = djLabel(on), size = b, primary = on, onLongClick = { openDjSettings(nav) }) { GlyphIcon(Glyph.DJ, Modifier.size(ic), Color.White) }

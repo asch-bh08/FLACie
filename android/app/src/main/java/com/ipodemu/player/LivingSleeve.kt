@@ -421,8 +421,8 @@ private fun optionsSheet(app: com.ipodemu.App, nav: PlayerNav, t: Track): SheetS
     return SheetSpec("Options", null, listOf(
         SheetItem("Rating: " + RatingStore.label(rating), Glyph.STAR) { nav.sheet = ratingSheet(app, t) },
         SheetItem("Speed: " + com.ipodemu.playback.SpeedPolicy.label(app.player.speed), Glyph.CLOCK) { nav.sheet = speedSheet(app) },
-        SheetItem("Sleep timer: " + sleepStatus(app), Glyph.CLOCK) { nav.sheet = sleepSheet(app) },
-        SheetItem("Sound: " + app.prefs.eq, Glyph.LIST) { nav.sheet = eqSheet(app) },
+        SheetItem("Sleep timer: " + sleepStatus(app), Glyph.MOON) { nav.sheet = sleepSheet(app) },
+        SheetItem("Equaliser: " + app.prefs.eq, Glyph.EQ) { nav.sheet = eqSheet(app) },
     ))
 }
 
@@ -1011,7 +1011,7 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
             val playback = listOf(
                 MoreRow("Speed", { GaugeIcon(it) }, com.ipodemu.playback.SpeedPolicy.label(app.player.speed), true, close { nav.sheet = speedSheet(app) }),
                 MoreRow("Sleep timer", { MoonIcon(it) }, sleepStatus(app), true, close { nav.sheet = sleepSheet(app) }),
-                MoreRow("Sound", { GlyphIcon(Glyph.VOLUME, Modifier.size(24.dp), it) }, app.prefs.eq, true, close { nav.sheet = eqSheet(app) }),
+                MoreRow("Equaliser", { GlyphIcon(Glyph.EQ, Modifier.size(24.dp), it) }, app.prefs.eq, true, close { nav.sheet = eqSheet(app) }),
             )
             val more = buildList {
                 if (!app.ui.guest) {

@@ -17,6 +17,12 @@
         <Cover ArtKey="@(t?.ArtKey)" Class="car-cover" Full="true" />
         <div><b class="car-title">@(t?.Title ?? "Nothing playing")</b><span class="car-artist">@(t?.Artist ?? "Pick something on Home")</span></div>
     </div>
+    @* a seek bar under the song (owner, 12 Nov: the player bar's controls in car mode too) *@
+    <div class="car-seek">
+        <span>@Time(Player.Position)</span>
+        <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" style="--fill:@Fill()%" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
+        <span>@Time(Player.Duration)</span>
+    </div>
     <button type="button" class="car-viz" @onclick="NextVisual" aria-label="Visualiser: @VisualName. Click for the next one">
         <canvas id="viz" class="viz @viz" aria-hidden="true"></canvas>
         <span class="car-viz-name">@VisualName</span>
@@ -27,6 +33,7 @@
         <button type="button" class="car-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="40" /></button>
     </div>
     <div class="car-extras">
+        <button type="button" class="car-btn small @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="28" /></button>
         @if (t is not null)
         {
             var fav = Session.IsFavorite(t);
@@ -38,6 +45,7 @@
             <button type="button" class="car-btn small @(dj ? "on" : "")" @onclick="Player.ToggleDjAsync" aria-label="DJ" aria-pressed="@(dj ? "true" : "false")" title="@(dj ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="32" /></button>
             <span class="car-btn small car-mic"><DjMic Class="car-mic-btn" Size="30" /></span>
         }
+        <button type="button" class="car-btn small @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="28" /></button>
     </div>
 </div>
 @code {
@@ -46,6 +54,11 @@
     /// <summary>The next visualiser after <paramref name="id"/>, round to the first after the last; an unknown one starts at the first.</summary>
     public static string NextVisual(string id) { var i = Array.FindIndex(Visuals, v => v.Id == id); return Visuals[(i + 1) % Visuals.Length].Id; }
 
+    // the bar's time follows the song
+    protected override bool FollowsTime => true;
+    readonly SeekHold hold = new();
+    Task OnSeek(ChangeEventArgs e) { if (!SeekHold.Parse(e.Value, out var v)) return Task.CompletedTask; hold.Changed(v); return Player.Seek(v); }
+    string Fill() { var d = Player.Duration; return (d > 0 ? Math.Clamp(hold.Value(Player.Position) / d * 100, 0, 100) : 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture); }
     ElementReference root;
     string viz = "leds";
     string? shown;

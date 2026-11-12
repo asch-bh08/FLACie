@@ -43,9 +43,12 @@ else
                 <span class="graph-song"><b>@Track.Title</b><small>@Track.Artist</small></span>
                 @* the song, previous / play / next and a seek bar, like the player bar along the bottom (owner, 12 Nov) *@
                 <span class="graph-transport">
+                    @* the player bar's other buttons too (owner, 12 Nov: "keep this, or what you can of it"): shuffle and repeat round the transport *@
+                    <button type="button" class="icon-btn graph-plain @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="20" /></button>
                     <button type="button" class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
                     <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
                     <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
+                    <button type="button" class="icon-btn graph-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="20" /></button>
                 </span>
                 <span class="graph-seek">
                     <span class="graph-pos">@Clock(Player.Position)</span>

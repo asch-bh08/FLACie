@@ -86,7 +86,7 @@ else
             @for (var i = 0; i < moodTracks.Count; i++)
             {
                 var idx = i; var t = moodTracks[i];
-                <li @key="t.Path"><button class="pick" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                <li @key="t.Path"><button class="pick @(Player.Current?.Path == t.Path ? "now" : "")" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(moodTracks, idx, mood)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
             }
         </ul>
     </section>
@@ -147,7 +147,7 @@ else
             @for (var i = 0; i < sh.Tracks.Count && i < 12; i++)
             {
                 var idx = i; var t = sh.Tracks[i];
-                <li @key="t.Path"><button class="pick" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                <li @key="t.Path"><button class="pick @(Player.Current?.Path == t.Path ? "now" : "")" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(sh.Tracks, idx, sh.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
             }
         </ul>
     }

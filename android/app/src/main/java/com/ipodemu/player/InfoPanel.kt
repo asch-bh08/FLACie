@@ -363,14 +363,30 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                     Txt(t.artist, size = 13f, color = InfoDim, maxLines = 1)
                 }
             }
+            // the player bar's buttons, as many as fit (owner, 12 Nov: "keep this, or what you can of it, in the full-screen graph"): shuffle, previous,
+            // play, next and repeat in the middle; favourite, the DJ and the mic beside the song
+            val snap = rememberSnap(app.player, app.prefs)
             val controls: @Composable () -> Unit = {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    FgPlain(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", snap.shuffle, accent) { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
                     for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
                         val big = label == "Pause" || label == "Play"
                         Box(Modifier.size(if (big) 72.dp else 52.dp, if (big) 56.dp else 48.dp).clip(RoundedCornerShape(if (big) 20.dp else 24.dp)).background(if (big) accent else InfoInk.copy(alpha = .12f))
                             .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable { act() }, contentAlignment = Alignment.Center) {
                             GlyphIcon(g, Modifier.size(if (big) 28.dp else 22.dp), if (big) Color(DesignColour.readableOn(accent.toArgb())) else InfoInk)
                         }
+                    }
+                    FgPlain(if (snap.repeat == com.ipodemu.playback.RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, com.ipodemu.playback.RepeatCycle.label(snap.repeat), snap.repeat != com.ipodemu.playback.RepeatCycle.OFF, accent) { repeatTap(app) }
+                }
+            }
+            val extras: @Composable () -> Unit = {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    app.userData.rev
+                    val fav = app.userData.isFavorite(t)
+                    FgPlain(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Remove from favourites" else "Favourite", fav, accent) { app.userData.toggleFavorite(t) }
+                    snap.dj?.let { dj ->
+                        FgPlain(Glyph.DJ, djLabel(dj), dj, accent) { djTap(app) }
+                        DjMicButton(44.dp, tint = InfoInk, glass = InfoInk.copy(alpha = .1f), lit = accent)
                     }
                 }
             }
@@ -393,10 +409,14 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                 }
             }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(tone.copy(alpha = .55f)).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (side) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    song(Modifier.weight(.8f)); controls(); seek(Modifier.weight(1.4f))
+                if (side) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        song(Modifier.weight(1f)); controls(); extras()
+                    }
+                    seek(Modifier.fillMaxWidth())
                 } else {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { song(Modifier.weight(1f)); controls() }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) { song(Modifier.weight(1f)); extras() }
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { controls() }
                     seek(Modifier.fillMaxWidth())
                 }
             }
@@ -886,4 +906,15 @@ private class Gfx(
         val tx = mx + 2 * (mw + 12 * dp) + 2 * dp
         for (db in intArrayOf(0, -12, -24, -36, -48)) text("$db", tx, mb - X(db.toFloat()) * mhh + 4 * dp)
     }
+}
+
+
+/** A round plain button of the full-screen graph's bar (shuffle, repeat, favourite, the DJ): the cover's colour and a dot when on, as in the player bar. */
+@Composable
+private fun FgPlain(g: Glyph, label: String, on: Boolean, accent: Color, onClick: () -> Unit) {
+    Box(
+        Modifier.size(44.dp).clip(CircleShape).background(if (on) accent.copy(alpha = .18f) else InfoInk.copy(alpha = .1f))
+            .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button; stateDescription = if (on) "On" else "Off" }.clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { GlyphIcon(g, Modifier.size(20.dp), if (on) accent else InfoInk) }
 }

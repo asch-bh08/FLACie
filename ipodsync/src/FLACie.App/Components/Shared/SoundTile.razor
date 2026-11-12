@@ -13,7 +13,7 @@
            @onchange="OnVolume" />
     <b class="ls-volpill-num" aria-hidden="true">@Pct%</b>
     <button type="button" class="ls-volpill-more @(Player.LevelVolume || Player.FadeSecs > 0 ? "on" : "")" @onclick="() => open = !open" aria-label="Sound options" aria-haspopup="dialog" aria-expanded="@(open ? "true" : "false")" title="Sound options">
-        <Icon Name="sliders" Size="18" /><span class="ls-volpill-label">Sound</span>
+        <Icon Name="wave" Size="18" /><span class="ls-volpill-label">Sound</span>
     </button>
     @if (open)
     {

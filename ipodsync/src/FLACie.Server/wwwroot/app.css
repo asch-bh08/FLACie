@@ -1599,3 +1599,8 @@ html.buffering .play { --play-ic-dim: .55; }
    touch too wide is clipped instead. clip, not hidden, so nothing becomes a scroll box and sticky bars still stick */
 html, body { overflow-x: clip; }
 main.content { min-width: 0; }
+
+/* shuffle and repeat in the full-screen graph's bar: plain round, the accent and a dot when on, as in the player bar */
+.graph-box .graph-plain { width: 44px !important; height: 44px !important; border-radius: 22px !important; position: relative; }
+.graph-box .graph-plain.on { color: var(--np-accent, var(--accent)); }
+.graph-box .graph-plain.on::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: currentColor; }

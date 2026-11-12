@@ -105,6 +105,9 @@ enum class Glyph {
     DOWNLOADED,
     /** Car mode: a car from the front, its roof, body and two wheels. */
     CAR,
+    /** The same marks as the web's icons (owner, 12 Nov: "consistent across all platforms"): the equaliser (upright sliders), the sleep timer (a moon),
+     *  server admin (a shield), signing out (an arrow out of a door). */
+    EQ, MOON, SHIELD, LOGOUT,
 }
 
 @Composable
@@ -228,6 +231,25 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawCircle(c, s * .38f, Offset(x(.5f), y(.5f)), style = line)
             drawLine(c, Offset(x(.5f), y(.5f)), Offset(x(.5f), y(.28f)), w, StrokeCap.Round)
             drawLine(c, Offset(x(.5f), y(.5f)), Offset(x(.66f), y(.6f)), w, StrokeCap.Round)
+        }
+        Glyph.EQ -> {
+            // three upright sliders, their knobs at different heights (the web's "eq")
+            for ((cx, knob) in listOf(.2f to .62f, .5f to .36f, .8f to .68f)) {
+                drawLine(c, Offset(x(cx), y(.12f)), Offset(x(cx), y(.88f)), w, StrokeCap.Round)
+                drawLine(c, Offset(x(cx - .12f), y(knob)), Offset(x(cx + .12f), y(knob)), w * 1.3f, StrokeCap.Round)
+            }
+        }
+        Glyph.MOON -> {
+            val r = s * .36f; val cx = x(.5f); val cy = y(.5f)
+            val moon = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(cx, cy), r)) }
+            val cut = Path().apply { addOval(androidx.compose.ui.geometry.Rect(Offset(cx + r * .55f, cy - r * .45f), r * .85f)) }
+            drawPath(Path().apply { op(moon, cut, androidx.compose.ui.graphics.PathOperation.Difference) }, c, style = line)
+        }
+        Glyph.SHIELD -> drawPath(path { moveTo(x(.5f), y(.1f)); lineTo(x(.84f), y(.24f)); lineTo(x(.84f), y(.48f)); cubicTo(x(.84f), y(.7f), x(.68f), y(.84f), x(.5f), y(.92f)); cubicTo(x(.32f), y(.84f), x(.16f), y(.7f), x(.16f), y(.48f)); lineTo(x(.16f), y(.24f)); close() }, c, style = line)
+        Glyph.LOGOUT -> {
+            drawPath(path { moveTo(x(.42f), y(.14f)); lineTo(x(.2f), y(.14f)); lineTo(x(.2f), y(.86f)); lineTo(x(.42f), y(.86f)) }, c, style = line)
+            drawLine(c, Offset(x(.4f), y(.5f)), Offset(x(.86f), y(.5f)), w, StrokeCap.Round)
+            drawPath(path { moveTo(x(.7f), y(.34f)); lineTo(x(.86f), y(.5f)); lineTo(x(.7f), y(.66f)) }, c, style = line)
         }
         Glyph.CAR -> {
             drawPath(path { moveTo(x(.22f), y(.48f)); lineTo(x(.3f), y(.26f)); lineTo(x(.7f), y(.26f)); lineTo(x(.78f), y(.48f)) }, c, style = line)

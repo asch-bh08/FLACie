@@ -28,6 +28,10 @@ for (const size of [{ width: 1440, height: 900 }, { width: 390, height: 844 }, {
     await expect(page.locator('.car')).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('.car-title')).not.toHaveText('Nothing playing');
     for (const name of ['Previous', 'Next', 'Exit car mode']) await expect(page.locator('.car').getByRole('button', { name, exact: true })).toBeVisible();
+    // the player bar's other controls too (owner, 12 Nov): shuffle, repeat and a seek bar
+    await expect(page.locator('.car').getByRole('button', { name: /^Shuffle (on|off)$/ })).toBeVisible();
+    await expect(page.locator('.car').getByRole('button', { name: /^Repeat/ })).toBeVisible();
+    await expect(page.locator('.car-seek input[aria-label="Seek"]')).toBeVisible();
     const play = page.locator('.car-play');
     const box = await play.boundingBox();
     expect(box!.height).toBeGreaterThanOrEqual(72);

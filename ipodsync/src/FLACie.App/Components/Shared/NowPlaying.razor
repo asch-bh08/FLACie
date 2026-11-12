@@ -8,7 +8,7 @@
     clear of the system's home gesture at the bottom.
 *@
 @{ var t = Player.Current; }
-<div @ref="npEl" class="np ls @(panelOpen ? "panel-open" : "") @(opts ? "opts-open" : "") @(closing ? "closing" : "") @(Player.Playing ? "" : "still")" role="dialog" aria-modal="true" aria-label="Now Playing">
+<div @ref="npEl" class="np ls @(swapped ? "swapped" : "") @(panelOpen ? "panel-open" : "") @(opts ? "opts-open" : "") @(closing ? "closing" : "") @(Player.Playing ? "" : "still")" role="dialog" aria-modal="true" aria-label="Now Playing">
     <div class="ls-fields" aria-hidden="true"><i class="np-field a"></i><i class="np-field b"></i></div>
     @if (t is not null)
     {
@@ -30,6 +30,8 @@
                 <span class="ls-phone-top ls-top-mic"><DjMic Class="ls-icon ls-glass" Size="24" /></span>
                 <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
             }
+            @* the cover side and the Up next / Lyrics / Info side change places (owner, 12 Nov), remembered; a PC only (a phone shows one at a time) *@
+            <button type="button" class="ls-icon ls-tint np-swap" @onclick="SwapSides" aria-label="Swap sides" aria-pressed="@(swapped ? "true" : "false")" title="Swap the cover and the lyrics sides" data-testid="np-swap"><Icon Name="swap" Size="22" /></button>
             <a class="ls-icon ls-tint np-retro" href="/retro" aria-label="Retro" title="Retro" data-testid="np-retro"><Icon Name="retro" Size="22" /></a>
             @* Settings from the player too (owner, 12 Nov: "on that page where is the settings"): beside Retro on a PC, in More on a phone *@
             <button type="button" class="ls-icon ls-tint np-settings" @onclick="GoSettings" aria-label="Settings" title="Settings"><Icon Name="settings" Size="22" /></button>
@@ -448,12 +450,22 @@
     void OpenQueue() { tab = "queue"; panelOpen = true; }
     void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
     bool panelOpen;
+    bool swapped;
+    async Task SwapSides()
+    {
+        swapped = !swapped;
+        try { await Js.InvokeVoidAsync("flacie.stash", "flacie.npswap", swapped ? "1" : "0"); } catch (Exception) { }
+    }
     void Show(string t) { tab = t; panelOpen = true; if (t == "lyrics") _ = LoadLyrics(); }
     void Open(string t) { if (tab == t && panelOpen) { panelOpen = false; return; } tab = t; panelOpen = true; if (t == "lyrics") _ = LoadLyrics(); }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (firstRender) { self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); } catch (Exception) { } }
+        if (firstRender)
+        {
+            self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); } catch (Exception) { }
+            try { if (await Js.InvokeAsync<string?>("flacie.unstash", "flacie.npswap") == "1") { swapped = true; StateHasChanged(); } } catch (Exception) { }
+        }
         if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
         if (Player.Current is not { } t) return;
         // the player's colour comes from the cover: read once per cover in the browser (flacie.js npAccent)

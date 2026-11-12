@@ -8,6 +8,7 @@ Web icons are `Icon Name="…"` (FLACie.Retro/Components/Shared/Icon.razor); pho
 |---|---|---|
 | Settings | `settings` (cog) | `Glyph.GEAR` |
 | Options (rating, speed, sleep, sound in Now Playing) | `sliders` (level sliders) | `SlidersIcon` |
+| Swap sides (cover and lyrics/info side, PC Now Playing) | `swap` (two opposite arrows) | none yet (the phone shows one side at a time) |
 | Equaliser | `eq` (upright sliders) | `Glyph.EQ` |
 | Sound (even out volume, fade between songs) | `wave` | (in the Equaliser and Settings) |
 | Sleep timer | `moon` | `Glyph.MOON` / `MoonIcon` |

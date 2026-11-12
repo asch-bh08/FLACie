@@ -742,3 +742,12 @@ body.np-open .dj-bar { display: none; }
 
 /* the volume pill a touch narrower, so the right side (mic, favourite, EQ, volume) is as wide as the left (DJ, add, share, devices, more) */
 @media (min-width: 1101px) { .ls-tiles .ls-volpill-bar { width: 76px; } .ls-tiles .ls-volpill-num { display: none; } }
+
+/* Swap sides (owner, 12 Nov): the Up next / Lyrics / Info side on the left, the cover with its seek bar and title on the right. A PC only */
+.np-swap { display: none; }
+@media (min-width: 761px) {
+  .np-swap { display: grid; }
+  .np-swap[aria-pressed="true"] { background: color-mix(in srgb, var(--tonefg) 20%, var(--tone)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tonefg) 35%, transparent); }
+  .ls.swapped .ls-stage { order: 2; }
+  .ls.swapped .ls-side { order: 1; }
+}

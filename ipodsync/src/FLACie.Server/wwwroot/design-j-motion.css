@@ -324,3 +324,7 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 /* a half on its own (no playlists yet, say) takes the whole width, its tiles in three columns */
 .home-split:has(> .home-feature:only-child) { grid-template-columns: minmax(0, 1fr); }
 @media (min-width: 761px) { .home-split > .home-feature:only-child .home-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* your playlists stand out: bigger covers than the other rows (owner, 12 Nov) */
+.home-playlists .row-scroll { grid-auto-columns: minmax(200px, 230px); }
+.home-playlists .card-title { font-size: 16px; }
+@media (max-width: 760px) { .home-playlists .row-scroll { grid-auto-columns: minmax(160px, 180px); } }

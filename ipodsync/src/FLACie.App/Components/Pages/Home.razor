@@ -65,82 +65,8 @@ else
 {
 @* the order (owner, 12 Nov: "push the important stuff to the top"): Quick picks (one press plays), then the moods, then what you play most, then your
    artists and playlists, then the rest *@
-@* Home in Search's shape (owner, 12 Nov: "put the search results' 50/50 layout in the home screen, side by side, keep the normal rows for some"):
-   two halves side by side. First what you were playing as a big card beside Quick picks as a list; then your playlists beside albums for you, as
-   compact tiles. A narrow window stacks each pair. The other shelves follow as rows *@
-@if (mood is null)
-{
-    var qp = shelves.FirstOrDefault(x => x.Id == "quick-picks");
-    var jump = LastPlayed;
-    @if (jump is not null || qp is not null)
-    {
-        <section class="home-split" aria-label="Jump back in and Quick picks">
-            @if (jump is not null)
-            {
-                var album = Lib.Albums.FirstOrDefault(a => a.Tracks.Any(t => t.Path == jump.Path));
-                <div class="home-feature">
-                    <div class="shelf-head"><div><h2>Jump back <i>in</i></h2></div></div>
-                    <div class="home-jump">
-                        <Cover ArtKey="@(jump.ArtKey)" Class="home-jump-cover" />
-                        <div class="home-jump-text">
-                            <small>@(album is not null ? "Album" : "Song")</small>
-                            <b>@(album?.Name ?? jump.Title)</b>
-                            <span>@(album is not null ? (album.Tracks[0].AlbumArtist.Length > 0 ? album.Tracks[0].AlbumArtist : album.Tracks[0].Artist) : jump.Artist)</span>
-                            <span class="home-jump-actions">
-                                <button class="btn primary" data-np @onclick="() => album is not null ? PlayFull(album.Tracks, Math.Max(0, album.Tracks.ToList().FindIndex(t => t.Path == jump.Path)), album.Name) : CarryOn(jump)"><Icon Name="play" Size="18" />Play</button>
-                                @if (album is not null) { <a class="btn" href="@AlbumLink(album)">Open</a> }
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            }
-            @if (qp is not null)
-            {
-                <div class="home-feature">
-                    <div class="shelf-head"><div><h2>Quick <i>picks</i></h2></div><button class="chip small" data-np @onclick="() => PlayFull(qp.Tracks, 0, qp.Title)"><Icon Name="play" Size="16" />Play all</button></div>
-                    <ul class="home-picklist">
-                        @for (var i = 0; i < qp.Tracks.Count && i < 6; i++)
-                        {
-                            var idx = i; var t = qp.Tracks[i];
-                            <li @key="t.Path"><button class="pick @(Player.Current?.Path == t.Path ? "now" : "")" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(qp.Tracks, idx, qp.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }@t.Title</b><small>@t.Artist</small></span></button></li>
-                        }
-                    </ul>
-                </div>
-            }
-        </section>
-    }
-    var forYou = shelves.FirstOrDefault(x => x.Id == "albums-for-you");
-    @if (Session.Playlists.Count > 0 || forYou is { Albums.Count: > 0 })
-    {
-        <section class="home-split" aria-label="Your playlists and albums for you">
-            @if (Session.Playlists.Count > 0)
-            {
-                <div class="home-feature">
-                    <div class="shelf-head"><div><h2>Your <i>playlists</i></h2></div><a class="chip small" href="/playlists">All</a></div>
-                    <div class="home-tiles">
-                        @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(6))
-                        {
-                            var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                            <a class="home-tile" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Size="56" /><span><b>@p.Name</b><small>@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</small></span></a>
-                        }
-                    </div>
-                </div>
-            }
-            @if (forYou is { Albums.Count: > 0 })
-            {
-                <div class="home-feature">
-                    <div class="shelf-head"><div><h2>Albums for <i>you</i></h2></div></div>
-                    <div class="home-tiles">
-                        @foreach (var g in forYou.Albums.Take(6))
-                        {
-                            <a class="home-tile" href="@AlbumLink(g)"><Cover ArtKey="@(g.ArtKey)" Size="56" /><span><b>@g.Name</b><small>@(g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist)</small></span></a>
-                        }
-                    </div>
-                </div>
-            }
-        </section>
-    }
-}
+@* Quick picks first, the full width (owner, 12 Nov: the 50/50 version took more room and showed less; "keep it the way it was before") *@
+@if (mood is null && shelves.FirstOrDefault(x => x.Id == "quick-picks") is { } qp) { @ShelfView(qp) }
 @* the moods (owner, 12 Nov: "these huge random relax workout party buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from
    its own songs, so you can see what is in it; a card again goes back to everything *@
 @if (moods.Count > 0)
@@ -193,6 +119,20 @@ else
             </div>
         </section>
     }
+    @* your playlists, bigger than the other rows so they stand out (owner, 12 Nov: "playlists should be bigger or stand out more") *@
+    @if (Session.Playlists.Count > 0)
+    {
+        <section class="shelf home-playlists" aria-label="Your playlists">
+            <div class="shelf-head"><div><h2>Your <i>playlists</i></h2></div><span class="shelf-nav"><a href="/playlists">All</a><Arrows /></span></div>
+            <div class="row-scroll">
+                @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(14))
+                {
+                    var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                }
+            </div>
+        </section>
+    }
     @* the rest of the shelves, after the ones Home puts at the top *@
     @foreach (var sh in shelves.Where(x => !TopShelves.Contains(x.Id)))
     {
@@ -201,7 +141,7 @@ else
 }
 }
 @code {
-    static readonly HashSet<string> TopShelves = ["quick-picks", "frequently-played", "albums-for-you"];
+    static readonly HashSet<string> TopShelves = ["quick-picks", "frequently-played"];
     RenderFragment ShelfView(Shelf sh) => @<text>
         <section class="shelf" aria-label="@sh.Title">
     <div class="shelf-head">

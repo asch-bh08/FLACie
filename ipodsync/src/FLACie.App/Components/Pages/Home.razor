@@ -65,8 +65,43 @@ else
 {
 @* the order (owner, 12 Nov: "push the important stuff to the top"): Quick picks (one press plays), then the moods, then what you play most, then your
    artists and playlists, then the rest *@
-@* Quick picks first, the full width (owner, 12 Nov: the 50/50 version took more room and showed less; "keep it the way it was before") *@
-@if (mood is null && shelves.FirstOrDefault(x => x.Id == "quick-picks") is { } qp) { @ShelfView(qp) }
+@* the top of Home in two halves (owner, 12 Nov: "I still like 50/50 if done correctly"; no big Jump back in card, playlists bigger): Quick picks as a
+   compact list on the left, your playlists as big covers on the right, both the same height; a narrow window stacks them *@
+@if (mood is null)
+{
+    var qp = shelves.FirstOrDefault(x => x.Id == "quick-picks");
+    @if (qp is not null || Session.Playlists.Count > 0)
+    {
+        <section class="home-split" aria-label="Quick picks and your playlists">
+            @if (qp is not null)
+            {
+                <div class="home-feature">
+                    <div class="shelf-head"><div><h2>Quick <i>picks</i></h2><small>@qp.Subtitle</small></div><button class="chip small" data-np @onclick="() => PlayFull(qp.Tracks, 0, qp.Title)"><Icon Name="play" Size="16" />Play all</button></div>
+                    <ul class="home-picklist">
+                        @for (var i = 0; i < qp.Tracks.Count && i < 12; i++)
+                        {
+                            var idx = i; var t = qp.Tracks[i];
+                            <li @key="t.Path"><button class="pick @(Player.Current?.Path == t.Path ? "now" : "")" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(qp.Tracks, idx, qp.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                        }
+                    </ul>
+                </div>
+            }
+            @if (Session.Playlists.Count > 0)
+            {
+                <div class="home-feature">
+                    <div class="shelf-head"><div><h2>Your <i>playlists</i></h2></div><a class="chip small" href="/playlists">All</a></div>
+                    <div class="home-plgrid">
+                        @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(8))
+                        {
+                            var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
+                        }
+                    </div>
+                </div>
+            }
+        </section>
+    }
+}
 @* the moods (owner, 12 Nov: "these huge random relax workout party buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from
    its own songs, so you can see what is in it; a card again goes back to everything *@
 @if (moods.Count > 0)
@@ -115,20 +150,6 @@ else
                     @* the artist playing now has a ring that turns (owner, 12 Nov: "animations visible and alive") *@
                     var on = Player.Current is { } cur && (cur.Artist.Contains(name, StringComparison.OrdinalIgnoreCase) || cur.AlbumArtist.Equals(name, StringComparison.OrdinalIgnoreCase));
                     <a class="artist-bubble @(on ? "playing" : "")" style="--i:@ri" href="/artist/@Uri.EscapeDataString(name)"><Cover ArtKey="@art" Class="round" /><span>@name</span></a>
-                }
-            </div>
-        </section>
-    }
-    @* your playlists, bigger than the other rows so they stand out (owner, 12 Nov: "playlists should be bigger or stand out more") *@
-    @if (Session.Playlists.Count > 0)
-    {
-        <section class="shelf home-playlists" aria-label="Your playlists">
-            <div class="shelf-head"><div><h2>Your <i>playlists</i></h2></div><span class="shelf-nav"><a href="/playlists">All</a><Arrows /></span></div>
-            <div class="row-scroll">
-                @foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(14))
-                {
-                    var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
-                    <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")</span></a>
                 }
             </div>
         </section>

@@ -171,3 +171,4 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
   .song-card:hover .cover img { transform: scale(1.04); }
 }
 :root.pref-calm .song-card .cover::after { transition: none; }
+.pick .eq { display: inline-flex !important; flex-direction: row !important; vertical-align: -1px; margin-right: 6px; }

@@ -132,3 +132,12 @@ body.np-open .dl-activity { display: none; }
   .player .bar-song .cover { width: 46px; height: 46px; }
   .player .play { height: 44px; }
 }
+
+/* ---- 12 Nov (owner's suggestions): on a PC the download note sits at the foot of the side menu, over nothing (it covered the playlists' covers in the
+   middle of the page), and the player bar has a little more room to breathe with a bigger cover. A folded menu or a phone keeps the note centred ---- */
+@media (min-width: 1001px) {
+  body:has(.app:not(.collapsed)) .dl-activity:not(.dj-bar *) {
+    left: 12px; transform: none; width: calc(var(--rail) - 24px); max-width: none; flex-wrap: wrap; row-gap: 2px; }
+  :root { --bar: 96px; }
+  .player .bar-song .cover { width: 68px; height: 68px; }
+}

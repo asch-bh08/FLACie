@@ -28,6 +28,19 @@
   rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
 - Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
 
+## 12 Nov ~21:30 STATE + NEXT (owner's latest reports; context nearly full)
+- Committed, not released: phone b138 work (graph tap refcount + synchronized update, shorter Home hero, car mode BACK to its own CarScreen with every
+  graph / tap-swipe on the graph / shuffle repeat seek, Home backdrop = now-playing cover panning). b138 smoke: 23/23 before the car revert; after it one
+  run had 2 playback fails (likely emulator); rerun needed. Owner: "stop building a release so often": batch phone betas.
+- Web: commit dec97ec9 (now-playing backdrop pan) NOT deployed: frank's docker build failed on DNS (mcr.microsoft.com timeout). Retry the deploy.
+- NEXT 1, DJ bug (car): "play Rhythm of the Night" played a version by someone else (owner heard "Gilises"); "the other one" -> DJ asked "who by" ->
+  "Corona" -> "couldn't find / didn't get that one", nothing played. Version ranking should prefer the original (Corona); a "who by" answer must
+  combine with the remembered title and search/download it (allow fuzzy STT: "coiranao" ~ Corona).
+- NEXT 2, Autoplay rework: after one requested song it queued ~10 songs by the same artist the owner doesn't know (Livin' Joy after "Dreamer"; same with
+  another artist), then odd picks (Bad Romance), then Eminem. Cap one artist (e.g. at most 1 in a row, 2 in 10 unless the owner plays/likes them),
+  weight songs the owner knows/likes and similar artists. Keep: a playlist plays only from the playlist.
+- NEXT 3: Up next should show the WHOLE playlist being played (web + phone).
+
 ## QUEUED 12 Nov (owner): FIND ANY PLAYLIST BY NAME, KEEP IT IN THE LIBRARY, FILL IT AS IT PLAYS
 Owner: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library, not downloaded with all the songs, and populate as we go".
 Example: SoundCloud "White Girl Summer 2000/2010s Playlist" (Collin, 325 tracks) searched by name in FLACie found nothing.

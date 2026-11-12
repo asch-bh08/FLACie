@@ -2878,7 +2878,7 @@ private fun MoodTile(name: String, hue: Int, on: Boolean, covers: List<String>, 
     val h = (hue * 57 + 150) % 360f
     Box(
         modifier.riseIn(delayMs = hue * 55, riseDp = 18f).height(112.dp).clip(RoundedCornerShape(20.dp))
-            .background(Brush.linearGradient(listOf(Color.hsl(h, .50f, .18f), Color.hsl((h + 50) % 360f, .60f, .34f))))
+            .background(Brush.linearGradient(listOf(Color.hsl(h, .30f, .11f), Color.hsl((h + 50) % 360f, .34f, .20f))))
             .blob(Color.hsl((h + 60) % 360f, .9f, .7f), hue).sheen(hue)
             .then(if (on) Modifier.border(3.dp, LocalScheme.current.onBg, RoundedCornerShape(20.dp)) else Modifier)
             .semantics { contentDescription = name; role = androidx.compose.ui.semantics.Role.Button; selected = on }.clickable(onClick = onClick),

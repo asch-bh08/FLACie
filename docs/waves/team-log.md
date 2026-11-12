@@ -1,5 +1,10 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 12 Nov ~16:45: b136 RELEASED + DEPLOYED
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b136 ; frank runs b136 (rollback flacie-web:rollback-b136pre; b135pre, b134a kept).
+- Owner: hero covers changed too fast -> 15 s each, 3 s fade (web hero-cycle 75s, phone Crossfade 15 s); Home menu frosted with its line, search bar line back ("no section line is weird"); covers inset -6% so drift never shows an edge.
+- Owner said he liked the old Home better but "just experiment, the old one wasn't perfect either". Owner saw a dark band ~90px wide on the right of the hero on his PC; could not reproduce with mock covers, a real jpg, or 125% scale.
+
 ## 12 Nov ~16:00: b135 RELEASED + DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b135 ; frank runs b135 (rollback flacie-web:rollback-b135pre; b134a, b134pre kept).
 - Home: hero picture under the see-through menu and to both window edges (clip-path inset negative, --gap for >1800px), masked fades (no hard lines); hero crossfades 5 covers (CSS hero-cycle web, Crossfade phone); --bg/--surface tinted by --accent (dark theme, @property --accent transition); hover play button reworked; graph labels at 7px in.

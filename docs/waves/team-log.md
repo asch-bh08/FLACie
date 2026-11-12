@@ -10,6 +10,21 @@
 - Home: hero picture under the see-through menu and to both window edges (clip-path inset negative, --gap for >1800px), masked fades (no hard lines); hero crossfades 5 covers (CSS hero-cycle web, Crossfade phone); --bg/--surface tinted by --accent (dark theme, @property --accent transition); hover play button reworked; graph labels at 7px in.
 - Owner rule: soft edges by the menu/search are fine; hard lines are not.
 
+## QUEUED 12 Nov (owner): FIND ANY PLAYLIST BY NAME, KEEP IT IN THE LIBRARY, FILL IT AS IT PLAYS
+Owner: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library, not downloaded with all the songs, and populate as we go".
+Example: SoundCloud "White Girl Summer 2000/2010s Playlist" (Collin, 325 tracks) searched by name in FLACie found nothing.
+What exists: catalog playlists ("Playlists for you": Spotify/Deezer best-ofs via embeds, an artist's own SoundCloud sets via flacie-ytdl /artist-sets) are lazy:
+songs are read only when opened or played; /import reads any YouTube/SoundCloud/Spotify playlist link (PlaylistLinkReader) and downloads.
+Plan:
+- Search: a "Playlists anywhere" section in Search, from SoundCloud public sets by name (flacie-ytdl: new POST /find-sets {q}; yt-dlp's API v2
+  search/playlists; a direct _get_collection call from Python 404'd on 12 Nov even for /search/tracks, so first find how scsearch sets its client)
+  and YouTube playlists (ytsearch with playlist filter). Spotify playlist search needs an official Spotify API app (owner's own key; never the web
+  player's), so ask the owner before adding it; a pasted Spotify link already works.
+- Save to library: "Add to my library" keeps the list as a lazy playlist (names only, source link, cover), no downloads.
+- Fill as you go: playing it plays what is in the library at once and fetches the next missing songs a few ahead (the existing smart download
+  queue); missing songs show as "Not downloaded yet" rows that start a fetch when tapped; it keeps itself up to date from the source weekly.
+- Same on phone and Windows. Tests: mock flacie-ytdl answers, web + emulator.
+
 ## QUEUED 12 Nov (owner: "just queue a full overhaul on all this anyway"): RETRO OVERHAUL (Android RetroActivity + web /retro)
 Not started. Do it as its own piece of work, test-first, then release.
 - Freezes: 2 ANRs in RetroActivity in 4 emulator tours (v1-shots swipes between scenes), Input dispatching timed out on a MOVE. Get the trace (v1-shots now saves the newest /data/anr file), find what blocks the main thread: RetroBridge calls (anything waiting on the main thread while it waits for the WebView), art() runBlocking cover loads, scene swipes rebuilding the page, the desk analyser.

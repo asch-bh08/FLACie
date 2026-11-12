@@ -706,7 +706,11 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
         LazyColumn(Modifier.fillMaxSize().then(if (modern) Modifier.blob(LocalScheme.current.accent.copy(alpha = .5f), 0) else Modifier), contentPadding = PaddingValues(bottom = 24.dp)) {
             if (modern) item(key = "hero") {
                 val last = snap.track ?: recentsKey?.let { lib.byPath()[it] ?: lib.resolve(it, app.userData.meta[it]) }
-                HomeHero(last, nav, onShuffleAll = { val s = lib.songs(); if (s.isNotEmpty()) app.player.shuffleAll(s) }) { AccountAction() }
+                // the covers behind the greeting crossfade through what you play most and Quick picks (owner, 12 Nov; as the web's hero)
+                val heroArts = remember(last?.artKey, shelves) {
+                    (listOfNotNull(last?.artKey) + shelves.filter { it.id == "frequently-played" || it.id == "quick-picks" }.flatMap { sh -> sh.tracks.mapNotNull { it.artKey } }).distinct().take(5)
+                }
+                HomeHero(last, nav, onShuffleAll = { val s = lib.songs(); if (s.isNotEmpty()) app.player.shuffleAll(s) }, arts = heroArts) { AccountAction() }
             }
             if (!online) item { OfflineChip(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) }
             // the first visit: where things are, once (as on the web); Got it puts it away for good
@@ -858,7 +862,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
  * Resume (tinted) beside it when there is a song to go back to. It is at the top of the screen, well clear of the bottom 100 dp.
  */
 @Composable
-private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, account: @Composable () -> Unit) {
+private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, arts: List<String> = emptyList(), account: @Composable () -> Unit) {
     val app = LocalApp.current
     val sc = LocalScheme.current
     val cols = rememberCoverColours(last?.artKey)
@@ -868,9 +872,15 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, acc
     val hero = remember(cfg.screenWidthDp, cfg.screenHeightDp, cfg.fontScale) { HomeFit.hero(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat(), cfg.fontScale) }
     Column {
         Box(Modifier.fillMaxWidth().height(hero.height.dp)) {
-            if (last?.artKey != null) {
-                // the cover drifts and breathes behind the greeting (owner, 12 Nov: "alive"), clipped to the hero
-                Box(Modifier.fillMaxSize().clipToBounds()) { ArtImage(last.artKey, Modifier.fillMaxSize().drift(), corner = 0.dp) }
+            if (arts.isNotEmpty()) {
+                // the covers drift and breathe behind the greeting, one fading into the next every seven seconds (owner, 12 Nov: "alive", "faded nicely")
+                var shown by remember(arts) { androidx.compose.runtime.mutableIntStateOf(0) }
+                if (arts.size > 1 && Tweaks.motion) LaunchedEffect(arts) { while (true) { kotlinx.coroutines.delay(7000); shown = (shown + 1) % arts.size } }
+                Box(Modifier.fillMaxSize().clipToBounds()) {
+                    androidx.compose.animation.Crossfade(arts[shown.coerceIn(0, arts.lastIndex)], animationSpec = androidx.compose.animation.core.tween(2000), label = "heroArt") { key ->
+                        ArtImage(key, Modifier.fillMaxSize().drift(), corner = 0.dp)
+                    }
+                }
                 Box(Modifier.fillMaxSize().background(Brush.verticalGradient(0f to Color(0x55000000), .3f to Color.Transparent, .55f to Color.Transparent, 1f to Palette.bg)))
             } else Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(cols.tone), Palette.bg))))
             // the web's top bar: the search box at the left (a tap opens Search), then Settings and the account

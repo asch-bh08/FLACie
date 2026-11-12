@@ -160,15 +160,101 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 /* the song playing now is lit wherever Home lists it, its bars moving (owner, 12 Nov: "alive") */
 .pick.now { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .pick.now b { color: var(--accent-text, var(--accent)); }
-/* a song card shows a round play button on its cover when pointed at, rising in (Spotify-like; the card plays on a click anyway) */
+/* pointing at a song (owner, 12 Nov: "rework that play button on every song's hover"): on a card the cover darkens a little from the bottom and a play
+   button in the song's accent rises into its corner, with a soft glow; on a list row the small cover itself turns into a play mark. The whole card or
+   row still plays on a click, the button only says so */
 @media (hover: hover) and (pointer: fine) {
   .song-card .cover { position: relative; }
-  .song-card .cover::after { content: ""; position: absolute; right: 10px; bottom: 10px; width: 46px; height: 46px; border-radius: 50%; z-index: 2;
-    background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M8 5v14l11-7z' fill='%231a120c'/%3E%3C/svg%3E") center / 22px no-repeat;
-    box-shadow: 0 8px 20px #0008; opacity: 0; transform: translateY(10px) scale(.9); transition: opacity .2s, transform .25s var(--m-spring); }
+  .song-card .cover::before { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
+    background: linear-gradient(to top, #000a, transparent 55%); opacity: 0; transition: opacity .25s; }
+  .song-card .cover::after { content: ""; position: absolute; right: 10px; bottom: 10px; width: 48px; height: 48px; border-radius: 50%; z-index: 2; pointer-events: none;
+    background: var(--accent) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 6.5v11a1 1 0 0 0 1.5.86l9-5.5a1 1 0 0 0 0-1.72l-9-5.5A1 1 0 0 0 9 6.5z' fill='%23140e0a'/%3E%3C/svg%3E") 54% 50% / 24px no-repeat;
+    box-shadow: 0 6px 18px #000a, 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
+    opacity: 0; transform: translateY(12px) scale(.8); transition: opacity .18s, transform .32s var(--m-spring); }
+  .song-card:hover .cover::before, .song-card:focus-visible .cover::before { opacity: 1; }
   .song-card:hover .cover::after, .song-card:focus-visible .cover::after { opacity: 1; transform: none; }
-  .song-card .cover img { transition: transform .4s var(--m-ease); }
-  .song-card:hover .cover img { transform: scale(1.04); }
+  .song-card:active .cover::after { transform: scale(.92); }
+  .song-card .cover img { transition: transform .45s var(--m-ease); }
+  .song-card:hover .cover img { transform: scale(1.05); }
+  /* list rows (Quick picks, a mood's songs): the small cover dims and shows the play mark */
+  .pick .cover { position: relative; }
+  .pick .cover::after { content: ""; position: absolute; inset: 0; z-index: 1; border-radius: inherit; pointer-events: none;
+    background: #000000a0 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9 6.5v11a1 1 0 0 0 1.5.86l9-5.5a1 1 0 0 0 0-1.72l-9-5.5A1 1 0 0 0 9 6.5z' fill='%23fff'/%3E%3C/svg%3E") 55% 50% / 22px no-repeat;
+    opacity: 0; transition: opacity .18s; }
+  .pick:hover .cover::after, .pick:focus-visible .cover::after { opacity: 1; }
 }
-:root.pref-calm .song-card .cover::after { transition: none; }
+:root.pref-calm :is(.song-card .cover::after, .song-card .cover::before, .pick .cover::after) { transition: none; }
+:root.pref-calm .song-card .cover img { transition: none; }
 .pick .eq { display: inline-flex !important; flex-direction: row !important; vertical-align: -1px; margin-right: 6px; }
+
+/* ==== Home's picture and glow run on under the side menu (owner, 12 Nov: "the sidebar still breaks the borders and adds a black border; the new
+   Home background doesn't go in the sidebar"): on Home the menu is see-through over a soft dark wash, with no edge line, and the hero's cover and the
+   glow reach to the window's left edge. Other pages keep the solid menu. ==== */
+@media (min-width: 761px) {
+  body:has(.home-hero) .rail { position: sticky; z-index: 2; background: transparent; border-right-color: transparent; }
+  body:has(.home-hero) .topbar { border-bottom-color: transparent; }
+  /* (clipped on three sides as before, open on the left so the picture runs under the menu) */
+  .home-hero { overflow: visible; clip-path: inset(0 0 0 calc(-1 * var(--rail))); }
+  .home-hero-art, .home-fade { left: calc(-1 * var(--rail)); }
+  .home-hero-art { overflow: hidden; }
+  .home-aura { left: calc(-1 * var(--rail)); }
+  /* the hero's darkening: down to the page as before, and across from the menu's edge (not from the window's, which left the menu dark) */
+  .home-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent), var(--bg) 96%),
+    linear-gradient(to right, color-mix(in srgb, var(--bg) 35%, transparent), color-mix(in srgb, var(--bg) 70%, transparent) var(--rail), transparent calc(var(--rail) + 55%)); }
+  /* the menu's words stay readable over a bright cover */
+  body:has(.home-hero) .rail a, body:has(.home-hero) .rail-label { text-shadow: 0 1px 8px #000a; }
+}
+/* the glow fades in under the hero instead of starting at a line */
+.home-aura { top: 0; height: 180vh; -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 clamp(260px, 42vh, 460px)); mask-image: linear-gradient(to bottom, transparent 0, #000 clamp(260px, 42vh, 460px)); }
+/* no seam where the hero ends: its cover fades out instead of into a solid colour, and the glow carries on under it */
+@media (min-width: 761px) {
+  .home-hero-art { -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent 98%); mask-image: linear-gradient(to bottom, #000 45%, transparent 98%); }
+  .home-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent), color-mix(in srgb, var(--bg) 45%, transparent) 70%, transparent),
+    linear-gradient(to right, color-mix(in srgb, var(--bg) 35%, transparent), color-mix(in srgb, var(--bg) 70%, transparent) var(--rail), transparent calc(var(--rail) + 55%)); }
+}
+/* the cover runs on 200px past the hero and fades out there, under the first shelf, so there is no line where the hero ends */
+@media (min-width: 761px) {
+  .home-hero { clip-path: inset(0 0 -220px calc(-1 * var(--rail))); }
+  .home-hero-art, .home-fade { bottom: -200px; }
+  .home-hero-art { -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent); mask-image: linear-gradient(to bottom, #000 35%, transparent); }
+  .home-fade { background: linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent), color-mix(in srgb, var(--bg) 50%, transparent) 55%, transparent),
+    linear-gradient(to right, color-mix(in srgb, var(--bg) 35%, transparent), color-mix(in srgb, var(--bg) 70%, transparent) var(--rail), transparent calc(var(--rail) + 55%)); }
+  .home-hero ~ * { position: relative; }
+}
+@media (min-width: 761px) {
+  /* (the darkening across from the menu's edge fades out downwards with the cover; it stopped at a line under the menu) */
+  .home-fade { -webkit-mask-image: linear-gradient(to bottom, #000 40%, transparent); mask-image: linear-gradient(to bottom, #000 40%, transparent); }
+}
+
+/* ==== The hero's covers crossfade (owner, 12 Nov: "change, faded nicely, through a playlist or recommended or frequently played"): five slides, each
+   seven seconds on, a slow two-second fade between, each still drifting. And the picture reaches both edges of a very wide window (the page is at most
+   1800px wide; the picture used to stop there in a hard line) ==== */
+.home-hero-art.cycle .hero-slide { opacity: 0; animation: a-drift 28s ease-in-out infinite alternate, hero-cycle 35s linear infinite both; }
+.home-hero-art.cycle .s0 { animation-delay: 0s, -2s; }
+.home-hero-art.cycle .s1 { animation-delay: -6s, 5s; }
+.home-hero-art.cycle .s2 { animation-delay: -12s, 12s; }
+.home-hero-art.cycle .s3 { animation-delay: -18s, 19s; }
+.home-hero-art.cycle .s4 { animation-delay: -24s, 26s; }
+@keyframes hero-cycle { 0% { opacity: 0; } 5.7% { opacity: 1; } 20% { opacity: 1; } 25.7% { opacity: 0; } 100% { opacity: 0; } }
+:root.pref-calm .home-hero-art.cycle .hero-slide { animation: none; opacity: 0; } :root.pref-calm .home-hero-art.cycle .s0 { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .home-hero-art.cycle .hero-slide { animation: none; opacity: 0; } .home-hero-art.cycle .s0 { opacity: 1; } }
+@media (min-width: 761px) {
+  .home-hero { clip-path: inset(0 -100vw -220px -100vw); }
+  .home-hero-art, .home-fade { --gap: max(0px, (100vw - var(--rail) - 1800px) / 2); left: calc(-1 * var(--rail) - var(--gap)); right: calc(-1 * var(--gap)); }
+  .home-aura { left: calc(-1 * var(--rail) - max(0px, (100vw - var(--rail) - 1800px) / 2)); right: calc(-1 * max(0px, (100vw - var(--rail) - 1800px) / 2)); }
+}
+
+/* ==== The song's colours everywhere (owner, 12 Nov: "themes not being everywhere", "bars and hard lines everywhere"): in the dark theme the page's
+   ground, its cards and the player bar all carry a little of the cover's colour, so nothing sits as a flat grey slab beside a tinted one, and the change
+   from one song's colours to the next is a slow blend, not a jump ==== */
+@property --accent { syntax: '<color>'; inherits: true; initial-value: rgb(232, 119, 79); }
+:root { transition: --accent 1.2s ease; }
+:root:not([data-theme="light"]) {
+  --bg: color-mix(in srgb, #101416 91%, var(--accent));
+  --surface: color-mix(in srgb, #15151a 90%, var(--accent));
+  --surface-2: color-mix(in srgb, #1e1e25 90%, var(--accent));
+  --surface-3: color-mix(in srgb, #282832 90%, var(--accent));
+}
+:root:not([data-theme="light"]) .player { background: color-mix(in srgb, var(--bg) 92%, transparent); }
+:root:not([data-theme="light"]) body { background: var(--bg); }
+:root.pref-calm { transition: none; }

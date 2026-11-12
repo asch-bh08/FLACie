@@ -390,7 +390,7 @@ window.flacie = (() => {
       g.fillStyle = grad; g.beginPath(); g.roundRect(x, mid - bh, bw, bh * 2, bw / 2); g.fill();
       if (vp[i] > .03) { g.fillStyle = c.ink; const py = vp[i] * half + 4 * dpr; g.beginPath(); g.arc(x + bw / 2, mid - py, bw / 2.4, 0, 7); g.arc(x + bw / 2, mid + py, bw / 2.4, 0, 7); g.fill(); }
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 3 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 4 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 7 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("MID", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 7 * dpr, h - 3 * dpr);
   };
 
   // ---- spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays ----
@@ -435,7 +435,7 @@ window.flacie = (() => {
     // readout
     const num = vs.r <= -59 ? "−∞" : vs.r.toFixed(1);
     g.textBaseline = "alphabetic"; g.textAlign = "left"; g.fillStyle = c.ink; g.font = `500 ${34 * dpr}px 'DM Mono', ui-monospace, monospace`;
-    g.fillText(num, 3 * dpr, 34 * dpr); const tw = g.measureText(num).width;
+    g.fillText(num, 7 * dpr, 34 * dpr); const tw = g.measureText(num).width;
     labelFont(f, 11); g.fillText("DB AVERAGE NOW", tw + 10 * dpr, 32 * dpr);
     g.textAlign = "right"; g.fillStyle = c.ink; g.fillText(`PEAK ${vs.ph <= -89 ? "−∞" : vs.ph.toFixed(1)} DB`, w - 4 * dpr, 32 * dpr);
     // meter: capsules that light up to the level; the last few turn warm near 0 dB
@@ -453,7 +453,7 @@ window.flacie = (() => {
       g.beginPath(); g.moveTo(px(0), hy1); for (let i = 0; i < hist.length; i++) g.lineTo(px(i), py(i)); g.lineTo(px(hist.length - 1), hy1); g.closePath(); g.fillStyle = gr; g.fill();
       g.save(); g.shadowColor = c.accent; g.shadowBlur = 10 * dpr; g.beginPath(); for (let i = 0; i < hist.length; i++) i ? g.lineTo(px(i), py(i)) : g.moveTo(px(i), py(i)); g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; g.lineJoin = "round"; g.stroke(); g.restore();
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 3 * dpr, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w - 4 * dpr, h - 4 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("10 S AGO", 7 * dpr, h - 4 * dpr); g.textAlign = "right"; g.fillText("NOW", w - 7 * dpr, h - 4 * dpr);
   };
 
   // ---- stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side ----
@@ -533,7 +533,7 @@ window.flacie = (() => {
     g.lineJoin = "round"; g.lineCap = "round";
     g.strokeStyle = rgba(c.accent, 0.25); g.lineWidth = 8 * dpr; path(); g.stroke();
     g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; path(); g.stroke();
-    labelFont(f); g.textAlign = "left"; g.fillText("THE SOUND, LIVE", 3 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("THE SOUND, LIVE", 7 * dpr, h - 3 * dpr);
   };
 
   // the average loudness (0-1) of the pitches from f0 to f1 Hz
@@ -558,7 +558,7 @@ window.flacie = (() => {
     }
     const core = g.createRadialGradient(cx, cy, 0, cx, cy, base * 0.3); core.addColorStop(0, rgba(c.accent, 0.25 + 0.5 * vs.e[0])); core.addColorStop(1, rgba(c.accent, 0));
     g.fillStyle = core; g.beginPath(); g.arc(cx, cy, base * 0.3, 0, 7); g.fill();
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS IN THE MIDDLE, HIGHS OUTSIDE", 3 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS IN THE MIDDLE, HIGHS OUTSIDE", 7 * dpr, h - 3 * dpr);
   };
   // ---- skyline: the spectrum as a city at night, bass in the middle and the highs out to both sides, mirrored in the water below ----
   const drawSkyline = (f) => {
@@ -582,7 +582,7 @@ window.flacie = (() => {
       }
     }
     g.fillStyle = rgba(c.ink, .12); g.fillRect(0, base, w, dpr);
-    labelFont(f); g.textAlign = "left"; g.fillText("HIGHS", 3 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("BASS", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("HIGHS", w - 4 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("HIGHS", 7 * dpr, h - 3 * dpr); g.textAlign = "center"; g.fillText("BASS", w / 2, h - 3 * dpr); g.textAlign = "right"; g.fillText("HIGHS", w - 7 * dpr, h - 3 * dpr);
   };
 
   // ---- bars (owner, 12 Nov: "make more graphs"): the classic analyser, bars standing up from the floor, bass on the left, a cap that falls slowly ----
@@ -604,7 +604,7 @@ window.flacie = (() => {
       g.fillStyle = grad; g.beginPath(); g.roundRect(x, floor - bh, bw, bh, [bw / 3, bw / 3, 2 * dpr, 2 * dpr]); g.fill();
       if (vp[i] > .02) { g.fillStyle = c.ink; g.fillRect(x, floor - vp[i] * top - 5 * dpr, bw, 2.5 * dpr); }
     }
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 3 * dpr, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 4 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS", 7 * dpr, h - 3 * dpr); g.textAlign = "right"; g.fillText("TREBLE", w - 7 * dpr, h - 3 * dpr);
   };
   // ---- aura: the song as light. The bass a big glow rising from the bottom, the mids on the left, the highs on the right, all in the cover's colours ----
   const drawAura = (f) => {
@@ -625,7 +625,7 @@ window.flacie = (() => {
     g.strokeStyle = rgba(c.ink, 0.35 + 0.4 * vs.e[0]); g.lineWidth = 2 * dpr; g.beginPath();
     for (let x = 0; x <= w; x += 6 * dpr) { const y = h * 0.72 + Math.sin(x / w * 12 + vs.t * 6) * (4 + 26 * vs.e[0]) * dpr * Math.sin(x / w * Math.PI); if (x) g.lineTo(x, y); else g.moveTo(x, y); }
     g.stroke();
-    labelFont(f); g.textAlign = "left"; g.fillText("BASS BELOW, MIDS LEFT, HIGHS RIGHT", 3 * dpr, h - 3 * dpr);
+    labelFont(f); g.textAlign = "left"; g.fillText("BASS BELOW, MIDS LEFT, HIGHS RIGHT", 7 * dpr, h - 3 * dpr);
   };
 
   const views = { curve: drawCurve, leds: drawLeds, wall: drawWall, loud: drawLoud, stereo: drawStereo, ring: drawRing, scope: drawScope, orbit: drawOrbit, skyline: drawSkyline, bars: drawBars, aura: drawAura };

@@ -653,7 +653,7 @@ private class Gfx(
                 d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid - py)); d.drawCircle(ink, bw / 2.4f, Offset(x + bw / 2, mid + py))
             }
         }
-        text("BASS", 3 * dp, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("BASS", 7 * dp, h - 3 * dp); text("MID", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("TREBLE", w - 7 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     /** The average loudness (0-1) of the pitches from [f0] to [f1] Hz. */
@@ -682,7 +682,7 @@ private class Gfx(
         }
         val cr = base * .3f
         d.drawCircle(Brush.radialGradient(listOf(accent.copy(alpha = .25f + .5f * st.bands[0]), Color.Transparent), Offset(cx, cy), cr), cr, Offset(cx, cy))
-        text("BASS IN THE MIDDLE, HIGHS OUTSIDE", 3 * dp, h - 3 * dp)
+        text("BASS IN THE MIDDLE, HIGHS OUTSIDE", 7 * dp, h - 3 * dp)
     }
 
     // bars (owner, 12 Nov: "make more graphs"): the classic analyser, bars standing up from the floor, bass on the left, a cap that falls slowly; as on the web
@@ -702,7 +702,7 @@ private class Gfx(
             d.drawRoundRect(grad, Offset(x, floor - bh), Size(bw, bh), CornerRadius(bw / 3))
             if (st.holds[i] > .02f) d.drawRect(ink, Offset(x, floor - st.holds[i] * top - 5 * dp), Size(bw, 2.5f * dp))
         }
-        text("BASS", 3 * dp, h - 3 * dp); text("TREBLE", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("BASS", 7 * dp, h - 3 * dp); text("TREBLE", w - 7 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     // aura: the song as light; the bass a big glow rising from the bottom, the mids on the left, the highs on the right, in the cover's colours; as on the web
@@ -722,7 +722,7 @@ private class Gfx(
             if (x == 0f) path.moveTo(x, y) else path.lineTo(x, y); x += 6 * dp
         }
         d.drawPath(path, ink.copy(alpha = .35f + .4f * st.bands[0]), style = Stroke(2 * dp))
-        text("BASS BELOW, MIDS LEFT, HIGHS RIGHT", 3 * dp, h - 3 * dp)
+        text("BASS BELOW, MIDS LEFT, HIGHS RIGHT", 7 * dp, h - 3 * dp)
     }
 
     // skyline: the spectrum as a city at night, bass in the middle and the highs out to both sides, mirrored in the water below; as on the web
@@ -745,7 +745,7 @@ private class Gfx(
             }
         }
         d.drawRect(ink.copy(alpha = .12f), Offset(0f, base), Size(w, dp))
-        text("HIGHS", 3 * dp, h - 3 * dp); text("BASS", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("HIGHS", w - 4 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
+        text("HIGHS", 7 * dp, h - 3 * dp); text("BASS", w / 2, h - 3 * dp, align = Paint.Align.CENTER); text("HIGHS", w - 7 * dp, h - 3 * dp, align = Paint.Align.RIGHT)
     }
 
     // circle (owner, 11 Nov: "loads more options for the graphs"): bars radiating from a ring that swells with the bass, mirrored left and right; as on the web
@@ -785,7 +785,7 @@ private class Gfx(
         val path = Path().apply { for (i in 0 until span) { val x = i / (span - 1f) * w; val y = mid - s[start + i].coerceIn(-1f, 1f) * amp; if (i == 0) moveTo(x, y) else lineTo(x, y) } }
         d.drawPath(path, accent.copy(alpha = .25f), style = androidx.compose.ui.graphics.drawscope.Stroke(8 * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
         d.drawPath(path, accent, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5f * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-        text("THE SOUND, LIVE", 3 * dp, h - 3 * dp)
+        text("THE SOUND, LIVE", 7 * dp, h - 3 * dp)
     }
 
     // spectrogram: a waterfall in the cover's colours. Pitch up the side, newest sound at the right edge, scrolling left as the song plays
@@ -865,7 +865,7 @@ private class Gfx(
             d.drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = .6f), accent.copy(alpha = 0f)), startY = hy0, endY = hy1))
             glow(Path().apply { moveTo(xs[0], ys[0]); for (i in 1 until n2) lineTo(xs[i], ys[i]) }, 2.5f * dp)
         }
-        text("10 S AGO", 3 * dp, h - 4 * dp); text("NOW", w - 4 * dp, h - 4 * dp, align = Paint.Align.RIGHT)
+        text("10 S AGO", 7 * dp, h - 4 * dp); text("NOW", w - 7 * dp, h - 4 * dp, align = Paint.Align.RIGHT)
     }
 
     // stereo: a phase scope (what left and right do together) in a soft disc, beside a capsule meter for each side

@@ -10,7 +10,15 @@
 @* a slow glow in the cover's colours behind the whole of Home (owner, 12 Nov: "aliveness, vibeyness") *@
 <div class="home-aura" aria-hidden="true"><i></i><i></i><i></i></div>
 <header class="home-hero" @ref="heroEl">
-    @if (lastTrack is not null) { <div class="home-hero-art" aria-hidden="true"><Cover ArtKey="@(lastTrack.ArtKey)" Full="true" /></div> }
+    @* the picture behind the greeting (owner, 12 Nov: "instead of the last played album art it should change, faded nicely, through a playlist or
+       recommended or frequently played"): up to five covers from what you play most, Quick picks and your playlists, crossfading one into the next *@
+    @if (HeroArt is { Count: > 0 } heroArt)
+    {
+        <div class="home-hero-art @(heroArt.Count > 1 ? "cycle" : "")" aria-hidden="true">
+            @* five slides always (fewer covers repeat), so the crossfade keeps one rhythm *@
+            @for (var hi = 0; hi < (heroArt.Count > 1 ? 5 : 1); hi++) { <Cover @key="@hi" ArtKey="@heroArt[hi % heroArt.Count]" Full="true" Class="@("hero-slide s" + hi)" /> }
+        </div>
+    }
     <i class="home-fade" aria-hidden="true"></i>
     <div class="home-hero-row">
         <div class="home-hero-text">
@@ -216,6 +224,18 @@ else
     Task CarryOn(Track t) => Player.Current?.Path == t.Path ? Player.Toggle() : Player.Play([t], 0, "Carry on", listenContext: "home");
         Track? LastPlayed => Session.History.Select(h => Lib.Find(h.Title, h.Artist)).FirstOrDefault(t => t is not null);
     string Name => Session.Jellyfin?.UserName is { Length: > 0 } u ? u : "";
+    // the hero's covers: the last one played first, then most played, Quick picks and playlists, five different albums (worked out with the shelves)
+    List<string> HeroArt = [];
+    void BuildHeroArt()
+    {
+        var keys = new List<string>();
+        void Add(string? k) { if (k is not null && keys.Count < 5 && !keys.Contains(k)) keys.Add(k); }
+        Add(LastPlayed?.ArtKey);
+        foreach (var id in new[] { "frequently-played", "quick-picks" })
+            foreach (var t in shelves.FirstOrDefault(x => x.Id == id)?.Tracks ?? []) Add(t.ArtKey);
+        foreach (var p in Session.Playlists.OrderByDescending(p => p.Modified).Take(6)) Add(Session.Resolve(p.Entries.Take(4)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null));
+        HeroArt = keys;
+    }
 
     // Home C: the artists played most (as Quick picks weighs them), each with a cover of theirs, worked out with the shelves (not on every redraw)
     List<(string Name, string? Art)> RepeatArtists = [];
@@ -288,11 +308,12 @@ else
         var key = (slot, Lib.Songs.Count, last, Session.ProfileRev, hits?.Count ?? -1, Session.PlayStatsAt.Ticks);
         // shelves already on screen never change under the person's pointer (Quick picks used to swap two or three times as Home opened: the library loading,
         // then the play counts arriving; owner, 1 Nov): newer ones are kept and show the next time Home opens, as on Android
-        if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { if (shelves.Count == 0) { shelves = b.Shelves; moods = b.Moods; } return; }
+        if (built.TryGetValue(Session, out var b) && b.Key.Equals(key)) { if (shelves.Count == 0) { shelves = b.Shelves; moods = b.Moods; } BuildHeroArt(); return; }
         var fresh = HomeBuilder.Build(Lib, history, Session.Favorites, Session.Playlists, DateTime.UtcNow, Session.PlayStats, hits, AppHost.ListenLog(Session), AppHost.Vibe);
         var freshMoods = HomeBuilder.MoodsAvailable(Lib);
         built.AddOrUpdate(Session, new Built(key, fresh, freshMoods));
         if (shelves.Count == 0) { shelves = fresh; moods = freshMoods; }
+        BuildHeroArt();
     }
     sealed record Built((long, int, long, int, int, long) Key, List<Shelf> Shelves, List<string> Moods);
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<UserSession, Built> built = new();

@@ -2851,7 +2851,7 @@ private fun welcomed(app: com.ipodemu.App): androidx.compose.runtime.MutableStat
 private fun MoodTile(name: String, hue: Int, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val h = (hue * 57 + 150) % 360f
     Box(
-        modifier.height(76.dp).clip(RoundedCornerShape(20.dp))
+        modifier.height(60.dp).clip(RoundedCornerShape(18.dp))
             .background(Brush.linearGradient(listOf(Color.hsl(h, .45f, .30f), Color.hsl((h + 40) % 360f, .70f, .58f))))
             .then(if (on) Modifier.border(3.dp, LocalScheme.current.onBg, RoundedCornerShape(20.dp)) else Modifier)
             .semantics { contentDescription = name; role = androidx.compose.ui.semantics.Role.Button; selected = on }.clickable(onClick = onClick).padding(14.dp),

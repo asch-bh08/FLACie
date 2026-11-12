@@ -104,9 +104,10 @@ class PhoneFitTest {
 
     // ---- Home ----
 
+    // 240 upright since 12 Nov (the owner: the 300 left an empty band over the greeting)
     @Test fun homeHeroIsAsBeforeOnAnOrdinaryPhone() {
-        assertEquals(HomeFit.Hero(300f, 40f), HomeFit.hero(412f, 915f, 1f))
-        assertEquals(HomeFit.Hero(300f, 40f), HomeFit.hero(320f, 568f, 1f))
+        assertEquals(HomeFit.Hero(240f, 40f), HomeFit.hero(412f, 915f, 1f))
+        assertEquals(HomeFit.Hero(240f, 40f), HomeFit.hero(320f, 568f, 1f))
     }
 
     @Test fun homeHeroLeavesRoomOnItsSideAndTheHeadlineFitsIt() {

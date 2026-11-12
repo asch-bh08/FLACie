@@ -32,4 +32,25 @@ public class AutoplaySpreadTests
         Assert.Equal(2, next.Count(s => s.Artist == "X" && s.Loved));
         Assert.Equal(2, next.Count(s => s.Artist == "X" && !s.Loved));
     }
+
+    [Fact]
+    public void Other_versions_of_a_song_count_as_the_same_song()
+    {
+        // owner, 12 Nov: Autoplay played "Dreamer", then "Dreamer - Re-Original 7-inch Mix", then "Dreamer (Janice Robinson Vocal)"
+        var k = Matching.SongKey("Dreamer", "Livin' Joy");
+        Assert.Equal(k, Matching.SongKey("Dreamer - Re-Original 7-inch Mix", "Livin' Joy"));
+        Assert.Equal(k, Matching.SongKey("Dreamer (Janice Robinson Vocal)", "Livin' Joy"));
+        Assert.Equal(k, Matching.SongKey("Dreamer (feat. Someone) [7\" Remastered]", "Livin' Joy & Someone"));
+        Assert.NotEqual(k, Matching.SongKey("Dreamer", "Prince"));
+        Assert.NotEqual(k, Matching.SongKey("Dreamers", "Livin' Joy"));
+    }
+
+    [Fact]
+    public void Autoplay_keeps_one_version_of_each_song_and_none_of_what_was_heard()
+    {
+        var songs = new List<(string T, string A)> { ("Dreamer - Re-Original 7-inch Mix", "Livin' Joy"), ("What Is Love", "Haddaway"), ("Dreamer (Janice Robinson Vocal)", "Livin' Joy"),
+            ("What Is Love - 7\" Mix", "Haddaway"), ("Rhythm Of The Night", "Corona") };
+        var next = AutoplaySpread.OneVersion(songs, s => s.T, s => s.A, [Matching.SongKey("Dreamer", "Livin' Joy")]);
+        Assert.Equal(["What Is Love", "Rhythm Of The Night"], next.Select(s => s.T));
+    }
 }

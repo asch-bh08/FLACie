@@ -28,6 +28,25 @@
   rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
 - Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
 
+## 12 Nov ~23:00 Owner: Android Auto overhaul (QUEUED, do not start yet)
+- Owner: "overhaul Android Auto: optimise it, make the UI 1000x better and add the features we have. Someone said it's set for music apps, but maybe
+  make it think it's not a music app but still a music app; if that's too ambitious, I was told you can't have lyrics on Android Auto, but I have
+  lyrics, check the code." Plan when started: audit what our MediaBrowserService/MediaLibrarySession shows today (browse tree, Up next, search,
+  custom actions, artwork sizes, load speed); add the app's features through what the media template allows (custom actions for fav/DJ/mic/shuffle/
+  repeat, a richer browse tree: Home shelves, playlists, Quick picks, DJ, search, Up next as a queue); look at how lyrics already reach the car
+  (check the code first, the owner says they are there) and keep that; weigh the non-media templates (Car App Library) honestly: Play Store rules
+  only allow certain app categories, and a sideloaded app needs Android Auto's developer settings ("unknown sources"). Show the owner the options before building.
+
+## 12 Nov ~22:45 Playlist versions: found and fixed (not deployed yet)
+- Not a playlist bug: the "80s - 90s rally" import (from the owner's Spotify list) has both "Dreamer - Re-Original 7-inch Mix" (row 55) and
+  "Dreamer - Janice Robinson Vocal" (row 76). But loose matching let a mix stand in for plain "Dreamer" (SameSongLoosely, FindLoose's base title),
+  so a row could show another version before its own file arrived. Fixed: Matching.Recording (a mix/vocal/live part must match; radio edit, 7" mix,
+  remaster are the song itself), "vocal|dub|club" are version words in BaseTitle (web + phone WebCatalog).
+- The car run of three Dreamers was the phone's Autoplay (Livin' Joy's own hits). Fixed web + phone: Matching.SongKey / songKey (one version of a
+  song in Autoplay, none of one queued or heard), and the phone now has AutoplaySpread too (it had missed e2482dd6).
+- Open question to the owner: ~1,700 songs are on best-ofs/compilations (Prodigy "Their Law" shows instead of Experience / Jilted Generation);
+  also untagged "Track 1, Track 2" albums (Dreamboats & Petticoats, Now Classical, M.O.S. Jungle Classics, Ultimate Musicals).
+
 ## 12 Nov ~22:00 DONE + NEW
 - DONE (server, commits 49a2d4f7, e2482dd6): DJ "who's it by?" follow-up (DjContext.AwaitWhoBy/TakeWhoBy, DjAskRules.WhoByRx); Autoplay AutoplaySpread
   (max 2 of the seed artist, no artist twice in a row, fetch only 2 of theirs). e2482dd6 deploy may not have finished: check frank's image date.

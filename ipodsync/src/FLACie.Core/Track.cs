@@ -63,6 +63,9 @@ public static partial class Matching
         static string A(string s) { var a = NonAlnum().Replace(s.ToLowerInvariant().Replace("&", " ").Replace("+", " ").Replace(" and ", " "), ""); return a.StartsWith("the") && a.Length > 3 ? a[3..] : a; }
         static string Core(string s) => NormTitle(Bracketed().Replace(s.Split(" - ")[0], " "));
         if (A(artist) != A(t.Artist) && A(artist) != A(t.AlbumArtist)) return false;
+        // another mix, vocal or live recording is not this song (owner, 12 Nov: "Dreamer - Re-Original 7-inch Mix" stood in for "Dreamer"); a radio edit,
+        // a 7" mix or a remaster is
+        if (Recording(title) != Recording(t.Title)) return false;
         var x = Core(title); var y = Core(t.Title);
         if (x.Length == 0 || y.Length == 0) return false;
         if (x == y) return true;
@@ -71,6 +74,31 @@ public static partial class Matching
     }
 
     [GeneratedRegex(@"[(\[][^)\]]*[)\]]")] private static partial Regex Bracketed();
+    [GeneratedRegex(@"[(\[]([^)\]]*)[)\]]")] private static partial Regex BracketedPart();
+    [GeneratedRegex(@"\b(?:mix|remix|vocal|dub|live|acoustic|instrumental|club|extended|rework|bootleg|vip|unplugged|demo|karaoke|a ?cappella|acapella|reprise|re-?original|re-?recorded|version)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex OtherRecording();
+    [GeneratedRegex(@"^\s*(?:\d{4}\s+)?(?:(?:digital(?:ly)?\s+)?remaster(?:ed)?(?:\s+version)?|(?:radio|single|album|original|short|video)\s+(?:edit|mix|version)|7\s*(?:''|""|”|-?\s*inch)\s*(?:single\s+)?(?:mix|edit|version)?|mono|stereo|explicit|clean|edit)(?:\s+\d{4})?\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex PlainNote();
+
+    /// <summary>Which recording a title names, from its bracketed and " - " parts: "" for the song itself (a radio edit, a 7" mix, a remaster count as
+    /// that), else those parts ("janice robinson vocal" for "Dreamer (Janice Robinson Vocal)" and "Dreamer - Janice Robinson Vocal" alike).</summary>
+    public static string Recording(string title)
+    {
+        var parts = new List<string>();
+        foreach (Match m in BracketedPart().Matches(title)) parts.Add(m.Groups[1].Value);
+        var dash = title.IndexOf(" - ", StringComparison.Ordinal);
+        if (dash > 0) parts.AddRange(BracketedPart().Replace(title[(dash + 3)..], " ").Split(" - "));
+        var tags = parts.Where(p => OtherRecording().IsMatch(p) && !PlainNote().IsMatch(p)).Select(NormTitle).Where(p => p.Length > 0).Distinct().Order();
+        return string.Join("/", tags);
+    }
+
+    /// <summary>The song whatever the version: its title without what is in brackets or after " - ", and its lead artist ("Dreamer", "Dreamer - Re-Original
+    /// 7-inch Mix" and "Dreamer (Janice Robinson Vocal)" by Livin' Joy are one song). Autoplay plays one version of a song (owner, 12 Nov: it played all three in a row).</summary>
+    public static string SongKey(string title, string artist)
+    {
+        var core = NormTitle(Bracketed().Replace(title.Split(" - ")[0], " "));
+        return (core.Length > 0 ? core : NormTitle(title)) + "|" + PrimaryArtist(artist);
+    }
 
     /// <summary>The artist whose folder the file is in ("…/The Free/The Free - Lover On The Line.flac" -> "free"), as <see cref="PrimaryArtist"/> spells it,
     /// or "": a download filed under its artist whose tag names a compilation ("90's Eurodance") is still that artist's song (owner, 7 Nov).</summary>

@@ -32,4 +32,12 @@ public static class AutoplaySpread
         output.AddRange(waiting);   // nothing else could go between: they come last
         return output;
     }
+
+    /// <summary>One version of each song, and none of a song already heard or queued ([heard] holds their <see cref="Matching.SongKey"/>s): Autoplay played
+    /// "Dreamer", its 7-inch Mix and its Janice Robinson Vocal one after another (owner, 12 Nov). The order is kept.</summary>
+    public static List<T> OneVersion<T>(IEnumerable<T> songs, Func<T, string> titleOf, Func<T, string> artistOf, IEnumerable<string> heard)
+    {
+        var seen = heard.ToHashSet();
+        return songs.Where(t => seen.Add(Matching.SongKey(titleOf(t), artistOf(t)))).ToList();
+    }
 }

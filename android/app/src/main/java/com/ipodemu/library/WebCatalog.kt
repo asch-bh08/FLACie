@@ -133,7 +133,7 @@ object WebCatalog {
 
     private val trailingGroup = Regex("""\s*[(\[]([^)\]]*)[)\]]\s*$""")
     // a different recording of the song: these stay in the title (a "(Live)" or "(Remix)" is not the song itself)
-    private val versionWord = Regex("""\b(live|remix|mix|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b""", RegexOption.IGNORE_CASE)
+    private val versionWord = Regex("""\b(live|remix|mix|vocal|dub|club|acoustic|instrumental|demo|cover|karaoke|session|unplugged|vip|rework|bootleg|extended|sped|slowed|reverb|a cappella|acapella|nightcore)\b""", RegexOption.IGNORE_CASE)
     private val partMarker = Regex("""^\s*(pt|part)\b""", RegexOption.IGNORE_CASE)
     private val dashNote = Regex("""\s+-\s+(?:\d{4}\s+)?(?:remaster(?:ed)?|from\b|single version|album version|original (?:motion picture )?soundtrack|mono\b|stereo\b|bonus|deluxe|explicit|clean|(?:radio|video|single|short) (?:edit|version))[^-]*$""", RegexOption.IGNORE_CASE)
 

@@ -75,7 +75,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         var seen = Queue.Select(Matching.MatchKey).ToHashSet();
         seen.Add(Matching.MatchKey(cur));
         if (session is not null) foreach (var h in session.History.Take(40)) seen.Add(Matching.MatchKey(h.Title, h.Artist));
-        bool Fresh(Track t) => t.DurationMs is 0 or > 40_000 && !seen.Contains(Matching.MatchKey(t));
+        // another version of a song queued or heard is the same song (owner, 12 Nov: "Dreamer", its 7-inch Mix and its Janice Robinson Vocal in a row)
+        var heardSongs = HeardSongs(cur);
+        bool Fresh(Track t) => t.DurationMs is 0 or > 40_000 && !seen.Contains(Matching.MatchKey(t)) && !heardSongs.Contains(Matching.SongKey(t.Title, t.Artist));
         var res = new List<Track>(); var taken = new HashSet<string>();
         void Take(IEnumerable<Track> src, int max)
         {
@@ -83,7 +85,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             foreach (var t in src)
             {
                 if (n >= max || res.Count >= 10) return;
-                if (!Fresh(t) || !taken.Add(Matching.MatchKey(t))) continue;
+                if (!Fresh(t) || !taken.Add(Matching.SongKey(t.Title, t.Artist))) continue;
                 res.Add(t); n++;
             }
         }
@@ -101,6 +103,15 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
 
     /// <summary>The artist of the song the person chose (the one before Autoplay took over), else the one playing: Autoplay keeps that artist to a couple of
     /// songs and never plays an artist twice in a row (AutoplaySpread; owner, 12 Nov).</summary>
+    /// <summary>The songs (any version: <see cref="Matching.SongKey"/>) queued, playing or heard lately: Autoplay plays none of them again.</summary>
+    HashSet<string> HeardSongs(Track cur)
+    {
+        var keys = Queue.Select(t => Matching.SongKey(t.Title, t.Artist)).ToHashSet();
+        keys.Add(Matching.SongKey(cur.Title, cur.Artist));
+        if (session is not null) foreach (var h in session.History.Take(40)) keys.Add(Matching.SongKey(h.Title, h.Artist));
+        return keys;
+    }
+
     string SeedArtist(Track cur) => AutoplayFrom > 0 && AutoplayFrom - 1 < Queue.Count ? Queue[AutoplayFrom - 1].Artist : cur.Artist;
     List<Track> SpreadArtists(IReadOnlyList<Track> list, Track cur) =>
         AutoplaySpread.Spread(list, t => t.Artist, SeedArtist(cur), t => session?.Favorites.Any(f => f.Path == t.Path) ?? false);
@@ -155,12 +166,12 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         if (RetroHost.RecommendNext is not { } ask || session is not { } s || UpNext(2).Count() > 1) return;
         if (enginePath != cur.Path) { enginePath = cur.Path; enginePicks = null; _ = AskEngineAsync(ask, s, cur.Path); return; }
         if (enginePicks is null) return;
-        var fresh = enginePicks.Where(p => !seen.Contains(Matching.MatchKey(p.Track))).Take(10).ToList();
+        var fresh = AutoplaySpread.OneVersion(enginePicks.Where(p => !seen.Contains(Matching.MatchKey(p.Track))), p => p.Track.Title, p => p.Track.Artist, HeardSongs(cur)).Take(10).ToList();
         if (fresh.Count == 0) return;
         // songs fetched just now for this Autoplay stay at the front (they carry their "Recently downloaded" tag), the engine's picks follow
         var fetched = autoplayNext.Where(t => fetchedKeys.Contains(Matching.MatchKey(t))).ToList();
         fresh = fresh.Where(p => !fetched.Any(f => f.Path == p.Track.Path)).ToList();
-        autoplayNext = SpreadArtists(fetched.Concat(fresh.Select(p => p.Track)).ToList(), cur).Take(10).ToList();
+        autoplayNext = SpreadArtists(AutoplaySpread.OneVersion(fetched.Concat(fresh.Select(p => p.Track)), t => t.Title, t => t.Artist, []), cur).Take(10).ToList();
         autoplayWhy = fresh.ToDictionary(p => p.Track.Path, p => p.Why, StringComparer.Ordinal);
     }
 
@@ -200,7 +211,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             RefreshSuggestions(); DjAhead(); Changed?.Invoke();
             var s = session;
             // (at most two of the seed's own artist are fetched: the rest are other artists', so Autoplay is not a run of one artist's songs)
-            var missing = AutoplaySpread.Spread(suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).ToList(),
+            // one version of a song only, and none of one already queued or heard (owner, 12 Nov: three Dreamers in a row)
+            var missing = AutoplaySpread.Spread(AutoplaySpread.OneVersion(suggested.Where(x => lib.Find(x.Title, x.Artist) is null), x => x.Title, x => x.Artist, HeardSongs(seed)),
                 x => x.Artist, seed.Artist).Take(8).ToList();
             foreach (var m in missing) fetchedKeys.Add(Matching.MatchKey(m.Title, m.Artist));
             // the suggestions play after what is left of the queue: how many songs come first decides quick or Hi-Res for each (smart downloads)

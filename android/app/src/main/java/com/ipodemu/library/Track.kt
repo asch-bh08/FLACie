@@ -76,6 +76,13 @@ private val spaces = Regex(" +")
 /** Same song regardless of which source spelled the credits how. */
 fun matchKey(title: String, artist: String): String = "${normTitle(title)}|${primaryArtist(artist)}"
 val Track.matchKey: String get() = matchKeyC
+/** The song whatever the version: the title without what is in brackets or after " - ", and the lead artist ("Dreamer", its 7-inch Mix and its Janice
+ *  Robinson Vocal are one song). Autoplay plays one version of a song (owner, 12 Nov: it played all three in a row). */
+fun songKey(title: String, artist: String): String {
+    val core = normTitle(title.split(" - ")[0].replace(editionRe, " "))
+    return "${core.ifEmpty { normTitle(title) }}|${primaryArtist(artist)}"
+}
+val Track.songKey: String get() = songKey(title, artist)
 val Track.searchGlue: String get() = searchGlueC
 internal val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
 

@@ -54,10 +54,11 @@ class Autoplay(private val app: App) {
         val lib = app.library
         val queued = withContext(Dispatchers.Main) { app.player.queueTracks() }
         val seen = HashSet<String>()
-        queued.forEach { seen.add(it.matchKey) }
-        seen.add(seed.matchKey)
+        // song keys: another version of a song queued or heard is the same song (owner, 12 Nov: "Dreamer", its 7-inch Mix and its Janice Robinson Vocal in a row)
+        queued.forEach { seen.add(it.songKey) }
+        seen.add(seed.songKey)
         val by = lib.byPath()
-        app.userData.recents.take(40).forEach { p -> by[p]?.let { seen.add(it.matchKey) } }
+        app.userData.recents.take(40).forEach { p -> by[p]?.let { seen.add(it.songKey) } }
         synchronized(disliked) { seen.addAll(disliked) }
 
         // the server's engine first (it knows this account's whole listening log); no signal or an error and the picks below are used, as before
@@ -66,7 +67,7 @@ class Autoplay(private val app: App) {
             val session = (app.userData.recents.take(9).reversed().filter { it != seed.path } + seed.path)
             val plan = AutoplaySource.choose({ web.recommendNext(session, 10) }, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, seen)
             if (plan != null) {
-                val tracks = plan.tracks.filter { it.isMusic }.take(6)
+                val tracks = spreadArtists(plan.tracks.filter { it.isMusic }, seed).take(6)
                 synchronized(reasons) { tracks.forEach { t -> plan.why[t.path]?.let { reasons[t.path] = it } } }
                 val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (tracks.isNotEmpty() && gen == app.player.queueGen) { mark(tracks) }; if (tracks.isNotEmpty()) app.player.appendAutoplay(tracks, gen); n + tracks.size }
                 if (app.prefs.autoplayFetch && lib.downloadsConfigured() && gen == app.player.queueGen) request(plan.fresh.take(5).map { it.song() }, ahead, gen)
@@ -84,7 +85,7 @@ class Autoplay(private val app: App) {
             var n = 0
             for (t in src) {
                 if (n >= max || pick.size >= 6) return
-                if (!t.isMusic || (t.durationMs in 1..40_000) || t.matchKey in seen || !taken.add(t.matchKey)) continue
+                if (!t.isMusic || (t.durationMs in 1..40_000) || t.songKey in seen || !taken.add(t.songKey)) continue
                 pick.add(t); n++
             }
         }
@@ -97,11 +98,21 @@ class Autoplay(private val app: App) {
         take(mates.shuffled().asSequence(), 3)
         if (seed.genre.isNotEmpty()) take(songs.asSequence().filter { it.genre.equals(seed.genre, true) }.shuffled(), 3)
         take(songs.asSequence().shuffled(), 6)
-        val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (pick.isNotEmpty() && gen == app.player.queueGen) { mark(pick) }; if (pick.isNotEmpty()) app.player.appendAutoplay(pick, gen); n + pick.size }
+        val spread = spreadArtists(pick, seed)
+        val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (spread.isNotEmpty() && gen == app.player.queueGen) { mark(spread) }; if (spread.isNotEmpty()) app.player.appendAutoplay(spread, gen); n + spread.size }
 
         // songs the library lacks: ask for the next few now so they are there in time
         if (app.prefs.autoplayFetch && lib.downloadsConfigured() && gen == app.player.queueGen)
-            request(suggestions.asSequence().filter { lib.findSong(it.title, it.artist) == null && it.matchKey !in seen }.take(5).toList(), ahead, gen)
+        {
+            // one version of each song, at most two of the seed's own artist fetched
+            val once = HashSet(seen)
+            request(AutoplaySpread.spread(suggestions.filter { lib.findSong(it.title, it.artist) == null && once.add(songKey(it.title, it.artist)) }, { it.artist }, seed.artist).take(5), ahead, gen)
+        }
+    }
+
+    /** At most two more by the artist of the song asked for (loved ones aside), never an artist twice in a row (AutoplaySpread). */
+    private fun spreadArtists(list: List<Track>, seed: Track): List<Track> {
+        return AutoplaySpread.spread(list, { it.artist }, seed.artist, { app.userData.isFavorite(it.path) })
     }
 
     /** [songsAhead] = songs between the one playing and the first of [songs] in the queue: each one further back is asked of FLACie Web for Hi-Res from the third place on (see SmartDownload.modeFor). */
@@ -129,7 +140,7 @@ class Autoplay(private val app: App) {
 
     /** Thumbs down: the song leaves Autoplay's list of songs being fetched, and Autoplay does not pick it again this run. */
     fun dislike(t: Track) {
-        synchronized(disliked) { disliked.add(t.matchKey) }
+        synchronized(disliked) { disliked.add(t.songKey) }
         if (synchronized(waiting) { waiting.remove(t.matchKey) } != null) rev++
     }
     private val disliked = HashSet<String>()
@@ -192,9 +203,9 @@ object AutoplaySource {
         val picks = try { fetch() } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; return null }
         val tracks = ArrayList<Track>(); val fresh = ArrayList<RecPick>(); val why = HashMap<String, String>(); val taken = HashSet<String>(seen)
         for (p in picks) {
-            if (p.isNew) { if (taken.add(p.matchKey)) fresh.add(p); continue }
+            if (p.isNew) { if (taken.add(songKey(p.title, p.artist))) fresh.add(p); continue }
             val t = resolve(p) ?: continue
-            if (!taken.add(t.matchKey)) continue
+            if (!taken.add(t.songKey)) continue
             tracks.add(t); p.why?.let { why[t.path] = it }
         }
         return if (tracks.isEmpty() && fresh.isEmpty()) null else Plan(tracks, fresh, why)

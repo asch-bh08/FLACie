@@ -10,6 +10,14 @@
 - Home: hero picture under the see-through menu and to both window edges (clip-path inset negative, --gap for >1800px), masked fades (no hard lines); hero crossfades 5 covers (CSS hero-cycle web, Crossfade phone); --bg/--surface tinted by --accent (dark theme, @property --accent transition); hover play button reworked; graph labels at 7px in.
 - Owner rule: soft edges by the menu/search are fine; hard lines are not.
 
+## 12 Nov ~17:40: playlist-by-name (SoundCloud) LIVE on frank (web + phone via /api/made)
+- flacie-ytdl /find-sets (yt-dlp SoundcloudSearch ie._call_api search/playlists; NOTE endpoint has no leading slash) + filemove route; both on frank with
+  backups server.py.bak-20261112-findsets (ytdl's file was docker cp'd into the container and saved in /home/hms/docker/flacie-ytdl/ for the next build).
+- Search: FindSetsAsync once a day per query, stored in the playlist store, FoundBefore() shows them at once; opening a list downloads its missing songs
+  (FetchTrigger.Opened, existing). WebPlaylist.MaxTracks 500 (PageTracks 100 for Spotify/Deezer). sndcdn.com allowed as a cover host.
+- Not done from the plan: YouTube playlists by name; Spotify by name (needs the owner's own API key; ask); "Not downloaded yet" rows in Made; weekly refresh.
+- Not tested live (needs the owner's sign-in): owner to search "White Girl Summer 2000/2010s Playlist".
+
 ## QUEUED 12 Nov (owner): FIND ANY PLAYLIST BY NAME, KEEP IT IN THE LIBRARY, FILL IT AS IT PLAYS
 Owner: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library, not downloaded with all the songs, and populate as we go".
 Example: SoundCloud "White Girl Summer 2000/2010s Playlist" (Collin, 325 tracks) searched by name in FLACie found nothing.

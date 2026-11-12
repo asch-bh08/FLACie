@@ -28,6 +28,27 @@
   rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
 - Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
 
+## OVERNIGHT 12-13 Nov PLAN (owner AFK: "don't ask questions, don't stop, release a full beta in the morning")
+Watchdog: session cron every 30 min (13,43) resumes from here. Mark items DONE with the commit. Web deploys batched; ONE phone beta in the morning.
+State at start: 2de9b156 (swap sides) committed, NOT deployed; 44a88b5d + b8b56228 deployed.
+1. Search overhaul: "lana del ray" finds nothing (should find Lana Del Rey: typo/sound-alike tolerance in SearchRank on web + phone) and the page
+   looks weird (owner: "make search 1000000x better"). Fix matching first (tests), then the look (top result, artists/songs/albums/playlists, clear).
+2. NP dock: swap the DJ button and the three dots (More) on web (and phone if the same row exists).
+3. Bug: Home -> Artists on repeat -> Prodigy -> album, then Home: Home showed the album page twice, Home appeared ~20 s later. Find why (navigation
+   blocked by a long render / album page load / OnParametersSet) and fix.
+4. Prodigy "Music for the Jilted Generation" is WMAV2 (lossy, low quality): queue the album for upgrade (smart downloads / upgrade worker) and
+   find other lossy albums (WMA, MP3 < 256k) and queue them too (frank data change = an approved owner request).
+5. 20 Home redesign mockups (web + small phone views) on one artifact page for the owner to pick from in the morning. Do not build any yet.
+6. More animations and smooth transitions app-wide (page changes, lists, NP open/close), within the perf rules.
+7. Queued items: Up next shows the whole playlist (web+phone); playlist-by-name YouTube; "Not downloaded yet" rows; weekly playlist refresh;
+   phone Home hard bars/space + 50/50; Android Auto overhaul (see below; lyrics: check the code); Retro overhaul.
+8. Audit the whole app (web, phone, Windows): bugs, clipping, consistency (docs/icons.md), perf.
+PROGRESS: 1 DONE (search typo + layout, deployed). 2 DONE (dock + solid menu). 3 DONE (Home shelves built in the background; deployed).
+4 PARTLY: dashboard "Old rips" button + UpgradeEntry.OwnRip (deployed). Only the 13 Jilted Generation songs are queued: queuing all 989 WMA songs
+(81 albums) was blocked as too big a change to the owner's files without their own yes; I had already queued 955 by a script click and took them off
+again (backup data/upgrades.json.bak-20261112-rips). ASK THE OWNER in the morning whether to queue the rest (the button is on the dashboard).
+9. Morning: full beta (b138+): version in 6 places, notes docs/private/release-bodies, APK + MSI, smoke on emulator-5554, web deploy, release.
+
 ## 12 Nov ~23:00 Owner: Android Auto overhaul (QUEUED, do not start yet)
 - Owner: "overhaul Android Auto: optimise it, make the UI 1000x better and add the features we have. Someone said it's set for music apps, but maybe
   make it think it's not a music app but still a music app; if that's too ambitious, I was told you can't have lyrics on Android Auto, but I have

@@ -53,4 +53,23 @@ public class AutoplaySpreadTests
         var next = AutoplaySpread.OneVersion(songs, s => s.T, s => s.A, [Matching.SongKey("Dreamer", "Livin' Joy")]);
         Assert.Equal(["What Is Love", "Rhythm Of The Night"], next.Select(s => s.T));
     }
+
+    [Fact]
+    public void Autoplay_keeps_to_what_was_chosen_not_what_it_played_itself()
+    {
+        // owner, 12 Nov: "autoplay should be based on the songs at the end of a playlist, or the song I asked for or clicked play on"
+        var queue = Enumerable.Range(1, 30).Select(i => "p" + i).Concat(["auto1", "auto2", "auto3"]).ToList();
+        // still in the playlist: the song playing and the ones before it
+        Assert.Equal(["p8", "p9", "p10"], AutoplaySpread.Seeds(queue, autoplayFrom: -1, index: 9).TakeLast(3));
+        // Autoplay running (it began at 30): the playlist's last songs, never Autoplay's own
+        var seeds = AutoplaySpread.Seeds(queue, autoplayFrom: 30, index: 32);
+        Assert.Equal(AutoplaySpread.SeedCount, seeds.Count);
+        Assert.Equal("p30", seeds[^1]);
+        Assert.DoesNotContain(seeds, x => x.StartsWith("auto"));
+        // one song asked for: that song, all the way
+        Assert.Equal(["dreamer"], AutoplaySpread.Seeds(["dreamer", "auto1", "auto2"], autoplayFrom: 1, index: 2));
+        // which of the chosen songs leads the lookup moves on with each Autoplay song, so the picks are not all about one of them
+        Assert.NotEqual(AutoplaySpread.Lead(queue, 30, 31), AutoplaySpread.Lead(queue, 30, 32));
+        Assert.Equal("dreamer", AutoplaySpread.Lead(["dreamer", "auto1", "auto2"], 1, 2));
+    }
 }

@@ -26,4 +26,14 @@ class AutoplaySpreadTest {
         assertEquals(2, next.count { it.first == "X" && it.second })
         assertEquals(2, next.count { it.first == "X" && !it.second })
     }
+
+    @Test fun autoplayKeepsToWhatWasChosen() {
+        val q = (1..30).map { "p$it" } + listOf("auto1", "auto2", "auto3")
+        val isAuto = { x: String -> x.startsWith("auto") }
+        val seeds = AutoplaySpread.seeds(q, 32, isAuto)
+        assertEquals(8, seeds.size); assertEquals("p30", seeds.last()); assertEquals(0, seeds.count(isAuto))
+        assertEquals("p10", AutoplaySpread.lead(q, 9, isAuto))
+        assertNotEquals(AutoplaySpread.lead(q, 31, isAuto), AutoplaySpread.lead(q, 32, isAuto))
+        assertEquals("dreamer", AutoplaySpread.lead(listOf("dreamer", "auto1", "auto2"), 2, isAuto))
+    }
 }

@@ -42,15 +42,19 @@ class Autoplay(private val app: App) {
     /** The player calls this as a song starts when little is left after it. */
     fun queueLow() {
         if (!app.prefs.autoplay || working == app.player.queueGen || app.player.interceptor != null) return
-        val seed = app.player.current ?: return
+        val cur = app.player.current ?: return
+        // what the person chose leads, not the Autoplay song playing (owner, 12 Nov: Voodoo People, then Party In The USA)
+        val q = app.player.queueTracks(); val at = q.indexOfFirst { it.path == cur.path }
+        val seed = AutoplaySpread.lead(q, at, ::isAutoplay) ?: cur
+        val chosen = AutoplaySpread.seeds(q, at, ::isAutoplay).map { it.path }
         val gen = app.player.queueGen
         working = gen
         scope.launch {
-            try { refill(seed, gen) } catch (e: Exception) { android.util.Log.w("FLACie", "autoplay failed: ${e.message}", e) } finally { if (working == gen) working = -1 }
+            try { refill(seed, gen, chosen) } catch (e: Exception) { android.util.Log.w("FLACie", "autoplay failed: ${e.message}", e) } finally { if (working == gen) working = -1 }
         }
     }
 
-    private suspend fun refill(seed: Track, gen: Int) {
+    private suspend fun refill(seed: Track, gen: Int, chosen: List<String> = emptyList()) {
         val lib = app.library
         val queued = withContext(Dispatchers.Main) { app.player.queueTracks() }
         val seen = HashSet<String>()
@@ -64,7 +68,8 @@ class Autoplay(private val app: App) {
         // the server's engine first (it knows this account's whole listening log); no signal or an error and the picks below are used, as before
         val web = FlacieWebClient(app.prefs)
         if (web.available) {
-            val session = (app.userData.recents.take(9).reversed().filter { it != seed.path } + seed.path)
+            // the songs the person chose, the lead one last (not what Autoplay itself played)
+            val session = (chosen.ifEmpty { app.userData.recents.take(9).reversed() }.filter { it != seed.path } + seed.path)
             val plan = AutoplaySource.choose({ web.recommendNext(session, 10) }, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, seen)
             if (plan != null) {
                 val tracks = spreadArtists(plan.tracks.filter { it.isMusic }, seed).take(6)

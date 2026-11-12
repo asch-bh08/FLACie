@@ -26,7 +26,7 @@ public static class Engine
     static readonly Regex ExplicitTag = new(@"[(\[]\s*explicit\s*[)\]]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // Why is worked out only for the songs picked: building it for every song in a big library took most of the time
-    sealed record Cand(Track? Track, CatalogSong? New, string Artist, double Score, Func<string> Why, bool Fresh, bool Recent, bool SameArtist);
+    sealed record Cand(Track? Track, CatalogSong? New, string Artist, double Score, Func<string> Why, bool Fresh, bool Recent, bool SameArtist, bool Tied = true);
 
     public static List<Pick> Next(Library lib, TasteProfile taste, Func<Track, Vibe?> vibe, IReadOnlyList<Track> session, IReadOnlyList<CatalogSong> related,
         DateTime utcNow, EngineOptions o)
@@ -64,7 +64,7 @@ public static class Engine
             var together = relatedSongs.Contains(key) || last.Any(s => taste.SharesPlayedPlaylist(s, t)) ? 1 : relatedArtists.Contains(artist) ? 0.5 : 0;
             var score = 0.35 * fit + 0.3 * love + 0.25 * together - 0.6 * taste.Penalty(key, artist) + rnd.NextDouble() * 0.01;
             cands.Add(new(t, null, artist, score, () => Why(seed, t.Artist, fit, love, liked, taste.ArtistFit(t) >= 0.5, together), !heard && !liked,
-                taste.PlayedWithin(key, nowMs, 4), artist == prevArtist && artist.Length > 0));
+                taste.PlayedWithin(key, nowMs, 4), artist == prevArtist && artist.Length > 0, seed is null || link || together > 0));
         }
         // songs fans of this one play that are not in the library yet: tied to it by being on its list, so no vibe is needed to let them in
         foreach (var s in related)
@@ -78,6 +78,9 @@ public static class Engine
             cands.Add(new(null, s, artist, score, () => Why(seed, s.Artist, 0.7, love, false, love >= 0.5, 1), true, false, artist == prevArtist && artist.Length > 0));
         }
 
+        // a song tied to what played (its artist, a related artist or song, its genre, a playlist it is played from) before one that only has a similar
+        // vibe and is loved: Voodoo People from search was followed by Party In The USA (owner, 12 Nov). Untied ones come in only when too few are tied
+        if (cands.Count(c => c.Tied) >= o.Take) cands = cands.Where(c => c.Tied).ToList();
         // the rails, given way one at a time only when they would leave nothing
         var ok = cands.Where(c => !c.Recent && !c.SameArtist).ToList();
         if (ok.Count == 0) ok = cands.Where(c => !c.SameArtist).ToList();

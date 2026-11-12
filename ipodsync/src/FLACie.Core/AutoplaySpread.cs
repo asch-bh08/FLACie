@@ -40,4 +40,26 @@ public static class AutoplaySpread
         var seen = heard.ToHashSet();
         return songs.Where(t => seen.Add(Matching.SongKey(titleOf(t), artistOf(t)))).ToList();
     }
+
+    /// <summary>How many of the chosen songs Autoplay goes by.</summary>
+    public const int SeedCount = 8;
+
+    /// <summary>The songs Autoplay goes by, oldest first (owner, 12 Nov: "based on the songs at the end of a playlist, or the song I asked for or clicked
+    /// play on"). While the person's own queue plays: the song playing and the few before it. Once Autoplay has taken over ([autoplayFrom] is where its
+    /// songs start): the last songs of the person's own queue, never Autoplay's own picks, so it does not drift away from what they chose.</summary>
+    public static List<T> Seeds<T>(IReadOnlyList<T> queue, int autoplayFrom, int index)
+    {
+        var end = autoplayFrom > 0 && index >= autoplayFrom ? autoplayFrom : Math.Min(index + 1, queue.Count);
+        return queue.Take(Math.Max(0, end)).TakeLast(SeedCount).ToList();
+    }
+
+    /// <summary>The chosen song the related-songs lookup starts from: the song playing in the person's own queue; under Autoplay, each Autoplay song
+    /// takes the next of <see cref="Seeds"/> from the end back (one song asked for stays that song).</summary>
+    public static T? Lead<T>(IReadOnlyList<T> queue, int autoplayFrom, int index)
+    {
+        var seeds = Seeds(queue, autoplayFrom, index);
+        if (seeds.Count == 0) return default;
+        if (!(autoplayFrom > 0 && index >= autoplayFrom)) return seeds[^1];
+        return seeds[seeds.Count - 1 - (index - autoplayFrom) % seeds.Count];
+    }
 }

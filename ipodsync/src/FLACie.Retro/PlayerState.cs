@@ -89,13 +89,15 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
                 res.Add(t); n++;
             }
         }
-        var artist = Matching.PrimaryArtist(cur.Artist);
+        // what the person chose leads, not the Autoplay song playing (owner, 12 Nov): under Autoplay that is one of the songs their queue ended with
+        var lead = LeadSeed() ?? cur;
+        var artist = Matching.PrimaryArtist(lead.Artist);
         var rnd = Random.Shared;
         // suggestions from the lookup, in its order (the artist's own hits first, then similar artists'), if the library has them
         Take(suggested.Select(s => lib.Find(s.Title, s.Artist)).OfType<Track>(), 6);
         Take(lib.Songs.Where(t => Matching.PrimaryArtist(t.Artist) == artist).OrderBy(_ => rnd.Next()), 3);
-        Take((related?.Invoke(cur) ?? []).OrderBy(_ => rnd.Next()), 4);
-        if (cur.Genre.Length > 0) Take(lib.Songs.Where(t => t.Genre.Equals(cur.Genre, StringComparison.OrdinalIgnoreCase)).OrderBy(_ => rnd.Next()), 4);
+        Take((related?.Invoke(lead) ?? []).OrderBy(_ => rnd.Next()), 4);
+        if (lead.Genre.Length > 0) Take(lib.Songs.Where(t => t.Genre.Equals(lead.Genre, StringComparison.OrdinalIgnoreCase)).OrderBy(_ => rnd.Next()), 4);
         Take(lib.Songs.OrderBy(_ => rnd.Next()), 10);
         autoplayNext = SpreadArtists(res, cur); autoplayWhy = [];
         UseEngine(cur, seen);
@@ -112,7 +114,10 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         return keys;
     }
 
-    string SeedArtist(Track cur) => AutoplayFrom > 0 && AutoplayFrom - 1 < Queue.Count ? Queue[AutoplayFrom - 1].Artist : cur.Artist;
+    string SeedArtist(Track cur) => (LeadSeed() ?? cur).Artist;
+    /// <summary>The chosen song Autoplay goes by now (AutoplaySpread.Lead): the one playing in the person's own queue; under Autoplay, one of the songs
+    /// their queue ended with (a playlist's last songs, or the one song they asked for or clicked), never one Autoplay picked itself.</summary>
+    Track? LeadSeed() => AutoplaySpread.Lead(Queue, AutoplayFrom, Index);
     List<Track> SpreadArtists(IReadOnlyList<Track> list, Track cur) =>
         AutoplaySpread.Spread(list, t => t.Artist, SeedArtist(cur), t => session?.Favorites.Any(f => f.Path == t.Path) ?? false);
 
@@ -179,7 +184,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     {
         try
         {
-            var played = recent.ToList();
+            // the songs the person chose (their queue's last ones once Autoplay has taken over), not Autoplay's own: it kept drifting (owner, 12 Nov)
+            var played = AutoplayFrom > 0 && Index >= AutoplayFrom ? AutoplaySpread.Seeds(Queue, AutoplayFrom, Index).Select(t => t.Path).ToList() : recent.ToList();
             var picks = await Task.Run(() => ask(s, played, 10));
             if (picks is null || enginePath != path) return;
             enginePicks = picks.ToList();
@@ -338,7 +344,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         await ApplyFadeAsync(t);
         if (plays is not null && session is not null) plays.Begin(session.Id, session.DisplayName, t.Path, t.Title, t.Artist, "FLACie Web", Context);
         Stash(true);
-        RefreshSuggestions(); _ = PlanAsync(t); Started?.Invoke(t);
+        RefreshSuggestions(); _ = PlanAsync(LeadSeed() ?? t); Started?.Invoke(t);
         await DjStartedAsync(t, auto, skipped, djBefore, djCueNow);
         Changed?.Invoke();
     }

@@ -41,6 +41,21 @@ public class EngineTests
     }
 
     [Fact]
+    public void A_loved_song_with_no_tie_to_what_played_waits_while_tied_ones_are_there()
+    {
+        // owner, 12 Nov: Voodoo People from search, then Party In The USA (heard and loved, a similar vibe, nothing else in common)
+        var voodoo = Song("Voodoo People", "The Prodigy", "Electronic");
+        var party = Song("Party In The U.S.A.", "Miley Cyrus", "Pop");
+        var tied = Enumerable.Range(1, 5).Select(i => Song("Rave " + i, "Raver " + i, "Electronic")).ToList();
+        var vibes = new Dictionary<Track, Vibe> { [voodoo] = Banger, [party] = Club };
+        foreach (var t in tied) vibes[t] = Banger;
+        var picks = Next([voodoo, party, .. tied], [Did(ListenKind.Heart, party), Heard(party), Heard(party, 2), .. tied.Select(t => Heard(t, 3))], vibes, [voodoo],
+            new EngineOptions(Take: 4));
+        Assert.False(Has(picks, party));
+        Assert.Equal(4, picks.Count);
+    }
+
+    [Fact]
     public void A_never_heard_song_needs_a_genre_or_artist_link()
     {
         var space = Song("Out of Space", "The Prodigy", "Rave");

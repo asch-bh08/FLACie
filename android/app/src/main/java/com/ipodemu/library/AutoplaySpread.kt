@@ -26,4 +26,22 @@ object AutoplaySpread {
         out.addAll(waiting)
         return out
     }
+
+    const val SEED_COUNT = 8
+
+    /** The songs Autoplay goes by, oldest first (owner, 12 Nov: "the songs at the end of a playlist, or the song I asked for or clicked play on"): up to
+     *  the song playing, the last [SEED_COUNT] the person chose themselves; Autoplay's own picks ([isAuto]) never count, so it does not drift away. */
+    fun <T> seeds(queue: List<T>, index: Int, isAuto: (T) -> Boolean): List<T> =
+        queue.take((index + 1).coerceIn(0, queue.size)).filterNot(isAuto).takeLast(SEED_COUNT)
+
+    /** The chosen song the lookup starts from: the one playing when the person chose it; under Autoplay, each Autoplay song takes the next chosen song
+     *  from the end back (one song asked for stays that song). */
+    fun <T> lead(queue: List<T>, index: Int, isAuto: (T) -> Boolean): T? {
+        val s = seeds(queue, index, isAuto)
+        if (s.isEmpty()) return null
+        val cur = queue.getOrNull(index)
+        if (cur == null || !isAuto(cur)) return s.last()
+        val autoSoFar = queue.take(index + 1).count(isAuto)
+        return s[s.size - 1 - (autoSoFar - 1) % s.size]
+    }
 }

@@ -268,3 +268,8 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
   body:has(.home-hero) .rail { background: color-mix(in srgb, var(--bg) 35%, transparent); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-right: 1px solid #f4efe61f; }
   body:has(.home-hero) .topbar { border-bottom: 1px solid #f4efe61a; }
 }
+/* the hero's own glow in the accent reaches the same edges as the picture (it stopped at the page's 1800px edge in a line on a wide window, and at the
+   menu's edge: owner, 12 Nov: "this line is still here in the top right when the side bar is collapsed") */
+@media (min-width: 761px) {
+  .home-hero::before { --gap: max(0px, (100vw - var(--rail) - 1800px) / 2); left: calc(-1 * var(--rail) - var(--gap)); right: calc(-1 * var(--gap)); }
+}

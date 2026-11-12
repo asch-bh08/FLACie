@@ -59,11 +59,13 @@ public static class SearchRank
     {
         if (q.Empty) return 0;
         var total = 0;
+        // a three-letter word may have a typo when other words are typed with it ("lana del ray" is Lana Del Rey; owner, 12 Nov)
+        var shortOk = q.Tokens.Length >= 2;
         foreach (var t in q.Tokens)
         {
-            var best = Best(t, d.Title, d.TitleGlue, 10, fuzzy);
-            best = Math.Max(best, Best(t, d.Artist, d.ArtistGlue, 8, fuzzy));
-            best = Math.Max(best, Best(t, d.Album, d.AlbumGlue, 4, fuzzy));
+            var best = Best(t, d.Title, d.TitleGlue, 10, fuzzy, shortOk);
+            best = Math.Max(best, Best(t, d.Artist, d.ArtistGlue, 8, fuzzy, shortOk));
+            best = Math.Max(best, Best(t, d.Album, d.AlbumGlue, 4, fuzzy, shortOk));
             if (best == 0) { total = -1; break; }
             total += best;
         }
@@ -94,7 +96,7 @@ public static class SearchRank
         return false;
     }
 
-    static int Best(string t, string[] words, string glue, int weight, bool fuzzy)
+    static int Best(string t, string[] words, string glue, int weight, bool fuzzy, bool shortOk = false)
     {
         var best = 0;
         foreach (var w in words)
@@ -103,7 +105,7 @@ public static class SearchRank
             if (w == t) s = weight * 3;
             else if (t.Length >= 2 && w.StartsWith(t, StringComparison.Ordinal)) s = weight * 2;
             else if (t.Length >= 3 && w.Contains(t, StringComparison.Ordinal)) s = weight;
-            else if (fuzzy && t.Length >= 4 && Near(t, w)) s = Math.Max(1, weight / 2);
+            else if (fuzzy && (t.Length >= 4 || (shortOk && t.Length == 3 && w.Length == 3)) && Near(t, w)) s = Math.Max(1, weight / 2);
             else continue;
             if (s > best) best = s;
         }

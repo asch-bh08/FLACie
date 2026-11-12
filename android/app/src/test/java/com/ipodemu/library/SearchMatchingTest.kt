@@ -49,4 +49,10 @@ class SearchMatchingTest {
         // the explicit Hi-Res download takes only Hi-Res files, the highest quality first
         assertEquals(listOf(hi.username, guessedHi.username), c.rankSong(listOf(cd, guessedHi, hi), "Kendrick Lamar", "All The Stars", 232, hiRes = true).map { it.username })
     }
+
+    // owner, 12 Nov: "lana del ray" found nothing (Lana Del Rey); a three-letter word alone still has to be right
+    @Test fun misspeltShortWordBesideOthers() {
+        org.junit.Assert.assertTrue(SearchRank.matches("lana del ray", "Video Games", "Lana Del Rey"))
+        org.junit.Assert.assertFalse(SearchRank.matches("ray", "Video Games", "Lana Del Rey"))
+    }
 }

@@ -38,7 +38,7 @@
     var best = songsAll.Where(X.Allows).FirstOrDefault();
     var songIsExact = ranked && best is not null && Same(best.Title, q);
     // F6: "prodigy" means The Prodigy (played, 171 songs) over Prodigy (15)
-    var topArtist = ranked && !fuzzy ? FLACie.Core.SearchRankTop.Artist(artists, q, Session.PlayStats) : null;
+    var topArtist = ranked ? FLACie.Core.SearchRankTop.Artist(artists, q, Session.PlayStats) : null;
     var heroArtist = topArtist is not null && !songIsExact;
     var topAlbum = ranked && !fuzzy ? albums.FirstOrDefault(g => Same(g.Name, q)) : null;
     var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;
@@ -53,7 +53,7 @@
 @if (ranked && fuzzy)
 {
     <p class="x-hint" role="status">
-        @if (songs.Count + albums.Count + artists.Count == 0) { <span>Nothing matches “@q”, not even closely. Try fewer letters, or clear a filter.</span> }
+        @if (songs.Count + albums.Count + artists.Count == 0) { <span>Nothing in your library matches “@q”@(X.AnyFilter ? " with these filters" : "").</span> }
         else
         {
             <span>No exact match for “@q”@(suggestion.Length > 0 ? "." : ", so these are the closest.")&nbsp;</span>

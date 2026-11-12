@@ -79,8 +79,10 @@ object SearchRank {
     fun score(q: Query, d: Doc, fuzzy: Boolean): Int {
         if (q.empty) return 0
         var total = 0
+        // a three-letter word may have a typo when other words are typed with it ("lana del ray" is Lana Del Rey; owner, 12 Nov)
+        val shortOk = q.tokens.size >= 2
         for (t in q.tokens) {
-            val best = maxOf(best(t, d.title, 10, fuzzy), best(t, d.artist, 8, fuzzy), best(t, d.album, 4, fuzzy))
+            val best = maxOf(best(t, d.title, 10, fuzzy, shortOk), best(t, d.artist, 8, fuzzy, shortOk), best(t, d.album, 4, fuzzy, shortOk))
             if (best == 0) { total = -1; break }
             total += best
         }
@@ -109,14 +111,14 @@ object SearchRank {
         return false
     }
 
-    private fun best(t: String, words: List<String>, weight: Int, fuzzy: Boolean): Int {
+    private fun best(t: String, words: List<String>, weight: Int, fuzzy: Boolean, shortOk: Boolean = false): Int {
         var best = 0
         for (w in words) {
             val s = when {
                 w == t -> weight * 3
                 t.length >= 2 && w.startsWith(t) -> weight * 2
                 t.length >= 3 && w.contains(t) -> weight
-                fuzzy && t.length >= 4 && near(t, w) -> maxOf(1, weight / 2)
+                fuzzy && (t.length >= 4 || (shortOk && t.length == 3 && w.length == 3)) && near(t, w) -> maxOf(1, weight / 2)
                 else -> continue
             }
             if (s > best) best = s

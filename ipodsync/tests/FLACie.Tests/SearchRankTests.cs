@@ -64,4 +64,23 @@ public class SearchRankTests
         Assert.True(page.Top.Count(t => t.Album == "No Tourists") <= 2);
         Assert.Equal(page.Top.Concat(page.Popular).Count(), page.Top.Concat(page.Popular).Select(t => t.Title).Distinct().Count());   // each song once
     }
+
+    [Fact]
+    public void A_misspelt_short_word_is_forgiven_beside_the_others()
+    {
+        // owner, 12 Nov: "lana del ray" found nothing (Lana Del Rey)
+        Assert.True(SearchRank.Matches("lana del ray", "Video Games", "Lana Del Rey"));
+        var hits = SearchRank.Rank(new[] { ("Video Games", "Lana Del Rey"), ("Ray Of Light", "Madonna") }, x => new SearchRank.Doc(x.Item1, x.Item2, ""), "lana del ray", 10);
+        Assert.Equal("Video Games", hits[0].Item1);
+        // a three-letter word alone still has to be right: "ray" is not every "rey", "rap" and "raw"
+        Assert.False(SearchRank.Matches("ray", "Video Games", "Lana Del Rey"));
+    }
+
+    [Fact]
+    public void A_misspelt_artist_name_is_still_the_top_result()
+    {
+        var lana = Artist("Lana Del Rey", 40);
+        Assert.Same(lana, SearchRankTop.Artist([Artist("Lana", 3), lana], "lana del ray", []));
+        Assert.Null(SearchRankTop.Artist([Artist("Del Amitri", 9)], "lana del ray", []));
+    }
 }

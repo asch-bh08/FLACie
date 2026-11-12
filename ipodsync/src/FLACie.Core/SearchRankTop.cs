@@ -13,8 +13,15 @@ public static class SearchRankTop
         var byId = new Dictionary<string, int>();
         foreach (var p in plays) byId[p.Id] = p.Plays;
         int Played(Group g) => g.Tracks.Sum(t => t.JellyfinId is { } id ? byId.GetValueOrDefault(id) : 0);
-        return artists.Where(g => Key(g.Name) == q)
-            .OrderByDescending(Played).ThenByDescending(g => g.Tracks.Count).ThenByDescending(g => Words(g.Name) == Words(query))
+        var list = artists as IList<Group> ?? artists.ToList();
+        var named = list.Where(g => Key(g.Name) == q).ToList();
+        // a typo in the name ("lana del ray" for Lana Del Rey; owner, 12 Nov): one letter off in a short name, two in a long one
+        if (named.Count == 0 && q.Length >= 6)
+        {
+            var max = q.Length >= 12 ? 2 : 1;
+            named = list.Where(g => Key(g.Name) is { } k && Math.Abs(k.Length - q.Length) <= max && SearchRank.Distance(k, q, max) <= max).ToList();
+        }
+        return named.OrderByDescending(Played).ThenByDescending(g => g.Tracks.Count).ThenByDescending(g => Words(g.Name) == Words(query))
             .FirstOrDefault();
     }
 

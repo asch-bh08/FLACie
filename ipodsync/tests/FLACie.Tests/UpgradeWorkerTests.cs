@@ -149,6 +149,22 @@ public class UpgradeWorkerTests : IDisposable
     }
 
     [Fact]
+    public async Task An_old_rip_the_owner_asked_to_upgrade_is_swapped_for_lossless_and_moved_aside()
+    {
+        // owner, 12 Nov: Music for the Jilted Generation is WMA from an old rip ("it should be changed"); not a FLACie download, but put on the list on purpose
+        const string wma = "music/The Prodigy/Music for the Jilted Generation/02 Break & Enter.wma";
+        var r = Make(inLog: false, oldFile: wma, source: "");
+        var e = Assert.Single(r.Store.All()); e.OwnRip = true; e.Format = "wma"; r.Store.Save();
+        r.Mover.Files[e.File] = new ProbeFacts("wmav2", 44_100, 0, 6_000_000, 200_400);
+        // no Hi-Res anywhere: the lossless step takes a CD-quality FLAC
+        r.Answer = lossless => lossless ? Filed(r.Mover, new ProbeFacts("flac", 44_100, 16, 30_000_000, 201_000), expected: 30_000_000) : null;
+        await r.Worker.RunOnceAsync(default);
+        Assert.Equal([false, true], r.Fetches);
+        Assert.Contains("retire " + wma, r.Mover.Calls);           // moved aside, not deleted
+        Assert.True(Assert.Single(r.Store.All()).LosslessTaken);   // still on the list for Hi-Res
+    }
+
+    [Fact]
     public async Task A_song_whose_file_is_gone_leaves_the_list()
     {
         var r = Make();

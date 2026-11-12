@@ -19,6 +19,7 @@
 @inject FLACie.Server.Dj.DjPronounceCheck DjNames
 @inject CoverFill Covers
 @inject LibraryCleanupRun Cleanup
+@inject UpgradeStore Upgrades
 @inject WebSourceGate PlaylistSources
 @inject ArtistResolveService ArtistFixes
 @inject WebCatalog FixCatalog
@@ -234,6 +235,18 @@ else
         }
     </section>
 
+    @* old rips (WMA) swapped for lossless or Hi-Res copies by the upgrade worker, the old file moved aside (owner, 12 Nov: "Music for the Jilted
+       Generation is low quality, it should be changed") *@
+    <section class="admin-block" aria-label="Old rips" data-testid="old-rips">
+        @{ var rips = OldRips(); var onList = Upgrades.All().Count(e => e.OwnRip && e.UserId == Session.Id); }
+        <div class="shelf-head"><div><h2>Old rips</h2><small>@(rips.Count == 0 ? "No WMA songs in your library" : $"{rips.Count} WMA songs in {rips.Select(t => t.AlbumKey).Distinct().Count()} albums. Upgrading looks for a Hi-Res copy, else lossless, checks it is the same song at the same length, and moves the old file to .flacie-replaced (kept 30 days)")@(onList > 0 ? $" · {onList} on the upgrade list" : "")</small></div></div>
+        @if (rips.Count > onList)
+        {
+            <button class="btn" @onclick="QueueRips" data-testid="queue-rips">Upgrade @(rips.Count - onList) old WMA songs</button>
+        }
+        @if (ripNote.Length > 0) { <p class="hint" role="status">@ripNote</p> }
+    </section>
+
     @* F1.3: the background cover pass *@
     <section class="admin-block" aria-label="Covers">
         @{ var cf = Covers.Last; }
@@ -377,6 +390,18 @@ else
 </div>
 
 @code {
+    string ripNote = "";
+    List<Track> OldRips() => Lib.Songs.Where(t => (t.FilePath ?? "").EndsWith(".wma", StringComparison.OrdinalIgnoreCase) && Cleanup.MoverPath(t) is not null).ToList();
+    void QueueRips()
+    {
+        var added = 0;
+        foreach (var t in OldRips())
+            if (Upgrades.Add(new UpgradeEntry { UserId = Session.Id, Artist = t.Artist, Title = t.Title, Album = t.Album, DurationMs = t.DurationMs,
+                    File = Cleanup.MoverPath(t)!, Format = "wma", OwnRip = true }))
+                added++;
+        ripNote = $"{added} songs put on the upgrade list. The worker takes them one at a time, while downloads are allowed.";
+    }
+
     // drawn again on each tick of the player's clock: the players' times move on
     protected override bool FollowsTime => true;
     // FLACie's address (the phone's way in): what is typed, and what happened on Save

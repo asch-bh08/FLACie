@@ -23,6 +23,9 @@ public sealed class UpgradeEntry
     /// <summary>A lossy copy was swapped for a lossless one after the first look found no Hi-Res: it stays on the list for Hi-Res, but that step is done.</summary>
     public bool LosslessTaken { get; set; }
     public string LastNote { get; set; } = "";
+    /// <summary>An old file of the library's own (a WMA or low bit rate rip) that an administrator put on the list on purpose: not in the download log,
+    /// upgraded all the same (owner, 12 Nov: "Music for the Jilted Generation is low quality, it should be changed"). Its old file is moved aside like any other.</summary>
+    public bool OwnRip { get; set; }
 
     public string Key => Matching.MatchKey(Title, Artist);
 }
@@ -152,7 +155,7 @@ public sealed class UpgradeWorker(
             if (!s.Services.SoulseekReady || !roomFor(s)) continue;
             var fm = fileMover(s);
             if (!await fm.CanRetireAsync(ct)) return "idle: the file mover has no /retire yet (it needs redeploying); the list is kept";
-            if (!log.For(e.UserId).Any(r => r.Done && r.File == e.File)) { store.Remove(e); continue; }
+            if (!e.OwnRip && !log.For(e.UserId).Any(r => r.Done && r.File == e.File)) { store.Remove(e); continue; }
             var old = await fm.ProbeAsync(e.File, ct);
             if (old is { Gone: true }) { store.Remove(e); continue; }   // gone from the library: nothing left to upgrade
             if (old is null) continue;                                   // the file mover could not read it just now: another time

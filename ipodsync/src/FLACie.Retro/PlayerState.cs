@@ -95,9 +95,15 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         Take((related?.Invoke(cur) ?? []).OrderBy(_ => rnd.Next()), 4);
         if (cur.Genre.Length > 0) Take(lib.Songs.Where(t => t.Genre.Equals(cur.Genre, StringComparison.OrdinalIgnoreCase)).OrderBy(_ => rnd.Next()), 4);
         Take(lib.Songs.OrderBy(_ => rnd.Next()), 10);
-        autoplayNext = res; autoplayWhy = [];
+        autoplayNext = SpreadArtists(res, cur); autoplayWhy = [];
         UseEngine(cur, seen);
     }
+
+    /// <summary>The artist of the song the person chose (the one before Autoplay took over), else the one playing: Autoplay keeps that artist to a couple of
+    /// songs and never plays an artist twice in a row (AutoplaySpread; owner, 12 Nov).</summary>
+    string SeedArtist(Track cur) => AutoplayFrom > 0 && AutoplayFrom - 1 < Queue.Count ? Queue[AutoplayFrom - 1].Artist : cur.Artist;
+    List<Track> SpreadArtists(IReadOnlyList<Track> list, Track cur) =>
+        AutoplaySpread.Spread(list, t => t.Artist, SeedArtist(cur), t => session?.Favorites.Any(f => f.Path == t.Path) ?? false);
 
     // ---- the listening log: how much of each song was really heard (a seek does not count as listening) ----
 
@@ -154,7 +160,7 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         // songs fetched just now for this Autoplay stay at the front (they carry their "Recently downloaded" tag), the engine's picks follow
         var fetched = autoplayNext.Where(t => fetchedKeys.Contains(Matching.MatchKey(t))).ToList();
         fresh = fresh.Where(p => !fetched.Any(f => f.Path == p.Track.Path)).ToList();
-        autoplayNext = fetched.Concat(fresh.Select(p => p.Track)).Take(10).ToList();
+        autoplayNext = SpreadArtists(fetched.Concat(fresh.Select(p => p.Track)).ToList(), cur).Take(10).ToList();
         autoplayWhy = fresh.ToDictionary(p => p.Track.Path, p => p.Why, StringComparer.Ordinal);
     }
 
@@ -193,7 +199,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
             if (cts.IsCancellationRequested) return;
             RefreshSuggestions(); DjAhead(); Changed?.Invoke();
             var s = session;
-            var missing = suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).Take(8);
+            // (at most two of the seed's own artist are fetched: the rest are other artists', so Autoplay is not a run of one artist's songs)
+            var missing = AutoplaySpread.Spread(suggested.Where(x => lib.Find(x.Title, x.Artist) is null && Matching.MatchKey(x.Title, x.Artist) != Matching.MatchKey(seed)).ToList(),
+                x => x.Artist, seed.Artist).Take(8).ToList();
             foreach (var m in missing) fetchedKeys.Add(Matching.MatchKey(m.Title, m.Artist));
             // the suggestions play after what is left of the queue: how many songs come first decides quick or Hi-Res for each (smart downloads)
             planner.Prefetch(s, missing, 5, () => { RefreshSuggestions(); Changed?.Invoke(); }, Math.Max(0, Queue.Count - 1 - Index));

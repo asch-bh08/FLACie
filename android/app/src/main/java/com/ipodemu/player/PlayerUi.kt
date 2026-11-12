@@ -2860,8 +2860,8 @@ private fun MoodTile(name: String, hue: Int, on: Boolean, covers: List<String>, 
     ) {
         // the fan: up to three covers, turned a little each way
         for ((k, art) in covers.withIndex()) {
-            val (dx, dy, rot) = listOf(Triple(-58, 18, -14f), Triple(-30, 6, -3f), Triple(-4, 16, 10f))[k]
-            ArtImage(art, Modifier.align(Alignment.TopEnd).offset(x = dx.dp, y = dy.dp).size(56.dp).graphicsLayer { rotationZ = rot; alpha = if (k == 2) 1f else .85f }, thumb = true, corner = 9.dp)
+            val (dx, dy, rot) = listOf(Triple(-52, 20, -14f), Triple(-28, 8, -3f), Triple(-6, 18, 10f))[k]
+            ArtImage(art, Modifier.align(Alignment.TopEnd).offset(x = dx.dp, y = dy.dp).size(48.dp).graphicsLayer { rotationZ = rot; alpha = if (k == 2) 1f else .85f }, thumb = true, corner = 9.dp)
         }
         Txt(name, Modifier.align(Alignment.BottomStart).padding(14.dp), size = 18f, weight = FontWeight.ExtraBold, color = Color.White, maxLines = 1)
     }

@@ -36,7 +36,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       expect(await font(h1)).toContain('Instrument Serif');
       await expect(h1.locator('i')).toHaveText('Playlists');
       const input = page.getByLabel('New playlist name');
-      expect(await radius(input)).toBeGreaterThanOrEqual(12);
+      expect(await radius(page.locator('.pl-newbar'))).toBeGreaterThanOrEqual(12);   // the rounded bar holds the field now (12 Nov)
       await input.fill(plName);
       expect(await radius(page.getByRole('button', { name: 'Create' }))).toBeGreaterThanOrEqual(12);
       expect(await noSideScroll(page)).toBe(true);

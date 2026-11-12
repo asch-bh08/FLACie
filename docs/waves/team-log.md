@@ -1,5 +1,13 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 12 Nov midday: b133 RELEASED + DEPLOYED
+- https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b133 ; frank runs b133 (rollback flacie-web:rollback-b133pre; b132pre, b131pre kept).
+- Car mode (web /car + phone overlay), Home alive animations, graphs Orbit/Skyline/Bars/Aura, web graph pre-load (one next copy, none on mobile data), Settings from Now Playing.
+- Owner feedback round (12 Nov): PC Now Playing bar = player bar (round 48px buttons both sides, seek + times under the transport); Home: Just arrived removed, Browse by mood cards with cover fans, Playing now card in the web hero; full-screen graphs rebuilt (bottom card, big seek); "BASS" label clipping fixed.
+- Known failing on b132 too (not new): 1j-speed-sleep "all one size" (m-ghost menu), 1z-scroll-kept. 1o desk preamp rate is flaky.
+- One RetroActivity ANR in an emulator screenshot run (Retro scene swipes), not in the rerun.
+- Still open: the owner's "sidebar breaks the borders" not reproduced (folded and open look right with the mock); needs a screenshot. Download toast placement and player bar spacing were suggestions, not done.
+
 ## 2026-11-12 ~01:45 Local: b132 RELEASED + DEPLOYED; morning list for the owner
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b132 ; frank runs b132 (rollback flacie-web:rollback-b132pre).
 - DONE: 1 Home buttons (tiles + one row), 3 Playlists New playlist small, 8 mini player Back + restyle, 9 Settings in the web menu, 10 long titles + where pill, 12 DJ download follow-up (message + phone sync), Home B/C bits, no pick card. Phone ANR on Home found and fixed (lists computed once per change).

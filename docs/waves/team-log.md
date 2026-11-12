@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 2026-11-12 ~00:25 Local PROGRESS on the overnight list (context nearly full; continue from here)
+- COMMITTED, NOT YET TESTED TOGETHER: web Home (no pick, mood tiles, Artists on repeat, Just arrived; test 1z-home-pick passes), phone Home (no pick, MoodTile tiles, one row of 3 shortcuts, Artists on repeat + Just arrived computed once per lib/history change), New playlist small on web (.pl-newbar) and phone (button that opens a field), Now Playing long titles (web .longer / phone 3 lines + smaller) and the where pill marquee (phone basicMarquee), DJ download wait: phone calls library.lookAgain() when the server says it landed, both say "Couldn't get X in time" after 10 min, web side menu has Settings, mini player has a Back to FLACie button + Now Playing-like buttons.
+- OPEN BUG FOUND: phone ANR ("FLACie isn't responding") on the emulator tour after Retro -> Now Playing -> Home (v1-shots). b131 did not have it. A rerun with logcat.txt + anr.txt saved to C:/FLACie-handoff/shots-home is running (task: v1-shots homeBC2). Find the main-thread block (suspects: new Home items, MoodTile, the phone seek-frame loop, the where-pill marquee) and fix BEFORE releasing.
+- NOT DONE: 2 animations "visible and alive"; 4 parity audit (shuffle, full-screen graph button); 5 more graph options + phone full-screen optimisation; 6 axis "20 kHz / 4 Hz" (need the owner's screenshot); 7 graph start delay check; 11 car mode; 13 folded menu (need screenshot).
+- Then: web tests (1z-home-pick, 1y-home, 1x-new-look, 1z-np-fits-all, playlists specs), server tests, Android smoke off/on, MSI, deploy, release b132; morning done/not-done list for the owner.
+
 ## 2026-11-12 00:05 Owner's overnight list (AFK till morning; OK to release + deploy). Work it top-down, log each item DONE/NOT
 1. Home: far too many chip buttons (moods + Favourites/Recent/Offline/Recently added wrap to 4 rows). Moods are tiles now; make the shortcuts one tidy row. Web + phone.
 2. Animations: "I still don't see the new animations; they need to be visible and alive". Bigger, obvious motion (entrances, cover flights, springy taps, live backgrounds) on web + phone, within the perf rules.

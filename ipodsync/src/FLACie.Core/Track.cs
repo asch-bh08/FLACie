@@ -92,7 +92,7 @@ public static partial class Matching
         return string.Join("/", tags);
     }
 
-    [GeneratedRegex(@"\b(?:greatest\s+hits|best\s+of|the\s+singles|singles\s+\d|collection|anthology|essential|ultimate|hits\s+hits|anthems|now\s+that'?s\s+what|the\s+very\s+best|gold(?:\s+collection)?$|\d+\s+(?:golden\s+)?(?:greats|hits)|classics)\b|[(\[]\s*(?:cd|disc)\s*\d+\s*[)\]]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\b(?:greatest\s+hits|best\s+of|the\s+singles|singles\s+\d|collection|anthology|essential|ultimate|hits\s+hits|anthems|now\s+that'?s\s+what|the\s+very\s+best|gold(?:\s+collection)?$|\d+\s+(?:golden\s+)?(?:greats|hits)|classics|story|produced\s+by|presents\s+the\s+best)\b|[(\[]\s*(?:cd|disc)\s*\d+\s*[)\]]", RegexOptions.IgnoreCase)]
     private static partial Regex CompilationName();
 
     /// <summary>A best-of or various-artists compilation ("Their Law: The Singles 1990-2005 [CD1]", "Greatest Hits", "Now That's What I Call Music!"):

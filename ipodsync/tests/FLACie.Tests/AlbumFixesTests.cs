@@ -22,6 +22,7 @@ public class AlbumFixesTests
             T("Firework", "Katy Perry", "2010s Bangers - 100 Hits", "/m/mix/4.flac", "Various Artists"),
             T("Teenage Dream", "Katy Perry", "Teenage Dream: The Complete Confection", "/m/mix/5.flac"),
             T("Bohemian Rhapsody", "Queen", "Greatest Hits", "/m/q/1.flac"), T("Radio Ga Ga", "Queen", "Greatest Hits", "/m/q/2.flac"),
+            T("Paranoid", "Black Sabbath", "Greatest Hits", "/m/b/1.flac"), T("Changes", "Black Sabbath", "Greatest Hits", "/m/b/2.flac"),
             T("Grenade (Remix)", "Bruno Mars", "party bangers", "/m/mix/6.flac"),
         };
         var c = AlbumFixes.Candidates(songs).Select(t => t.Title).ToList();

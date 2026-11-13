@@ -25,11 +25,12 @@ public static partial class AlbumFixes
     public static List<Track> Candidates(IEnumerable<Track> songs)
     {
         var list = songs.ToList();
-        var byAlbum = list.GroupBy(t => Matching.AlbumNorm(t.Album)).ToDictionary(g => g.Key, g => g.ToList());
+        // (by album and its artist: Black Sabbath's "Greatest Hits" and Fleetwood Mac's are two albums, not one album of two artists)
+        var byAlbum = list.GroupBy(t => t.AlbumKey).ToDictionary(g => g.Key, g => g.ToList());
         return list.Where(t =>
         {
             if (t.Album.Length == 0 || !PlaylistName().IsMatch(t.Album) || Matching.Recording(t.Title).Length > 0) return false;
-            var g = byAlbum[Matching.AlbumNorm(t.Album)];
+            var g = byAlbum[t.AlbumKey];
             return g.Count == 1 || g.Select(x => Matching.PrimaryArtist(x.Artist)).Distinct().Count() > 1;
         }).ToList();
     }

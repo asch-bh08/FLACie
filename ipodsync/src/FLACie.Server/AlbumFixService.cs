@@ -36,7 +36,11 @@ public sealed class AlbumFixService(SessionStore sessions, WebCatalog catalog, D
     async Task<int> PassAsync(CancellationToken ct)
     {
         var found = 0; var asked = 0;
-        foreach (var lib in sessions.Active.Select(s => s.Library).Distinct().ToList())
+        var libs = sessions.Active.Select(s => s.Library).Distinct().ToList();
+        // a fix whose song no longer qualifies (the rules tightened, or the file was retagged) is dropped
+        var still = libs.SelectMany(l => AlbumFixes.Candidates(l.Songs)).Select(t => t.FilePath ?? t.Path).ToHashSet();
+        if (libs.Count > 0) lock (gate) foreach (var k in fixes.Keys.Where(k => !still.Contains(k)).ToList()) fixes.Remove(k);
+        foreach (var lib in libs)
             foreach (var t in AlbumFixes.Candidates(lib.Songs))
             {
                 var key = t.FilePath ?? t.Path;
@@ -48,7 +52,7 @@ public sealed class AlbumFixService(SessionStore sessions, WebCatalog catalog, D
                     var hit = (await catalog.SongsAsync($"{t.Artist} {WebCatalog.BaseTitle(t.Title)}", 15, ct)).FirstOrDefault(c =>
                         Matching.PrimaryArtist(c.Artist) == lead && Matching.NormTitle(WebCatalog.BaseTitle(c.Title)) == core && Matching.Recording(c.Title).Length == 0
                         && c.Album.Length > 0 && !Matching.IsCompilationName(c.Album) && (t.DurationMs <= 0 || c.DurationMs <= 0 || Math.Abs(c.DurationMs - t.DurationMs) <= 4000));
-                    var fix = hit is null || Matching.AlbumNorm(hit.Album) == Matching.AlbumNorm(t.Album) ? null : new AlbumFix(hit.Album, hit.Artist, hit.ArtUrl, 0);
+                    var fix = hit is null || Matching.AlbumNorm(hit.Album) == Matching.AlbumNorm(t.Album) || Matching.IsCompilationName(hit.Album) ? null : new AlbumFix(hit.Album, hit.Artist, hit.ArtUrl, 0);
                     lock (gate) fixes[key] = fix;
                     if (fix is not null) found++;
                 }

@@ -84,7 +84,7 @@ fun songKey(title: String, artist: String): String {
 }
 val Track.songKey: String get() = songKey(title, artist)
 
-private val compilationName = Regex("""\b(?:greatest\s+hits|best\s+of|the\s+singles|singles\s+\d|collection|anthology|essential|ultimate|hits\s+hits|anthems|now\s+that'?s\s+what|the\s+very\s+best|gold(?:\s+collection)?$|\d+\s+(?:golden\s+)?(?:greats|hits)|classics)\b|[(\[]\s*(?:cd|disc)\s*\d+\s*[)\]]""", RegexOption.IGNORE_CASE)
+private val compilationName = Regex("""\b(?:greatest\s+hits|best\s+of|the\s+singles|singles\s+\d|collection|anthology|essential|ultimate|hits\s+hits|anthems|now\s+that'?s\s+what|the\s+very\s+best|gold(?:\s+collection)?$|\d+\s+(?:golden\s+)?(?:greats|hits)|classics|story|produced\s+by|presents\s+the\s+best)\b|[(\[]\s*(?:cd|disc)\s*\d+\s*[)\]]""", RegexOption.IGNORE_CASE)
 /** A best-of or various-artists compilation: where one copy of a song is meant, the copy on its own album wins over it (owner, 13 Nov: Voodoo People
  *  showed the singles collection's cover). The web's Matching.IsCompilation. */
 fun isCompilation(t: Track): Boolean = primaryArtist(t.albumArtist) in setOf("various artists", "various", "va") || compilationName.containsMatchIn(t.album)

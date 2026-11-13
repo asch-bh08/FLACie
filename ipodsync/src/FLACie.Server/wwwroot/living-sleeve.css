@@ -783,3 +783,10 @@ body.np-open .dj-bar { display: none; }
     background: radial-gradient(ellipse 55% 75% at 50% 50%, #00000029 0%, #00000014 45%, transparent 75%),
                 linear-gradient(90deg, #ffffff08 0%, transparent 18%, transparent 82%, #ffffff08 100%); }
 }
+/* Up next's move/remove buttons: over the end of the row while the pointer is on it, not a column of their own (invisible, it still took the
+   title's width: "...Baby One..." in the narrow panel; owner's screenshot, 13 Nov) */
+@media (hover: hover) {
+  .upnext .q-item { position: relative; }
+  .upnext .q-item .q-edit { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); z-index: 2; padding: 3px; border-radius: 12px;
+    background: color-mix(in srgb, var(--ground, #16161b) 88%, transparent); box-shadow: 0 6px 18px #0006; }
+}

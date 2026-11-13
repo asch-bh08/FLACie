@@ -764,3 +764,20 @@ body.np-open .dj-bar { display: none; }
 @media (min-width: 761px) and (max-width: 1180px) { .ls-dock .ls-dshare { display: none !important; } }
 /* a phone on its side (375 px tall): with the graph tabs' row above it, the Info graph ran a few px past the panel; it takes less height there */
 @media (max-height: 420px) { .ls-info .viz, .ls-info .viz.curve, .ls-info .viz.loud, .ls-info .viz.stereo, .ls-info .viz.wall, .ls-info .viz.tall { height: clamp(100px, 30vh, 200px); } }
+
+/* Settings → Curved player (owner, 13 Nov): the full-screen player's two halves turn a few degrees in towards the viewer from their outer edges, as on a
+   curved screen, with a deep perspective so nothing warps; a soft vignette keeps the middle a little further back. A computer only; the layout and its
+   proportions are untouched (static transforms, nothing moves, nothing blurred). The perspective is in each transform, not on a parent: a parent
+   with perspective or a transform would become the box the player's fixed controls are placed in (they jumped onto the title) */
+@media (min-width: 761px) {
+  :root.pref-curve .ls .ls-stage > :not(.ls-bar), :root.pref-curve .ls .ls-side { transition: transform .5s var(--m-ease, ease); }
+  /* the half on the left turns from its left edge, the one on the right from its right edge (Swap sides swaps them) */
+  :root.pref-curve .ls:not(.swapped) .ls-stage > :not(.ls-bar), :root.pref-curve .ls.swapped .ls-side { transform: perspective(1400px) rotateY(4deg); transform-origin: 0% 50%; }
+  :root.pref-curve .ls:not(.swapped) .ls-side, :root.pref-curve .ls.swapped .ls-stage > :not(.ls-bar) { transform: perspective(1400px) rotateY(-4deg); transform-origin: 100% 50%; }
+  :root.pref-curve .ls .ls-side { box-shadow: 0 30px 70px #00000059, 0 0 0 1px #ffffff0a; }
+  /* depth: the middle sits a touch darker, the edges catch a little light */
+  :root.pref-curve .ls .ls-body { isolation: isolate; }
+  :root.pref-curve .ls .ls-body::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: -1;
+    background: radial-gradient(ellipse 55% 75% at 50% 50%, #00000029 0%, #00000014 45%, transparent 75%),
+                linear-gradient(90deg, #ffffff08 0%, transparent 18%, transparent 82%, #ffffff08 100%); }
+}

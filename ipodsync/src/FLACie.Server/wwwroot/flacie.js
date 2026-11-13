@@ -1993,7 +1993,7 @@ window.flacieDl = (() => {
 // Personal look-and-feel tweaks (Settings > Look and feel), kept in this browser and applied on every page load
 window.flacieUi = (() => {
   const KEY = "flacie.ui";
-  const defaults = { accent: "", compact: false, badges: true, motion: true, artbg: true, theme: "dark" };
+  const defaults = { accent: "", compact: false, badges: true, motion: true, artbg: true, theme: "dark", curve: false };
   // the theme: dark (the default), light, or system (follows the computer, and changes with it); App.razor's <head> sets it first, before the page is drawn
   const dark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
   const themeOf = p => p.theme === "light" ? "light" : p.theme === "system" ? (dark && !dark.matches ? "light" : "dark") : "dark";
@@ -2007,6 +2007,7 @@ window.flacieUi = (() => {
     r.classList.toggle("pref-nobadges", p.badges === false);
     r.classList.toggle("pref-calm", p.motion === false);
     r.classList.toggle("pref-noartbg", p.artbg === false);
+    r.classList.toggle("pref-curve", p.curve === true);
     r.dataset.theme = themeOf(p);
     document.querySelector('meta[name="theme-color"]')?.setAttribute("content", r.dataset.theme === "light" ? "#f6f3ee" : "#0b0b0e");
   };

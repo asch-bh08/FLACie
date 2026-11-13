@@ -166,4 +166,20 @@ public class ImportSweepTests
         Assert.Equal(["Scatman (ski-ba-bop-ba-dop-bop)", "Lover On The Line"], again.Select(i => i.Title));
         Assert.Equal(["Scatman"], clips.Select(t => t.Title));
     }
+
+    [Fact]
+    public void A_playlist_found_online_lists_every_song_the_missing_ones_saying_not_downloaded_yet()
+    {
+        // owner, 12 Nov: a playlist found by name is in the library at once; its songs fill in as it plays, the rest say "Not downloaded yet"
+        static Track Song(string a, string t) => new("/p/" + t, t, a, "Alb", a, 1, 1, 200_000, 2000, null, 0, TrackSource.Jellyfin);
+        var web = new List<WebTrack> { new("One", "A"), new("Two", "B"), new("Three", "C") };
+        var lib = new Dictionary<string, Track> { ["Two"] = Song("B", "Two") };
+        var jobs = new Dictionary<string, DownloadJob> { ["Three"] = new("j", "l", null) { Stage = DownloadStage.Downloading, Message = "Downloading 40%" } };
+        var (play, wait) = ImportRows.BuildWeb(web, (a, t) => lib.GetValueOrDefault(t), (a, t) => jobs.GetValueOrDefault(t));
+        Assert.Equal(["Two"], play.Select(t => t.Title));
+        Assert.Equal(["One", "Three"], wait.Select(w => w.Title));
+        Assert.Equal([0, 1], wait.Select(w => w.Before));
+        Assert.Equal("Not downloaded yet", wait[0].Status);
+        Assert.StartsWith("Downloading", wait[1].Status);
+    }
 }

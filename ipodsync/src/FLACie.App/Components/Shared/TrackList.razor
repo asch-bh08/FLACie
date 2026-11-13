@@ -102,10 +102,13 @@
     /// <summary>F26.6: songs of an import not in the library yet, greyed in their place with their live state; they can't be played.</summary>
     [Parameter] public IReadOnlyList<WaitingSong>? Waiting { get; set; }
     [Parameter] public Action<WaitingSong>? OnRetry { get; set; }
+    /// <summary>A song of a playlist found online that is not fetched yet: its Download button fetches it first (owner, 12 Nov).</summary>
+    [Parameter] public Action<WaitingSong>? OnFetch { get; set; }
     RenderFragment WaitingRow(WaitingSong w) => @<li class="track pending @(w.Failed ? "failed" : "")" data-testid="pending-song" aria-disabled="true">
         <span class="track-main"><Cover Size="@ThumbSize" /><span class="track-text"><span class="track-title">@w.Title</span><span class="track-sub">@w.Artist</span>
             <span class="pending-state" data-testid="pending-state">@w.Status@if (w.Percent is { } pc) {<span class="pending-bar" aria-hidden="true"><i style="width:@(pc)%"></i></span>}</span></span></span>
         @if (w.Failed && OnRetry is not null) { <button class="btn" @onclick="() => OnRetry(w)">Retry</button> }
+        @if (!w.Failed && w.Status == "Not downloaded yet" && OnFetch is not null) { <button class="btn" @onclick="() => OnFetch(w)" aria-label="@("Download " + w.Title)">Download</button> }
     </li>;
     [Parameter] public bool Numbered { get; set; }
     /// <summary>Side of the small cover in a row, in pixels.</summary>

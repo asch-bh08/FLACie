@@ -28,6 +28,11 @@ public static class ImportRows
         return (playable, waiting);
     }
 
+    /// <summary>A playlist found online (Spotify, Deezer, SoundCloud): every song in its order, the ones the library lacks greyed in their place,
+    /// "Not downloaded yet" until a fetch starts (owner, 12 Nov: "in the library, populated as we go").</summary>
+    public static (List<Track> Playable, List<WaitingSong> Waiting) BuildWeb(IReadOnlyList<WebTrack> tracks, Func<string, string, Track?> find, Func<string, string, DownloadJob?> job) =>
+        Build(tracks.Select(t => new ImportSong(t.Artist, t.Title, "", "web", null)).ToList(), find, job);
+
     static WaitingSong StatusOf(int before, ImportSong s, DownloadJob? j)
     {
         if (j is { Stage: DownloadStage.Failed } || (j is null or { Finished: true } && s.State == "failed"))
@@ -42,6 +47,7 @@ public static class ImportRows
         }
         if (j is { Stage: DownloadStage.Searching }) return new(before, s.Artist, s.Title, "Searching", false, null);
         if (s.State == "requested") return new(before, s.Artist, s.Title, "Requested from Lidarr", false, null);
+        if (s.State == "web") return new(before, s.Artist, s.Title, "Not downloaded yet", false, null);
         return new(before, s.Artist, s.Title, "Waiting", false, null);
     }
 }

@@ -47,7 +47,10 @@ DONE 12:00 (committed, NOT deployed): MusicCheck (no non-music auto-fetch; YouTu
    same-recording dupes hidden, server names via an endpoint keyed by Jellyfin item id; (c) search: other versions folded under the main row;
    (d) album page: whole tracklist from the catalog with "Not downloaded yet" rows, Fetch all, auto-fetch on open; (e) Quick picks: two big tiles +
    Hi-Res/lossless tags; (f) everything else from today is web-only by nature (curved player and swap are PC only).
-4. Phone beta b139: version is already 1.0 b139 / 154; unit tests, APK, emulator smoke (emulator-5554, -Motion), MSI, release notes
+4. DONE 12:55: b139 RELEASED (APK smoke 23/23, MSI ok, web deployed rollback-b139h); version now b140/155. Album fixes: grouped by AlbumKey,
+   compilations refused, stale fixes dropped. OPEN: phone "+N versions" expand; album missing rows on the phone sit after the songs (not in place);
+   a dashboard review/undo list for album fixes.
+   (old text) Phone beta b139: version is already 1.0 b139 / 154; unit tests, APK, emulator smoke (emulator-5554, -Motion), MSI, release notes
    docs/private/release-bodies/v1.0.0-b139.md, gh release, web deploy.
 
 ## QUEUED 13 Nov (owner): SONGS TAGGED WITH A PLAYLIST/MIX AS THEIR ALBUM

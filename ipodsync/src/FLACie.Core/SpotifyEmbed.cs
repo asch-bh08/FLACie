@@ -134,7 +134,7 @@ public sealed class WebSourceGate(Func<DateTime> now)
 public sealed class WebPlaylistStore(string? file, Func<DateTime> now)
 {
     public const int Max = 2000;
-    public static readonly TimeSpan Unused = TimeSpan.FromDays(30), Stale = TimeSpan.FromDays(1);
+    public static readonly TimeSpan Unused = TimeSpan.FromDays(30), Stale = TimeSpan.FromDays(1), Refresh = TimeSpan.FromDays(7);
     sealed record Entry(WebPlaylist List, DateTime Fetched, DateTime Used);
     readonly Dictionary<string, Entry> lists = Load(file);
 
@@ -154,6 +154,10 @@ public sealed class WebPlaylistStore(string? file, Func<DateTime> now)
 
     /// <summary>Whether the list should be read again (unknown, or read over a day ago).</summary>
     public bool NeedsFetch(string source, string id) { lock (lists) return !lists.TryGetValue(Key(source, id), out var e) || now() - e.Fetched > Stale; }
+
+    /// <summary>A list already read whose songs are over a week old: read it again from its source when it is next opened or played (the
+    /// list someone saw on SoundCloud or YouTube grows; owner, 12 Nov: "refresh weekly"). False for a list not read yet.</summary>
+    public bool NeedsRefresh(string source, string id) { lock (lists) return lists.TryGetValue(Key(source, id), out var e) && e.List.Tracks.Count > 0 && now() - e.Fetched > Refresh; }
 
     public IReadOnlyList<WebPlaylist> All { get { lock (lists) return lists.Values.Select(e => e.List).ToList(); } }
 

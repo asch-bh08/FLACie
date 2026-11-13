@@ -66,6 +66,8 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             if (trigger is FetchTrigger.Opened or FetchTrigger.Played) _ = Task.Run(async () => { var full = await FillAsync(s, list, CancellationToken.None); if (full.Tracks.Count > 0) Interest(s, full, trigger, from); });
             return;
         }
+        // read a week ago or more: read again in the background (a SoundCloud or YouTube list grows); the new songs show the next time it is looked at
+        if (trigger is FetchTrigger.Opened or FetchTrigger.Played && store.NeedsRefresh(list.Source, list.Id)) _ = Task.Run(() => FillAsync(s, list, CancellationToken.None));
         var key = $"{s.Id}|{list.Source}:{list.Id}|{trigger}|{from}";
         lock (queued)
         {
@@ -146,8 +148,20 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
 
     public async Task<WebPlaylist> FillAsync(UserSession s, WebPlaylist list, CancellationToken ct)
     {
-        if (list.Tracks.Count > 0) return list;
-        if (store.Use(list.Source, list.Id) is { Tracks.Count: > 0 } have) return have;
+        // read once, then again weekly (a SoundCloud or YouTube list grows): until then, and if the re-read fails, the songs read before
+        var stale = store.NeedsRefresh(list.Source, list.Id);
+        if (list.Tracks.Count > 0 && !stale) return list;
+        var have = store.Use(list.Source, list.Id);
+        if (have is { Tracks.Count: > 0 } && !stale) return have;
+        var before = have is { Tracks.Count: > 0 } ? have : list.Tracks.Count > 0 ? list : null;
+        var read = await ReadAsync(s, (have ?? list) with { Tracks = [] }, ct);
+        return read.Tracks.Count > 0 ? read : before ?? read;
+    }
+
+    /// <summary>The list's songs read from its source (Deezer's open API, or flacie-ytdl for SoundCloud and YouTube), stored; the list as it was
+    /// (no songs) when the source can't be asked now or fails.</summary>
+    async Task<WebPlaylist> ReadAsync(UserSession s, WebPlaylist list, CancellationToken ct)
+    {
         // F26.1: a Deezer list found by name: its songs from Deezer's open API
         if (list.Source == "deezer")
         {

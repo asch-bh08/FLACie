@@ -204,4 +204,19 @@ public sealed class SpotifyEmbedTests : IDisposable
         Assert.Equal("Firestarter, Breathe", WebPlaylistPick.SongsLabel(rows[1].Songs));
         Assert.Equal("Shook Ones, Keep It Thoro", WebPlaylistPick.SongsLabel(WebPlaylistPick.WithArtistIn(known, "Prodigy").Single().Songs));
     }
+
+    [Fact]
+    public void A_filled_playlist_found_online_is_read_again_after_a_week()
+    {
+        // owner's queue, 12 Nov: a playlist found online "refreshes from the source weekly"
+        var t = new DateTime(2026, 11, 13, 6, 0, 0, DateTimeKind.Utc);
+        var store = new WebPlaylistStore(null, () => t);
+        store.Put(new WebPlaylist("youtube", "PLx1234567890", "90s", WebPlaylistKind.Other, "", [new WebTrack("Dreamer", "Livin' Joy")]));
+        Assert.False(store.NeedsRefresh("youtube", "PLx1234567890"));
+        t = t.AddDays(6);
+        Assert.False(store.NeedsRefresh("youtube", "PLx1234567890"));
+        t = t.AddDays(2);
+        Assert.True(store.NeedsRefresh("youtube", "PLx1234567890"));
+        Assert.False(store.NeedsRefresh("youtube", "unknown"));   // nothing to refresh
+    }
 }

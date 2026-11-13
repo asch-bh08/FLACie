@@ -39,8 +39,8 @@ State at start: 2de9b156 (swap sides) committed, NOT deployed; 44a88b5d + b8b562
 4. Prodigy "Music for the Jilted Generation" is WMAV2 (lossy, low quality): queue the album for upgrade (smart downloads / upgrade worker) and
    find other lossy albums (WMA, MP3 < 256k) and queue them too (frank data change = an approved owner request).
 5. 20 Home redesign mockups (web + small phone views) on one artifact page for the owner to pick from in the morning. Do not build any yet.
-6. More animations and smooth transitions app-wide (page changes, lists, NP open/close), within the perf rules.
-7. Queued items: Up next shows the whole playlist (web+phone); playlist-by-name YouTube; "Not downloaded yet" rows; weekly playlist refresh;
+6. DONE (tab fade, staggered rows, press): More animations and smooth transitions app-wide (page changes, lists, NP open/close), within the perf rules.
+7. Queued items: Up next shows the whole playlist (web+phone) DONE (web 1z-queue-whole + phone UpNextDrawer); playlist-by-name YouTube; "Not downloaded yet" rows; weekly playlist refresh;
    phone Home hard bars/space + 50/50; Android Auto overhaul (see below; lyrics: check the code); Retro overhaul.
 8. Audit the whole app (web, phone, Windows): bugs, clipping, consistency (docs/icons.md), perf.
 PROGRESS: 1 DONE (search typo + layout, deployed). 2 DONE (dock + solid menu). 3 DONE (Home shelves built in the background; deployed).
@@ -55,6 +55,20 @@ Not deployed yet: nothing pending (all web work above is deployed). Phone work f
 9. Morning: full beta (b138+): version in 6 places, notes docs/private/release-bodies, APK + MSI, smoke on emulator-5554, web deploy, release.
 
 ## 12 Nov ~23:00 Owner: Android Auto overhaul (QUEUED, do not start yet)
+- AUDIT 13 Nov 01:45: what Auto has now (PlaybackService.kt, BrowseTree.kt, CarActions.kt, SessionPlayer.kt): a media-template app. Browse: Home
+  (Quick picks, Recently played, Your playlists), albums, artists, downloaded, search, DJ asks, Play all / Shuffle rows. Buttons beside the transport:
+  mic (talk to the DJ), heart, shuffle, DJ on/off, repeat, speed for long items (4 at most, CarActions). LYRICS ARE THERE: with "Lyrics in the car" on,
+  the current synced line replaces the artist line (CarActions.artistLine/lyricAt), and the DJ's caption while it talks.
+- Options for the owner (pick one before building):
+  A. Polish inside the media template (safe, Play-Store-clean): grid tiles with covers for Home/playlists, a "Moods" and "Radio" row, Up next as the
+     queue (the whole playlist), faster first load (cache the root lists), bigger art, the graph name/"Hi-Res" as a subtitle. Lyrics stay one line.
+  B. A second, non-media Car App Library screen (templates: list/grid/pane/message) for lyrics and graphs: Android Auto only lets Car App apps in
+     a few categories (navigation, POI/charging/parking, IoT, weather, messaging, video when parked). Pretending to be one of those for a music app
+     breaks Google's car app rules; it only runs sideloaded with Android Auto's developer "Unknown sources" on, and Google can block it in an update.
+     Not recommended, but possible for this one personal car.
+  C. Both: A now, B as an experiment behind a setting.
+- Test rig available: the Desktop Head Unit is installed (Sdk/extras/google/auto/desktop-head-unit.exe); needs Android Auto on a Play image emulator.
+
 - Owner: "overhaul Android Auto: optimise it, make the UI 1000x better and add the features we have. Someone said it's set for music apps, but maybe
   make it think it's not a music app but still a music app; if that's too ambitious, I was told you can't have lyrics on Android Auto, but I have
   lyrics, check the code." Plan when started: audit what our MediaBrowserService/MediaLibrarySession shows today (browse tree, Up next, search,

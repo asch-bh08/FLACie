@@ -356,3 +356,26 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 .sr-top-main .sr-hero { min-width: 0; }
 .sr-hero-text { min-width: 0; }
 .sr-hero-title { overflow-wrap: anywhere; writing-mode: horizontal-tb; }
+
+/* More motion (owner, 12 Nov: "more animations and smooth transitions"). Transform and opacity only; each runs once, as the thing appears. */
+/* the player's Up next / Lyrics / Info: a switched tab slides in rather than snapping */
+.ls-panel > * { animation: m-fade .28s var(--m-ease) both; }
+/* rows of cards and song lists arrive one after another as a page opens (the first dozen; later ones are already off screen) */
+.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > * { animation: m-rise .42s var(--m-ease) both; }
+ol.tracks > li { animation: m-rise .36s var(--m-ease) both; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(2) { animation-delay: .03s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(3) { animation-delay: .06s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(4) { animation-delay: .09s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(5) { animation-delay: .12s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(6) { animation-delay: .15s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(7) { animation-delay: .18s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(8) { animation-delay: .21s; }
+:is(.row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li):nth-child(n+9) { animation-delay: .24s; }
+@keyframes m-rise { from { opacity: 0; transform: translateY(10px); } }
+/* a press gives way a little */
+.btn, .chip, .ls-dbtn, .ls-icon, .sr-play { transition: transform .16s var(--m-ease); }
+.btn:active, .chip:active, .ls-dbtn:active, .ls-icon:active, .sr-play:active { transform: scale(.95); }
+@media (prefers-reduced-motion: reduce) {
+  .ls-panel > *, .row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li { animation: none !important; }
+  .btn:active, .chip:active, .ls-dbtn:active, .ls-icon:active, .sr-play:active { transform: none; }
+}

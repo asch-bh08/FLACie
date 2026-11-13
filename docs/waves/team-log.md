@@ -41,7 +41,11 @@ State at start: 2de9b156 (swap sides) committed, NOT deployed; 44a88b5d + b8b562
 5. 20 Home redesign mockups (web + small phone views) on one artifact page for the owner to pick from in the morning. Do not build any yet.
 6. DONE (tab fade, staggered rows, press): More animations and smooth transitions app-wide (page changes, lists, NP open/close), within the perf rules.
 7. Queued items: Up next shows the whole playlist (web+phone) DONE (web 1z-queue-whole + phone UpNextDrawer); playlist-by-name YouTube; "Not downloaded yet" rows
-   DONE on web 05:35 (Made.razor + ImportRows.BuildWeb, Download button per row; deployed, rollback-b139a; not checked live: opening one starts downloads; phone not yet); weekly playlist refresh;
+   DONE on web 05:35 (Made.razor + ImportRows.BuildWeb, Download button per row; deployed; not checked live: opening one starts downloads; the phone
+   already showed missing songs greyed with Download). Playlist-by-name YouTube DONE 06:00 (flacie-ytdl /find-sets adds YouTube's playlist search,
+   deployed on frank with server.py.bak-20261113-ytsets, image rebuilt; lazy "youtube" lists read with /playlist; Server admin switch; phone label).
+   Weekly refresh DONE 06:15 (WebPlaylistStore.NeedsRefresh 7 days; opening/playing re-reads in the background; deployed rollback-b139d).
+   Still queued: phone Home rework (wait for the owner's pick of the 20 designs), Retro overhaul, Android Auto (owner picks A/B/C), Spotify by name (owner's API key); weekly playlist refresh;
    phone Home hard bars/space + 50/50; Android Auto overhaul (see below; lyrics: check the code); Retro overhaul.
 8. Audit the whole app (web, phone, Windows): bugs, clipping, consistency (docs/icons.md), perf.
 PROGRESS: 1 DONE (search typo + layout, deployed). 2 DONE (dock + solid menu). 3 DONE (Home shelves built in the background; deployed).

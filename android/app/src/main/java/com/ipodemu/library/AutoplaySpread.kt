@@ -44,4 +44,18 @@ object AutoplaySpread {
         val autoSoFar = queue.take(index + 1).count(isAuto)
         return s[s.size - 1 - (autoSoFar - 1) % s.size]
     }
+
+    /** Search: a song's mixes and versions found by one search show as one row, the plain version where the best ranked of them was (owner, 13 Nov:
+     *  "show one main one then hide the different versions"); the web's Library.OneVersion. */
+    fun oneVersion(ranked: List<Track>): List<Track> {
+        val groups = ranked.groupBy { it.songKey }
+        val shown = HashSet<String>(); val out = ArrayList<Track>()
+        for (t in ranked) {
+            val g = groups[t.songKey]!!
+            if (g.size == 1) { out.add(t); continue }
+            if (!shown.add(t.songKey)) continue
+            out.add(g.firstOrNull { normTitle(it.title) == it.songKey.substringBefore('|') } ?: t)
+        }
+        return out
+    }
 }

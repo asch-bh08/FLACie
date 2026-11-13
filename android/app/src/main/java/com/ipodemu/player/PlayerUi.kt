@@ -1900,7 +1900,8 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             // ranked by word: exact > start > inside, title > artist > album, and a typo or two only when little else matches
             val docs = com.ipodemu.library.searchDocs(lib)
             Results(
-                com.ipodemu.library.SearchRank.rank(lib.songs(), { docs.song(it) }, q, 150),
+                // a song's mixes and versions as one row, the plain one (owner, 13 Nov)
+                com.ipodemu.library.AutoplaySpread.oneVersion(com.ipodemu.library.SearchRank.rank(lib.songs(), { docs.song(it) }, q, 150)),
                 com.ipodemu.library.SearchRank.rank(lib.albums(), { docs.album(it) }, q, 30),
             )
         }

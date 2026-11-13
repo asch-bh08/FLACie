@@ -36,4 +36,13 @@ class AutoplaySpreadTest {
         assertNotEquals(AutoplaySpread.lead(q, 31, isAuto), AutoplaySpread.lead(q, 32, isAuto))
         assertEquals("dreamer", AutoplaySpread.lead(listOf("dreamer", "auto1", "auto2"), 2, isAuto))
     }
+
+    @Test fun searchFoldsVersionsUnderThePlainOne() {
+        fun t(title: String, artist: String, p: String) = Track(path = p, title = title, artist = artist, album = "", albumArtist = artist, genre = "", trackNo = 1, discNo = 1,
+            durationMs = 200_000, year = 0, isMusic = true, artKey = null, mtime = 0, size = 0)
+        val mix = t("Dreamer - Re-Original 7-inch Mix", "Livin' Joy", "/1"); val plain = t("Dreamer", "Livin' Joy", "/2")
+        val vocal = t("Dreamer (Janice Robinson Vocal)", "Livin' Joy", "/3"); val prince = t("Dreamer", "Prince", "/4")
+        assertEquals(listOf(plain, prince), AutoplaySpread.oneVersion(listOf(mix, prince, plain, vocal)))
+        assertEquals(listOf(vocal), AutoplaySpread.oneVersion(listOf(vocal)))
+    }
 }

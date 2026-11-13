@@ -162,6 +162,8 @@ public sealed class Library
         jellyfin = CoverVetting.Vet(jellyfin);   // an album picture only for songs that really belong to that album (AlbumId is shared by unrelated albums on a real Jellyfin)
         // a song downloaded from search keeps the cover it was found with, not the one inside the file (owner, 6 Nov)
         if (DownloadCovers.Current is { } dc) jellyfin = dc.Apply(jellyfin);
+        // a song filed under a playlist's name shows its own album and cover (AlbumFixes; owner, 13 Nov)
+        jellyfin = AlbumFixes.Apply(jellyfin); nas = AlbumFixes.Apply(nas);
         var acc = new List<Track>();
         var seen = new HashSet<string>();
         var anySong = new HashSet<string>();

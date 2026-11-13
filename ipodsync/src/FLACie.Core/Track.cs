@@ -103,6 +103,9 @@ public static partial class Matching
     /// <summary>The copy to use when two files are the same song: the one on its own album over one on a compilation, else the first.</summary>
     public static bool Prefer(Track candidate, Track current) => IsCompilation(current) && !IsCompilation(candidate);
 
+    /// <summary>An album name that is a best-of or a compilation ("Greatest Hits", "Now That's What I Call Music!").</summary>
+    public static bool IsCompilationName(string album) => CompilationName().IsMatch(album);
+
     /// <summary>The song whatever the version: its title without what is in brackets or after " - ", and its lead artist ("Dreamer", "Dreamer - Re-Original
     /// 7-inch Mix" and "Dreamer (Janice Robinson Vocal)" by Livin' Joy are one song). Autoplay plays one version of a song (owner, 12 Nov: it played all three in a row).</summary>
     public static string SongKey(string title, string artist)

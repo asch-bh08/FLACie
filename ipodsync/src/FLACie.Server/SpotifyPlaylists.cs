@@ -86,7 +86,7 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     readonly Dictionary<string, DateTime> findAsked = [];
 
     List<WebPlaylist> FoundBefore(string query) =>
-        store.All.Where(l => l.Source is "soundcloud" or "youtube" && l.Kind == WebPlaylistKind.Other && WebPlaylistPick.Relevance(l, query) > 0).ToList();
+        store.All.Where(l => (l.Source == "soundcloud" || (l.Source == "youtube" && gate.IsOn("youtube"))) && l.Kind == WebPlaylistKind.Other && WebPlaylistPick.Relevance(l, query) > 0).ToList();
 
     async Task<List<WebPlaylist>> FindSetsAsync(UserSession s, string query, CancellationToken ct)
     {
@@ -99,7 +99,8 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             var answer = await MoverAsync(s, "/find-sets", new System.Text.Json.Nodes.JsonObject { ["q"] = query.Trim() }, ct);
             if (answer is null) { gate.Failed("soundcloud"); return FoundBefore(query); }
             lock (findAsked) { findAsked[key] = now(); if (findAsked.Count > 2000) findAsked.Clear(); }
-            var sets = SoundCloudSets.FromSearch(answer);
+            // (YouTube's lists only while its switch on Server admin is on)
+            var sets = SoundCloudSets.FromSearch(answer).Where(l => l.Source != "youtube" || gate.IsOn("youtube")).ToList();
             foreach (var l in sets) if (store.Use(l.Source, l.Id) is null) store.Put(l);
             store.Save();
             return sets.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();

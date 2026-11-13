@@ -212,7 +212,7 @@ else
     @* F23: where Search's playlists may come from; a source that failed rests for 6 hours by itself *@
     <section class="admin-block" aria-label="Playlist sources">
         <div class="shelf-head"><div><h2>Playlist sources</h2><small>Playlists for Search, read only when a search needs them, at most once a second each</small></div></div>
-        @foreach (var (src, label) in new[] { ("spotify", "Spotify (public playlist pages)"), ("deezer", "Deezer"), ("soundcloud", "SoundCloud") })
+        @foreach (var (src, label) in new[] { ("spotify", "Spotify (public playlist pages)"), ("deezer", "Deezer"), ("soundcloud", "SoundCloud"), ("youtube", "YouTube (playlists found by name)") })
         {
             var source = src;
             <label class="switch-row">

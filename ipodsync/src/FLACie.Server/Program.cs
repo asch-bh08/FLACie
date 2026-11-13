@@ -347,6 +347,7 @@ app.MapGet("/api/admin/load", (HttpContext ctx, SessionStore store, JellyfinClie
     !AdminAccess.Is(store.For(ctx.User), conf) ? Results.StatusCode(403)
     : Results.Json(new { jellyfinCallsLastMinute = jf.Stats.LastMinute(), jellyfinCallsSinceStart = jf.Stats.Totals(), openStreams = act.OpenStreams, busy = act.Busy, probePending = probe.Pending, indexed = idx.Count, backingOff = idx.MissCount, desktopShell = ChartsService.InDesktopShell, gate = gate.Metrics(), cache = cache.Report(),
         rateLimitKeys = limits.KeyCounts() })).RequireAuthorization();   // (addresses and accounts each limit is counting right now: bounded, see RateLimits)
+LibraryFixesApi.Map(app);   // version names, album fixes and hidden copies for the phone
 app.MapGet("/healthz", () => Results.Ok("ok")).RateLimited("public");
 // a self-hosted music server has no place in search results (every answer also says X-Robots-Tag: noindex)
 app.MapGet("/robots.txt", () => Results.Text(SecurityHeaders.RobotsTxt, "text/plain; charset=utf-8")).RateLimited("public");

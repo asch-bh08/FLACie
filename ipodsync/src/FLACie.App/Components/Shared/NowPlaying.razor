@@ -150,8 +150,16 @@
                             <i class="switch" aria-hidden="true"></i>
                         </label>
                         <ol class="upnext">
+                            @* the whole playlist (owner, 12 Nov): the songs before this one, dimmed, a tap plays from there *@
+                            @{ var before = Player.PlayedBefore().ToList(); }
+                            @if (before.Count > 0) { <li class="q-divider">Played · @before.Count @(before.Count == 1 ? "song" : "songs")</li> }
+                            @foreach (var (bi, b) in before)
+                            {
+                                var bIndex = bi;
+                                <li class="q-item q-played"><button class="q-row" @onclick="() => Player.SkipTo(bIndex)"><Cover ArtKey="@(Art.KeyFor(b))" Size="44" /><span><b>@b.Title</b><small>@b.Artist@(b.Album.Length > 0 ? " · " + b.Album : "")</small></span><span class="q-time">@Time(b.DurationMs / 1000.0)</span></button></li>
+                            }
                             <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" role="img" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
-                            @{ var shownAuto = false; var fetching = Player.AutoplayFetching; var upNext = Player.UpNext(30).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
+                            @{ var shownAuto = false; var fetching = Player.AutoplayFetching; var upNext = Player.UpNext(queueAll ? int.MaxValue : 300).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
                             @for (var k = 0; k < upNext.Count; k++)
                             {
                                 var (i, u) = upNext[k]; var place = k + 1; var first = k == 0; var last = k == upTotal - 1;
@@ -173,6 +181,7 @@
                                     }
                                 </li>
                             }
+                            @if (upTotal > upNext.Count) { <li class="q-more"><button class="btn ghost" @onclick="() => queueAll = true">Show all @upTotal songs still to come</button></li> }
                             @if (shownAuto)
                             {
                                 @* the autoplay part of the queue: songs being fetched for it are listed under the ones already there *@
@@ -245,7 +254,7 @@
     string? realAlbum, realAlbumFor;
     string AlbumOf(Track t) => realAlbumFor == t.Path && realAlbum is { Length: > 0 } a ? a : t.Album;
     DotNetObjectReference<NowPlaying>? self;
-    string tab = "queue"; string? shownTab = "queue";
+    string tab = "queue"; string? shownTab;   // (null: the first draw places Up next on the song playing)
     // closing plays the slide-down (the cover pops down) before the player is taken out of the page
     bool closing;
     /// <summary>A sideways swipe on the phone player moves between its panes, left to right: Lyrics, the cover, Info, Up next (a swipe no longer skips the song).</summary>
@@ -451,6 +460,7 @@
     void OpenQueue() { tab = "queue"; panelOpen = true; }
     void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
     bool panelOpen;
+    bool queueAll;
     bool swapped;
     async Task SwapSides()
     {

@@ -754,3 +754,8 @@ body.np-open .dj-bar { display: none; }
 
 /* the player's menus are solid: the title behind showed through (owner screenshot, 12 Nov) */
 .ls .menu.np-menu { background: #16161b; border-color: #ffffff1f; }
+
+/* Up next shows the whole playlist: the songs already played sit above the one playing, quieter */
+.upnext .q-played { opacity: .55; transition: opacity .2s ease; }
+.upnext .q-played:hover, .upnext .q-played:focus-within { opacity: 1; }
+.upnext .q-more { display: flex; justify-content: center; padding: 10px 0; }

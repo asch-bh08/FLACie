@@ -1026,7 +1026,13 @@ window.flacie = (() => {
       return { ip: who.ip || "", ua, browser, os, screen: `${screen.width}×${screen.height}`, language: navigator.language || "" };
     },
     // a tab in the full-screen player starts at its top, not wherever the last tab was scrolled to
-    panelTop() { const p = document.querySelector(".ls-panel, .np-panel"); if (p) p.scrollTop = 0; },
+    panelTop() {
+      const p = document.querySelector(".ls-panel, .np-panel"); if (!p) return;
+      // Up next shows the whole playlist (the played songs above): it opens on the song playing now, with one played song showing above it
+      const now = p.querySelector(".upnext li.now");
+      if (now) { const prev = now.previousElementSibling; p.scrollTop = Math.max(0, (prev && prev.classList.contains("q-played") ? prev.offsetTop : now.offsetTop) - p.offsetTop - 140); }
+      else p.scrollTop = 0;
+    },
     // is the player laid out as a phone (tabs open a sheet over the cover)?
     sheetMode() { return window.matchMedia("(max-width: 760px)").matches; },
     // a song that failed (Jellyfin did not answer, the music stopped) is asked for again when play is pressed: an element in error does not load again by itself

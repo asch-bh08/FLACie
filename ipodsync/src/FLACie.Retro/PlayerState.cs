@@ -565,6 +565,14 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>How many songs follow the current one in play order.</summary>
     public int UpNextCount { get { var pos = order.IndexOf(Index); return pos < 0 ? 0 : order.Count - pos - 1; } }
 
+    /// <summary>The queue's songs before the current one in play order (the playlist's start, already played or skipped): Up next shows the whole playlist
+    /// (owner, 12 Nov).</summary>
+    public IEnumerable<(int Index, Track Track)> PlayedBefore()
+    {
+        var pos = order.IndexOf(Index);
+        return pos <= 0 ? [] : order.Take(pos).Select(i => (i, Queue[i]));
+    }
+
     public IEnumerable<(int Index, Track Track)> UpNext(int n)
     {
         var pos = order.IndexOf(Index);

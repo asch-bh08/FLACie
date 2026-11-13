@@ -59,6 +59,16 @@ public class PlayerListenTests : IDisposable
         Assert.Single(events);   // the next song was heard for no time at all
     }
 
+    [Fact] public async Task The_queue_shows_the_whole_playlist_the_songs_before_the_one_playing_too()
+    {
+        // owner, 12 Nov: "can we change to see the whole playlist in the queue"
+        var p = Player(60);
+        await p.Play(Songs(0, 50), 10, "80s - 90s rally");
+        Assert.Equal(Enumerable.Range(0, 10), p.PlayedBefore().Select(x => x.Index));
+        Assert.Equal(39, p.UpNext(int.MaxValue).Count());
+        Assert.Equal(39, p.UpNextCount);
+    }
+
     [Fact] public async Task The_context_is_the_playlist_id_search_home_or_autoplay()
     {
         var p = Player();

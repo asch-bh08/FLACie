@@ -20,6 +20,7 @@
 @inject CoverFill Covers
 @inject LibraryCleanupRun Cleanup
 @inject UpgradeStore Upgrades
+@inject AlbumFixService AlbumFixer
 @inject WebSourceGate PlaylistSources
 @inject ArtistResolveService ArtistFixes
 @inject WebCatalog FixCatalog
@@ -247,6 +248,23 @@ else
         @if (ripNote.Length > 0) { <p class="hint" role="status">@ripNote</p> }
     </section>
 
+    @* songs filed under a playlist's name, shown with their own album (owner, 13 Nov): reviewed here, each can be taken back *@
+    <section class="admin-block" aria-label="Album fixes" data-testid="album-fixes">
+        @{ var fx = AlbumFixer.Fixed(); }
+        <div class="shelf-head"><div><h2>Album fixes</h2><small>@(fx.Count == 0 ? "No song shown with another album yet. Songs whose album is really a playlist's name (\"Pop Megahits\") are looked up twice a day" : $"{fx.Count} songs filed under a playlist's name show their own album and cover. Undo shows the file's own tags again (after the library is next read); the files are never changed")</small></div></div>
+        @if (fx.Count > 0)
+        {
+            <ul class="admin-list">
+                @foreach (var (file, fix) in fx.Take(showAllFixes ? 1000 : 25))
+                {
+                    var f = file;
+                    <li><b>@System.IO.Path.GetFileNameWithoutExtension(f)</b> <small>→ @fix.Album · @fix.AlbumArtist</small> <button class="chip small" @onclick="() => AlbumFixer.Undo(f)" aria-label="@("Undo the album fix of " + System.IO.Path.GetFileName(f))">Undo</button></li>
+                }
+            </ul>
+            @if (fx.Count > 25 && !showAllFixes) { <button class="btn ghost" @onclick="() => showAllFixes = true">Show all @fx.Count</button> }
+        }
+    </section>
+
     @* F1.3: the background cover pass *@
     <section class="admin-block" aria-label="Covers">
         @{ var cf = Covers.Last; }
@@ -390,6 +408,7 @@ else
 </div>
 
 @code {
+    bool showAllFixes;
     string ripNote = "";
     List<Track> OldRips() => Lib.Songs.Where(t => (t.FilePath ?? "").EndsWith(".wma", StringComparison.OrdinalIgnoreCase) && Cleanup.MoverPath(t) is not null).ToList();
     void QueueRips()

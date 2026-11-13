@@ -63,6 +63,12 @@ public sealed class AlbumFixService(SessionStore sessions, WebCatalog catalog, D
         return found;
     }
 
+    /// <summary>The songs given their own album, for Server admin to review (file, the fix).</summary>
+    public IReadOnlyList<(string File, AlbumFix Fix)> Fixed() { lock (gate) return fixes.Where(kv => kv.Value is not null).Select(kv => (kv.Key, kv.Value!)).OrderBy(x => x.Item1).ToList(); }
+
+    /// <summary>Takes a fix back: the song shows its tags again, and is not looked up again (the entry stays, as "no fix").</summary>
+    public void Undo(string file) { lock (gate) { if (fixes.ContainsKey(file)) fixes[file] = null; } Save(); }
+
     void Save()
     {
         try { string json; lock (gate) json = JsonSerializer.Serialize(fixes); File.WriteAllText(file + ".tmp", json); File.Move(file + ".tmp", file, true); } catch (IOException) { }

@@ -42,7 +42,8 @@ DONE 12:00 (committed, NOT deployed): MusicCheck (no non-music auto-fetch; YouTu
    and the Up next fix are deployed in the same build.
 3. PHONE PARITY (Android): server side DONE (GET /api/library/fixes {fixes:[{id,title,album,albumArtist,art}], hidden:[ids]}; committed, deploy with
    the phone work). Phone NEXT: fetch it after the library loads (FlacieWebClient), apply by jellyfin id (title, album, albumArtist, artKey from art url;
-   drop hidden ids from the songs list), then the rest below. (a) best-of rule is in code (oneCopyBy), build it; (b) version names: DisplayTitle (duration fallback "3:40 edit"),
+   drop hidden ids from the songs list), then the rest below. DONE (LibraryFixes.kt, committed). NEXT: (c) search folding, (d) album tracklist,
+   (e) Quick picks tiles+tags on the phone. (a) best-of rule is in code (oneCopyBy), build it; (b) version names: DisplayTitle (duration fallback "3:40 edit"),
    same-recording dupes hidden, server names via an endpoint keyed by Jellyfin item id; (c) search: other versions folded under the main row;
    (d) album page: whole tracklist from the catalog with "Not downloaded yet" rows, Fetch all, auto-fetch on open; (e) Quick picks: two big tiles +
    Hi-Res/lossless tags; (f) everything else from today is web-only by nature (curved player and swap are PC only).

@@ -28,6 +28,17 @@
   rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
 - Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
 
+## QUEUED 13 Nov (owner): SONGS TAGGED WITH A PLAYLIST/MIX AS THEIR ALBUM
+- Owner (screenshot): "Airplanes (feat. Hayley Williams)" by B.o.B shows album "2010s bops" and that playlist's picture; "probably 100s" of songs carry the
+  playlist or mix they were downloaded from as their album and cover. Wanted: the right version of a song always shows its ORIGINAL album name and art.
+  Exceptions: remixes, re-releases, SoundCloud mixes and other real versions keep theirs.
+- Plan: find songs whose album is not a real release (the album name is a known playlist/import name, a "best/bops/hits/mix/playlist" style name with
+  one song by this artist, or not found as an album for that artist in the catalog), look the song up (Deezer/MusicBrainz: title + artist + length within
+  a few s, not a remix unless the file is one), and override album + cover in FLACie's overlay (the MbOverlay / CoverOverrides way, not the file),
+  with a dashboard list to review and undo. Web + phone (the phone reads the server's overlay).
+- Bug in the same screenshot: in the narrow Up next panel (sides swapped) a hovered row's edit buttons squeeze the title to "...Baby One..." (the
+  buttons should overlay or wrap under, not take the title's width).
+
 ## OVERNIGHT 12-13 Nov PLAN (owner AFK: "don't ask questions, don't stop, release a full beta in the morning")
 Watchdog: session cron every 30 min (13,43) resumes from here. Mark items DONE with the commit. Web deploys batched; ONE phone beta in the morning.
 State at start: 2de9b156 (swap sides) committed, NOT deployed; 44a88b5d + b8b56228 deployed.

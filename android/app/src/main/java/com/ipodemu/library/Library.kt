@@ -477,16 +477,18 @@ class Library(ctx: Context, val art: ArtCache) {
     // Derived views are rebuilt (off the UI thread) whenever the track list changes.
     private class Derived(
         val src: List<Track>, val songs: List<Track>, val artists: List<Group>, val albums: List<Group>,
-        val genres: List<Group>, val playlists: List<Group>, val byPath: Map<String, Track> = emptyMap(),
+        val genres: List<Group>, val playlists: List<Group>, val byPath: Map<String, Track> = emptyMap(), val fixVer: Int = -1,
     )
     @Volatile private var derived = Derived(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
 
     private fun derive(): Derived {
         val src = tracks
         val d0 = derived
-        if (d0.src === src) return d0
-        val m = src.filter { it.isMusic }
-        val songs = m.sortedBy { sortKey(it.title) }
+        val fv = LibraryFixes.version
+        if (d0.src === src && d0.fixVer == fv) return d0
+        // the server's fixes over the tags (version names, songs' own albums), and one copy of a recording in the song lists (LibraryFixes)
+        val m = LibraryFixes.apply(src.filter { it.isMusic })
+        val songs = m.filterNot { LibraryFixes.isHidden(it) }.sortedBy { sortKey(it.title) }
         val artists = m.groupBy { it.albumArtist.ifEmpty { it.artist }.ifBlank { "Unknown Artist" } }.map { (k, v) ->
             Group(k, v.sortedWith(albumOrder), v.firstNotNullOfOrNull { it.artKey })
         }.sortedBy { sortKey(it.name) }
@@ -497,7 +499,7 @@ class Library(ctx: Context, val art: ArtCache) {
         val genres = m.filter { it.genre.isNotEmpty() }.groupBy { it.genre.lowercase() }.map { (_, v) ->
             Group(v.groupingBy { it.genre }.eachCount().maxByOrNull { it.value }!!.key, v.sortedWith(albumOrder), v.firstNotNullOfOrNull { it.artKey })
         }.sortedBy { sortKey(it.name) }
-        val d = Derived(src, songs, artists, albums, genres, buildPlaylists(m), src.associateBy { it.path })
+        val d = Derived(src, songs, artists, albums, genres, buildPlaylists(m), m.associateBy { it.path }, fv)
         derived = d
         return d
     }

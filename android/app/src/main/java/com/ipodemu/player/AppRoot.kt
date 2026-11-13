@@ -133,6 +133,9 @@ private fun PlayerRoot(activity: MainActivity, nav: PlayerNav) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             if (com.ipodemu.library.AudioFacts.size == 0) com.ipodemu.library.AudioFacts.load(factsFile)
             com.ipodemu.library.AudioFacts.refresh(adminWeb, factsFile)
+            // version names, songs' own albums and the hidden second copies, from FLACie Web (owner, 13 Nov)
+            val fixesFile = java.io.File(app.filesDir, "library-fixes.json")
+            com.ipodemu.library.LibraryFixes.load(fixesFile); com.ipodemu.library.LibraryFixes.refresh(adminWeb, fixesFile)
         }
 
     }

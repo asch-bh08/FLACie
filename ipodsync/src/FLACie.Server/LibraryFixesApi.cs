@@ -32,6 +32,6 @@ public static class LibraryFixesApi
         {
             if (await ApiEndpoints.CallerAsync(ctx, store, jf) is not { } s) return Results.Unauthorized();
             var (fixes, hidden) = Build(s.Library);
-            return Results.Ok(new { fixes = fixes.Select(f => new { id = f.Id, title = f.Title, album = f.Album, albumArtist = f.AlbumArtist, art = f.Art }), hidden });
+            return Results.Ok(new { fixes = fixes.Select(f => new { id = f.Id, title = f.Title, album = f.Album, albumArtist = f.AlbumArtist, art = f.Art, artKey = f.Art is { } u ? Art.ExternalKey(u) : null }), hidden });
         });
 }

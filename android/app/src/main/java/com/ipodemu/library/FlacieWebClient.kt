@@ -148,6 +148,7 @@ class FlacieWebClient(private val prefs: Prefs) {
     }
     /** The real format of every song the server has read, as the JSON the server sends (see [AudioFacts]). */
     fun audioFactsRaw(): String = send("/api/audiofacts", "GET")
+    fun libraryFixesRaw(): String = send("/api/library/fixes", "GET")
     fun runCharts() { send("/api/charts/run", "POST", "{}") }
 
     /** Hands a batch of listening events to the account's log (see [ListenQueue]); throws when they were not taken. */

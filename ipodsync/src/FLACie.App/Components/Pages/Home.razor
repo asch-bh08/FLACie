@@ -88,7 +88,9 @@ else
                         @for (var i = 0; i < qp.Tracks.Count && i < 12; i++)
                         {
                             var idx = i; var t = qp.Tracks[i];
-                            <li @key="t.Path"><button class="pick @(Player.Current?.Path == t.Path ? "now" : "")" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(qp.Tracks, idx, qp.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="48" /><span><b>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
+                            @* the first two as bigger tiles side by side, the rest a compact list (owner, 13 Nov: "alternating sizes"); a small Hi-Res or lossless tag on each *@
+                            var big = i < 2; var q = PickQuality(t);
+                            <li @key="t.Path" class="@(big ? "pick-big" : "")"><button class="pick @(big ? "big" : "") @(Player.Current?.Path == t.Path ? "now" : "")" data-np data-warm="@Warm(t)" @onclick="() => PlayFull(qp.Tracks, idx, qp.Title)" aria-label="@("Play " + t.Title + " by " + t.Artist)"><Cover ArtKey="@(t.ArtKey)" Size="@(big ? 84 : 48)" /><span><b>@if (Player.Current?.Path == t.Path) { <span class="eq @(Player.Playing ? "on" : "")" aria-hidden="true"><i></i><i></i><i></i></span> }@t.Title</b><small>@t.Artist@if (q.Length > 0) { <em class="pick-q @(q == "Hi-Res" ? "hires" : "")">@q</em> }</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span></button></li>
                         }
                     </ul>
                 </div>
@@ -269,6 +271,13 @@ else
 
     // Home C: the artists played most (as Quick picks weighs them), each with a cover of theirs, worked out with the shelves (not on every redraw)
     List<(string Name, string? Art)> RepeatArtists = [];
+    /// <summary>The small quality tag on a Quick pick: "Hi-Res", or the lossless format (FLAC, ALAC, WAV...); nothing for a lossy file (it stays subtle).</summary>
+    static string PickQuality(Track t)
+    {
+        var f = QuickFormats.Of(t);
+        return f == "HI-RES" ? "Hi-Res" : f.Length > 0 && MediaInfo.LosslessCodecs.Contains(f.ToLowerInvariant()) ? f : "";
+    }
+
     static List<(string Name, string? Art)> Repeat(Library lib, IReadOnlyList<PlayedEntry> history, IReadOnlyList<PlaylistEntry> favs, IReadOnlyList<FLACie.Core.Playlist> lists, DateTime now, IReadOnlyList<JfPlay> stats)
     {
         var byArtist = new Dictionary<string, Track>();

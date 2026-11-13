@@ -383,3 +383,29 @@ ol.tracks > li { animation: m-rise .36s var(--m-ease) both; }
 /* the side menu's current page: its orange text on the cover-tinted ground fell just under 4.5:1 (axe, 13 Nov); a little of the ink in it keeps the
    colour and passes, in dark and light */
 .rail a.active { color: color-mix(in srgb, var(--accent-text) 72%, var(--ink)); }
+
+/* Quick picks (owner, 13 Nov): the first two as bigger tiles side by side over the compact list, and a small quality tag on each row */
+.home-picklist { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 10px; }
+.home-picklist .pick.big { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; border-radius: 16px; height: 100%;
+  background: color-mix(in srgb, var(--surface) 60%, transparent); }
+.home-picklist .pick.big { flex-direction: row; align-items: center; }
+.home-picklist .pick.big .cover, .home-picklist .pick.big .cover img { width: clamp(72px, 7vw, 108px) !important; height: clamp(72px, 7vw, 108px) !important; flex: none; border-radius: 12px; }
+.home-picklist .pick.big b { font-size: 15px; }
+.home-picklist > li.pick-big { margin-bottom: 8px; }
+.pick-q { font-style: normal; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim);
+  border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); border-radius: 6px; padding: 0 5px; margin-left: 6px; display: inline-block; vertical-align: 1px; line-height: 1.5; }
+.pick-q.hires { color: color-mix(in srgb, #f0c46a 80%, var(--ink)); border-color: color-mix(in srgb, #f0c46a 40%, transparent); }
+
+/* a song's other versions: the version in quieter type after the title in the player; in search, folded under the main one */
+.ls-names h2 .ver-note { font-family: var(--sans, inherit); font-size: .38em; font-style: normal; color: var(--dim); letter-spacing: 0; white-space: nowrap; }
+.ver-toggle { flex: none; }
+.tracks .ver-rows { display: block; padding: 0 0 6px 56px; }
+.tracks .ver-list { margin: 0; padding: 0; border-left: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); }
+.tracks .ver-list .track { animation: m-rise .3s var(--m-ease) both; }
+/* Quick picks on a phone: the two big ones side by side (cover over the name), then one row per song */
+@media (max-width: 760px) {
+  .home-picklist, .home-split .home-picklist { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .home-picklist > li:not(.pick-big) { grid-column: 1 / -1; }
+  .home-picklist .pick.big { flex-direction: column; align-items: flex-start; }
+  .home-picklist .pick.big .cover, .home-picklist .pick.big .cover img { width: 100% !important; height: auto !important; aspect-ratio: 1; max-width: 170px; }
+}

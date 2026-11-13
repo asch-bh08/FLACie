@@ -83,6 +83,15 @@ fun songKey(title: String, artist: String): String {
     return "${core.ifEmpty { normTitle(title) }}|${primaryArtist(artist)}"
 }
 val Track.songKey: String get() = songKey(title, artist)
+
+private val compilationName = Regex("""\b(?:greatest\s+hits|best\s+of|the\s+singles|singles\s+\d|collection|anthology|essential|ultimate|hits\s+hits|anthems|now\s+that'?s\s+what|the\s+very\s+best|gold(?:\s+collection)?$|\d+\s+(?:golden\s+)?(?:greats|hits)|classics)\b|[(\[]\s*(?:cd|disc)\s*\d+\s*[)\]]""", RegexOption.IGNORE_CASE)
+/** A best-of or various-artists compilation: where one copy of a song is meant, the copy on its own album wins over it (owner, 13 Nov: Voodoo People
+ *  showed the singles collection's cover). The web's Matching.IsCompilation. */
+fun isCompilation(t: Track): Boolean = primaryArtist(t.albumArtist) in setOf("various artists", "various", "va") || compilationName.containsMatchIn(t.album)
+/** The copy to keep of two files of one song: the album copy over a compilation's, else the one kept already. */
+fun preferCopy(candidate: Track, current: Track): Boolean = isCompilation(current) && !isCompilation(candidate)
+/** One copy per song key, the album copy over a compilation's. */
+fun <K> List<Track>.oneCopyBy(key: (Track) -> K): Map<K, Track> { val m = HashMap<K, Track>(); for (t in this) { val k = key(t); val had = m[k]; if (had == null || preferCopy(t, had)) m[k] = t }; return m }
 val Track.searchGlue: String get() = searchGlueC
 internal val editionRe = Regex("""[(\[][^)\]]*[)\]]""")
 

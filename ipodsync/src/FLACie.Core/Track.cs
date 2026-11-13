@@ -92,6 +92,17 @@ public static partial class Matching
         return string.Join("/", tags);
     }
 
+    [GeneratedRegex(@"\b(?:greatest\s+hits|best\s+of|the\s+singles|singles\s+\d|collection|anthology|essential|ultimate|hits\s+hits|anthems|now\s+that'?s\s+what|the\s+very\s+best|gold(?:\s+collection)?$|\d+\s+(?:golden\s+)?(?:greats|hits)|classics)\b|[(\[]\s*(?:cd|disc)\s*\d+\s*[)\]]", RegexOptions.IgnoreCase)]
+    private static partial Regex CompilationName();
+
+    /// <summary>A best-of or various-artists compilation ("Their Law: The Singles 1990-2005 [CD1]", "Greatest Hits", "Now That's What I Call Music!"):
+    /// where one copy of a song is meant, the copy on its own album is chosen over it (owner, 13 Nov: Voodoo People showed the singles collection's cover).</summary>
+    public static bool IsCompilation(Track t) =>
+        PrimaryArtist(t.AlbumArtist) is "various artists" or "various" or "va" || CompilationName().IsMatch(t.Album);
+
+    /// <summary>The copy to use when two files are the same song: the one on its own album over one on a compilation, else the first.</summary>
+    public static bool Prefer(Track candidate, Track current) => IsCompilation(current) && !IsCompilation(candidate);
+
     /// <summary>The song whatever the version: its title without what is in brackets or after " - ", and its lead artist ("Dreamer", "Dreamer - Re-Original
     /// 7-inch Mix" and "Dreamer (Janice Robinson Vocal)" by Livin' Joy are one song). Autoplay plays one version of a song (owner, 12 Nov: it played all three in a row).</summary>
     public static string SongKey(string title, string artist)

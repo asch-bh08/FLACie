@@ -21,7 +21,9 @@ public sealed class Library
         foreach (var t in tracks)
         {
             byPath.TryAdd(t.Path, t);
-            byMatch.TryAdd(Matching.MatchKey(t), t);
+            // one copy per song for lookups by name: the album copy over a best-of's (Matching.Prefer)
+            var mk = Matching.MatchKey(t);
+            if (!byMatch.TryGetValue(mk, out var had) || Matching.Prefer(t, had)) byMatch[mk] = t;
             if (t.JellyfinId is { } id) byJellyfinId.TryAdd(id, t);
             if (t.OrigTitle.Length > 0) byOrigTitle.TryAdd(Matching.NormTitle(t.OrigTitle), t);
         }
@@ -52,11 +54,30 @@ public sealed class Library
         artistDocs ??= Artists.Select(g => new SearchRank.Doc(g.Name, "", "")).ToArray();
         var si = Enumerable.Range(0, Songs.Count).ToList(); var ai = Enumerable.Range(0, Albums.Count).ToList(); var ri = Enumerable.Range(0, Artists.Count).ToList();
         return (
-            SearchRank.Rank(si, i => songDocs[i], q, 100).Select(i => Songs[i]).ToList(),
+            OneCopy(SearchRank.Rank(si, i => songDocs[i], q, 100).Select(i => Songs[i])),
             SearchRank.Rank(ai, i => albumDocs[i], q, 24).Select(i => Albums[i]).ToList(),
             SearchRank.Rank(ri, i => artistDocs[i], q, 12).Select(i => Artists[i]).ToList());
     }
     SearchRank.Doc[]? songDocs, albumDocs, artistDocs;
+
+    /// <summary>A song that is both on its own album and on a compilation shows once, as the album copy, where the better ranked of the two was.</summary>
+    List<Track> OneCopy(IEnumerable<Track> ranked)
+    {
+        var list = ranked.ToList();
+        var shown = new HashSet<string>(); var res = new List<Track>();
+        foreach (var t in list)
+        {
+            var k = Matching.MatchKey(t);
+            var copies = list.Where(x => Matching.MatchKey(x) == k).ToList();
+            if (copies.Count > 1 && copies.Any(c => !Matching.IsCompilation(c)) && copies.Any(Matching.IsCompilation))
+            {
+                if (!shown.Add(k)) continue;
+                res.Add(byMatch.TryGetValue(k, out var pick) && copies.Contains(pick) ? pick : copies.First(c => !Matching.IsCompilation(c)));
+            }
+            else res.Add(t);
+        }
+        return res;
+    }
 
     /// <summary>This library's copy of a song by title and artist (the same song on another release counts), or null.</summary>
     public Track? Find(string title, string artist) => byMatch.GetValueOrDefault(Matching.MatchKey(title, artist));

@@ -266,7 +266,7 @@ class Library(ctx: Context, val art: ArtCache) {
     fun reconnectAll() { jellyfinUserId = null; mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
 
     @Volatile private var keyCache: Pair<List<Track>, Map<String, Track>>? = null
-    private fun byKey(): Map<String, Track> { val t = tracks; keyCache?.let { if (it.first === t) return it.second }; return t.associateBy { dedupKey(it) }.also { keyCache = t to it } }
+    private fun byKey(): Map<String, Track> { val t = tracks; keyCache?.let { if (it.first === t) return it.second }; return t.oneCopyBy { dedupKey(it) }.also { keyCache = t to it } }
     @Volatile private var jfKeyCache: Pair<List<Track>, Map<String, Track>>? = null
     fun jellyfinByKey(): Map<String, Track> { val t = jellyfinTracks; jfKeyCache?.let { if (it.first === t) return it.second }; return t.associateBy { dedupKey(it) }.also { jfKeyCache = t to it } }
     private val jfItemRe = Regex("/Audio/([0-9a-fA-F]{32})/")
@@ -439,7 +439,7 @@ class Library(ctx: Context, val art: ArtCache) {
             val want = album.lowercase().filter { it.isLetterOrDigit() }
             all[matchKey(title, artist)]?.firstOrNull { it.album.lowercase().filter { c -> c.isLetterOrDigit() } == want }?.let { return it }
         }
-        val m = matchCache?.takeIf { it.first === s }?.second ?: HashMap<String, Track>().also { h -> s.forEach { h.putIfAbsent(it.matchKey, it) } }.also { matchCache = s to it }
+        val m = matchCache?.takeIf { it.first === s }?.second ?: s.oneCopyBy { it.matchKey }.also { matchCache = s to it }   // the album copy over a best-of's
         return m[matchKey(title, artist)]
     }
 

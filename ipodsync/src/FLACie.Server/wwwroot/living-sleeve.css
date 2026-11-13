@@ -4,8 +4,10 @@
    Phone: the cover full-bleed across the top fading into the ground, nothing important in the bottom ~100px. PC: a cover card and the title on the left,
    a wide panel (Up next, Lyrics, Info) on the right, the controls in a bar along the bottom. */
 
+/* the player's colours before any cover is read: on the page, not on the player, so a player opening takes the colours the page already wears for the
+   song playing (flacie.appAccent) instead of flashing teal and orange for a moment (owner's recording, 13 Nov) */
+:root { --np-accent: rgb(232, 119, 79); --np-accent-2: rgb(47, 93, 98); --ground: rgb(22, 58, 63); --tone: rgb(36, 82, 90); --tonefg: rgb(231, 243, 240); }
 .ls {
-  --np-accent: rgb(232, 119, 79); --np-accent-2: rgb(47, 93, 98); --ground: rgb(22, 58, 63); --tone: rgb(36, 82, 90); --tonefg: rgb(231, 243, 240);
   --accent: var(--np-accent);   /* the app's own accent (switches, the queue's now-playing mark) takes the cover's colour in here */
   --ink: #f4efe6; --ink-2: #f4efe6c7; --ink-3: #f4efe673; --glass: #ffffff12; --glass-2: #ffffff1f; --line: #f4efe666;
   --serif: 'Instrument Serif', Georgia, serif; --sans: 'Archivo', system-ui, sans-serif; --mono: 'DM Mono', ui-monospace, monospace;

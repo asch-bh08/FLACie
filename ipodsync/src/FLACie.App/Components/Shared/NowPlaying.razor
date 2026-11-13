@@ -461,7 +461,11 @@
     void PeekKey(KeyboardEventArgs e) { if (e.Key is "Enter" or " ") OpenQueue(); }
     bool panelOpen;
     bool queueAll;
-    bool swapped;
+    // Swap sides, remembered in the browser and, for this sign-in, on the server too: the player is drawn on the right side from its first frame
+    // (it used to open the other way round and jump; owner's recording, 13 Nov)
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> swappedBy = new();
+    bool? swappedKnown;
+    bool swapped { get => swappedKnown ??= swappedBy.GetValueOrDefault(Session.Id); set { swappedKnown = value; swappedBy[Session.Id] = value; } }
     async Task SwapSides()
     {
         swapped = !swapped;
@@ -475,7 +479,7 @@
         if (firstRender)
         {
             self = DotNetObjectReference.Create(this); try { await Js.InvokeVoidAsync("flacie.npOpen", self); } catch (Exception) { }
-            try { if (await Js.InvokeAsync<string?>("flacie.unstash", "flacie.npswap") == "1") { swapped = true; StateHasChanged(); } } catch (Exception) { }
+            try { var saved = await Js.InvokeAsync<string?>("flacie.unstash", "flacie.npswap") == "1"; if (saved != swapped) { swapped = saved; StateHasChanged(); } } catch (Exception) { }
         }
         if (shownTab != tab) { shownTab = tab; try { await Js.InvokeVoidAsync("flacie.panelTop"); } catch (Exception) { } }
         if (Player.Current is not { } t) return;

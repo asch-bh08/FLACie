@@ -56,6 +56,8 @@ TESTS 13 Nov 04:40: server 2042 pass. Web full run then reruns: all fixed except
 worse on the code from before tonight, so test/mock order, not a regression), 1i:315 flaky, 1j-speed-sleep (old), 1z-fast-load (39 restyled of 342,
 limit 34; same without tonight's motion: from earlier work), 1v-retro-touch:123 flaky. Android unit 1078: CoverFilesTest flaky under load (3/3 pass
 alone). Web deployed 04:31 (rollback-b138a). APK built 04:39; emulator smoke b138n running.
+9 DONE 05:08: b138 RELEASED (https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b138, target 064c1634): APK smoke 23/23 with motion, v1 tour
+fine (one RetroActivity input ANR while Google services and System UI also ANR'd: emulator starved), MSI healthz ok. Version now b139 (Android 154).
 9. Morning: full beta (b138+): version in 6 places, notes docs/private/release-bodies, APK + MSI, smoke on emulator-5554, web deploy, release.
 
 ## 12 Nov ~23:00 Owner: Android Auto overhaul (QUEUED, do not start yet)

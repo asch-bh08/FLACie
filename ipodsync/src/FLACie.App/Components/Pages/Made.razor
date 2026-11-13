@@ -34,6 +34,10 @@ else
             <div class="detail-actions">
                 <button class="detail-play" @onclick="() => { Played(); return Player.PlayInOrder(songs, m.Name); }"><Icon Name="play" Size="22" />Play</button>
                 <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, m.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                @if (waiting?.Count(w => !w.Failed && w.Status == "Not downloaded yet") is > 0 and var toFetch && Downloads.Ready(Session))
+                {
+                    <button class="detail-shuffle" @onclick="() => FetchAll(waiting!)" data-testid="fetch-all"><Icon Name="download" Size="18" />Fetch all @toFetch</button>
+                }
                 @if (savedId is { } sid)
                 {
                     <a class="detail-shuffle made-added" href="/playlist/@sid" role="status"><Icon Name="check" Size="18" />Added</a>
@@ -69,6 +73,7 @@ else
     static string From(string source) => source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", "youtube" => "YouTube", _ => "FLACie" };
     /// <summary>Playing it: its missing songs are fetched in play order (F23.2).</summary>
     void Fetch(FLACie.Server.WaitingSong w) { Downloads.Song(Session, new CatalogSong(w.Artist, w.Title, "", null, 0, 0, 0), kind: "Playlist"); StateHasChanged(); }
+    void FetchAll(IEnumerable<FLACie.Server.WaitingSong> ws) { foreach (var w in ws.Where(w => !w.Failed && w.Status == "Not downloaded yet")) Downloads.Song(Session, new CatalogSong(w.Artist, w.Title, "", null, 0, 0, 0), kind: "Playlist"); StateHasChanged(); }
     void Played() { if (web is not null) AppHost.WebPlaylists?.Interest(Session, web, FetchTrigger.Played); }
 
     protected override async Task OnParametersSetAsync()

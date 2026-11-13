@@ -1,6 +1,7 @@
 @page "/album/{Key}"
 @attribute [Authorize]
 @inherits UserComponent
+@inject IDownloads Downloads
 @{ var g = Lib.Albums.FirstOrDefault(a => string.Equals(a.Tracks[0].AlbumKey, Uri.UnescapeDataString(Key), StringComparison.OrdinalIgnoreCase)); }
 @if (g is null)
 {
@@ -9,6 +10,9 @@
 else
 {
     var head = g.Tracks[0];
+    // the whole tracklist (owner, 13 Nov: Random Access Memories showed 3 of 13): the catalog's songs in order, the missing ones greyed in their place
+    var (rows, waiting) = AlbumRows.Build(listed ?? [], g.Tracks, (a, t) => Downloads.JobFor(Session, a, t));
+    var missing = waiting.Count(w => !w.Failed && w.Status == "Not downloaded yet");
     <PageTitle>@g.Name · FLACie</PageTitle>
 <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@(g.ArtKey)" Class="detail-cover" />
@@ -16,18 +20,69 @@ else
             <p class="eyebrow">Album</p>
             <h1>@Title(g.Name)</h1>
             <p class="detail-artist"><a href="/artist/@Uri.EscapeDataString(head.AlbumArtist)">@head.AlbumArtist</a></p>
-            <p class="detail-facts">@Facts(g.Tracks, head.Year)</p>
+            <p class="detail-facts">@Facts(g.Tracks, head.Year, rows.Count + waiting.Count)</p>
             <div class="detail-actions">
                 <button class="detail-play" @onclick="() => Player.PlayInOrder(g.Tracks, g.Name)"><Icon Name="play" Size="22" />Play</button>
                 <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(g.Tracks, g.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
                 <ShareButton Title="@g.Name" Songs="g.Tracks" />
+                @if (missing > 0 && Downloads.Ready(Session))
+                {
+                    <button class="detail-shuffle" @onclick="() => FetchAll(waiting)" data-testid="fetch-all"><Icon Name="download" Size="18" />Fetch all @missing</button>
+                }
             </div>
         </div>
     </header>
-    <TrackList Tracks="g.Tracks" PlayContext="@g.Name" Numbered="true" ShowAlbum="false" />
+    <TrackList Tracks="rows" Waiting="waiting" OnFetch="@(Downloads.Ready(Session) ? Fetch : null)" PlayContext="@g.Name" Numbered="true" ShowAlbum="false" />
 }
 @code {
     [Parameter] public string Key { get; set; } = "";
+    [Inject] WebCatalog Catalog { get; set; } = default!;
+
+    // the album's tracklist from the catalog (Deezer), asked once per album while the server runs; null until it answers, empty when it has none
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string, List<CatalogSong>> tracklists = new();
+    List<CatalogSong>? listed; string? listedFor;
+    protected override async Task OnParametersSetAsync()
+    {
+        var key = Uri.UnescapeDataString(Key);
+        if (listedFor == key) return;
+        listedFor = key; listed = null;
+        var g = Lib.Albums.FirstOrDefault(a => string.Equals(a.Tracks[0].AlbumKey, key, StringComparison.OrdinalIgnoreCase));
+        if (g is null) return;
+        if (!tracklists.TryGetValue(key, out var songs))
+        {
+            songs = [];
+            try
+            {
+                var artist = g.Tracks[0].AlbumArtist.Length > 0 ? g.Tracks[0].AlbumArtist : g.Tracks[0].Artist;
+                var name = Matching.NormTitle(WebCatalog.BaseTitle(g.Name));
+                var hit = (await Catalog.AlbumsAsync(artist + " " + g.Name, 10))
+                    .Where(a => Matching.NormTitle(WebCatalog.BaseTitle(a.CleanTitle)) == name && Matching.PrimaryArtist(a.Artist) == Matching.PrimaryArtist(artist))
+                    .OrderByDescending(a => a.TrackCount).FirstOrDefault();
+                if (hit is not null) songs = await Catalog.TracksAsync(hit);
+            }
+            catch (Exception e) when (e is not OperationCanceledException) { }
+            if (tracklists.Count > 2000) tracklists.Clear();
+            tracklists[key] = songs;
+        }
+        listed = songs;
+        // opening an album that is missing songs fetches them, as a playlist someone looked at does (owner, 13 Nov: "we should have auto fetched this album")
+        if (Downloads.Ready(Session) && fetchedFor != key)
+        {
+            fetchedFor = key;
+            var (_, wait) = AlbumRows.Build(songs, g.Tracks, (a, t) => Downloads.JobFor(Session, a, t));
+            foreach (var w in wait.Where(w => !w.Failed && w.Status == "Not downloaded yet").Take(AutoFetchMax)) Fetch(w, quiet: true);
+        }
+    }
+    string? fetchedFor;
+    /// <summary>How many of an album's missing songs opening it asks for at once (the rest with Fetch all, or when it is opened again).</summary>
+    const int AutoFetchMax = 20;
+    void Fetch(WaitingSong w) => Fetch(w, quiet: false);
+    void Fetch(WaitingSong w, bool quiet)
+    {
+        Downloads.Song(Session, new CatalogSong(w.Artist, w.Title, Lib.Albums.FirstOrDefault(a => string.Equals(a.Tracks[0].AlbumKey, Uri.UnescapeDataString(Key), StringComparison.OrdinalIgnoreCase))?.Name ?? "", null, 0, 0, 0), kind: quiet ? "Playlist" : "Search");
+        if (!quiet) StateHasChanged();
+    }
+    void FetchAll(IEnumerable<WaitingSong> waiting) { foreach (var w in waiting.Where(w => !w.Failed && w.Status == "Not downloaded yet")) Fetch(w, quiet: true); StateHasChanged(); }
 
     [Inject] IJSRuntime Js { get; set; } = default!;
     ElementReference headEl; string? headFor = "";
@@ -52,7 +107,9 @@ else
     }
     static string Formats(IEnumerable<Track> ts) => string.Join(" / ", ts.Select(QuickFormats.Of).Where(f => f.Length > 0).Distinct().Take(3).Select(f => f == "HI-RES" ? "Hi-Res" : f));
 
-    static string Facts(IReadOnlyList<Track> ts, int year) => string.Join(" · ", new[] { year > 0 ? year.ToString() : "", $"{ts.Count} {(ts.Count == 1 ? "song" : "songs")}", Length(ts), Formats(ts) }.Where(x => x.Length > 0));
+    // "3 of 13 songs" while some of the album isn't here yet
+    static string Facts(IReadOnlyList<Track> ts, int year, int whole) => string.Join(" · ", new[] { year > 0 ? year.ToString() : "",
+        whole > ts.Count ? $"{ts.Count} of {whole} songs" : $"{ts.Count} {(ts.Count == 1 ? "song" : "songs")}", Length(ts), Formats(ts) }.Where(x => x.Length > 0));
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         var g = Lib.Albums.FirstOrDefault(a => string.Equals(a.Tracks[0].AlbumKey, Uri.UnescapeDataString(Key), StringComparison.OrdinalIgnoreCase));

@@ -52,6 +52,10 @@ home20/project (canvas.json lists all 20 boards with titles). Published: Main (0
 D05..D20 one file at a time and publish each to that url with root = the home20 folder (same look: 1440x860 board, web 1010x780 left, phone 330x700
 right, dark #0d0b0f, Instrument Serif + Inter + JetBrains Mono, solid colour cover tiles, real song names). Stopped at 95% of the 5-hour limit (resets ~01:20).
 Not deployed yet: nothing pending (all web work above is deployed). Phone work for the beta: AutoplaySpread/songKey/seeds, SearchRank typo (commits today).
+TESTS 13 Nov 04:40: server 2042 pass. Web full run then reruns: all fixed except known: 1i-download-tags:463 (Autoplay fetch rows: shows 1 of 3;
+worse on the code from before tonight, so test/mock order, not a regression), 1i:315 flaky, 1j-speed-sleep (old), 1z-fast-load (39 restyled of 342,
+limit 34; same without tonight's motion: from earlier work), 1v-retro-touch:123 flaky. Android unit 1078: CoverFilesTest flaky under load (3/3 pass
+alone). Web deployed 04:31 (rollback-b138a). APK built 04:39; emulator smoke b138n running.
 9. Morning: full beta (b138+): version in 6 places, notes docs/private/release-bodies, APK + MSI, smoke on emulator-5554, web deploy, release.
 
 ## 12 Nov ~23:00 Owner: Android Auto overhaul (QUEUED, do not start yet)

@@ -33,7 +33,7 @@ Deployed at 11:25 (rollback-b139e): best-of rule, version names (VersionNameServ
 tracklists + Fetch all + auto-fetch on open, Quick picks big tiles + tags, player-open colour/swap fix.
 DONE 12:00 (committed, NOT deployed): MusicCheck (no non-music auto-fetch; YouTube film-clip list left out; the 9 "Dreamer (2005)" movie clips that
    were downloaded were moved to .flacie-replaced by /retire and their empty folders removed); search folds versions by SongKey ("Dreamer" +2 versions).
-1. Up next squeeze (web): IN PROGRESS. living-sleeve.css has an uncommitted @media (hover: hover) rule making .q-edit an overlay; the new spec
+1. Up next squeeze (web): DONE (committed, not deployed). living-sleeve.css has an uncommitted @media (hover: hover) rule making .q-edit an overlay; the new spec
    zz-upnext-narrow.spec.ts passes but 1h-queue.spec.ts:37 then timed out on a click (find which click; likely pointer-events:none until :hover, so
    Playwright's click on a move button is refused; fix: pointer-events only off when not hovered AND not focus-within, or keep auto and use opacity).
    Rename zz-upnext-narrow.spec.ts to 1z-upnext-narrow.spec.ts when done.

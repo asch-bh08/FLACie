@@ -59,3 +59,9 @@ object AutoplaySpread {
         return out
     }
 }
+
+/** Opening an album asks for its missing songs once per album while the app runs (not on every visit). */
+object AlbumAutoFetch {
+    private val asked = HashSet<String>()
+    @Synchronized fun first(albumKey: String): Boolean = asked.add(albumKey)
+}

@@ -103,6 +103,8 @@ import com.ipodemu.library.hiRes
 import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.matchKey
 import com.ipodemu.library.sortKey
+import com.ipodemu.library.normTitle
+import com.ipodemu.library.primaryArtist
 import com.ipodemu.playback.PlayerController
 import com.ipodemu.theme.Themes
 import kotlinx.coroutines.Dispatchers
@@ -1518,7 +1520,24 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
         onDispose { if (nav.playContext == title) nav.playContext = null; if (nav.playContextId?.first == title) nav.playContextId = null }
     }
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
-    val missing = if (userId != null) userSongs.second else emptyList()
+    // an album: the songs of its catalog tracklist that this library lacks, greyed with Download (owner, 13 Nov: Random Access Memories showed 3 of
+    // 13), and opening it asks for them, up to 20 (as a playlist someone looks at does); the web's Album page
+    val albumMissing by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>(), d.id, tracks.size) {
+        if (d.kind != DetailKind.ALBUM || tracks.isEmpty()) return@produceState
+        value = withContext(Dispatchers.IO) {
+            try {
+                val head = tracks[0]; val artist = head.albumArtist.ifEmpty { head.artist }
+                val want = normTitle(com.ipodemu.library.WebCatalog.baseTitle(head.album))
+                val hit = com.ipodemu.library.WebCatalog.albums("$artist ${head.album}", 10).firstOrNull { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) == want && primaryArtist(it.artist) == primaryArtist(artist) }
+                    ?: return@withContext emptyList()
+                val have = tracks.map { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) }.toHashSet()
+                com.ipodemu.library.WebCatalog.tracks(hit).filter { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) !in have }.map { it.title to it.artist }
+            } catch (e: Exception) { emptyList() }
+        }
+        if (value.isNotEmpty() && app.library.downloadsConfigured() && com.ipodemu.library.AlbumAutoFetch.first(d.id))
+            value.take(20).forEach { (t, a) -> app.library.requestDownload(a, t, tracks[0].album, 0) }
+    }
+    val missing = if (userId != null) userSongs.second else albumMissing
     // kept here, outside the list, so the cover and title rise in once as the page opens and not again when scrolled back to
     val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {

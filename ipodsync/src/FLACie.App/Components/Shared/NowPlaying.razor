@@ -222,7 +222,7 @@
                 @* More first and the DJ last, beside the transport (owner, 12 Nov: "swap the DJ button and the three dots") *@
                 @MoreMenu("d", t)
                 <button class="ls-dbtn" @onclick='async () => { await ToggleMore("d"); plOpen = more; }' aria-label="Add to playlist" title="Add to playlist"><Icon Name="plus" Size="22" /></button>
-                <button class="ls-dbtn" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
+                <button class="ls-dbtn ls-dshare" @onclick='async () => await Sharing.ShareAsync(Session, "song", t.Title, [t])' aria-label="Share" title="Share"><Icon Name="share" Size="20" /></button>
                 @if (AppHost.DevicePicker is { } picker) { <span class="ls-dbtn-wrap"><DynamicComponent Type="picker" /></span> }
                 @if (Player.Dj is not null)
                 {

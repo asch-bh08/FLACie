@@ -45,7 +45,7 @@ async function live(page: Page, url: string) {
 
 const scan = async (page: Page) => {
   // a line that appeared late is still fading in (page-in, a third of a second): its colours are only judged once it has landed
-  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity && a.timeline instanceof DocumentTimeline).map((a) => a.finished.catch(() => null))));
   const r = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
   return r.violations.map((v) => `${v.id} (${v.impact}): ${v.nodes.length}× e.g. ${v.nodes[0]?.target.join(" ")}: ${v.nodes[0]?.any[0]?.message ?? ""}`);
 };

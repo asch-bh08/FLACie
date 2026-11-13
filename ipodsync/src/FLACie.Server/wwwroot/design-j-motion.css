@@ -379,3 +379,7 @@ ol.tracks > li { animation: m-rise .36s var(--m-ease) both; }
   .ls-panel > *, .row-scroll > .card, .grid > .card, .home-plgrid > *, .home-picklist > li, .mood-cards > *, ol.tracks > li { animation: none !important; }
   .btn:active, .chip:active, .ls-dbtn:active, .ls-icon:active, .sr-play:active { transform: none; }
 }
+
+/* the side menu's current page: its orange text on the cover-tinted ground fell just under 4.5:1 (axe, 13 Nov); a little of the ink in it keeps the
+   colour and passes, in dark and light */
+.rail a.active { color: color-mix(in srgb, var(--accent-text) 72%, var(--ink)); }

@@ -20,9 +20,11 @@ test('an imported playlist shows every song in order, the missing ones greyed, a
   await page.goto('/import');
   await expect(page.getByRole('heading', { name: 'Import playlists' })).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(1200);
-  await page.getByLabel('Choose a playlist file').setInputFiles({ name: 'f26.txt', mimeType: 'text/plain',
-    buffer: Buffer.from('## Every Song\nNobody Known - Missing First\nAurora Vale - Harbour 3\nNobody Known - Missing Last\n') });
-  const row = page.getByTestId('import-job').filter({ hasText: 'f26.txt' }).first();
+  // a name of its own each run: the test data keeps earlier runs' imports, and an import into a list of the same name adds to it
+  const stamp = Date.now().toString(36), file = `f26-${stamp}.txt`;
+  await page.getByLabel('Choose a playlist file').setInputFiles({ name: file, mimeType: 'text/plain',
+    buffer: Buffer.from(`## Every Song ${stamp}\nNobody Known - Missing First\nAurora Vale - Harbour 3\nNobody Known - Missing Last\n`) });
+  const row = page.getByTestId('import-job').filter({ hasText: file }).first();
   await expect(row.getByRole('link', { name: 'Open' })).toBeVisible({ timeout: 30_000 });
   await row.getByRole('link', { name: 'Open' }).click();
 
@@ -47,5 +49,5 @@ test('an imported playlist shows every song in order, the missing ones greyed, a
   await page.screenshot({ path: 'test-results/shots/import-playlist-downloads.png', fullPage: true });
   // and from the Import row too
   await page.goto('/import');
-  await expect(page.getByTestId('import-job').filter({ hasText: 'f26.txt' }).getByTestId('imp-downloads')).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId('import-job').filter({ hasText: file }).first().getByTestId('imp-downloads')).toBeVisible({ timeout: 20_000 });
 });

@@ -73,7 +73,8 @@ const server = http.createServer((req, res) => {
     if (p === '/api.deezer.com/search') {
       const q = u.searchParams.get('q') ?? '';
       if (/report me/i.test(q)) return json(200, { data: [deezerSong('Report Me', 'Aurora Vale', 99)] });
-      return json(200, { data: state.suggest.map((t, i) => deezerSong(t, titleCase(q.trim()), i)) });
+      // the first by the artist asked about, the rest by others: Autoplay fetches at most two of one artist (AutoplaySpread; owner, 12 Nov)
+      return json(200, { data: state.suggest.map((t, i) => deezerSong(t, i === 0 ? titleCase(q.trim()) : ['Nova Lane', 'Kite Run', 'Moss Hollow', 'Pale Sun'][i - 1], i)) });
     }
     // an album to preview before downloading (owner, 7 Nov): its search and its songs
     if (p === '/api.deezer.com/search/album' && /preview/i.test(u.searchParams.get('q') ?? ''))
@@ -129,7 +130,7 @@ async function openAlbum() {
   await expect(page.locator('.tracks .track')).toHaveCount(4, { timeout: 20_000 });
 }
 const row = (title: string) => page.locator('.tracks .track', { has: page.locator('.track-title', { hasText: new RegExp(`^${title}$`) }) });
-const qrow = (title: string) => page.locator('.upnext li.q-item', { has: page.locator('b', { hasText: new RegExp(`^${title}$`) }) });
+const qrow = (title: string) => page.locator('.upnext li.q-item:not(.q-played)', { has: page.locator('b', { hasText: new RegExp(`^${title}$`) }) });
 
 async function openNowPlaying() {
   await page.getByRole('button', { name: 'Open Now Playing' }).click();
@@ -345,7 +346,7 @@ test.describe.serial('download tags', () => {
     await openNowPlaying();
     const autoplay = page.locator('.switch-row', { hasText: 'Add similar songs' }).locator('input');
     if (await autoplay.isChecked()) await autoplay.uncheck();            // an online catalog must not extend the queue while a spec looks at it
-    await expect(page.locator('.upnext li.q-item')).toHaveCount(3, { timeout: 15_000 });
+    await expect(page.locator('.upnext li.q-item:not(.q-played)')).toHaveCount(3, { timeout: 15_000 });
     await expect(qrow('Harbour 11').locator('.dl-tag')).toHaveText(/^Recently downloaded · \d+ min ago$/);
     await expect(qrow('Orbit 10').locator('.dl-tag')).toHaveCount(0);
     await expect(qrow('Lantern 12').locator('.dl-tag')).toHaveCount(0);
@@ -502,10 +503,10 @@ test.describe.serial('download tags', () => {
     await expect(pending).toHaveCount(2, { timeout: 60_000 });
     for (let i = 0; i < 2; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText(/^Downloading/);
     // they come after the songs already in the autoplay part, which carry their own tags (the earlier fetches)
-    const rows = page.locator('.upnext li.q-item');
+    const rows = page.locator('.upnext li.q-item:not(.q-played)');
     const n = await rows.count();
     expect(await rows.nth(n - 1).getAttribute('class')).toContain('q-pending');
-    await expect(page.locator('.upnext li.q-item:not(.q-pending) .dl-tag').first()).toHaveText(RECENT);
+    await expect(page.locator('.upnext li.q-item:not(.q-played):not(.q-pending) .dl-tag').first()).toHaveText(RECENT);
     // they land too
     state.release = true;
     await expect(pending).toHaveCount(0, { timeout: 90_000 });

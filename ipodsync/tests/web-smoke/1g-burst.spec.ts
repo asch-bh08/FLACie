@@ -128,7 +128,8 @@ test.describe.serial('beta 52 load', () => {
     await signIn(page);
     await page.goto('/albums');
     await expect(page.locator('.card').first()).toBeVisible({ timeout: 20_000 });
-    await page.waitForFunction(() => { const imgs = [...document.images].filter((i) => i.src.includes('/art/')); return imgs.length > 0 && imgs.every((i) => i.complete); }, undefined, { timeout: 20_000 });
+    // (polled with evaluate: waitForFunction is evaluated as a string, which the page's script policy refuses)
+    await expect.poll(() => page.evaluate(() => { const imgs = [...document.images].filter((i) => i.src.includes('/art/')); return imgs.length > 0 && imgs.every((i) => i.complete); }), { timeout: 20_000 }).toBe(true);
     await page.waitForTimeout(1500);
     const shown = await page.evaluate(() => [...document.images].filter((i) => i.src.includes('/art/')).length);
     await ctx.close();

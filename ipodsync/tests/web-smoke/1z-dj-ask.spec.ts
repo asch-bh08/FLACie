@@ -81,12 +81,10 @@ test.describe.serial('talk to the DJ', () => {
     await expect(page.locator('.player [data-testid="dj-mic"]')).toBeVisible();
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-transport')).toBeVisible({ timeout: 20_000 });
-    const mic = page.locator('.ls-transport [data-testid="dj-mic"]');
+    // on a PC the mic is in the bar under the controls, first on the right (owner, 12 Nov: the dock), the DJ on the left
+    const mic = page.locator('.ls-dock-r [data-testid="dj-mic"]');
     await expect(mic).toBeVisible();
-    // mirrored: the DJ button before Previous, the mic after Next
-    const order = await page.locator('.ls-transport > *').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') || e.className));
-    expect(order.indexOf('Talk to the DJ')).toBeGreaterThan(order.indexOf('Next'));
-    expect(order.indexOf('DJ')).toBeLessThan(order.indexOf('Previous'));
+    await expect(page.locator('.ls-dock-l').getByRole('button', { name: 'DJ', exact: true })).toBeVisible();
 
     // nothing heard: listening until pressed again
     await mic.click();
@@ -125,7 +123,7 @@ test.describe.serial('talk to the DJ', () => {
     await newQueue(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Pause', { timeout: 20_000 });
-    const mic = page.locator('.ls-transport [data-testid="dj-mic"]');
+    const mic = page.locator('.ls-dock-r [data-testid="dj-mic"]')   // (on a PC the mic is in the bar under the controls);
     await page.evaluate(() => { (window as any).__turns = ["what's this song", '']; (window as any).__starts = 0; });
     await mic.click();
     await expect(page.locator('.ls-play')).toHaveAttribute('aria-label', 'Play', { timeout: 5_000 });   // paused while it listens
@@ -212,7 +210,7 @@ test.describe.serial('talk to the DJ', () => {
     await newQueue(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
     await expect(page.locator('.ls-transport')).toBeVisible({ timeout: 20_000 });
-    await page.locator('.ls-transport .ls-dj').click({ button: 'right' });   // (the top bar has one too, shown on a phone only)
+    await page.locator('.ls-dock .ls-dj').click({ button: 'right' });   // (the top bar has one too, shown on a phone only)
     await page.waitForURL(/\/settings#dj$/, { timeout: 15_000 });
     await expect(page.locator('.ls-transport')).toHaveCount(0, { timeout: 10_000 });
     await expect(page.locator('#dj')).toBeVisible();

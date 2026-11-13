@@ -133,7 +133,7 @@ test.describe.serial('the DJ', () => {
     await reset(page);   // DJ off in Settings
     await playLab(page);
     await page.getByRole('button', { name: 'Open Now Playing' }).click();
-    const btn = page.locator('.ls-transport').getByRole('button', { name: 'DJ', exact: true });
+    const btn = page.locator('.ls-dock, .ls-transport').getByRole('button', { name: 'DJ', exact: true }).locator('visible=true').first();   // (on a PC it is in the dock, beside the transport)
     await expect(btn).toBeVisible({ timeout: 20_000 });
     await expect(btn).not.toHaveClass(/on/); await pressed(btn, false);
     await expect(btn).toHaveAttribute('title', /Settings → DJ/);
@@ -172,17 +172,20 @@ test.describe.serial('the DJ', () => {
         await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
         await expect(tr.locator('.dj-mic')).toBeHidden();
       } else {
-        await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
+        // owner, 12 Nov: on a PC the DJ is in the bar under the controls, last on the left beside the transport ("swap the DJ button and the three dots")
+        const dock = page.locator('.ls-dock-l');
+        await expect(dock.getByRole('button', { name: 'DJ', exact: true })).toBeVisible({ timeout: 20_000 });
         await expect(page.locator('.ls-top').getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
-        await expect(tr.locator(':scope > :first-child')).toHaveClass(/ls-dj/);
+        await expect(dock.locator(':scope > :last-child')).toHaveClass(/ls-dj/);
+        await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
       }
       const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }).filter((b) => b.w > 0));
       const withMic = !phone && await tr.locator(".dj-mic").count() > 0;
-      expect(boxes).toHaveLength(phone ? 5 : withMic ? 7 : 6);
+      expect(boxes).toHaveLength(5);   // shuffle, previous, play, next, repeat (on a PC the DJ and the mic are in the bar under them)
       // the play button (the ring) is the middle of the row: as much on its left as on its right
       const ring = await tr.locator('.ls-ring').evaluate((e) => { const r = e.getBoundingClientRect(); return (r.left + r.right) / 2; });
       const mid = (boxes[0].l + boxes[boxes.length - 1].r) / 2;
-      if (withMic || phone) expect(Math.abs(ring - mid)).toBeLessThanOrEqual(6);
+      expect(Math.abs(ring - mid)).toBeLessThanOrEqual(6);
       // on a PC nothing in the bar under the row reaches it
       const others = await page.evaluate(() => [...document.querySelectorAll('.ls-dock-l > *, .ls-dock-r .ls-toolset button, .ls-dock-r .vol')].map((c) => c.getBoundingClientRect()).filter((r) => r.width > 0).map((r) => ({ l: r.left, r: r.right })));
       for (const o of others) expect(o.r <= boxes[0].l + 0.5 || o.l >= boxes[boxes.length - 1].r - 0.5, 'a bar button under the controls').toBe(true);

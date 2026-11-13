@@ -27,10 +27,10 @@ async function openQueue(page: Page) {
   await expect(page.locator('.ls-names h2')).toBeVisible();
   const tab = page.getByRole('tab', { name: 'Up next' });
   if ((await tab.getAttribute('aria-selected')) !== 'true') await tab.click();
-  await expect(page.locator('.upnext li.q-item').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.locator('.upnext li.q-item:not(.q-played)').first()).toBeVisible({ timeout: 15_000 });
 }
 
-const upNext = (page: Page) => page.locator('.upnext li.q-item .q-row b').allInnerTexts().then((a) => a.map((s) => s.trim()).filter((s) => /^Lab \d/.test(s)));
+const upNext = (page: Page) => page.locator('.upnext li.q-item:not(.q-played) .q-row b').allInnerTexts().then((a) => a.map((s) => s.trim()).filter((s) => /^Lab \d/.test(s)));
 const nowTitle = async (page: Page) => ((await page.locator('.ls-names h2').innerText()) || '').trim();
 
 test.describe.serial('Up next editing', () => {

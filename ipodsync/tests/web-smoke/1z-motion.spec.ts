@@ -84,14 +84,14 @@ test('Up next: moving a song down glides the rows, and the order is right', asyn
   await signIn(page);
   await playAlbum(page);
   await page.locator('.player [aria-label="Full screen player"]').click();
-  await expect(page.locator('.np .upnext .q-item').nth(1)).toBeVisible();
+  await expect(page.locator('.np .upnext .q-item:not(.q-played)').nth(1)).toBeVisible();
   await idle(page);
-  const titles = () => page.locator('.np .upnext .q-item b').allTextContents();
+  const titles = () => page.locator('.np .upnext .q-item:not(.q-played) b').allTextContents();
   const was = await titles();
   expect(was.length).toBeGreaterThan(1);
   // pressed in the page, then watched frame by frame for a row moving
   const moved = await page.evaluate(async (t) => {
-    const btn = document.querySelector(`.upnext .q-item [aria-label="Move ${t} down"]`) as HTMLButtonElement;
+    const btn = document.querySelector(`.upnext .q-item:not(.q-played) [aria-label="Move ${t} down"]`) as HTMLButtonElement;
     btn.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
     btn.click();
     for (let i = 0; i < 120; i++) {

@@ -759,3 +759,8 @@ body.np-open .dj-bar { display: none; }
 .upnext .q-played { opacity: .55; transition: opacity .2s ease; }
 .upnext .q-played:hover, .upnext .q-played:focus-within { opacity: 1; }
 .upnext .q-more { display: flex; justify-content: center; padding: 10px 0; }
+
+/* with the DJ beside the transport, a narrow PC window (1366 x 768 at 150 %) had it under Shuffle: Share (also in More) steps out of the dock there */
+@media (min-width: 761px) and (max-width: 1180px) { .ls-dock .ls-dshare { display: none !important; } }
+/* a phone on its side (375 px tall): with the graph tabs' row above it, the Info graph ran a few px past the panel; it takes less height there */
+@media (max-height: 420px) { .ls-info .viz, .ls-info .viz.curve, .ls-info .viz.loud, .ls-info .viz.stereo, .ls-info .viz.wall, .ls-info .viz.tall { height: clamp(100px, 30vh, 200px); } }

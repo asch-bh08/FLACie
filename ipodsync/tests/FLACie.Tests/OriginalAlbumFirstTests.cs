@@ -56,4 +56,40 @@ public class OriginalAlbumFirstTests
         var album = T("Voodoo People", "Music for the Jilted Generation");
         Assert.Same(best, new Library([best, album]).Resolve(best.Path, "Voodoo People", "The Prodigy"));
     }
+
+    [Fact]
+    public void Other_versions_carry_their_real_name_and_a_second_copy_of_the_same_recording_is_hidden()
+    {
+        // owner, 13 Nov: "make sure they're titled differently" and "give it the name of the actual version; if it's another copy, why keep it"
+        static Track L(string album, int sec, string path) => new(path, "Voodoo People", "The Prodigy", album, "The Prodigy", 1, 1, sec * 1000L, 1994, null, 0, TrackSource.Jellyfin);
+        var album = L("Music for the Jilted Generation", 386, "/a.flac");
+        var edit = L("Their Law: The Singles 1990-2005 [CD1]", 220, "/b.flac");
+        var longer = L("Their Law: The Singles 1990-2005 [CD2]", 480, "/c.flac");
+        var same = L("Greatest Hits", 384, "/d.flac");
+        try
+        {
+            VersionNames.Lookup = null;
+            var lib = new Library([edit, album, longer, same]);
+            Assert.Equal("Voodoo People", lib.DisplayTitle(album));              // the main copy keeps its plain title
+            Assert.Equal("Voodoo People (3:40 edit)", lib.DisplayTitle(edit));   // no name found yet: its length says what it is
+            Assert.Equal("Voodoo People (8:00 version)", lib.DisplayTitle(longer));
+            Assert.True(lib.IsDuplicate(same));                                  // the same recording again: hidden from the song lists
+            Assert.DoesNotContain(same, lib.Songs);
+            Assert.Contains(lib.Albums, g => g.Name == "Greatest Hits" && g.Tracks.Contains(same));   // its album keeps it
+            Assert.Equal(["/b.flac", "/c.flac"], lib.OtherVersions(album).Select(t => t.Path).Order());
+            // the catalog's own name for it, once looked up
+            VersionNames.Lookup = path => path == "/b.flac" ? "05 Edit" : null;
+            Assert.Equal("Voodoo People (05 Edit)", new Library([edit, album]).DisplayTitle(edit));
+            Assert.Equal("Voodoo People", new Library([album]).DisplayTitle(album));
+        }
+        finally { VersionNames.Lookup = null; }
+    }
+
+    [Theory]
+    [InlineData("Voodoo People (05 Edit)", "Voodoo People", "05 Edit")]
+    [InlineData("Voodoo People - Edit", "Voodoo People", "Edit")]
+    [InlineData("Voodoo People (Pendulum Remix)", "Voodoo People", "Pendulum Remix")]
+    [InlineData("Voodoo People", "Voodoo People", "")]
+    [InlineData("Voodoo People (Remastered 2008)", "Voodoo People", "Remastered 2008")]
+    public void The_version_part_of_a_catalog_title(string catalog, string file, string version) => Assert.Equal(version, VersionNames.NameFrom(catalog, file));
 }

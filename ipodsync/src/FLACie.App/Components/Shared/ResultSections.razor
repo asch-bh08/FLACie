@@ -252,7 +252,7 @@ else
 {
     <section aria-label="Songs" class="sr-section">
         <h2 class="section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
-        <TrackList Tracks="songs.Take(shown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" KindTag="@(ranked ? "Song" : null)" />
+        <TrackList Tracks="songs.Take(shown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" KindTag="@(ranked ? "Song" : null)" ShowVersions="ranked" />
         @if (songs.Count > shown)
         {
             @if (!string.IsNullOrEmpty(SeeAllHref)) { <a class="btn ghost sr-more" href="@SeeAllHref">See all @songs.Count @(songs.Count == 1 ? "song" : "songs")</a> }

@@ -27,6 +27,9 @@ public sealed class Library
             if (t.JellyfinId is { } id) byJellyfinId.TryAdd(id, t);
             if (t.OrigTitle.Length > 0) byOrigTitle.TryAdd(Matching.NormTitle(t.OrigTitle), t);
         }
+        // the same recording twice (an album copy and a best-of's of the same length): one in the song lists, the main one
+        foreach (var t in tracks) if (byMatch.TryGetValue(Matching.MatchKey(t), out var main) && main.Path != t.Path && SameRecording(t, main)) dupes.Add(t.Path);
+        if (dupes.Count > 0) Songs = Songs.Where(t => !dupes.Contains(t.Path)).ToList();
         Albums = tracks.GroupBy(t => t.AlbumKey)
             .Select(g => { var l = g.OrderBy(t => t.DiscNo).ThenBy(t => t.TrackNo).ThenBy(t => Matching.SortKey(t.Title)).ToList(); return new Group(l[0].Album.Length > 0 ? l[0].Album : "Unknown Album", l, l.Select(t => t.ArtKey).FirstOrDefault(k => k is not null)); })
             .OrderBy(g => Matching.SortKey(g.Name)).ToList();
@@ -59,6 +62,35 @@ public sealed class Library
             SearchRank.Rank(ri, i => artistDocs[i], q, 12).Select(i => Artists[i]).ToList());
     }
     SearchRank.Doc[]? songDocs, albumDocs, artistDocs;
+
+    /// <summary>Every copy of the song (same title and lead artist) besides [t].</summary>
+    public IReadOnlyList<Track> OtherVersions(Track t)
+    {
+        copies ??= Songs.GroupBy(Matching.MatchKey).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());
+        return copies.TryGetValue(Matching.MatchKey(t), out var all) ? all.Where(x => x.Path != t.Path).ToList() : [];
+    }
+    Dictionary<string, List<Track>>? copies;
+
+    /// <summary>What another copy of a song is, so two rows of "Voodoo People" can be told apart (owner, 13 Nov): its real name from the catalog
+    /// (<see cref="VersionNames"/>), else its length ("3:40 edit", "8:00 version"); null for the main copy (<see cref="Find"/>), a song with one copy,
+    /// or a second copy of the same recording (<see cref="IsDuplicate"/>).</summary>
+    public string? VersionNote(Track t)
+    {
+        if (OtherVersions(t).Count == 0 || Find(t.Title, t.Artist) is not { } main || main.Path == t.Path || SameRecording(t, main)) return null;
+        if (VersionNames.Lookup?.Invoke(t.Path) is { Length: > 0 } name) return name;
+        if (t.DurationMs <= 0 || main.DurationMs <= 0) return null;
+        var len = TimeSpan.FromMilliseconds(t.DurationMs);
+        return $"{(int)len.TotalMinutes}:{len.Seconds:00} {(t.DurationMs < main.DurationMs ? "edit" : "version")}";
+    }
+
+    /// <summary>The title to show: the song's own, with what version it is when the library has other copies ("Voodoo People (05 Edit)").</summary>
+    public string DisplayTitle(Track t) => VersionNote(t) is { } v ? $"{t.Title} ({v})" : t.Title;
+
+    /// <summary>A second copy of the main copy's recording (the same length within 5 s): hidden from the song lists and search (its album keeps it)
+    /// (owner, 13 Nov: "if it's another copy, why keep it").</summary>
+    public bool IsDuplicate(Track t) => dupes.Contains(t.Path);
+    readonly HashSet<string> dupes = [];
+    static bool SameRecording(Track a, Track b) => a.DurationMs > 0 && b.DurationMs > 0 && Math.Abs(a.DurationMs - b.DurationMs) <= 5000;
 
     /// <summary>A song that is both on its own album and on a compilation shows once, as the album copy, where the better ranked of the two was.</summary>
     List<Track> OneCopy(IEnumerable<Track> ranked)

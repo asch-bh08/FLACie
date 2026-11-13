@@ -52,7 +52,7 @@
                 </div>
                 <div class="ls-title">
                     <div class="ls-names">
-                        <h2 class="@(t.Title.Length > 44 ? "long longer" : t.Title.Length > 26 ? "long" : "")" title="@t.Title">@Lead(t.Title)<i>@Last(t.Title)</i></h2>
+                        <h2 class="@(t.Title.Length > 44 ? "long longer" : t.Title.Length > 26 ? "long" : "")" title="@Lib.DisplayTitle(t)">@Lead(t.Title)<i>@Last(t.Title)</i>@if (Lib.VersionNote(t) is { } ver) { <small class="ver-note"> (@ver)</small> }</h2>
                         <div class="ls-byline">
                             <p class="ls-artist"><a href="/artist/@Uri.EscapeDataString(t.AlbumArtist.Length > 0 ? t.AlbumArtist : t.Artist)" @onclick="() => GoArtist(t)" @onclick:preventDefault="true">@t.Artist</a>@if (AlbumOf(t).Length > 0) { <span class="ls-album"> · <a href="/album/@Uri.EscapeDataString(t.AlbumKey)" @onclick="() => GoAlbum(t)" @onclick:preventDefault="true">@AlbumOf(t)</a></span> }</p>
                             @* one chip for the file: what it is (or Hi-Res) and its sampling; nothing until this song's own facts are in *@
@@ -158,7 +158,7 @@
                                 var bIndex = bi;
                                 <li class="q-item q-played"><button class="q-row" @onclick="() => Player.SkipTo(bIndex)"><Cover ArtKey="@(Art.KeyFor(b))" Size="44" /><span><b>@b.Title</b><small>@b.Artist@(b.Album.Length > 0 ? " · " + b.Album : "")</small></span><span class="q-time">@Time(b.DurationMs / 1000.0)</span></button></li>
                             }
-                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@t.Title</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" role="img" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
+                            <li class="now"><div class="q-row"><Cover ArtKey="@(Art.KeyFor(t))" Size="44" /><span><b>@Lib.DisplayTitle(t)</b><small>@t.Artist</small><DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span><em class="eq @(Player.Playing ? "on" : "")" role="img" aria-label="Now playing"><i></i><i></i><i></i></em></div></li>
                             @{ var shownAuto = false; var fetching = Player.AutoplayFetching; var upNext = Player.UpNext(queueAll ? int.MaxValue : 300).ToList(); var upTotal = Player.UpNextCount; var canEdit = Player.CanEdit; }
                             @for (var k = 0; k < upNext.Count; k++)
                             {

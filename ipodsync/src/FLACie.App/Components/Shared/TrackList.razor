@@ -18,7 +18,7 @@
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
                 else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">
-                    <span class="track-title">@t.Title</span>
+                    <span class="track-title">@Lib.DisplayTitle(t)</span>
                     <span class="track-sub">@if (KindTag is { Length: > 0 }) { <span class="kind-tag">@KindTag</span> }@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(t.Source)</span></span>
                     <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                 </span>
@@ -27,6 +27,11 @@
                 <span class="badge @t.Source.ToString().ToLowerInvariant()" title="@(t.Source == TrackSource.Cloud ? SourceLabel.StreamingHint : "Where this song is played from")">@SourceLabel.Short(t.Source)</span>
                 @if (fmt.Length > 0) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="@(fmt == "HI-RES" ? "Hi-Res: lossless at more than CD quality" : "File format")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
             </span>
+            @if (ShowVersions && Lib.OtherVersions(t) is { Count: > 0 } vers && Lib.Find(t.Title, t.Artist)?.Path == t.Path)
+            {
+                @* the song's other versions folded under it, as SoundCloud and Spotify do (owner, 13 Nov) *@
+                <button class="chip small ver-toggle" aria-expanded="@(openVersions.Contains(t.Path) ? "true" : "false")" @onclick="() => { if (!openVersions.Remove(t.Path)) openVersions.Add(t.Path); }">+@vers.Count @(vers.Count == 1 ? "version" : "versions")</button>
+            }
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
             <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
             <button class="icon-btn" @onclick="() => { menu = menu == idx ? -1 : idx; sub = string.Empty; }" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")"><Icon Name="more" /></button>
@@ -77,6 +82,7 @@
                 </div>
             }
         </li>
+        @if (openVersions.Contains(t.Path)) { @VersionRows(t) }
     }
     @if (Waiting is { Count: > 0 }) { foreach (var w in Waiting.Where(w => w.Before >= Tracks.Count)) { @WaitingRow(w) } }
 </ol>
@@ -102,6 +108,16 @@
     /// <summary>F26.6: songs of an import not in the library yet, greyed in their place with their live state; they can't be played.</summary>
     [Parameter] public IReadOnlyList<WaitingSong>? Waiting { get; set; }
     [Parameter] public Action<WaitingSong>? OnRetry { get; set; }
+    /// <summary>Search: a song's other versions are folded under it behind a "+1 version" button.</summary>
+    [Parameter] public bool ShowVersions { get; set; }
+    readonly HashSet<string> openVersions = [];
+    RenderFragment VersionRows(Track main) => @<li class="track ver-rows"><ol class="tracks ver-list">
+        @foreach (var v in Lib.OtherVersions(main))
+        {
+            var vv = v;
+            <li class="track"><button class="track-main" @onclick="() => Player.Play([vv], 0, PlayContext)" aria-label="@("Play " + Lib.DisplayTitle(vv) + " by " + vv.Artist)"><Cover ArtKey="@(Art.KeyFor(vv))" Size="@ThumbSize" /><span class="track-text"><span class="track-title">@Lib.DisplayTitle(vv)</span><span class="track-sub">@vv.Artist@(vv.Album.Length > 0 ? " · " + vv.Album : "")</span></span></button><span class="track-time">@(vv.DurationMs > 0 ? Time(vv.DurationMs / 1000.0) : "")</span></li>
+        }
+    </ol></li>;
     /// <summary>A song of a playlist found online that is not fetched yet: its Download button fetches it first (owner, 12 Nov).</summary>
     [Parameter] public Action<WaitingSong>? OnFetch { get; set; }
     RenderFragment WaitingRow(WaitingSong w) => @<li class="track pending @(w.Failed ? "failed" : "")" data-testid="pending-song" aria-disabled="true">

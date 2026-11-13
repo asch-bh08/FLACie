@@ -1055,10 +1055,18 @@ fun SongList(
     tracks: List<Track>, nav: PlayerNav, snap: PlayerSnap, showArt: Boolean, numbered: Boolean = false,
     sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null, header: (@Composable () -> Unit)? = null, sections: Int = 0, missing: List<Pair<String, String>> = emptyList(),
     footer: (@Composable () -> Unit)? = null,
+    /** Songs the library lacks shown in their place (an album's tracklist; owner, 13 Nov): the row index each one comes before (tracks.size: at the end). */
+    missingBefore: Map<Int, List<Pair<String, String>>> = emptyMap(),
 ) {
     val app = LocalApp.current
-    if (tracks.isEmpty() && missing.isEmpty()) { EmptyState("Nothing here yet"); return }
+    if (tracks.isEmpty() && missing.isEmpty() && missingBefore.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sc = LocalScheme.current
+    val missingRow: @Composable (String, String) -> Unit = { t, a ->
+        val st = app.library.downloads[app.library.songKey(a, t)]
+        IpodRow({ app.library.requestDownload(a, t, "", 0) }, height = 56.dp, trailing = { Txt(st?.message?.take(18) ?: "Download", size = 13f, color = sc.accent) }) { _ ->
+            Column { Txt(t, size = 16f, color = sc.onBgDim, maxLines = 1); Txt(a, size = 13f, color = sc.onBgDim, maxLines = 1) }
+        }
+    }
     // choosing several songs: Select in a song's sheet starts it; a tap then ticks a row; the bar at the bottom acts on them all (as on the web)
     var chosen by remember(tracks) { mutableStateOf<Set<Int>?>(null) }
     androidx.activity.compose.BackHandler(enabled = chosen != null) { chosen = null }
@@ -1085,19 +1093,23 @@ fun SongList(
                 stickyHeader(key = "h$l", contentType = "letter") { LetterHeader(l) }
                 items(list, key = { "${it.index}${it.value.path}" }, contentType = { "song" }) { row(it.index, it.value) }
             }
-        } else itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }, contentType = { _, _ -> "song" }) { i, t -> row(i, t) }
+        } else {
+            val inPlace = missingBefore.values.sumOf { it.size }
+            if (inPlace > 0) item {
+                Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all $inPlace", { missingBefore.values.flatten().forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
+            }
+            itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }, contentType = { _, _ -> "song" }) { i, t ->
+                Column { missingBefore[i]?.forEach { (mt, ma) -> missingRow(mt, ma) }; row(i, t) }
+            }
+            missingBefore[tracks.size]?.let { last -> item { Column { last.forEach { (mt, ma) -> missingRow(mt, ma) } } } }
+        }
         item { CountFooter(songCount(tracks.size) + totalTime(tracks)) }
         if (missing.isNotEmpty()) {
             item { SectionHeader("Not in your library") }
             item {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
             }
-            itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { _, (t, a) ->
-                val st = app.library.downloads[app.library.songKey(a, t)]
-                IpodRow({ app.library.requestDownload(a, t, "", 0) }, height = 56.dp, trailing = { Txt(st?.message?.take(18) ?: "Download", size = 13f, color = sc.accent) }) { _ ->
-                    Column { Txt(t, size = 16f, color = sc.onBgDim, maxLines = 1); Txt(a, size = 13f, color = sc.onBgDim, maxLines = 1) }
-                }
-            }
+            itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { _, (t, a) -> missingRow(t, a) }
         }
         if (footer != null) item(contentType = "footer") { footer() }
         if (chosen != null) item { Spacer(Modifier.height(140.dp)) }
@@ -1523,7 +1535,7 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     val extra = if (userId != null) listOf(SheetItem("Remove from playlist", Glyph.CLOSE) { }) else emptyList()
     // an album: the songs of its catalog tracklist that this library lacks, greyed with Download (owner, 13 Nov: Random Access Memories showed 3 of
     // 13), and opening it asks for them, up to 20 (as a playlist someone looks at does); the web's Album page
-    val albumMissing by androidx.compose.runtime.produceState(emptyList<Pair<String, String>>(), d.id, tracks.size) {
+    val albumMissing by androidx.compose.runtime.produceState(emptyList<com.ipodemu.library.WebCatalog.Song>(), d.id, tracks.size) {
         if (d.kind != DetailKind.ALBUM || tracks.isEmpty()) return@produceState
         value = withContext(Dispatchers.IO) {
             try {
@@ -1532,19 +1544,21 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
                 val hit = com.ipodemu.library.WebCatalog.albums("$artist ${head.album}", 10).firstOrNull { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) == want && primaryArtist(it.artist) == primaryArtist(artist) }
                     ?: return@withContext emptyList()
                 val have = tracks.map { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) }.toHashSet()
-                com.ipodemu.library.WebCatalog.tracks(hit).filter { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) !in have }.map { it.title to it.artist }
+                com.ipodemu.library.WebCatalog.tracks(hit).filter { normTitle(com.ipodemu.library.WebCatalog.baseTitle(it.title)) !in have }
             } catch (e: Exception) { emptyList() }
         }
         if (value.isNotEmpty() && app.library.downloadsConfigured() && com.ipodemu.library.AlbumAutoFetch.first(d.id))
-            value.take(20).forEach { (t, a) -> app.library.requestDownload(a, t, tracks[0].album, 0) }
+            value.take(20).forEach { c -> app.library.requestDownload(c.artist, c.title, tracks[0].album, 0) }
     }
-    val missing = if (userId != null) userSongs.second else albumMissing
+    val missing = if (userId != null) userSongs.second else emptyList()
+    // each missing song before the first song here with a later place on the album (disc, then track), else at the end
+    val missingBefore = remember(albumMissing, tracks) { missingPlaces(tracks, albumMissing) }
     // kept here, outside the list, so the cover and title rise in once as the page opens and not again when scrolled back to
     val entrance = rememberEntrance()
     Column(Modifier.fillMaxSize()) {
         val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER)
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
-        if (tracks.isEmpty() && missing.isEmpty()) {
+        if (tracks.isEmpty() && missing.isEmpty() && missingBefore.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
             if (userId != null) Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(14.dp)) { DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance) }
             Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(when (d.kind) {
@@ -1565,10 +1579,10 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
                     Column(Modifier.width(DetailFit.sideWidth(this@BoxWithConstraints.maxWidth.value).dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
-                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs)
+                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs)
                 }
             } else {
-                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, footer = recs, header = {
+                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
@@ -2937,3 +2951,8 @@ private fun repeatArtists(app: com.ipodemu.App, lib: com.ipodemu.library.Library
     return counts.entries.sortedByDescending { it.value }.mapNotNull { e -> byArtist[e.key]?.let { it.artist to it.artKey } }.take(12)
 }
 
+
+/** Where an album's missing songs go among the songs here: before the first song with a later place (disc, then track number), else at the end. */
+internal fun missingPlaces(tracks: List<Track>, missing: List<com.ipodemu.library.WebCatalog.Song>): Map<Int, List<Pair<String, String>>> =
+    missing.groupBy { c -> tracks.indexOfFirst { it.discNo > c.discNo || (it.discNo == c.discNo && it.trackNo > c.trackNo) }.let { if (it < 0) tracks.size else it } }
+        .mapValues { (_, l) -> l.map { it.title to it.artist } }

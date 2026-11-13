@@ -28,6 +28,18 @@
   rows full-bleed to the right edge; graph tab arrows; Sound pop-up closes on outside click.
 - Owner wants more Home work ("needs WORK", "feels cheap"); phone Home has no split layout yet.
 
+## 13 Nov ~11:30 OWNER: "do all and make sure phone has it all" (PLAN, work top to bottom; mark DONE with the commit)
+Deployed at 11:25 (rollback-b139e): best-of rule, version names (VersionNameService), dupes hidden, search "+1 version", curved player, album
+tracklists + Fetch all + auto-fetch on open, Quick picks big tiles + tags, player-open colour/swap fix.
+1. Up next squeeze (web): hovered row's edit buttons must not take the title's width in the narrow panel.
+2. Songs tagged with a playlist as album (queued item below): detect + look up + overlay, dashboard review list.
+3. PHONE PARITY (Android): (a) best-of rule is in code (oneCopyBy), build it; (b) version names: DisplayTitle (duration fallback "3:40 edit"),
+   same-recording dupes hidden, server names via an endpoint keyed by Jellyfin item id; (c) search: other versions folded under the main row;
+   (d) album page: whole tracklist from the catalog with "Not downloaded yet" rows, Fetch all, auto-fetch on open; (e) Quick picks: two big tiles +
+   Hi-Res/lossless tags; (f) everything else from today is web-only by nature (curved player and swap are PC only).
+4. Phone beta b139: version is already 1.0 b139 / 154; unit tests, APK, emulator smoke (emulator-5554, -Motion), MSI, release notes
+   docs/private/release-bodies/v1.0.0-b139.md, gh release, web deploy.
+
 ## QUEUED 13 Nov (owner): SONGS TAGGED WITH A PLAYLIST/MIX AS THEIR ALBUM
 - Owner (screenshot): "Airplanes (feat. Hayley Williams)" by B.o.B shows album "2010s bops" and that playlist's picture; "probably 100s" of songs carry the
   playlist or mix they were downloaded from as their album and cover. Wanted: the right version of a song always shows its ORIGINAL album name and art.

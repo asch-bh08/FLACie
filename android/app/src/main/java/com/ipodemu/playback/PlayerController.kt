@@ -878,6 +878,22 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         return out
     }
 
+    /** The tracks before the current one in play order (the playlist's start, played or skipped), oldest first: Up next shows the whole playlist
+     *  (owner, 12 Nov), as on the web. */
+    fun playedBefore(max: Int = 1000): List<Pair<Int, Track>> {
+        val out = ArrayList<Pair<Int, Track>>()
+        if (!hasQueue) return out
+        val tl = exo.currentTimeline
+        var i = exo.currentMediaItemIndex
+        while (out.size < max) {
+            i = tl.getPreviousWindowIndex(i, Player.REPEAT_MODE_OFF, exo.shuffleModeEnabled)
+            if (i == C.INDEX_UNSET || i == exo.currentMediaItemIndex) break
+            (exo.getMediaItemAt(i).localConfiguration?.tag as? Track)?.let { out.add(i to it) }
+        }
+        out.reverse()
+        return out
+    }
+
     /** Tracks currently queued, in queue order (not shuffle order). */
     fun queueTracks(): List<Track> = List(exo.mediaItemCount) { (exo.getMediaItemAt(it).localConfiguration?.tag as? Track)?.let(::fresh) }.filterNotNull()
 

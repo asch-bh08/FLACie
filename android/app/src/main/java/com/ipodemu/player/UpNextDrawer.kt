@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.graphicsLayer
@@ -114,13 +115,17 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
     val sc = LocalScheme.current
     app.userData.rev
     val nav = LocalPlayerNav.current
-    val next = remember(snap.track?.path, snap.index, snap.shuffle, snap.repeat, snap.count, snap.rev) { app.player.upNext(30) }
-    val more = next.size >= 30
+    // the whole playlist (owner, 12 Nov: "see the whole playlist in the queue"): the songs already played above the one playing, every song to come below
+    val next = remember(snap.track?.path, snap.index, snap.shuffle, snap.repeat, snap.count, snap.rev) { app.player.upNext(2000) }
+    val before = remember(snap.track?.path, snap.index, snap.shuffle, snap.count, snap.rev) { app.player.playedBefore() }
+    val more = next.size >= 2000
     val from = app.player.contextName ?: "Your queue"
     val cur = snap.track
     val plan = rememberUpNextPlan(next, snap.count, snap.rev, snap.track?.path)
     // the queue sits on a slightly raised card, so the player beside it stands out
-    LazyColumn(modifier.clip(RoundedCornerShape(18.dp)).background(Color(0x14FFFFFF)), contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
+    // it opens on the song playing, with the last played song just above it
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(initialFirstVisibleItemIndex = if (before.isEmpty()) 0 else 2 + before.size)
+    LazyColumn(modifier.clip(RoundedCornerShape(18.dp)).background(Color(0x14FFFFFF)), state = listState, contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp)) {
         item {
             Row(Modifier.padding(start = 8.dp, top = 2.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -143,6 +148,8 @@ fun QueuePanel(snap: PlayerSnap, modifier: Modifier = Modifier) {
                 SwitchPill(on)
             }
         }
+        if (before.isNotEmpty()) item(key = "played-divider") { Txt("Played · ${before.size} ${if (before.size == 1) "song" else "songs"}", Modifier.padding(start = 4.dp, end = 4.dp, top = 14.dp, bottom = 6.dp), size = 12f, weight = FontWeight.Bold, color = sc.onBgDim) }
+        items(before, key = { "played-" + it.first }) { p -> Box(Modifier.alpha(.55f)) { DrawerRow(p.second, current = false) { app.player.skipTo(p.first) } } }
         if (cur != null) item { DrawerRow(cur, current = true, onClick = {}, onMore = nav?.let { n -> { n.sheet = upNextSheet(app, cur, snap.index, -1, next.size, more, true) } }) }
         if (next.isEmpty()) item { Txt("Nothing queued after this song.", Modifier.padding(horizontal = 4.dp, vertical = 8.dp), size = 14f, color = sc.onBgDim) }
         // keyed by the song, so a moved or removed song glides (QueueKeys)

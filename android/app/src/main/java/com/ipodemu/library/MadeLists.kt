@@ -30,7 +30,7 @@ object MadeLists {
 
     /** A list from outside (6 Nov: the web's Search playlists on the phone): "web:<source>:<id>". */
     fun isOutside(id: String) = id.startsWith("web:")
-    fun source(id: String) = when (id.split(':').getOrNull(1)) { "spotify" -> "Spotify"; "deezer" -> "Deezer"; "soundcloud" -> "SoundCloud"; else -> "FLACie" }
+    fun source(id: String) = when (id.split(':').getOrNull(1)) { "spotify" -> "Spotify"; "deezer" -> "Deezer"; "soundcloud" -> "SoundCloud"; "youtube" -> "YouTube"; else -> "FLACie" }
 
     /** The songs of an opened list the phone doesn't have, in the list's order, as (title, artist): shown greyed with Download. */
     fun missing(f: Full, have: (RecPick) -> Boolean): List<Pair<String, String>> = f.tracks.filterNot(have).map { it.title to it.artist }

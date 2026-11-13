@@ -162,10 +162,16 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                                 .clickable { onPlay(idx) }.padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
                         ) {
-                            ArtImage(t.artKey, Modifier.size(52.dp), thumb = true, corner = 8.dp)
+                            // the first pick bigger (owner, 13 Nov: "alternating sizes"; the web's two big tiles), and each with a small Hi-Res or lossless tag
+                            val big = idx == 0
+                            ArtImage(t.artKey, Modifier.size(if (big) 76.dp else 52.dp), thumb = !big, corner = if (big) 12.dp else 8.dp)
                             Column(Modifier.weight(1f)) {
-                                Txt(t.title, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
-                                Txt(t.artist, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                                Txt(t.title, size = if (big) 17f else 15f, weight = FontWeight.SemiBold, maxLines = 1)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Txt(t.artist, Modifier.weight(1f, fill = false), size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                                    pickQuality(t)?.let { q -> Txt(q, Modifier.border(1.dp, if (q == "Hi-Res") Color(0x66F0C46A) else sc.onBgDim.copy(alpha = .3f), RoundedCornerShape(5.dp)).padding(horizontal = 5.dp),
+                                        size = 9.5f, color = if (q == "Hi-Res") Color(0xFFF0C46A) else sc.onBgDim, maxLines = 1) }
+                                }
                                 if (tagged) DownloadTagLine(t, size = 11f)
                                 else if (com.ipodemu.library.HomeShelves.isNew(t)) Txt("New · tap to get it", size = 11f, color = sc.accent, maxLines = 1)
                             }
@@ -178,3 +184,6 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
         }
     }
 }
+
+/** The small quality tag on a Quick pick: "Hi-Res", or the lossless format ("FLAC"); nothing for a lossy file or one not known yet (as the web's). */
+internal fun pickQuality(t: com.ipodemu.library.Track): String? = com.ipodemu.library.AudioFacts.of(t)?.let { f -> if (f.hiRes) "Hi-Res" else if (f.lossless) f.codec.uppercase() else null }

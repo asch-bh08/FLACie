@@ -12,7 +12,7 @@ public enum PlaylistQueryKind { Playlists, Artist, Song }
 /// </summary>
 public static class WebPlaylistPick
 {
-    public static readonly string[] SourceOrder = ["spotify", "deezer", "soundcloud", "own"];
+    public static readonly string[] SourceOrder = ["spotify", "deezer", "soundcloud", "youtube", "own"];
     public const int FullRow = 12, ArtistRow = 15, SongRow = 1, MinLikes = 1000;
     /// <summary>F26.1: an artist search shows our own made lists only when it found fewer real lists than this (and always after them).</summary>
     public const int RealEnough = 4, MinSize = 8;

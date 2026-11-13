@@ -14,6 +14,7 @@ public static partial class SoundCloudSets
 {
     [GeneratedRegex(@"\b(remix(?:es|ed)?|b-?sides?|bootlegs?|edits|rework(?:s|ed)?|vip|dubs?)\b", RegexOptions.IgnoreCase)] private static partial Regex RemixSet();
     [GeneratedRegex(@"^https://(?:www\.|m\.)?soundcloud\.com/([A-Za-z0-9_-]+/sets/[A-Za-z0-9_-]+)")] private static partial Regex SetUrl();
+    [GeneratedRegex(@"^https://(?:www\.|m\.)?youtube\.com/playlist\?list=([A-Za-z0-9_-]{10,64})$")] private static partial Regex YouTubeList();
 
     /// <summary>An uploader named exactly like the artist ("The Prodigy" is not "Prodigy"; a featured artist after the name is allowed).</summary>
     public static bool IsArtistsOwn(string uploader, string artist)
@@ -36,7 +37,14 @@ public static partial class SoundCloudSets
             string Str(string n) => s.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
             long Num(string n) => s.TryGetProperty(n, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var x) ? x : 0;
             var title = SpotifyEmbed.Clean(Str("title"));
-            if (title.Length == 0 || SetUrl().Match(Str("url")) is not { Success: true } m) continue;
+            if (title.Length == 0) continue;
+            // a YouTube playlist found by name: read with flacie-ytdl's /playlist when it is opened, like the SoundCloud sets
+            if (YouTubeList().Match(Str("url")) is { Success: true } yt)
+            {
+                lists.Add(new("youtube", yt.Groups[1].Value, title, WebPlaylistKind.Other, SpotifyEmbed.Clean(Str("uploader")), [], Size: (int)Math.Clamp(Num("tracks"), 0, 10000)));
+                continue;
+            }
+            if (SetUrl().Match(Str("url")) is not { Success: true } m) continue;
             var art = Str("art");
             var picture = art.StartsWith("https://i1.sndcdn.com/", StringComparison.Ordinal) && art.Length <= 400 ? art.Replace("-large.", "-t500x500.") : null;
             lists.Add(new("soundcloud", m.Groups[1].Value, title, WebPlaylistKind.Other, SpotifyEmbed.Clean(Str("uploader")), [],

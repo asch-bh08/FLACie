@@ -118,7 +118,7 @@ public static class MadeApi
 /// </summary>
 public static class WebListsApi
 {
-    static string From(string source) => source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", _ => "FLACie" };
+    static string From(string source) => source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", "youtube" => "YouTube", _ => "FLACie" };
     static object Song(Track t) => new { path = t.Path, title = t.Title, artist = t.Artist, album = t.Album, durationMs = t.DurationMs };
     static Track? Have(UserSession s, WebTrack t) => s.Library.Find(t.Title, t.Artist) ?? s.Library.FindLoose(t.Title, t.Artist);
 

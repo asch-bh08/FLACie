@@ -86,7 +86,7 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     readonly Dictionary<string, DateTime> findAsked = [];
 
     List<WebPlaylist> FoundBefore(string query) =>
-        store.All.Where(l => l.Source == "soundcloud" && l.Kind == WebPlaylistKind.Other && WebPlaylistPick.Relevance(l, query) > 0).ToList();
+        store.All.Where(l => l.Source is "soundcloud" or "youtube" && l.Kind == WebPlaylistKind.Other && WebPlaylistPick.Relevance(l, query) > 0).ToList();
 
     async Task<List<WebPlaylist>> FindSetsAsync(UserSession s, string query, CancellationToken ct)
     {
@@ -154,17 +154,19 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             try { var full = await DeezerTracksAsync(list, ct); if (full.Tracks.Count > 0) { store.Put(full); store.Save(); } return full; }
             catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("deezer"); return list; }
         }
-        if (list.Source != "soundcloud" || s.Services.FileMoverUrl.Length == 0) return list;
-        if (!gate.TryTake("soundcloud")) { await Task.Delay(WebSourceGate.Gap, ct); if (!gate.TryTake("soundcloud")) return list; }
+        if (list.Source is not ("soundcloud" or "youtube") || s.Services.FileMoverUrl.Length == 0) return list;
+        if (!gate.TryTake(list.Source)) { await Task.Delay(WebSourceGate.Gap, ct); if (!gate.TryTake(list.Source)) return list; }
         try
         {
-            var answer = await MoverAsync(s, "/playlist", new System.Text.Json.Nodes.JsonObject { ["url"] = "https://soundcloud.com/" + list.Id }, ct);
-            if (answer is null || PlaylistLinks.FromYtdl(answer, PlaylistLinks.Service.SoundCloud) is not { } read) return list;
+            // a SoundCloud set, or a YouTube playlist found by name: read with flacie-ytdl as a pasted link is
+            var (url, service) = list.Source == "youtube" ? ("https://www.youtube.com/playlist?list=" + list.Id, PlaylistLinks.Service.YouTube) : ("https://soundcloud.com/" + list.Id, PlaylistLinks.Service.SoundCloud);
+            var answer = await MoverAsync(s, "/playlist", new System.Text.Json.Nodes.JsonObject { ["url"] = url }, ct);
+            if (answer is null || PlaylistLinks.FromYtdl(answer, service) is not { } read) return list;
             var full = list with { Tracks = read.Tracks.Select(t => new WebTrack(SpotifyEmbed.Clean(t.Title), SpotifyEmbed.Clean(t.Artist))).Take(WebPlaylist.MaxTracks).ToList() };
             store.Put(full); store.Save();
             return full;
         }
-        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed("soundcloud"); return list; }
+        catch (Exception e) when (e is HttpRequestException or System.Text.Json.JsonException or TaskCanceledException && !ct.IsCancellationRequested) { gate.Failed(list.Source); return list; }
     }
 
     /// <summary>flacie-ytdl through the person's file mover (POST [path] with its key); null on a refusal or an error answer.</summary>

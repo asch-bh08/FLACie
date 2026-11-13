@@ -137,6 +137,23 @@ public class PlaylistLinksTests
     }
 
     [Fact]
+    public void YouTube_playlists_found_by_name_are_lazy_playlists_too()
+    {
+        // owner's queue, 12 Nov: playlist by name for YouTube as well (flacie-ytdl /find-sets answers them with "source": "youtube")
+        var sets = SoundCloudSets.FromSearch("""
+            {"sets": [
+              {"source": "youtube", "title": "100 Greatest Dance Hits of the 90's", "url": "https://www.youtube.com/playlist?list=PLBA45B830027E7ADE", "uploader": "OTMAN BEN ALI", "tracks": 0, "likes": 0, "art": ""},
+              {"source": "youtube", "title": "Not a list", "url": "https://www.youtube.com/watch?v=abc", "uploader": "x", "tracks": 0, "likes": 0, "art": ""},
+              {"source": "youtube", "title": "Look-alike", "url": "https://www.youtube.com.evil.example/playlist?list=PLx1234567890", "uploader": "y", "tracks": 0, "likes": 0, "art": ""}
+            ]}
+            """);
+        var l = Assert.Single(sets);
+        Assert.Equal(("youtube", "PLBA45B830027E7ADE", "100 Greatest Dance Hits of the 90's", "OTMAN BEN ALI"), (l.Source, l.Id, l.Name, l.Subject));
+        Assert.Equal(WebPlaylistKind.Other, l.Kind);
+        Assert.Empty(l.Tracks);
+    }
+
+    [Fact]
     public void An_artists_sets_are_found_duplicates_and_owned_albums_dropped_remix_sets_kept_beside_a_best_of()
     {
         Assert.True(SoundCloudSets.IsArtistsOwn("The Prodigy", "The Prodigy"));

@@ -213,6 +213,9 @@ def artist_sets(q):
 FIND_MAX = 12
 
 
+YT_FIND_MAX = 8
+
+
 def find_sets(q):
     """POST /find-sets {"q"} (owner, 12 Nov: "if I search for a playlist I saw on Spotify or my mate's one it should be in my library"): anyone's
     public SoundCloud playlists whose name matches, through yt-dlp's own SoundCloud API access (search/playlists; names, links and counts only, cheap;
@@ -221,17 +224,36 @@ def find_sets(q):
     if len(q) < 3:
         raise ValueError("missing name")
     import yt_dlp
-    ydl = yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True})
-    ie = ydl.get_info_extractor("SoundcloudSearch")
-    ie.initialize()
-    r = ie._call_api(ie._API_V2_BASE + "search/playlists", q, query={"q": q, "limit": FIND_MAX, "linked_partitioning": 1}, headers=ie._HEADERS)
     sets = []
-    for e in (r.get("collection") or [])[:FIND_MAX]:
-        url = (e or {}).get("permalink_url") or ""
-        if not url.startswith("https://soundcloud.com/") or "/sets/" not in url:
-            continue
-        sets.append({"title": (e.get("title") or "")[:200], "url": url, "uploader": ((e.get("user") or {}).get("username") or "")[:200],
-                     "tracks": int(e.get("track_count") or 0), "likes": int(e.get("likes_count") or 0), "art": (e.get("artwork_url") or "")[:400]})
+    errors = []
+    try:
+        ydl = yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True})
+        ie = ydl.get_info_extractor("SoundcloudSearch")
+        ie.initialize()
+        r = ie._call_api(ie._API_V2_BASE + "search/playlists", q, query={"q": q, "limit": FIND_MAX, "linked_partitioning": 1}, headers=ie._HEADERS)
+        for e in (r.get("collection") or [])[:FIND_MAX]:
+            url = (e or {}).get("permalink_url") or ""
+            if not url.startswith("https://soundcloud.com/") or "/sets/" not in url:
+                continue
+            sets.append({"source": "soundcloud", "title": (e.get("title") or "")[:200], "url": url, "uploader": ((e.get("user") or {}).get("username") or "")[:200],
+                         "tracks": int(e.get("track_count") or 0), "likes": int(e.get("likes_count") or 0), "art": (e.get("artwork_url") or "")[:400]})
+    except Exception as e:  # SoundCloud failing must not lose YouTube's answers
+        errors.append("soundcloud: " + str(e)[:200])
+    # YouTube playlists with that name (13 Nov: playlist by name for YouTube too): YouTube's own search with its "playlists" filter, names and links only
+    try:
+        from urllib.parse import quote_plus
+        y = yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "extract_flat": True, "playlistend": YT_FIND_MAX})
+        r = y.extract_info("https://www.youtube.com/results?search_query=" + quote_plus(q) + "&sp=EgIQAw%253D%253D", download=False)
+        for e in (r.get("entries") or [])[:YT_FIND_MAX]:
+            url = (e or {}).get("url") or ""
+            if not url.startswith("https://www.youtube.com/playlist?list="):
+                continue
+            sets.append({"source": "youtube", "title": (e.get("title") or "")[:200], "url": url, "uploader": (e.get("channel") or e.get("uploader") or "")[:200],
+                         "tracks": int(e.get("playlist_count") or 0), "likes": 0, "art": ""})
+    except Exception as e:
+        errors.append("youtube: " + str(e)[:200])
+    if not sets and errors:
+        raise RuntimeError("; ".join(errors))
     return {"sets": sets}
 
 

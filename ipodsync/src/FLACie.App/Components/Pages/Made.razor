@@ -66,7 +66,7 @@ else
     }
 
     WebPlaylist? web; string? openedFor;
-    static string From(string source) => source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", _ => "FLACie" };
+    static string From(string source) => source switch { "spotify" => "Spotify", "deezer" => "Deezer", "soundcloud" => "SoundCloud", "youtube" => "YouTube", _ => "FLACie" };
     /// <summary>Playing it: its missing songs are fetched in play order (F23.2).</summary>
     void Fetch(FLACie.Server.WaitingSong w) { Downloads.Song(Session, new CatalogSong(w.Artist, w.Title, "", null, 0, 0, 0), kind: "Playlist"); StateHasChanged(); }
     void Played() { if (web is not null) AppHost.WebPlaylists?.Interest(Session, web, FetchTrigger.Played); }

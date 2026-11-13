@@ -337,7 +337,8 @@ main.content:has(.home-hero) { isolation: isolate; position: relative; }
 @media (max-width: 1400px) { .home-picklist { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 760px) { .home-plgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .home-split:has(> .home-feature:only-child) .home-plgrid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-.home-split:has(> .home-feature:only-child) .home-picklist { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* (two columns even across the whole width: the two big Quick picks fill the top row; three left one small tile beside them) */
+.home-split:has(> .home-feature:only-child) .home-picklist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .home-plgrid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
 @media (max-width: 1400px) { .home-plgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 @media (max-width: 760px) { .home-plgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

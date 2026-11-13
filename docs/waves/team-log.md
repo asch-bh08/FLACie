@@ -37,7 +37,9 @@ DONE 12:00 (committed, NOT deployed): MusicCheck (no non-music auto-fetch; YouTu
    zz-upnext-narrow.spec.ts passes but 1h-queue.spec.ts:37 then timed out on a click (find which click; likely pointer-events:none until :hover, so
    Playwright's click on a move button is refused; fix: pointer-events only off when not hovered AND not focus-within, or keep auto and use opacity).
    Rename zz-upnext-narrow.spec.ts to 1z-upnext-narrow.spec.ts when done.
-2. Songs tagged with a playlist as album (queued item below): detect + look up + overlay, dashboard review list.
+2. Songs tagged with a playlist as album: DONE + DEPLOYED 12:30 (rollback-b139f): AlbumFixes (Core) + AlbumFixService (data/album-fixes.json, by
+   FilePath; Deezer song search, same artist/title/len, not compilation/remix). Not done: a dashboard review/undo list. MusicCheck, version folding
+   and the Up next fix are deployed in the same build.
 3. PHONE PARITY (Android): (a) best-of rule is in code (oneCopyBy), build it; (b) version names: DisplayTitle (duration fallback "3:40 edit"),
    same-recording dupes hidden, server names via an endpoint keyed by Jellyfin item id; (c) search: other versions folded under the main row;
    (d) album page: whole tracklist from the catalog with "Not downloaded yet" rows, Fetch all, auto-fetch on open; (e) Quick picks: two big tiles +

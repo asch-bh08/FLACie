@@ -54,12 +54,13 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     public async Task<IReadOnlyList<WebPlaylist>> ForFilterAsync(UserSession s, string query, string? genre, CancellationToken ct, string? decade = null)
     {
         var (found, _) = await GatherAsync(s, query.Trim().Length > 0 ? query : genre ?? decade ?? "", ct);
-        return WebPlaylistPick.ForFilter(found.Concat(store.All).DistinctBy(l => l.Source + ":" + l.Id), query, genre, now(), decade);
+        return WebPlaylistPick.ForFilter(found.Concat(store.All).Where(MusicCheck.LooksLikeMusic).DistinctBy(l => l.Source + ":" + l.Id), query, genre, now(), decade);
     }
 
     public void Interest(UserSession s, WebPlaylist list, FetchTrigger trigger, int from = 0)
     {
-        if (!downloads.Ready(s)) return;
+        // a list that isn't music (film clips, episodes, trailers) is never fetched by itself (owner, 13 Nov)
+        if (!downloads.Ready(s) || !MusicCheck.LooksLikeMusic(list)) return;
         // a SoundCloud set is known by name only until someone opens or plays it: its songs are read first (F25.3)
         if (list.Tracks.Count == 0)
         {
@@ -77,7 +78,7 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
         }
         store.Use(list.Source, list.Id);
         var lib = Lib(s);
-        foreach (var t in PlaylistFetchPolicy.Plan(trigger, list.Tracks, t => lib.Find(t.Title, t.Artist) is not null, freeBytes(s), from))
+        foreach (var t in PlaylistFetchPolicy.Plan(trigger, list.Tracks, t => lib.Find(t.Title, t.Artist) is not null, freeBytes(s), from).Where(t => MusicCheck.LooksLikeSong(t.Title, t.Artist)))
             downloads.Song(s, new CatalogSong(t.Artist, t.Title, "", null, t.DurationMs, 0, 0), kind: "Playlist");
     }
 
@@ -88,7 +89,7 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
     readonly Dictionary<string, DateTime> findAsked = [];
 
     List<WebPlaylist> FoundBefore(string query) =>
-        store.All.Where(l => (l.Source == "soundcloud" || (l.Source == "youtube" && gate.IsOn("youtube"))) && l.Kind == WebPlaylistKind.Other && WebPlaylistPick.Relevance(l, query) > 0).ToList();
+        store.All.Where(l => (l.Source == "soundcloud" || (l.Source == "youtube" && gate.IsOn("youtube"))) && l.Kind == WebPlaylistKind.Other && MusicCheck.LooksLikeMusic(l) && WebPlaylistPick.Relevance(l, query) > 0).ToList();
 
     async Task<List<WebPlaylist>> FindSetsAsync(UserSession s, string query, CancellationToken ct)
     {
@@ -102,7 +103,8 @@ public sealed class SpotifyPlaylists(HttpClient http, WebPlaylistStore store, We
             if (answer is null) { gate.Failed("soundcloud"); return FoundBefore(query); }
             lock (findAsked) { findAsked[key] = now(); if (findAsked.Count > 2000) findAsked.Clear(); }
             // (YouTube's lists only while its switch on Server admin is on)
-            var sets = SoundCloudSets.FromSearch(answer).Where(l => l.Source != "youtube" || gate.IsOn("youtube")).ToList();
+            // (YouTube's lists that aren't music, film clips and the like, are left out: "Dreamer" found the 2005 film's clips; owner, 13 Nov)
+            var sets = SoundCloudSets.FromSearch(answer).Where(l => (l.Source != "youtube" || gate.IsOn("youtube")) && MusicCheck.LooksLikeMusic(l)).ToList();
             foreach (var l in sets) if (store.Use(l.Source, l.Id) is null) store.Put(l);
             store.Save();
             return sets.Select(l => store.Use(l.Source, l.Id) ?? l).ToList();

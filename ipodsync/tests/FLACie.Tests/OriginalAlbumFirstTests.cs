@@ -92,4 +92,26 @@ public class OriginalAlbumFirstTests
     [InlineData("Voodoo People", "Voodoo People", "")]
     [InlineData("Voodoo People (Remastered 2008)", "Voodoo People", "Remastered 2008")]
     public void The_version_part_of_a_catalog_title(string catalog, string file, string version) => Assert.Equal(version, VersionNames.NameFrom(catalog, file));
+
+    [Fact]
+    public void Search_folds_a_songs_mixes_and_versions_under_the_plain_one()
+    {
+        // owner, 13 Nov: "dreamer" listed Dreamer, Dreamer - Re-Original 7-inch Mix and Dreamer (Janice Robinson Vocal) as three songs
+        static Track S(string title, string artist, string album, string path) => new(path, title, artist, album, artist, 1, 1, 220_000, 1995, null, 0, TrackSource.Jellyfin);
+        var plain = S("Dreamer", "Livin' Joy", "Don't Stop Movin'", "/1");
+        var mix = S("Dreamer - Re-Original 7-inch Mix", "Livin' Joy", "Dreamer", "/2");
+        var vocal = S("Dreamer (Janice Robinson Vocal)", "Livin' Joy", "Don't Stop Movin'", "/3");
+        var prince = S("Dreamer", "Prince", "Lotusflow3r", "/4");
+        var lib = new Library([mix, vocal, plain, prince]);
+        var songs = lib.Search("dreamer").Songs;
+        Assert.Equal(2, songs.Count);
+        Assert.Contains(plain, songs); Assert.Contains(prince, songs);
+        Assert.Equal(["/2", "/3"], lib.OtherVersions(plain).Select(t => t.Path).Order());
+        Assert.Empty(lib.OtherVersions(prince));
+        // asked for by its own name, a version is found as itself
+        Assert.Same(vocal, Assert.Single(lib.Search("janice robinson").Songs));
+        // their own titles already tell them apart: no added name
+        Assert.Equal("Dreamer (Janice Robinson Vocal)", lib.DisplayTitle(vocal));
+        Assert.Equal("Dreamer", lib.DisplayTitle(plain));
+    }
 }

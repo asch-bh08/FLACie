@@ -352,6 +352,10 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
     (Task<DownloadResult> Task, DownloadJob? Job) Begin(UserSession s, string kind, string artist, string title, string album, string? artUrl, long durationMs, CancellationToken ct, DownloadMode mode)
     {
         if (!Allowed) return (Task.FromResult(new DownloadResult(false, [], OffMessage)), null);
+        // FLACie never fetches something that isn't music by itself (a list someone opened, Autoplay): nine clips of a film did (owner, 13 Nov).
+        // Asked for by hand, it is fetched
+        if (kind is "Playlist" or "Autoplay" && !MusicCheck.LooksLikeSong(title, artist))
+            return (Task.FromResult(new DownloadResult(false, [], "Not fetched by itself: it doesn't look like music")), null);
         var j = For(s); var key = Key(artist, title);
         lock (j.InFlight)
         {

@@ -57,17 +57,18 @@ public sealed class Library
         artistDocs ??= Artists.Select(g => new SearchRank.Doc(g.Name, "", "")).ToArray();
         var si = Enumerable.Range(0, Songs.Count).ToList(); var ai = Enumerable.Range(0, Albums.Count).ToList(); var ri = Enumerable.Range(0, Artists.Count).ToList();
         return (
-            OneCopy(SearchRank.Rank(si, i => songDocs[i], q, 100).Select(i => Songs[i])),
+            OneVersion(OneCopy(SearchRank.Rank(si, i => songDocs[i], q, 100).Select(i => Songs[i]))),
             SearchRank.Rank(ai, i => albumDocs[i], q, 24).Select(i => Albums[i]).ToList(),
             SearchRank.Rank(ri, i => artistDocs[i], q, 12).Select(i => Artists[i]).ToList());
     }
     SearchRank.Doc[]? songDocs, albumDocs, artistDocs;
 
-    /// <summary>Every copy of the song (same title and lead artist) besides [t].</summary>
+    /// <summary>Every other copy and version of the song (same song whatever the mix or edit, same lead artist: <see cref="Matching.SongKey"/>)
+    /// besides [t]: "Dreamer - Re-Original 7-inch Mix" and "Dreamer (Janice Robinson Vocal)" are versions of "Dreamer".</summary>
     public IReadOnlyList<Track> OtherVersions(Track t)
     {
-        copies ??= Songs.GroupBy(Matching.MatchKey).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());
-        return copies.TryGetValue(Matching.MatchKey(t), out var all) ? all.Where(x => x.Path != t.Path).ToList() : [];
+        copies ??= Songs.GroupBy(x => Matching.SongKey(x.Title, x.Artist)).Where(g => g.Count() > 1).ToDictionary(g => g.Key, g => g.ToList());
+        return copies.TryGetValue(Matching.SongKey(t.Title, t.Artist), out var all) ? all.Where(x => x.Path != t.Path).ToList() : [];
     }
     Dictionary<string, List<Track>>? copies;
 
@@ -76,7 +77,8 @@ public sealed class Library
     /// or a second copy of the same recording (<see cref="IsDuplicate"/>).</summary>
     public string? VersionNote(Track t)
     {
-        if (OtherVersions(t).Count == 0 || Find(t.Title, t.Artist) is not { } main || main.Path == t.Path || SameRecording(t, main)) return null;
+        // (only copies with the very same title need a name; a mix or a vocal version already says what it is)
+        if (!OtherVersions(t).Any(o => Matching.MatchKey(o) == Matching.MatchKey(t)) || Find(t.Title, t.Artist) is not { } main || main.Path == t.Path || SameRecording(t, main)) return null;
         if (VersionNames.Lookup?.Invoke(t.Path) is { Length: > 0 } name) return name;
         if (t.DurationMs <= 0 || main.DurationMs <= 0) return null;
         var len = TimeSpan.FromMilliseconds(t.DurationMs);
@@ -91,6 +93,23 @@ public sealed class Library
     public bool IsDuplicate(Track t) => dupes.Contains(t.Path);
     readonly HashSet<string> dupes = [];
     static bool SameRecording(Track a, Track b) => a.DurationMs > 0 && b.DurationMs > 0 && Math.Abs(a.DurationMs - b.DurationMs) <= 5000;
+
+    /// <summary>A song's versions found by one search show as one row, the plain version (no mix or edit in its title) where the best ranked of them
+    /// was; the others open under it (owner, 13 Nov: "show one main one then hide the different versions, like SoundCloud or Spotify").</summary>
+    static List<Track> OneVersion(List<Track> ranked)
+    {
+        var groups = ranked.GroupBy(t => Matching.SongKey(t.Title, t.Artist)).ToDictionary(g => g.Key, g => g.ToList());
+        var shown = new HashSet<string>(); var res = new List<Track>();
+        foreach (var t in ranked)
+        {
+            var k = Matching.SongKey(t.Title, t.Artist);
+            var g = groups[k];
+            if (g.Count == 1) { res.Add(t); continue; }
+            if (!shown.Add(k)) continue;
+            res.Add(g.FirstOrDefault(x => Matching.Recording(x.Title).Length == 0 && Matching.NormTitle(x.Title) == k.Split('|')[0]) ?? g.FirstOrDefault(x => Matching.Recording(x.Title).Length == 0) ?? t);
+        }
+        return res;
+    }
 
     /// <summary>A song that is both on its own album and on a compilation shows once, as the album copy, where the better ranked of the two was.</summary>
     List<Track> OneCopy(IEnumerable<Track> ranked)

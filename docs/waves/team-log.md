@@ -31,7 +31,12 @@
 ## 13 Nov ~11:30 OWNER: "do all and make sure phone has it all" (PLAN, work top to bottom; mark DONE with the commit)
 Deployed at 11:25 (rollback-b139e): best-of rule, version names (VersionNameService), dupes hidden, search "+1 version", curved player, album
 tracklists + Fetch all + auto-fetch on open, Quick picks big tiles + tags, player-open colour/swap fix.
-1. Up next squeeze (web): hovered row's edit buttons must not take the title's width in the narrow panel.
+DONE 12:00 (committed, NOT deployed): MusicCheck (no non-music auto-fetch; YouTube film-clip list left out; the 9 "Dreamer (2005)" movie clips that
+   were downloaded were moved to .flacie-replaced by /retire and their empty folders removed); search folds versions by SongKey ("Dreamer" +2 versions).
+1. Up next squeeze (web): IN PROGRESS. living-sleeve.css has an uncommitted @media (hover: hover) rule making .q-edit an overlay; the new spec
+   zz-upnext-narrow.spec.ts passes but 1h-queue.spec.ts:37 then timed out on a click (find which click; likely pointer-events:none until :hover, so
+   Playwright's click on a move button is refused; fix: pointer-events only off when not hovered AND not focus-within, or keep auto and use opacity).
+   Rename zz-upnext-narrow.spec.ts to 1z-upnext-narrow.spec.ts when done.
 2. Songs tagged with a playlist as album (queued item below): detect + look up + overlay, dashboard review list.
 3. PHONE PARITY (Android): (a) best-of rule is in code (oneCopyBy), build it; (b) version names: DisplayTitle (duration fallback "3:40 edit"),
    same-recording dupes hidden, server names via an endpoint keyed by Jellyfin item id; (c) search: other versions folded under the main row;
@@ -41,6 +46,7 @@ tracklists + Fetch all + auto-fetch on open, Quick picks big tiles + tags, playe
    docs/private/release-bodies/v1.0.0-b139.md, gh release, web deploy.
 
 ## QUEUED 13 Nov (owner): SONGS TAGGED WITH A PLAYLIST/MIX AS THEIR ALBUM
+- Second example (owner, 13 Nov): "Grenade" by Bruno Mars shows album "Pop Megahits" and that playlist's picture.
 - Owner (screenshot): "Airplanes (feat. Hayley Williams)" by B.o.B shows album "2010s bops" and that playlist's picture; "probably 100s" of songs carry the
   playlist or mix they were downloaded from as their album and cover. Wanted: the right version of a song always shows its ORIGINAL album name and art.
   Exceptions: remixes, re-releases, SoundCloud mixes and other real versions keep theirs.

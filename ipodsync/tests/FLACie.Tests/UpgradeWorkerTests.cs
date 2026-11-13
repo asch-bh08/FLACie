@@ -159,9 +159,10 @@ public class UpgradeWorkerTests : IDisposable
         // no Hi-Res anywhere: the lossless step takes a CD-quality FLAC
         r.Answer = lossless => lossless ? Filed(r.Mover, new ProbeFacts("flac", 44_100, 16, 30_000_000, 201_000), expected: 30_000_000) : null;
         await r.Worker.RunOnceAsync(default);
-        Assert.Equal([false, true], r.Fetches);
+        // lossless only, never Hi-Res, for an old rip (owner, 13 Nov: "just lossless for the old WMA, because storage")
+        Assert.Equal([true], r.Fetches);
         Assert.Contains("retire " + wma, r.Mover.Calls);           // moved aside, not deleted
-        Assert.True(Assert.Single(r.Store.All()).LosslessTaken);   // still on the list for Hi-Res
+        Assert.Empty(r.Store.All());                               // done: off the list, no Hi-Res look later
     }
 
     [Fact]

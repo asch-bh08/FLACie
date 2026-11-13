@@ -167,14 +167,15 @@ public sealed class UpgradeWorker(
     async Task<string> TryAsync(UserSession s, IFileMover fm, UpgradeEntry e, ProbeFacts old, CancellationToken ct)
     {
         var name = $"{e.Title} · {e.Artist}";
-        var copy = await fetch(s, e, false, ct);
-        var lossless = false;
-        if (copy is null && e.Attempts == 0 && !e.LosslessTaken && LossyCopy(e))
+        // an old rip of the library's own is swapped for a lossless (CD quality) copy only, never Hi-Res, to spare the disk (owner, 13 Nov)
+        var copy = e.OwnRip ? await fetch(s, e, true, ct) : await fetch(s, e, false, ct);
+        var lossless = e.OwnRip && copy is not null;
+        if (copy is null && !e.OwnRip && e.Attempts == 0 && !e.LosslessTaken && LossyCopy(e))
         {
             copy = await fetch(s, e, true, ct);
             lossless = copy is not null;
         }
-        if (copy is null) return Later(e, "no Hi-Res copy on Soulseek yet");
+        if (copy is null) return Later(e, e.OwnRip ? "no lossless copy on Soulseek yet" : "no Hi-Res copy on Soulseek yet");
         var facts = await fm.ProbeAsync(copy.File, ct);
         var oldMs = old.DurationMs > 0 ? old.DurationMs : e.DurationMs;
         var why = facts is null || facts.Gone ? "the new copy could not be read back"
@@ -205,6 +206,7 @@ public sealed class UpgradeWorker(
         s.ReplaceDownloaded(e.File, copy.Track);
         s.RepointPlaylists(copy.Track, e.File);
         try { await rescan(s); } catch (Exception) { }
+        if (lossless && e.OwnRip) { store.Remove(e); return $"swapped {name} for a lossless copy"; }
         if (lossless)
         {
             e.File = copy.File; e.Format = Path.GetExtension(copy.File).TrimStart('.').ToLowerInvariant(); e.Source = "soulseek"; e.LosslessTaken = true;

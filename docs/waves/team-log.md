@@ -40,7 +40,8 @@ State at start: 2de9b156 (swap sides) committed, NOT deployed; 44a88b5d + b8b562
    find other lossy albums (WMA, MP3 < 256k) and queue them too (frank data change = an approved owner request).
 5. 20 Home redesign mockups (web + small phone views) on one artifact page for the owner to pick from in the morning. Do not build any yet.
 6. DONE (tab fade, staggered rows, press): More animations and smooth transitions app-wide (page changes, lists, NP open/close), within the perf rules.
-7. Queued items: Up next shows the whole playlist (web+phone) DONE (web 1z-queue-whole + phone UpNextDrawer); playlist-by-name YouTube; "Not downloaded yet" rows; weekly playlist refresh;
+7. Queued items: Up next shows the whole playlist (web+phone) DONE (web 1z-queue-whole + phone UpNextDrawer); playlist-by-name YouTube; "Not downloaded yet" rows
+   DONE on web 05:35 (Made.razor + ImportRows.BuildWeb, Download button per row; deployed, rollback-b139a; not checked live: opening one starts downloads; phone not yet); weekly playlist refresh;
    phone Home hard bars/space + 50/50; Android Auto overhaul (see below; lyrics: check the code); Retro overhaul.
 8. Audit the whole app (web, phone, Windows): bugs, clipping, consistency (docs/icons.md), perf.
 PROGRESS: 1 DONE (search typo + layout, deployed). 2 DONE (dock + solid menu). 3 DONE (Home shelves built in the background; deployed).
@@ -56,6 +57,7 @@ TESTS 13 Nov 04:40: server 2042 pass. Web full run then reruns: all fixed except
 worse on the code from before tonight, so test/mock order, not a regression), 1i:315 flaky, 1j-speed-sleep (old), 1z-fast-load (39 restyled of 342,
 limit 34; same without tonight's motion: from earlier work), 1v-retro-touch:123 flaky. Android unit 1078: CoverFilesTest flaky under load (3/3 pass
 alone). Web deployed 04:31 (rollback-b138a). APK built 04:39; emulator smoke b138n running.
+8 PARTLY: audit by the full web run (above) and a live check; noted: with the side menu folded the logo shows "FL" for a moment as the search slides over it.
 9 DONE 05:08: b138 RELEASED (https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b138, target 064c1634): APK smoke 23/23 with motion, v1 tour
 fine (one RetroActivity input ANR while Google services and System UI also ANR'd: emulator starved), MSI healthz ok. Version now b139 (Android 154).
 9. Morning: full beta (b138+): version in 6 places, notes docs/private/release-bodies, APK + MSI, smoke on emulator-5554, web deploy, release.

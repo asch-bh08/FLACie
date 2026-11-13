@@ -103,6 +103,7 @@ import com.ipodemu.library.hiRes
 import com.ipodemu.library.AudioFacts
 import com.ipodemu.library.matchKey
 import com.ipodemu.library.sortKey
+import com.ipodemu.library.songKey
 import com.ipodemu.library.normTitle
 import com.ipodemu.library.primaryArtist
 import com.ipodemu.playback.PlayerController
@@ -2001,6 +2002,9 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             else -> 4
         }
         val rankedSongs = remember(r.songs, q) { r.songs.sortedBy { songScore(it) } }
+        // each song's other mixes and versions in the library (search shows one row per song: AutoplaySpread.oneVersion)
+        val versionsOf = remember(libRev) { app.library.songs().groupBy { it.songKey }.filterValues { it.size > 1 } }
+        val openVersions = remember(q) { androidx.compose.runtime.mutableStateListOf<String>() }
         val topSong = rankedSongs.firstOrNull()
         // F6.3: a search naming an artist is laid out like their page (Top result with their top 5 songs, then Popular, Albums, Singles & EPs, Playlists, similar names)
         val artistTop = remember(q, libRev) { if (q.length < 2) null else com.ipodemu.library.SearchRankTop.artist(app.library.artists(), q, app.userData.plays) }
@@ -2187,6 +2191,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                     val id = "L" + t.path
                     Box(Modifier.riseFirstTime("s$i${t.path}", i)) { TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
                         picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) }, kind = "Song") }
+                    // the song's other mixes and versions, folded under it (owner, 13 Nov; the web's "+1 version")
+                    val vers = versionsOf[t.songKey]?.filter { it.path != t.path }.orEmpty()
+                    if (vers.isNotEmpty()) {
+                        val open = t.path in openVersions
+                        Txt(if (open) "Hide versions" else "+${vers.size} ${if (vers.size == 1) "version" else "versions"}", Modifier.padding(start = 72.dp, bottom = 6.dp)
+                            .clip(RoundedCornerShape(12.dp)).clickable { if (open) openVersions.remove(t.path) else openVersions.add(t.path) }.padding(horizontal = 10.dp, vertical = 6.dp)
+                            .semantics { role = androidx.compose.ui.semantics.Role.Button }, size = 13f, weight = FontWeight.SemiBold, color = LocalScheme.current.accent)
+                        if (open) Column(Modifier.padding(start = 24.dp)) { vers.forEach { v -> TrackRow(v, nav, snap, onPlay = { app.player.play(listOf(v), 0, null, from = "search") }, kind = "Version") } }
+                    }
                 }
                 if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
             }

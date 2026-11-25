@@ -31,10 +31,17 @@ async function main() {
   sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
   let ui = await waitUi((n) => has(n, 'Sign in with Jellyfin'), 120000, 2000);
   tapNode(find(ui, 'Sign in with Jellyfin'));
-  ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
-  const field = ui?.find((n) => /EditText/.test(n.cls));
-  tapAt(field.cx, field.cy); await sleep(600); typeText(PHONE_BASE); await sleep(600); key('KEYCODE_BACK'); await sleep(800);
-  ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 20000, 1000);
+  // the Back that puts the keyboard away sometimes lands before the keyboard is up and leaves the form: then the form is opened again
+  for (let tries = 0; tries < 3; tries++) {
+    ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
+    const field = ui?.find((n) => /EditText/.test(n.cls));
+    tapAt(field.cx, field.cy); await sleep(1200); typeText(PHONE_BASE); await sleep(900); key('KEYCODE_BACK'); await sleep(1200);
+    ui = await waitUi((n) => has(n, 'Sign in with Quick Connect') || has(n, 'Sign in with Jellyfin'), 20000, 1000);
+    // a slow emulator can drop letters of the address: only go on with the whole address in the box, else clear it and type it again
+    if (has(ui, 'Sign in with Quick Connect') && ui.some((n) => /EditText/.test(n.cls) && label(n).includes(PHONE_BASE.replace('http://', '')))) break;
+    if (has(ui, 'Sign in with Quick Connect')) { const f2 = ui.find((n) => /EditText/.test(n.cls)); tapAt(f2.cx, f2.cy); await sleep(600); key('KEYCODE_MOVE_END'); for (let k = 0; k < 40; k++) key('KEYCODE_DEL'); key('KEYCODE_BACK'); await sleep(800); continue; }
+    tapNode(find(ui, 'Sign in with Jellyfin'));
+  }
   tapNode(find(ui, 'Sign in with Quick Connect'));
   await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);
   await sleep(10000);
@@ -56,7 +63,9 @@ async function main() {
   // a song row's title (not the search box, which holds the same words, nor an album card)
   // (the catalog's songs are under "More music to download", the last section: owner, 25 Nov)
   const songsAt = Math.max(0, ...(res ?? []).filter((x) => /^More music to download$/.test(label(x)) && x.cy > 300).map((x) => x.cy));
-  const row = (res ?? []).find((x) => /^you('ve)? got the love$/i.test(label(x)) && !/EditText/.test(x.cls) && x.cy > songsAt && songsAt > 0) ?? (res ?? []).find((x) => grouped.includes(x));
+  // a song row has its Download button on the same line (the catalog's album cards sit in the same section now, above the rows)
+  const onRow = (x) => (res ?? []).some((d) => /^Download/.test(label(d)) && d !== x && Math.abs(d.cy - x.cy) < 70);
+  const row = (res ?? []).find((x) => /^you('ve)? got the love$/i.test(label(x)) && !/EditText/.test(x.cls) && x.cy > songsAt && songsAt > 0 && onRow(x)) ?? (res ?? []).find((x) => grouped.includes(x));
   if (row) tapNode(row);
   const page = await waitUi((n) => has(n, 'Other versions') || n.some((x) => label(x) === 'Download'), 15000, 1000);
   shot(path.join(here, 'search-shot-page.png'));

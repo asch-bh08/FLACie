@@ -125,6 +125,9 @@ public static partial class Matching
     /// time it opened, and with the owner's 11,000 songs that alone was most of the 1-2 s Home took.</summary>
     public static string MatchKey(Track t) => matchKeys.GetValue(t, x => MatchKey(x.Title, x.Artist));
     static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Track, string> matchKeys = new();
+    /// <summary><see cref="SongKey(string, string)"/> of a song, worked out once (the engine asks it of every song in the library on every pick).</summary>
+    public static string SongKey(Track t) => songKeys.GetValue(t, x => SongKey(x.Title, x.Artist));
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Track, string> songKeys = new();
     public static string AlbumNorm(string album) => new(Edition().Replace(album.ToLowerInvariant(), "").Where(char.IsLetterOrDigit).ToArray());
     public static string MergeKey(Track t) => MatchKey(t) + "|" + AlbumNorm(t.Album);
 

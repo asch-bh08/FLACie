@@ -192,7 +192,9 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
         {
             // the songs the person chose (their queue's last ones once Autoplay has taken over), not Autoplay's own: it kept drifting (owner, 12 Nov)
             var played = AutoplayFrom > 0 && Index >= AutoplayFrom ? AutoplaySpread.Seeds(Queue, AutoplayFrom, Index).Select(t => t.Path).ToList() : recent.ToList();
-            var picks = await Task.Run(() => ask(s, played, 10));
+            // thirty, so after the songs already queued or heard are taken out there are still ten (owner, 25 Nov: when the engine ran short the player
+            // filled up from its own list, and that list is mostly the seed artist's)
+            var picks = await Task.Run(() => ask(s, played, 30));
             if (picks is null || enginePath != path) return;
             enginePicks = picks.ToList();
             RefreshSuggestions(); Changed?.Invoke();

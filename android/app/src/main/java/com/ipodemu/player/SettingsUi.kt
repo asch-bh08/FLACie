@@ -141,7 +141,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             // design I, the web's Settings page (Settings.razor): a row of section chips, then each section as one panel with a serif heading and a
             // DM Mono hint, in the web's order: Playback, Music sources, Look and feel, then what only the phone has, Account and About
             if (!dashboard) {
-                item(key = "subnav") {
+                if (query.isBlank()) item(key = "subnav") {
                     // the section chips wrap onto a second line rather than run off the right edge ("Account" was cut in half on a phone; owner, 9 Nov:
                     // nothing may hang off its container)
                     @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -209,7 +209,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             save(org.json.JSONObject().put("enabled", true).put("phone", phone).put("auto", auto).put("web", webOn).put("windows", windows),
                                 dj.copy(enabled = true, phone = phone, auto = auto, web = webOn, windows = windows))
                         if (!available) {
-                            Txt(if (prefs.flacieWebUrl.isBlank()) "The DJ needs FLACie Web. Open FLACie Web in a browser once, signed in to the same Jellyfin account, and this phone finds it by itself."
+                            if (query.isBlank()) Txt(if (prefs.flacieWebUrl.isBlank()) "The DJ needs FLACie Web. Open FLACie Web in a browser once, signed in to the same Jellyfin account, and this phone finds it by itself."
                                 else "The DJ needs a Jellyfin sign-in: FLACie Web knows you by it.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 5)
                         } else {
                             SettingRow("DJ", if (dj.enabled) "On" else "Off", toggle = true, desc = "Now and then, a few words about the next song before it starts. The DJ button on Now Playing turns it on or off for one queue.") {
@@ -483,7 +483,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                 SetPanel("Account", null) {
                     val acct = app.account
                     if (acct.signedIn) {
-                        Txt("Signed in with ${if (prefs.accountKind == "nas") "a NAS" else "Jellyfin"} as ${if (prefs.accountKind == "nas") prefs.nasUsername.ifBlank { "guest" } else prefs.accountUserName.ifEmpty { "you" }}.",
+                        if (query.isBlank()) Txt("Signed in with ${if (prefs.accountKind == "nas") "a NAS" else "Jellyfin"} as ${if (prefs.accountKind == "nas") prefs.nasUsername.ifBlank { "guest" } else prefs.accountUserName.ifEmpty { "you" }}.",
                             Modifier.padding(horizontal = 16.dp, vertical = 6.dp), size = 15f, maxLines = 3)
                         if (prefs.accountKind == "nas") SettingRow("Account details", "${prefs.nasHost}/${prefs.nasShare}", chevron = true) { ui.accountOpen = true }
                         else SettingRow("Account details", prefs.accountServer.removePrefix("https://").removePrefix("http://"), chevron = true) { ui.accountOpen = true }
@@ -536,6 +536,7 @@ internal fun SetPanel(title: String, hint: String?, content: @Composable () -> U
 /** Label and value pairs (the web's dl.kv): the label in DM Mono capitals, the value beside it. */
 @Composable
 internal fun SetFacts(rows: List<Pair<String, String>>) {
+    if (LocalSetQuery.current.isNotBlank()) return   // Find a setting shows only matching rows
     Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for ((k, v) in rows) Row(verticalAlignment = Alignment.Top) {
             MonoLabel(k, Modifier.width(84.dp).padding(top = 3.dp), size = 10.5f)

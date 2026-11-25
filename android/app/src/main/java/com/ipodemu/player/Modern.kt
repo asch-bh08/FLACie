@@ -233,7 +233,7 @@ fun LibraryHome(nav: PlayerNav) {
                     LibTile("Recent", Glyph.CLOCK, "${ud.recents.size} played") { nav.push(Screen.Detail(DetailKind.RECENT)) },
                     // the songs kept for listening without signal, apart from the new music fetched into the library
                     LibTile("Offline", Glyph.DOWNLOADED, "${app.offline.doneCount} on this phone") { nav.push(Screen.Downloads) },
-                    LibTile("Recently added", Glyph.PLUS, "${ud.downloads.size} new") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) },
+                    LibTile("New songs", Glyph.PLUS, "${ud.downloads.size} recently added") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) },
                 ))
             }
             val lists = shownPlaylists(app)

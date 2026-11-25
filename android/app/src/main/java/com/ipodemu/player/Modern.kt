@@ -4,6 +4,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -45,6 +46,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -223,22 +225,83 @@ fun LibraryHome(nav: PlayerNav) {
                     AccountAction()
                 }
             }
-            item { LibRow("Favourites", Glyph.HEART_FILLED, "${ud.favorites.size}", Color(0xFFE5486B)) { nav.push(Screen.Detail(DetailKind.FAVORITES)) } }
-            item { LibRow("Recently Played", Glyph.CLOCK, "${ud.recents.size}") { nav.push(Screen.Detail(DetailKind.RECENT)) } }
-            // the songs kept for listening without signal, apart from the new music fetched into the library
-            item { LibRow("Offline music", Glyph.DOWNLOADED, "${app.offline.doneCount}") { nav.push(Screen.Downloads) } }
-            item { LibRow("Recently Added", Glyph.PLUS, "${ud.downloads.size}") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) } }
-            item { LibRow("Playlists", Glyph.LIST, "${shownPlaylists(app).size + shownFolderPlaylists(app).size}") { nav.push(Screen.Lib(LibKind.PLAYLISTS)) } }
-            if (!app.ui.guest) item { LibRow(if (app.jam.inJam) "In a Jam" else "Jam", Glyph.JAM, "") { app.ui.jamOpen = true } }
-            item { LibRow("Car mode", Glyph.CAR, "") { app.ui.carOpen = true } }
-            item { LibRow("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) } }
-            item { LibRow("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) } }
-            item { LibRow("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) } }
-            item { LibRow("Genres", Glyph.STAR, "${lib.genres().size}") { nav.push(Screen.Lib(LibKind.GENRES)) } }
-            if (lib.memos.isNotEmpty()) item { LibRow("Voice Memos", Glyph.MIC, "${lib.memos.size}") { nav.push(Screen.Lib(LibKind.MEMOS)) } }
-            if (lib.jellyfinTracks.isNotEmpty()) item { LibRow("Jellyfin", Glyph.JELLYFIN, "${lib.jellyfinTracks.size}") { nav.push(Screen.Lib(LibKind.JELLYFIN)) } }
-            if (lib.plexTracks.isNotEmpty()) item { LibRow("Plex", Glyph.PLEX, "${lib.plexTracks.size}") { nav.push(Screen.Lib(LibKind.PLEX)) } }
-            lib.nasOnlyTracks().takeIf { it.isNotEmpty() }?.let { n -> item { LibRow("NAS only", Glyph.NAS, "${n.size}") { nav.push(Screen.Lib(LibKind.NAS)) } } }
+            // design I, as Home and the web (owner, 25 Nov: "the Library page on mobile doesn't match the app or web": it was a long list of the same
+            // pink rows). Your things as four tiles, your playlists as covers, then the library itself as four tiles; the sources as chips
+            item(key = "mine") {
+                LibTiles(listOf(
+                    LibTile("Favourites", Glyph.HEART_FILLED, "${ud.favorites.size} songs") { nav.push(Screen.Detail(DetailKind.FAVORITES)) },
+                    LibTile("Recent", Glyph.CLOCK, "${ud.recents.size} played") { nav.push(Screen.Detail(DetailKind.RECENT)) },
+                    // the songs kept for listening without signal, apart from the new music fetched into the library
+                    LibTile("Offline", Glyph.DOWNLOADED, "${app.offline.doneCount} on this phone") { nav.push(Screen.Downloads) },
+                    LibTile("Recently added", Glyph.PLUS, "${ud.downloads.size} new") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) },
+                ))
+            }
+            val lists = shownPlaylists(app)
+            val nLists = lists.size + shownFolderPlaylists(app).size
+            item(key = "pl-head") {
+                Row(Modifier.fillMaxWidth().clickable { nav.push(Screen.Lib(LibKind.PLAYLISTS)) }.padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    SerifTitle("Your playlists", Modifier.weight(1f), size = 24f)
+                    DesignChip(if (nLists > 0) "All $nLists" else "New playlist", false, { nav.push(Screen.Lib(LibKind.PLAYLISTS)) })
+                }
+            }
+            if (lists.isNotEmpty()) item(key = "pl-row") {
+                val by0 = lib.byPath()
+                androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    items(lists.take(12).size) { i ->
+                        val pl = lists[i]
+                        val ts = remember(pl.id, pl.paths.size) { pl.paths.asSequence().take(6).mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) }.toList() }
+                        AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(140.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
+                    }
+                }
+            }
+            item(key = "browse-head") { SerifTitle("Browse", Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp), size = 24f) }
+            item(key = "browse") {
+                LibTiles(listOf(
+                    LibTile("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) },
+                    LibTile("Albums", Glyph.ALBUM, "${lib.albums().size}") { nav.push(Screen.Lib(LibKind.ALBUMS)) },
+                    LibTile("Songs", Glyph.NOTE, "${lib.songs().size}") { nav.push(Screen.Lib(LibKind.SONGS)) },
+                    LibTile("Genres", Glyph.STAR, "${lib.genres().size}") { nav.push(Screen.Lib(LibKind.GENRES)) },
+                ))
+            }
+            // where the songs come from, when there is more than one place
+            val sources = buildList {
+                if (lib.jellyfinTracks.isNotEmpty()) add(Triple("Jellyfin ${lib.jellyfinTracks.size}", Glyph.JELLYFIN, LibKind.JELLYFIN))
+                if (lib.plexTracks.isNotEmpty()) add(Triple("Plex ${lib.plexTracks.size}", Glyph.PLEX, LibKind.PLEX))
+                lib.nasOnlyTracks().takeIf { it.isNotEmpty() }?.let { add(Triple("NAS only ${it.size}", Glyph.NAS, LibKind.NAS)) }
+                if (lib.memos.isNotEmpty()) add(Triple("Voice memos ${lib.memos.size}", Glyph.MIC, LibKind.MEMOS))
+            }
+            if (sources.isNotEmpty()) item(key = "sources") {
+                @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+                androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for ((label, g, kind) in sources) DesignChip(label, false, { nav.push(Screen.Lib(kind)) }, icon = g)
+                }
+            }
+        }
+    }
+}
+
+private class LibTile(val title: String, val glyph: Glyph, val sub: String, val onClick: () -> Unit)
+
+/** Tiles two to a row (the Library tab): a glyph in the accent, the name in bold, a short line under it; one tap opens it. */
+@Composable
+private fun LibTiles(tiles: List<LibTile>) {
+    val sc = LocalScheme.current
+    val shape = RoundedCornerShape(18.dp)
+    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (row in tiles.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (t in row) Row(
+                Modifier.weight(1f).height(72.dp).clip(shape).background(Palette.surface).border(1.dp, Palette.line, shape)
+                    .semantics { contentDescription = t.title; stateDescription = t.sub; role = androidx.compose.ui.semantics.Role.Button }.clickable(onClick = t.onClick)
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(sc.accent.copy(alpha = .16f)), contentAlignment = Alignment.Center) { GlyphIcon(t.glyph, Modifier.size(20.dp), sc.accent) }
+                Column(Modifier.padding(start = 12.dp)) {
+                    Txt(t.title, size = 15.5f, weight = FontWeight.SemiBold, maxLines = 1)
+                    Txt(t.sub, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                }
+            }
+            if (row.size == 1) Box(Modifier.weight(1f))
         }
     }
 }

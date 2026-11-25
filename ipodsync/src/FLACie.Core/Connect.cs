@@ -6,7 +6,7 @@ namespace FLACie.Core;
 
 /// <summary>Another session of this user (or this one, <see cref="IsSelf"/>) and what it plays.</summary>
 public sealed record ConnectSession(string Id, string Device, string Client, string User, bool IsSelf, bool Controllable,
-    string? ItemId, string Title, string Artist, long PositionMs, long DurationMs, bool Paused, IReadOnlyList<string> Queue, string? ArtKey = null);
+    string? ItemId, string Title, string Artist, long PositionMs, long DurationMs, bool Paused, IReadOnlyList<string> Queue, string? ArtKey = null, string? DeviceId = null, DateTime? LastSeen = null);
 
 /// <summary>
 /// Connect, like Spotify Connect, on Jellyfin's own session API (the same calls as the Android app): this player reports
@@ -279,7 +279,9 @@ public sealed class Connect : IDisposable
                 np?["Id"]?.GetValue<string>(), np?["Name"]?.GetValue<string>() ?? "",
                 (np?["Artists"] as JsonArray)?.FirstOrDefault()?.GetValue<string>() ?? np?["AlbumArtist"]?.GetValue<string>() ?? "",
                 (ps?["PositionTicks"]?.GetValue<long>() ?? 0) / 10_000, (np?["RunTimeTicks"]?.GetValue<long>() ?? 0) / 10_000, ps?["IsPaused"]?.GetValue<bool>() ?? true, q,
-                JellyfinClient.ItemArtKey(np)));
+                JellyfinClient.ItemArtKey(np), o["DeviceId"]?.GetValue<string>(),
+                // when the device last spoke to Jellyfin: the Devices page's "last seen"
+                DateTime.TryParse(o["LastActivityDate"]?.GetValue<string>(), null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var seen) ? seen : null));
         }
         SessionsAsOf = lastSessionsAt = DateTime.UtcNow;
         Sessions = list.OrderBy(s => !s.IsSelf).ThenBy(s => s.ItemId is null).ThenBy(s => s.Device).ToList();

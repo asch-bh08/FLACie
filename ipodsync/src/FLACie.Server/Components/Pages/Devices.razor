@@ -2,85 +2,244 @@
 @attribute [Authorize]
 @implements IDisposable
 @inherits UserComponent
+@inject WhereStore Where
+@inject ClientRegistry Clients
+@* Devices, redone (owner, 25 Nov): the same page on the web and the phone. This device first, then every other device of the account as a card with
+   labelled actions, then "Where you were": each device's last day, so the person can go back to where the phone was an hour ago and carry on here. *@
 <PageTitle>Devices · FLACie</PageTitle>
-<div class="sp @(Live is not null ? "sp-devices" : "")">
-<header class="page-head"><h1><i>Devices</i></h1></header>
+<div class="sp sp-devices dv">
+<header class="page-head">
+    <h1>Your <i>devices</i></h1>
+    <p class="dv-lede">Everything signed in to this account. Move the music between them, or go back to where any of them was today.</p>
+</header>
 
-@if (Live is not { } live)
-{
-    <section class="panel"><p>Devices and Jams need a Jellyfin sign-in. Sign out and sign in with Jellyfin to control your other FLACie players from here.</p></section>
-}
-else
-{
-    <p class="hint">Your other players signed in to the same Jellyfin account@(live.Connect.Connected ? "" : " (connecting…)"). Control one, bring its music here, or send what plays here to it. Only songs on Jellyfin can travel between devices.</p>
-    <div class="dev-grid">
-    @foreach (var s in live.Connect.Sessions.OrderByDescending(x => x.IsSelf).ThenByDescending(x => x.ItemId is not null && !x.Paused))
-    {
-        var kind = Kind(s);
-        <article class="dev-card @(s.IsSelf ? "self" : "") @(s.ItemId is not null && !s.Paused ? "live" : "")">
-            <div class="dev-art">
-                @if (s.ItemId is not null) { <Cover ArtKey="@s.ArtKey" Size="72" /> } else { <span class="dev-ic"><Icon Name="@kind.Icon" Size="30" /></span> }
+<section class="dv-sec" aria-labelledby="dv-here">
+    <h2 id="dv-here" class="dv-h">This <i>@SelfWord</i></h2>
+    @{ var c = Player.Current; }
+    <article class="dv-card self @(c is not null && Player.Playing ? "live" : "")" data-device="self">
+        @if (c is not null) { <div class="dv-wash" aria-hidden="true"><Cover ArtKey="@c.ArtKey" /></div> }
+        <div class="dv-top">
+            <span class="dv-kind"><Icon Name="@DeviceLabels.Icon(SelfKind)" Size="18" /></span>
+            <b class="dv-name">@SelfName</b>
+            <span class="dv-chips">
+                <em class="dv-chip you">This device</em>
+                <em class="dv-chip @(c is not null && Player.Playing ? "on" : "")">@(c is null ? "Idle" : Player.Playing ? "Playing" : "Paused")</em>
+            </span>
+        </div>
+        @if (c is not null)
+        {
+            <div class="dv-now">
+                <Cover ArtKey="@c.ArtKey" Size="64" />
+                <div class="dv-song">
+                    <b>@c.Title</b><span>@c.Artist@(Player.Context is { Length: > 0 } ctx ? " · " + ctx : "")</span>
+                    <div class="dv-bar" aria-hidden="true"><i style="width:@Pct(Player.PositionMs, (long)(Player.Duration * 1000))%"></i></div>
+                    <small class="dv-time">@DeviceLabels.Clock(Player.PositionMs) / @DeviceLabels.Clock((long)(Player.Duration * 1000))</small>
+                </div>
             </div>
-            <div class="dev-main">
-                <div class="dev-name"><b>@ClientLabel.Device(s.Device, s.IsSelf, ClientLabel.InDesktopShell)</b>
-                    <span class="dev-chips">
-                        <em class="dev-chip">@kind.Label</em>
-                        @if (s.IsSelf) { <em class="dev-chip you">This browser</em> }
-                        <em class="dev-chip @(s.ItemId is not null && !s.Paused ? "on" : "")">@(s.ItemId is null ? "Idle" : s.Paused ? "Paused" : "Playing")</em>
+            <p class="dv-note">@(Live is null ? "Sign in with Jellyfin to send this to another device." : "To move it, use Send to on another device's card.")</p>
+        }
+        else { <p class="dv-note">Nothing playing here. Use Play here on another device, or carry on from where you were below.</p> }
+    </article>
+</section>
+
+<section class="dv-sec" aria-labelledby="dv-others">
+    <h2 id="dv-others" class="dv-h">Other <i>devices</i></h2>
+    @if (Live is not { } live)
+    {
+        <div class="dv-empty"><Icon Name="devices" Size="28" /><p><b>Connect needs a Jellyfin sign-in.</b> Sign out and sign in with Jellyfin to control your other FLACie players from here.</p></div>
+    }
+    else
+    {
+        var others = live.Connect.Sessions.Where(s => !s.IsSelf).OrderByDescending(s => s.ItemId is not null && !s.Paused).ThenByDescending(s => s.ItemId is not null).ThenBy(s => s.Device).ToList();
+        var liveIds = others.Select(s => s.DeviceId).OfType<string>().ToHashSet();
+        var away = devices.Where(d => !liveIds.Contains(d.DeviceId) && d.DeviceId != SelfId && !d.DeviceId.StartsWith("web:")).ToList();
+        @if (!live.Connect.Connected) { <p class="dv-note">Connecting to Jellyfin…</p> }
+        <div class="dv-grid">
+        @foreach (var s in others)
+        {
+            var playing = s.ItemId is not null;
+            var kind = DeviceLabels.Kind(s.Device);
+            var name = ClientLabel.Device(s.Device, s.IsSelf, ClientLabel.InDesktopShell);
+            var pos = Estimated(s);
+            <article class="dv-card @(playing && !s.Paused ? "live" : "")" data-device="@s.Device">
+                @if (playing) { <div class="dv-wash" aria-hidden="true"><Cover ArtKey="@s.ArtKey" /></div> }
+                <div class="dv-top">
+                    <span class="dv-kind"><Icon Name="@DeviceLabels.Icon(kind)" Size="18" /></span>
+                    <b class="dv-name">@name</b>
+                    <span class="dv-chips">
+                        <em class="dv-chip">@kind</em>
+                        <em class="dv-chip @(playing && !s.Paused ? "on" : "")">@(!playing ? "Idle" : s.Paused ? "Paused" : "Playing")</em>
+                        <em class="dv-chip seen">@(s.LastSeen is { } seen ? "Seen " + DeviceLabels.Ago(new DateTimeOffset(seen).ToUnixTimeMilliseconds(), NowMs) : "Online")</em>
                     </span>
                 </div>
-                @if (s.ItemId is not null)
+                @if (playing)
                 {
-                    <p class="dev-song"><b>@s.Title</b><span>@s.Artist</span></p>
-                    <div class="dev-bar"><i style="width:@(s.DurationMs > 0 ? Math.Clamp(s.PositionMs * 100.0 / s.DurationMs, 0, 100).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) : "0")%"></i></div>
-                    <small class="dev-time">@Time(s.PositionMs / 1000.0) / @Time(s.DurationMs / 1000.0)</small>
-                }
-                else { <p class="hint">Nothing playing</p> }
-                @if (!s.IsSelf && s.Controllable)
-                {
-                    <div class="dev-actions">
-                        @if (s.ItemId is not null)
-                        {
-                            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous"><Icon Name="prev" /></button>
-                            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause")"><Icon Name="@(s.Paused ? "play" : "pause")" /></button>
-                            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next"><Icon Name="next" /></button>
-                            <button class="btn primary" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
-                        }
-                        @if (Player.Current?.JellyfinId is not null)
-                        {
-                            <button class="btn" @onclick="() => live.Connect.SendToAsync(s)">Send what plays here</button>
-                        }
+                    <div class="dv-now">
+                        <Cover ArtKey="@s.ArtKey" Size="64" />
+                        <div class="dv-song">
+                            <b>@s.Title</b><span>@s.Artist</span>
+                            <div class="dv-bar" aria-hidden="true"><i style="width:@Pct(pos, s.DurationMs)%"></i></div>
+                            <small class="dv-time">@DeviceLabels.Clock(pos) / @DeviceLabels.Clock(s.DurationMs)</small>
+                        </div>
                     </div>
                 }
-            </div>
-        </article>
+                else { <p class="dv-note">Nothing playing.</p> }
+                <div class="dv-actions">
+                    @if (playing) { <button class="dv-btn primary" @onclick="() => live.Connect.TakeOverAsync(s)" aria-label="Play here: take over @name's song"><Icon Name="play" Size="16" /><span>Play here</span></button> }
+                    @if (Player.Current?.JellyfinId is not null && s.Controllable) { <button class="dv-btn" @onclick="() => live.Connect.SendToAsync(s)" aria-label="Send to @name: play this device's song there"><Icon Name="share" Size="16" /><span>Send to @Short(name)</span></button> }
+                    @if (playing && s.Controllable)
+                    {
+                        <span class="dv-remote" role="group" aria-label="Remote control of @name">
+                            <button class="dv-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")'><Icon Name="prev" Size="16" /><span>Previous</span></button>
+                            <button class="dv-btn" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")'><Icon Name="@(s.Paused ? "play" : "pause")" Size="16" /><span>@(s.Paused ? "Play" : "Pause")</span></button>
+                            <button class="dv-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")'><Icon Name="next" Size="16" /><span>Next</span></button>
+                        </span>
+                    }
+                </div>
+            </article>
+        }
+        @foreach (var d in away)
+        {
+            var last = d.States[0];
+            <article class="dv-card away" data-device="@d.Device">
+                <div class="dv-wash" aria-hidden="true"><Cover ArtKey="@ArtOf(last)" /></div>
+                <div class="dv-top">
+                    <span class="dv-kind"><Icon Name="@DeviceLabels.Icon(d.Kind)" Size="18" /></span>
+                    <b class="dv-name">@d.Device</b>
+                    <span class="dv-chips"><em class="dv-chip">@d.Kind</em><em class="dv-chip off">Offline</em><em class="dv-chip seen">Seen @DeviceLabels.Ago(d.LastSeen, NowMs)</em></span>
+                </div>
+                <div class="dv-now">
+                    <Cover ArtKey="@ArtOf(last)" Size="64" />
+                    <div class="dv-song">
+                        <b>@last.Title</b><span>@last.Artist</span>
+                        <small class="dv-time">Left @DeviceLabels.Where(last.PositionMs, last.Context)</small>
+                    </div>
+                </div>
+                <div class="dv-actions">
+                    <button class="dv-btn primary" @onclick="() => CarryOn(last)" aria-label="Carry on here from where @d.Device left off"><Icon Name="play" Size="16" /><span>Carry on here</span></button>
+                </div>
+            </article>
+        }
+        </div>
+        @if (others.Count == 0 && away.Count == 0)
+        {
+            <div class="dv-empty"><Icon Name="devices" Size="28" /><p><b>No other device right now.</b> Open FLACie on your phone, on Windows or in another browser with this account and it shows up here.</p></div>
+        }
     }
-    </div>
-    @if (!live.Connect.Sessions.Any(s => !s.IsSelf))
+</section>
+
+<section class="dv-sec" aria-labelledby="dv-where">
+    <h2 id="dv-where" class="dv-h">Where you <i>were</i></h2>
+    <p class="dv-note">The last 24 hours on each device, newest first. Pick a moment to carry on from there, here.</p>
+    @if (devices.Count == 0)
     {
-        <section class="panel"><p class="hint">No other device is active. Open FLACie on your phone with the same Jellyfin account and it shows up here.</p></section>
+        <div class="dv-empty"><Icon Name="queue" Size="28" /><p><b>Nothing yet.</b> As you play music on any device signed in to this account, FLACie keeps where you were for a day.</p></div>
     }
-    <p><a class="btn" href="/jam">Jam together</a></p>
-}
+    else
+    {
+        @if (devices.Count > 1)
+        {
+            <div class="dv-filter" role="tablist" aria-label="Show the moments of">
+                <button role="tab" class="dv-pill @(filter is null ? "on" : "")" aria-selected="@(filter is null ? "true" : "false")" @onclick="() => filter = null">All devices</button>
+                @foreach (var d in devices) { <button role="tab" class="dv-pill @(filter == d.DeviceId ? "on" : "")" aria-selected="@(filter == d.DeviceId ? "true" : "false")" @onclick="() => filter = d.DeviceId">@Short(Named(d))</button> }
+            </div>
+        }
+        <div class="dv-where">
+        @foreach (var d in devices.Where(d => filter is null || d.DeviceId == filter))
+        {
+            var open = expanded.Contains(d.DeviceId);
+            var shown = open ? d.States : d.States.Take(5).ToList();
+            <section class="dv-group" aria-label="@Named(d)">
+                <header class="dv-group-head">
+                    <span class="dv-kind"><Icon Name="@DeviceLabels.Icon(d.Kind)" Size="16" /></span>
+                    <b>@Named(d)</b>
+                    <small>@d.States.Count @(d.States.Count == 1 ? "moment" : "moments") · last @DeviceLabels.Ago(d.LastSeen, NowMs)</small>
+                </header>
+                <ol class="dv-moments">
+                @foreach (var m in shown)
+                {
+                    <li class="dv-moment" data-id="@m.Id">
+                        <span class="dv-when"><b>@DeviceLabels.Ago(m.At, NowMs)</b><small>@DateTimeOffset.FromUnixTimeMilliseconds(m.At).ToLocalTime().ToString("HH:mm")</small></span>
+                        <Cover ArtKey="@ArtOf(m)" Size="44" />
+                        <span class="dv-what"><b>@m.Title</b><small>@m.Artist · @DeviceLabels.Where(m.PositionMs, m.Context)@(m.Paused ? " · paused" : "")</small></span>
+                        <button class="dv-btn" @onclick="() => CarryOn(m)" aria-label="Carry on from @m.Title at @DeviceLabels.Clock(m.PositionMs), @Named(d), @DeviceLabels.Ago(m.At, NowMs)"><Icon Name="play" Size="16" /><span>Carry on</span></button>
+                    </li>
+                }
+                </ol>
+                @if (d.States.Count > 5)
+                {
+                    <button class="dv-btn ghost dv-more" @onclick="() => { if (!expanded.Remove(d.DeviceId)) expanded.Add(d.DeviceId); }">@(open ? "Show fewer" : $"Show all {d.States.Count}")</button>
+                }
+            </section>
+        }
+        </div>
+    }
+    @if (status is not null) { <p class="dv-status" role="status">@status</p> }
+</section>
+
+<p class="dv-foot"><a class="dv-btn" href="/jam"><Icon Name="jam" Size="16" /><span>Jam together</span></a></p>
 </div>
 
 @code {
     // drawn again on each tick of the player's clock: the devices' times move on
     protected override bool FollowsTime => true;
-    // what kind of device a session is, from its name (Jellyfin only tells us a device name and the app, which is the same for every FLACie player)
-    static (string Label, string Icon) Kind(FLACie.Core.ConnectSession s)
-    {
-        var n = s.Device.ToLowerInvariant();
-        if (n.Contains("flacie web") || n.Contains("browser") || n.Contains("chrome") || n.Contains("firefox") || n.Contains("edge") || n.Contains("safari")) return ("Browser", "globe");
-        if (n.StartsWith("sm-") || n.StartsWith("sdk_") || n.Contains("pixel") || n.Contains("phone") || n.Contains("galaxy") || n.Contains("iphone")) return ("Phone", "devices");
-        if (n.Contains("desktop") || n.Contains("windows") || n.Contains("pc") || n.Contains("laptop")) return ("Computer", "devices");
-        return ("Player", "devices");
-    }
+    IReadOnlyList<WhereDevice> devices = [];
+    string? filter; string? status;
+    readonly HashSet<string> expanded = [];
     Timer? poll;
+    static long NowMs => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    // this browser as the store knows it ("web:Edge on Windows"), so its own past shows as this device
+    WebClient? Me => Clients.All.FirstOrDefault(x => ReferenceEquals(x.Player, Player));
+    string? SelfId => Me is { } m ? WhereSampler.DeviceIdOf(m) : null;
+    string SelfName => Me?.Label ?? (ClientLabel.InDesktopShell ? ClientLabel.DesktopApp : "This browser");
+    string SelfKind => ClientLabel.InDesktopShell ? "Computer" : "Browser";
+    string SelfWord => ClientLabel.InDesktopShell ? "computer" : "browser";
+    string Named(WhereDevice d) => d.DeviceId == SelfId ? d.Device + " (this one)" : d.Device;
+
+    static string Short(string name) => name.Length > 18 ? name[..17] + "…" : name;
+    static string Pct(long pos, long dur) => (dur > 0 ? Math.Clamp(pos * 100.0 / dur, 0, 100) : 0).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+    // a playing device's position moves on between reads of the sessions
+    long Estimated(FLACie.Core.ConnectSession s) => Live is { } l && s.ItemId is not null && !s.Paused
+        ? Math.Min(s.DurationMs > 0 ? s.DurationMs : long.MaxValue, s.PositionMs + (long)(DateTime.UtcNow - l.Connect.SessionsAsOf).TotalMilliseconds) : s.PositionMs;
+    // a phone's picture key is the phone's own: the song in this library has the one this server knows
+    string? ArtOf(WhereState m) => (m.ItemId is { } id ? Lib.ByJellyfinId(id)?.ArtKey : null) ?? (m.Path is { } p ? Lib.ByPath(p)?.ArtKey : null) ?? (m.ArtKey is { } k && k.Contains('~') ? k : null);
+
+    void Reload() => devices = Where.Devices(Session.Id, NowMs);
+
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
-        if (Live is { } l) { _ = l.Connect.RefreshSessionsAsync(); poll = new Timer(_ => { _ = l.Connect.RefreshSessionsAsync(); }, null, 4000, 4000); }
+        Reload();
+        if (Live is { } live) _ = live.Connect.RefreshSessionsAsync();
+        poll = new Timer(_ => { if (Live is { } l) _ = l.Connect.RefreshSessionsAsync(); _ = InvokeAsync(() => { Reload(); StateHasChanged(); }); }, null, 4000, 4000);
     }
+
+    /// <summary>Plays the queue <paramref name="m"/> was playing, from that song and second, here.</summary>
+    async Task CarryOn(WhereState m)
+    {
+        status = "Finding the songs…";
+        var tracks = new List<Track>(); var at = -1;
+        for (var i = 0; i < m.Queue.Count; i++)
+        {
+            var key = m.Queue[i];
+            Track? t = Lib.ByJellyfinId(key) ?? Lib.ByPath(key);
+            if (t is null && Live is { } l && !key.Contains('/') && !key.Contains('\\')) { try { t = await l.Connect.ResolveAsync(key); } catch (Exception) { } }
+            if (t is null) continue;
+            if (i == m.Index) at = tracks.Count;
+            tracks.Add(t);
+        }
+        // a state with no queue (or whose queue can't be found now): the song alone
+        if (at < 0)
+        {
+            Track? t = (m.ItemId is { } id ? Lib.ByJellyfinId(id) : null) ?? (m.Path is { } p ? Lib.ByPath(p) : null);
+            if (t is null && m.ItemId is { } id2 && Live is { } l2) { try { t = await l2.Connect.ResolveAsync(id2); } catch (Exception) { } }
+            if (t is null) { status = $"\"{m.Title}\" isn't in this library, so it can't play here."; return; }
+            tracks.Insert(0, t); at = 0;
+        }
+        await Player.CarryOnAsync(tracks, at, m.PositionMs, m.Context);
+        status = $"Carrying on: {m.Title}, {DeviceLabels.Where(m.PositionMs, m.Context)}.";
+    }
+
     public override void Dispose() { poll?.Dispose(); base.Dispose(); }
 }

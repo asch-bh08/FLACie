@@ -34,3 +34,6 @@ docs/private/
 ipodsync/tests/web-smoke/.data-real*/
 ipodsync/tests/web-smoke/.pub-real*/
 ipodsync/tests/web-smoke/run-real*.cmd
+# the Devices emulator check (ipodsync/tools/loadtest/devices-android.mjs): its FLACie Web build and data folder
+ipodsync/tools/loadtest/.pub-devices/
+ipodsync/tools/loadtest/.data-devices/

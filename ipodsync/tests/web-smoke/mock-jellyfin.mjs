@@ -121,6 +121,7 @@ const withSources = (x) => ((x.Id.startsWith('s') || x.Id.startsWith('p')) && x.
   ? { ...x, MediaSources: [{ Container: 'flac', Path: x.Path, Size: 20_000_000, Bitrate: 1_000_000, RunTimeTicks: x.RunTimeTicks, MediaStreams: [{ Type: 'Audio', Codec: 'flac', Channels: 2, BitRate: 1_000_000, SampleRate: 44100, BitDepth: 16 }] }] }
   : x);
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+let phoneSession = false;
 const me = { Id: 'u1', Name: 'tester', Policy: { IsAdministrator: true } };
 let prefs = { Id: 'ipodplayer', Client: 'ipodplayer', CustomPrefs: {} };
 
@@ -161,6 +162,15 @@ http
       const id = p.split('/').filter(Boolean).at(-2); const body = await readBody(req).catch(() => '');
       let r = null; try { r = JSON.parse(body || '{}').Rating ?? null; } catch { }
       (globalThis.__ratings ??= {})[id] = r; return json(res, 204, {});
+    }
+    // Devices (1z-devices.spec.ts): GET /__sessions?on=1 makes /Sessions list a phone of this account playing "Static 6"; ?on=0 (the default) lists none
+    if (p === '/__sessions') { phoneSession = q.get('on') === '1'; return json(res, 200, { on: phoneSession }); }
+    if (p === '/Sessions' && m === 'GET') {
+      if (!phoneSession) return json(res, 200, []);
+      const np = songs.find((x) => x.Id === 's6');
+      return json(res, 200, [{ Id: 'sess-phone', UserId: 'u1', UserName: 'tester', DeviceName: 'Pixel 8', DeviceId: 'phone-1', Client: 'FLACie', SupportsRemoteControl: true,
+        LastActivityDate: new Date(Date.now() - 30_000).toISOString(), NowPlayingItem: np, PlayState: { PositionTicks: 61 * 10_000_000, IsPaused: false },
+        NowPlayingQueue: ['s6', 's7', 's8'].map((Id) => ({ Id })) }]);
     }
     if (p === '/__userdata') return json(res, 200, globalThis.__ratings ?? {});
     if (p === '/Users/Me') counts.usersMe++;

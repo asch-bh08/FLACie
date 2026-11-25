@@ -29,7 +29,7 @@ export default async function globalSetup() {
   // a run must not see what an earlier run left: the MusicBrainz answers and matches, and the chosen covers (1k-musicbrainz asks the stand-in once and counts it),
   // and the listening log the recommendations learn from (every run played more Brass Monkeys, until they led Quick picks over the songs Jellyfin counted)
   const data = path.join(__dirname, '.pub-smoke', '.data-smoke');
-  for (const p of ['mb-cache', 'art-override', 'listen']) fs.rmSync(path.join(data, p), { recursive: true, force: true });
+  for (const p of ['mb-cache', 'art-override', 'listen', 'where']) fs.rmSync(path.join(data, p), { recursive: true, force: true });
   fs.rmSync(path.join(data, 'mb-overlay.json'), { force: true });
   const now = Date.now();
   const rec = (title: string, outcome: 'done' | 'failed', ageMin: number) => {

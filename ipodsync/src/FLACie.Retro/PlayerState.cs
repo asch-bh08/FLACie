@@ -369,6 +369,8 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public Task PlayFromAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, contextId: null);
     /// <summary>Takes a queue exactly as it will play (another player's, already shuffled or arranged): it is not shuffled again.</summary>
     public Task AdoptAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused) => StartAsync(list, index, positionMs, paused, Context, contextId: null, keepOrder: true);
+    /// <summary>Devices, "Where you were": a queue some device played earlier, in its play order, from that second, under the name it came from (owner, 25 Nov).</summary>
+    public Task CarryOnAsync(IReadOnlyList<Track> list, int index, long positionMs, string? context) => StartAsync(list, index, positionMs, false, context, contextId: null, keepOrder: true);
 
     async Task StartAsync(IReadOnlyList<Track> list, int index, long positionMs, bool paused, string? context, string? contextId = null, bool keepOrder = false, string? listenContext = null)
     {

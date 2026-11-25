@@ -31,10 +31,17 @@ async function main() {
   sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
   let ui = await waitUi((n) => has(n, 'Sign in with Jellyfin'), 120000, 2000);
   tapNode(find(ui, 'Sign in with Jellyfin'));
-  ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
-  const field = ui?.find((n) => /EditText/.test(n.cls));
-  tapAt(field.cx, field.cy); await sleep(600); typeText(PHONE_BASE); await sleep(600); key('KEYCODE_BACK'); await sleep(800);
-  ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 20000, 1000);
+  // the Back that puts the keyboard away sometimes lands before the keyboard is up and leaves the form: then the form is opened again
+  for (let tries = 0; tries < 3; tries++) {
+    ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
+    const field = ui?.find((n) => /EditText/.test(n.cls));
+    tapAt(field.cx, field.cy); await sleep(1200); typeText(PHONE_BASE); await sleep(900); key('KEYCODE_BACK'); await sleep(1200);
+    ui = await waitUi((n) => has(n, 'Sign in with Quick Connect') || has(n, 'Sign in with Jellyfin'), 20000, 1000);
+    // a slow emulator can drop letters of the address: only go on with the whole address in the box, else clear it and type it again
+    if (has(ui, 'Sign in with Quick Connect') && ui.some((n) => /EditText/.test(n.cls) && label(n).includes(PHONE_BASE.replace('http://', '')))) break;
+    if (has(ui, 'Sign in with Quick Connect')) { const f2 = ui.find((n) => /EditText/.test(n.cls)); tapAt(f2.cx, f2.cy); await sleep(600); key('KEYCODE_MOVE_END'); for (let k = 0; k < 40; k++) key('KEYCODE_DEL'); key('KEYCODE_BACK'); await sleep(800); continue; }
+    tapNode(find(ui, 'Sign in with Jellyfin'));
+  }
   tapNode(find(ui, 'Sign in with Quick Connect'));
   await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);
   await sleep(10000);
@@ -54,8 +61,14 @@ async function main() {
 
   // a tap on the row (its title, not its Download button) opens the song's page
   // a song row's title (not the search box, which holds the same words, nor an album card)
-  const songsAt = Math.max(0, ...(res ?? []).filter((x) => label(x) === 'Songs' && x.cy > 700).map((x) => x.cy));
-  const row = (res ?? []).find((x) => /^you('ve)? got the love$/i.test(label(x)) && !/EditText/.test(x.cls) && x.cy > songsAt && songsAt > 0) ?? (res ?? []).find((x) => grouped.includes(x));
+  // (the catalog's songs are under "More music to download", the last section: owner, 25 Nov)
+  const songsAt = Math.max(0, ...(res ?? []).filter((x) => /^More music to download$/.test(label(x)) && x.cy > 300).map((x) => x.cy));
+  // a song row has its Download button on the same line (the catalog's album cards sit in the same section now, above the rows)
+  const onRow = (x) => (res ?? []).some((d) => /^Download/.test(label(d)) && d !== x && Math.abs(d.cy - x.cy) < 70);
+  const titled = (x) => /^you('ve)? got the love/i.test(label(x)) && !/EditText/.test(x.cls) && x.cy > songsAt && songsAt > 0 && onRow(x);
+  // Florence's own row (the one with versions) first: the catalog's order of covers changes from day to day
+  const withVersions = (x) => (res ?? []).some((d) => /florence.*\+\d+ versions?/i.test(label(d)) && Math.abs(d.cy - x.cy) < 70);
+  const row = (res ?? []).find((x) => titled(x) && withVersions(x)) ?? (res ?? []).find(titled) ?? (res ?? []).find((x) => grouped.includes(x));
   if (row) tapNode(row);
   const page = await waitUi((n) => has(n, 'Other versions') || n.some((x) => label(x) === 'Download'), 15000, 1000);
   shot(path.join(here, 'search-shot-page.png'));
@@ -66,7 +79,7 @@ async function main() {
 
   // an album the library lacks: a tap opens its page (its songs, Download album), it does not start downloading
   key('KEYCODE_BACK'); await sleep(1500);
-  const res2 = await waitUi((n) => has(n, 'Albums and EPs'), 15000, 1000);
+  const res2 = await waitUi((n) => n.some((x) => /^albums and eps$/i.test(label(x))), 15000, 1000);   // a small mono label now (upper case on screen)
   const card = (res2 ?? []).find((x) => /, (Album|EP|Single) by /.test(label(x)) && !/In your library/.test(label(x)));
   if (card) tapAt(card.x1 + 60, card.y1 + 60);
   const albumPage = await waitUi((n) => n.some((x) => /^Download (album|ep|single)$/i.test(label(x))), 15000, 1000);

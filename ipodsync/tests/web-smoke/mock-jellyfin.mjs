@@ -80,6 +80,8 @@ const prodigy = [   // (titles that sort after "Harbour", so the iPod lists keep
   ['The Prodigy', 'Out of Space', 1992, ['Out of Space']],
   ['The Prodigy', 'What Evil Lurks EP', 1991, ['What Evil Lurks', 'We Are the Ruffest']],
   ['Prodigy', 'H.N.I.C.', 2000, ['Keep It Thoro', 'Rock Dat Shit', 'Wanna Be Thugs']],
+  // the search page (1z-search-top.spec.ts, owner, 25 Nov): "heads will roll" is a song the library has, so it is the Top result, above playlists and downloads
+  ['Yeah Yeah Yeahs', "It's Blitz!", 2009, ['Zero', 'Heads Will Roll', 'Soft Shock', 'Skeletons']],
 ];
 for (const [artist, album, year, titles] of prodigy) {
   titles.forEach((t, i) => {

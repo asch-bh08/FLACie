@@ -52,70 +52,49 @@ else
         </section>
     }
     <ExploreBar Compact="true" Changed="OnFilters" />
-    @* F26.3: Playlists is one of the kind chips (one choice) and shows only playlists; genre and decade come from the Filters panel above *@
-    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ListsKind="true" AllLists="@filterLists" OnKind="KindPicked" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" />
+    @* F26.3: Playlists is one of the kind chips (one choice) and shows only playlists; genre and decade come from the Filters panel above.
+       Downloadable (owner, 25 Nov) shows only the catalog's music below *@
+    <ResultSections Query="@q" Rev="@X.Version" Context="Search" Made="@lists" ListsKind="true" AllLists="@filterLists" OnKind="KindPicked" ShowEmpty="@(!(webBusy || webSongs.Count > 0 || webAlbums.Count > 0))" OnQuery="Suggest" Downloadable="@(webSongs.Count + webAlbums.Count)" />
     @if (webPaused) { <p class="hint" role="status">Online results are paused for a moment: that was a lot of searches in one minute. Your library's results are still here.</p> }
-    @* music to download is songs and albums: not shown while Playlists or Artists is picked (F26.3) *@
-    @if ((webBusy || webSongs.Count > 0 || webAlbums.Count > 0) && kind is "" or "songs" or "albums")
+    @* music to download is songs and albums: not shown while Playlists or Artists is picked (F26.3). It comes last and quieter than the library's
+       results (owner, 25 Nov: "heads will roll" showed downloads above the song the library has), and the catalog's copies of the song asked for,
+       when the library has it, are folded under one line ("keep them irrelevant because we have the song") *@
+    @if ((webBusy || webSongs.Count > 0 || webAlbums.Count > 0) && kind is "" or "songs" or "albums" or "downloadable")
     {
-        <h2 class="section">More music @(webBusy ? "(searching…)" : "")</h2>
-        @* with downloads off on this server (the Dashboard's "Allow downloads") these are only what exists: no download buttons and no "set up downloads" hint *@
-        @if (Downloads.Allowed && !Session.Services.Any && isAdmin) { <p class="hint">These aren't in your library. Download services you run yourself can be set up in the <a href="/dashboard#downloads">Server admin</a>; only download music you own or have permission to download.</p> }
-        @if (webAlbums.Count > 0)
-        {
-            <div class="row-scroll">
-                @foreach (var a in webAlbums)
-                {
-                    var ja = Downloads.JobFor(Session, a.Artist, a.CleanTitle);
-                    <div class="card">
-                        @* a tap on the cover or the names opens the album full screen first (its songs, Download album), as on the phone *@
-                        <button type="button" class="card-open" aria-label="Open @a.CleanTitle" @onclick="() => { preSong = null; preAlbum = a; }"><Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="square" /></button>
-                        <span class="card-title">@a.CleanTitle</span>
-                        <span class="card-sub">@a.Artist · @a.Kind</span>
-                        @if (ja is not null) { <span class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message@(ja.Current is { } ca && !ja.Finished ? " · " + OpenSourceSettings.Name(ca) : ja.Source is { } sa ? " · from " + OpenSourceSettings.Name(sa) : "")</span> }
-                        @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
-                    </div>
-                }
-            </div>
-        }
-        @if (preAlbum is not null || preSong is not null)
-        {
-            <CatalogPreview Album="preAlbum" Song="preSong" Versions="@(preSong is { } ps ? webSongs.Where(x => VersionKey(x) == VersionKey(ps)).ToList() : [])" OnClose="() => { preAlbum = null; preSong = null; }" />
-        }
-        @if (webSongs.Count > 0)
-        {
-            <ul class="tracks">
-                @foreach (var s in ShownWebSongs())
-                {
-                    var jb = Downloads.JobFor(Session, s.Artist, s.Title); var hiKey = FLACie.Core.Matching.MatchKey(s.Title, s.Artist);
-                    // already playable now (a download that just finished, or one the phone reported): never offered again
-                    var inLib = Lib.Find(s.Title, s.Artist) is not null;
-                    <li class="track @(hiAsk == hiKey ? "asking" : "")">
-                        <span class="track-main">
-                            <button type="button" class="card-open" aria-label="Open @s.Title" @onclick="() => { preAlbum = null; preSong = s; }"><Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" /></button>
-                            <span class="track-text"><button type="button" class="track-title link-btn open-song" @onclick="() => { preAlbum = null; preSong = s; }">@s.Title</button><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")@if (MoreVersions(s) is > 0 and var more) { <text> · </text><button type="button" class="link-btn versions" aria-expanded="false" @onclick="() => openVersions.Add(VersionKey(s))">+@more version@(more == 1 ? "" : "s")</button> }</span>@if (jb is { Stage: DownloadStage.Failed }) { <span class="track-dl bad"><i aria-hidden="true"></i>@jb.Message</span> } else { <DownloadTag Session="Session" Artist="@s.Artist" Title="@s.Title" /> }</span>
-                        </span>
-                        <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
-                        <span class="track-actions">
-                        @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
-                        <span class="dl-more">
-                            <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="@MoreLabel(s.Title)" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
-                            @if (dlMenu == hiKey)
-                            {
-                                <button class="scrim" aria-label="Close" @onclick="() => dlMenu = null"></button>
-                                <div class="dl-menu" role="menu">
-                                    @if (Downloads.Allowed) { <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button> }
-                                    @if (isAdmin && Downloads.Allowed && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
-                                    <a role="menuitem" href="https://www.youtube.com/results?search_query=@Uri.EscapeDataString(s.Artist + " " + s.Title)" target="_blank" rel="noopener" @onclick="() => dlMenu = null">Find on YouTube</a>
-                                </div>
-                            }
-                        </span>
-                        </span>
-                        @if (isAdmin && hiAsk == hiKey) { <div class="hires-ask track-ask" role="group" aria-label="Download in Hi-Res?"><b>Download "@s.Title" in Hi-Res?</b><span>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). If no Hi-Res copy exists, you get the normal quality instead. Only this song.</span><span class="hires-actions"><button class="btn hires solid" @onclick="() => { hiAsk = null; Downloads.Song(Session, s, true); }">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = null">Cancel</button></span></div> }
-                    </li>
-                }
-            </ul>
-        }
+        var (rows, copies) = SearchLayout.FoldCopies(ShownWebSongs(), s => s.Title, askedSong);
+        <section class="sr-dl" aria-label="More music to download">
+            <h2 class="section">More music <i>to download</i>@(webBusy ? " (searching…)" : "")</h2>
+            <p class="sr-dl-note">Not in your library yet@(Downloads.Allowed ? ": download what you want to keep" : "").</p>
+            @* with downloads off on this server (the Dashboard's "Allow downloads") these are only what exists: no download buttons and no "set up downloads" hint *@
+            @if (Downloads.Allowed && !Session.Services.Any && isAdmin) { <p class="hint">These aren't in your library. Download services you run yourself can be set up in the <a href="/dashboard#downloads">Server admin</a>; only download music you own or have permission to download.</p> }
+            @if (webAlbums.Count > 0 && kind != "songs")
+            {
+                <div class="row-scroll">
+                    @foreach (var a in webAlbums)
+                    {
+                        var ja = Downloads.JobFor(Session, a.Artist, a.CleanTitle);
+                        <div class="card">
+                            @* a tap on the cover or the names opens the album full screen first (its songs, Download album), as on the phone *@
+                            <button type="button" class="card-open" aria-label="Open @a.CleanTitle" @onclick="() => { preSong = null; preAlbum = a; }"><Cover ArtKey="@(a.ArtUrl is null ? null : Art.ExternalKey(a.ArtUrl))" Class="square" /></button>
+                            <span class="card-title">@a.CleanTitle</span>
+                            <span class="card-sub">@a.Artist · @a.Kind</span>
+                            @if (ja is not null) { <span class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message@(ja.Current is { } ca && !ja.Finished ? " · " + OpenSourceSettings.Name(ca) : ja.Source is { } sa ? " · from " + OpenSourceSettings.Name(sa) : "")</span> }
+                            @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
+                        </div>
+                    }
+                </div>
+            }
+            @if (preAlbum is not null || preSong is not null)
+            {
+                <CatalogPreview Album="preAlbum" Song="preSong" Versions="@(preSong is { } ps ? webSongs.Where(x => VersionKey(x) == VersionKey(ps)).ToList() : [])" OnClose="() => { preAlbum = null; preSong = null; }" />
+            }
+            @if (rows.Count > 0 && kind != "albums") { <ul class="tracks">@foreach (var s in rows) { @SongRow(s) }</ul> }
+            @if (copies.Count > 0 && kind != "albums")
+            {
+                <button type="button" class="link-btn sr-copies" aria-expanded="@(copiesOpen ? "true" : "false")" @onclick="() => copiesOpen = !copiesOpen">Other copies to download (@copies.Count)</button>
+                @if (copiesOpen) { <ul class="tracks sr-copies-list">@foreach (var s in copies) { @SongRow(s) }</ul> }
+            }
+        </section>
     }
 }
 @code {
@@ -139,6 +118,38 @@ else
         if (openVersions.Contains(k)) return 0;
         var g = webSongs.Where(x => VersionKey(x) == k).ToList();
         return g.Count > 0 && ReferenceEquals(g[0], s) ? g.Count - 1 : 0;
+    }
+    // the library's song when it is the one asked for ("heads will roll"): the catalog's copies of it are folded (owner, 25 Nov), shown when opened
+    string? askedSong; bool copiesOpen;
+    /// <summary>One catalog song: open its page, Download (or "In your library" once it is there), and its menu (Hi-Res, Find on YouTube).</summary>
+    RenderFragment SongRow(CatalogSong s)
+    {
+        var jb = Downloads.JobFor(Session, s.Artist, s.Title); var hiKey = FLACie.Core.Matching.MatchKey(s.Title, s.Artist);
+        // already playable now (a download that just finished, or one the phone reported): never offered again
+        var inLib = Lib.Find(s.Title, s.Artist) is not null;
+        return @<li class="track @(hiAsk == hiKey ? "asking" : "")">
+            <span class="track-main">
+                <button type="button" class="card-open" aria-label="Open @s.Title" @onclick="() => { preAlbum = null; preSong = s; }"><Cover ArtKey="@(s.ArtUrl is null ? null : Art.ExternalKey(s.ArtUrl))" Size="44" /></button>
+                <span class="track-text"><button type="button" class="track-title link-btn open-song" @onclick="() => { preAlbum = null; preSong = s; }">@s.Title</button><span class="track-sub">@s.Artist@(s.Album.Length > 0 ? " · " + s.Album : "")@if (MoreVersions(s) is > 0 and var more) { <text> · </text><button type="button" class="link-btn versions" aria-expanded="false" @onclick="() => openVersions.Add(VersionKey(s))">+@more version@(more == 1 ? "" : "s")</button> }</span>@if (jb is { Stage: DownloadStage.Failed }) { <span class="track-dl bad"><i aria-hidden="true"></i>@jb.Message</span> } else { <DownloadTag Session="Session" Artist="@s.Artist" Title="@s.Title" /> }</span>
+            </span>
+            <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
+            <span class="track-actions">
+            @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
+            <span class="dl-more">
+                <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="@MoreLabel(s.Title)" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
+                @if (dlMenu == hiKey)
+                {
+                    <button class="scrim" aria-label="Close" @onclick="() => dlMenu = null"></button>
+                    <div class="dl-menu" role="menu">
+                        @if (Downloads.Allowed) { <button role="menuitem" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; Downloads.Song(Session, s); }"><Icon Name="download" Size="16" />Download</button> }
+                        @if (isAdmin && Downloads.Allowed && Session.Services.SoulseekReady) { <button role="menuitem" class="hi" disabled="@(jb is { Finished: false } || inLib)" @onclick="() => { dlMenu = null; hiAsk = hiKey; }"><span aria-hidden="true">✦</span> Hi-Res download…</button> }
+                        <a role="menuitem" href="https://www.youtube.com/results?search_query=@Uri.EscapeDataString(s.Artist + " " + s.Title)" target="_blank" rel="noopener" @onclick="() => dlMenu = null">Find on YouTube</a>
+                    </div>
+                }
+            </span>
+            </span>
+            @if (isAdmin && hiAsk == hiKey) { <div class="hires-ask track-ask" role="group" aria-label="Download in Hi-Res?"><b>Download "@s.Title" in Hi-Res?</b><span>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). If no Hi-Res copy exists, you get the normal quality instead. Only this song.</span><span class="hires-actions"><button class="btn hires solid" @onclick="() => { hiAsk = null; Downloads.Song(Session, s, true); }">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = null">Cancel</button></span></div> }
+        </li>;
     }
     // the Filters panel changed: the Playlists view follows its genre and decade
     async Task OnFilters() { if (kind == "playlists") { await LoadFilter(); StateHasChanged(); } }
@@ -219,7 +230,8 @@ else
         if (next == q) return;
         q = next;
         pending?.Cancel();
-        webSongs = []; webAlbums = []; webPaused = false; openVersions.Clear(); preAlbum = null; preSong = null;
+        webSongs = []; webAlbums = []; webPaused = false; openVersions.Clear(); preAlbum = null; preSong = null; copiesOpen = false;
+        askedSong = q.Length < 2 ? null : SearchLayout.AskedSong(q, Lib.Search(q).Songs.FirstOrDefault()?.Title);
         if (q.Length < 2) { webBusy = false; lists = []; return; }
         lists = Made();
         // one online catalog search per keystroke: past the account's "search" limit a minute (typing flat out for a whole minute stays under it) the online
@@ -245,6 +257,7 @@ else
             // (the library's own match index, not every song's key worked out again on each search)
             var haveAlbums = Lib.Albums.Select(a => a.Tracks[0].AlbumKey).ToHashSet();
             webSongs = songs.Where(s => Lib.Find(s.Title, s.Artist) is null).ToList();
+            askedSong = SearchLayout.AskedSong(query, Lib.Search(query).Songs.FirstOrDefault()?.Title);
             webAlbums = albums.Where(a => !haveAlbums.Contains(Matching.PrimaryArtist(a.Artist) + "|" + Matching.AlbumNorm(a.CleanTitle))).ToList();
             webBusy = false;
             await InvokeAsync(StateHasChanged);

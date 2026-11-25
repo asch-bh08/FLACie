@@ -43,6 +43,7 @@
     var topAlbum = ranked && !fuzzy ? albums.FirstOrDefault(g => Same(g.Name, q)) : null;
     var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;
     var heroSong = ranked && !heroArtist && !heroAlbum ? best : null;
+    heroArtKey = heroSong is not null && only == "" ? Art.KeyFor(heroSong) : null;
     var shown = showAll || only == "songs" ? songs.Count : Math.Min(songs.Count, SongRows);
     // F6.2: a search for an artist is laid out like their page: the Top result with their top 5 songs beside it, then Playlists, Popular, Albums, Singles & EPs
     // (Playlists: Best of, Radio, decades, genres, their own) and other artists with similar names. A search for a song keeps the song-first layout.
@@ -62,11 +63,12 @@
     </p>
 }
 @{ var listsKind = ListsKind && ranked; var listCount = plays.Count + Made.Count + (only == "playlists" ? AllLists.Count : 0); }
-@if (ExtraKinds is not null || listsKind || (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1))
+@if (ExtraKinds is not null || listsKind || (ranked && Downloadable > 0) || (ranked && (songs.Count > 0 ? 1 : 0) + (albums.Count > 0 ? 1 : 0) + (artists.Count > 0 ? 1 : 0) + (plays.Count > 0 ? 1 : 0) > 1))
 {
-    @* narrow the results to one kind: one choice (F26.3: Playlists shows only playlists, Albums only albums); genre and decade are in Filters *@
+    @* narrow the results to one kind: one choice (F26.3: Playlists shows only playlists, Albums only albums); genre and decade are in Filters.
+       In the order the page shows them, with Downloadable (the catalog) last (owner, 25 Nov) *@
     <div class="sr-kinds" role="radiogroup" aria-label="Show only" data-testid="kinds">
-        @foreach (var (k, label, n) in new[] { ("", "All", 1), ("songs", "Songs", songs.Count), ("albums", "Albums", albums.Count), ("artists", "Artists", artists.Count), ("playlists", "Playlists", listsKind ? 1 : plays.Count) })
+        @foreach (var (k, label, n) in new[] { ("", "All", 1), ("songs", "Songs", songs.Count), ("artists", "Artists", artists.Count), ("albums", "Albums", albums.Count), ("playlists", "Playlists", listsKind ? 1 : plays.Count), ("downloadable", "Downloadable", ranked ? Downloadable : 0) })
         {
             if (n == 0 && only != k) continue;
             var kind = k;
@@ -189,19 +191,14 @@
 }
 else
 {
-@if (Made.Count > 0 && only == "")
+@* owner, 25 Nov ("heads will roll": the first result was a playlist, the song small under it): the Top result comes first, then the library's Songs,
+   Artists, Albums and Playlists (yours, then the ready-made ones); the page puts the catalog last. With no Top result (a genre, "2010s") the
+   ready-made playlists are the answer and stay first, like Spotify's (owner, 2 Nov). *@
+var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
+@if (Made.Count > 0 && only == "" && !hasHero) { @MadeRow }
+@if (hasHero)
 {
-    @* ready-made playlists for what was typed ("2010s", "rock"), above the library's results, like Spotify's (owner, 2 Nov) *@
-    <section class="made-row" aria-label="Playlists for you">
-        <h2 class="section">Playlists for you</h2>
-        <div class="row-scroll">
-            @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
-        </div>
-    </section>
-}
-@if (only == "" && (heroArtist || heroAlbum || heroSong is not null))
-{
-    <section aria-label="Top result" class="sr-section">
+    <section aria-label="Top result" class="sr-section sr-best-section">
         <h2 class="section">Top <i>result</i></h2>
         @if (heroArtist && topArtist is not null)
         {
@@ -210,7 +207,7 @@ else
                 <div class="sr-hero-text">
                     <a class="sr-hero-title" href="/artist/@Uri.EscapeDataString(topArtist.Name)" @onclick="Noop" @onclick:stopPropagation>@topArtist.Name</a>
                     <span class="sr-hero-sub">Artist</span>
-                    <span class="pills"><span class="badge plain">@Count(topArtist) @(Count(topArtist) == 1 ? "song" : "songs")</span></span>
+                    <span class="pills"><span class="badge plain">@Count(topArtist) @(Count(topArtist) == 1 ? "song" : "songs")</span><span class="sr-have">In your library</span></span>
                 </div>
                 <button class="sr-play" aria-label="@(On(topArtist.Tracks) ? "Pause" : "Play") @topArtist.Name" @onclick="() => PlayOnly(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)" @onclick:stopPropagation><Icon Name="@(On(topArtist.Tracks) ? "pause" : "play")" Size="22" /></button>
             </div>
@@ -223,44 +220,76 @@ else
                 <div class="sr-hero-text">
                     <a class="sr-hero-title" href="@AlbumLink(topAlbum)" @onclick="Noop" @onclick:stopPropagation>@topAlbum.Name</a>
                     <span class="sr-hero-sub">Album · @(ht.AlbumArtist.Length > 0 ? ht.AlbumArtist : ht.Artist)@(hy > 0 ? " · " + hy : "")</span>
-                    <span class="pills"><span class="badge @ht.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(ht.Source)</span><span class="badge plain">@Count(topAlbum) @(Count(topAlbum) == 1 ? "song" : "songs")</span></span>
+                    <span class="pills"><span class="badge @ht.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(ht.Source)</span><span class="badge plain">@Count(topAlbum) @(Count(topAlbum) == 1 ? "song" : "songs")</span><span class="sr-have">In your library</span></span>
                 </div>
                 <button class="sr-play" aria-label="@(On(topAlbum.Tracks) ? "Pause" : "Play") @topAlbum.Name" @onclick="() => PlayOnly(topAlbum.Tracks.Where(X.Allows).ToList(), topAlbum.Name)" @onclick:stopPropagation><Icon Name="@(On(topAlbum.Tracks) ? "pause" : "play")" Size="22" /></button>
             </div>
         }
         else if (heroSong is not null)
         {
-            var hs = heroSong; var fmt = QuickFormats.Of(hs); var facts = FormatIndex.Current?.Get(hs);
-            <div class="sr-hero" @onclick="() => PlayFull([hs], context)">
-                <button class="sr-art sr-cover" aria-label="Play @hs.Title and open the player" @onclick='() => PlayFull([hs], context)' @onclick:stopPropagation><Cover ArtKey="@(Art.KeyFor(hs))" Size="188" Class="square" /></button>
+            @* the song itself, big, in Now Playing's look: its cover's colours, the serif title with the last word in italics, the format chip, what it is
+               to you ("In your library"), Play and the song's menu (owner, 25 Nov) *@
+            var hs = heroSong; var fmt = QuickFormats.Of(hs); var facts = FormatIndex.Current?.Get(hs); var vers = Lib.OtherVersions(hs);
+            var hsArtist = hs.AlbumArtist.Length > 0 ? hs.AlbumArtist : hs.Artist;
+            <div class="sr-hero song sr-best" @ref="heroEl" @onclick="() => PlayFull([hs], context)">
+                <button class="sr-art sr-cover" aria-label="Play @hs.Title and open the player" @onclick='() => PlayFull([hs], context)' @onclick:stopPropagation><Cover ArtKey="@(Art.KeyFor(hs))" Size="232" Class="square" Eager="true" /></button>
                 <div class="sr-hero-text">
-                    <span class="sr-hero-title">@hs.Title</span>
-                    <span class="sr-hero-sub">Song · <a href="/artist/@Uri.EscapeDataString(hs.AlbumArtist.Length > 0 ? hs.AlbumArtist : hs.Artist)" @onclick="Noop" @onclick:stopPropagation>@hs.Artist</a>@(hs.Album.Length > 0 ? " · " + hs.Album : "")</span>
+                    <span class="sr-eyebrow">Song<span aria-hidden="true"> · </span><span class="sr-have">In your library</span></span>
+                    <span class="sr-hero-title">@Lead(hs.Title)<i>@Last(hs.Title)</i></span>
+                    <span class="sr-hero-sub"><a href="/artist/@Uri.EscapeDataString(hsArtist)" @onclick="Noop" @onclick:stopPropagation>@hs.Artist</a>@(hs.Album.Length > 0 ? " · " + hs.Album : "")@(hs.Year > 0 ? " · " + hs.Year : "")</span>
                     <span class="pills">
-                        <span class="badge @hs.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(hs.Source)</span>
                         @if (fmt.Length > 0) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : FLACie.Core.MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
                         @if (facts is { Depth: > 0, Rate: > 0 }) { <span class="badge plain">@facts.Depth-bit / @((facts.Rate / 1000.0).ToString("0.#")) kHz</span> }
-                        @if (facts is { Kbps: > 0 }) { <span class="badge plain">@facts.Kbps kbps</span> }
+                        <span class="badge @hs.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(hs.Source)</span>
+                    </span>
+                    <span class="sr-hero-actions" @onclick:stopPropagation>
+                        <button class="btn sr-go" aria-label="@(On([hs]) ? "Pause" : "Play") @hs.Title" @onclick='() => PlayOnly([hs], context)'><Icon Name="@(On([hs]) ? "pause" : "play")" Size="18" />@(On([hs]) ? "Pause" : "Play")</button>
+                        @if (vers.Count > 0) { <button class="btn sr-vers" aria-expanded="@(heroVersions ? "true" : "false")" @onclick="() => heroVersions = !heroVersions">+@vers.Count @(vers.Count == 1 ? "version" : "versions")</button> }
+                        <span class="sr-menu-wrap">
+                            <button class="icon-btn sr-menu-btn" aria-haspopup="menu" aria-expanded="@(heroMenu ? "true" : "false")" aria-label="More for @hs.Title" @onclick="() => { heroMenu = !heroMenu; heroSub = false; }"><Icon Name="more" /></button>
+                            @if (heroMenu)
+                            {
+                                <button class="scrim" aria-label="Close" @onclick="() => heroMenu = false"></button>
+                                <div class="menu" role="menu">
+                                    <button role="menuitem" @onclick='() => { Player.PlayNext(hs); Toast.Show($"“{hs.Title}” plays next"); heroMenu = false; }'>Play next</button>
+                                    <button role="menuitem" @onclick='() => { Player.AddToQueue(hs); Toast.Show($"Added “{hs.Title}” to the queue"); heroMenu = false; }'>Add to queue</button>
+                                    <button role="menuitem" class="has-sub" aria-expanded="@(heroSub ? "true" : "false")" @onclick="() => heroSub = !heroSub">Add to playlist <span aria-hidden="true" class="chev">›</span></button>
+                                    @if (heroSub)
+                                    {
+                                        @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
+                                        @foreach (var p in Session.Playlists) { <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, hs, SaveProfile); heroMenu = false; }">Add to @p.Name</button> }
+                                    }
+                                    <hr class="menu-sep" />
+                                    @if (Lib.Albums.FirstOrDefault(g => g.Tracks.Any(t => t.Path == hs.Path)) is { } hg) { <a role="menuitem" href="@AlbumLink(hg)">Go to album</a> }
+                                    <a role="menuitem" href="/artist/@Uri.EscapeDataString(hsArtist)">Go to artist</a>
+                                    <button role="menuitem" @onclick='async () => { heroMenu = false; await Sharing.ShareAsync(Session, "song", hs.Title, [hs]); }'>Share</button>
+                                </div>
+                            }
+                        </span>
                     </span>
                 </div>
-                <button class="sr-play" aria-label="@(On([hs]) ? "Pause" : "Play") @hs.Title" @onclick='() => PlayOnly([hs], context)' @onclick:stopPropagation><Icon Name="@(On([hs]) ? "pause" : "play")" Size="22" /></button>
             </div>
+            @if (heroVersions && vers.Count > 0) { <div class="sr-hero-versions"><TrackList Tracks="vers" PlayContext="@context" Single="true" ThumbSize="40" KindTag="Version" /></div> }
         }
     </section>
 }
-@if (songs.Count > 0 && Shows("songs"))
+@* the songs under the Top result, without it again (owner, 25 Nov: "wasted space") *@
+var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t => t.Path != heroSong.Path).ToList() : songs; var listShown = Math.Min(shown, listSongs.Count);
+@if (listSongs.Count > 0 && Shows("songs"))
 {
     <section aria-label="Songs" class="sr-section">
         <h2 class="section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
-        <TrackList Tracks="songs.Take(shown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" KindTag="@(ranked ? "Song" : null)" ShowVersions="ranked" />
-        @if (songs.Count > shown)
+        <TrackList Tracks="listSongs.Take(listShown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" KindTag="@(ranked ? "Song" : null)" ShowVersions="ranked" />
+        @if (listSongs.Count > listShown)
         {
-            @if (!string.IsNullOrEmpty(SeeAllHref)) { <a class="btn ghost sr-more" href="@SeeAllHref">See all @songs.Count @(songs.Count == 1 ? "song" : "songs")</a> }
-            else { <button class="btn ghost sr-more" @onclick="() => showAll = true">Show all @songs.Count songs</button> }
+            @if (!string.IsNullOrEmpty(SeeAllHref)) { <a class="btn ghost sr-more" href="@SeeAllHref">See all @listSongs.Count @(listSongs.Count == 1 ? "song" : "songs")</a> }
+            else { <button class="btn ghost sr-more" @onclick="() => showAll = true">Show all @listSongs.Count songs</button> }
         }
-        else if (showAll && songs.Count > SongRows) { <button class="btn ghost sr-more" @onclick="() => showAll = false">Show fewer songs</button> }
+        else if (showAll && listSongs.Count > SongRows) { <button class="btn ghost sr-more" @onclick="() => showAll = false">Show fewer songs</button> }
     </section>
 }
+@* a search: Artists before Albums (as the chips read); the browse view keeps the newest albums first *@
+@if (ranked) { @ArtistsRow(artists) }
 @if (albums.Count > 0 && Shows("albums"))
 {
     <section aria-label="Albums" class="sr-section">
@@ -274,18 +303,7 @@ else
         </div>
     </section>
 }
-@if (artists.Count > 0 && Shows("artists"))
-{
-    <section aria-label="Artists" class="sr-section">
-        <h2 class="section"><i>Artists</i></h2>
-        <div class="row-scroll">
-            @foreach (var a in artists)
-            {
-                <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub"><span class="kind-tag">Artist</span>@Count(a) @(Count(a) == 1 ? "song" : "songs")</span></a>
-            }
-        </div>
-    </section>
-}
+@if (!ranked) { @ArtistsRow(artists) }
 @if (plays.Count > 0 && Shows("playlists") && !(only == "playlists" && listsKind))
 {
     <section aria-label="Playlists" class="sr-section">
@@ -299,6 +317,7 @@ else
         </div>
     </section>
 }
+@if (Made.Count > 0 && hasHero) { @MadeRow }
 @if (genres.Count > 0 && only == "")
 {
     <section aria-label="Genres" class="sr-section">
@@ -319,7 +338,7 @@ else
     bool Shows(string kind) => only == "" || only == kind;
     string? onlyFor;
     // a new search starts with every kind shown again
-    protected override void OnParametersSet() { if (Query != onlyFor) { onlyFor = Query; only = ""; } base.OnParametersSet(); }
+    protected override void OnParametersSet() { if (Query != onlyFor) { onlyFor = Query; only = ""; heroMenu = heroSub = heroVersions = false; } base.OnParametersSet(); }
 
     /// <summary>The text to search for ("" for the browse view).</summary>
     [Parameter] public string Query { get; set; } = "";
@@ -342,6 +361,8 @@ else
     /// <summary>The kind picked ("" for All), so the page can fetch the lists it shows.</summary>
     [Parameter] public EventCallback<string> OnKind { get; set; }
     async Task PickKind(string kind) { only = kind; await OnKind.InvokeAsync(kind); }
+    /// <summary>How many catalog results the page has under "More music to download": above 0 the Downloadable chip shows (only those, none of the library's).</summary>
+    [Parameter] public int Downloadable { get; set; }
     /// <summary>Shown right under that row (the Playlists filter's genres and its lists, when it is on).</summary>
     [Parameter] public RenderFragment? UnderKinds { get; set; }
     [Parameter] public bool ShowEmpty { get; set; } = true;
@@ -349,6 +370,45 @@ else
     [Parameter] public EventCallback<string> OnQuery { get; set; }
 
     bool showAll;
+
+    // ---- the Top result song card (owner, 25 Nov) ----
+    [Inject] Toasts Toast { get; set; } = default!;
+    [Inject] Sharing Sharing { get; set; } = default!;
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    ElementReference heroEl;
+    bool heroMenu, heroSub, heroVersions;
+    string? heroArtKey, tintedFor;
+    static string Lead(string title) { var s = title.TrimEnd(); var i = s.LastIndexOf(' '); return i < 0 ? "" : s[..(i + 1)]; }
+    static string Last(string title) { var s = title.TrimEnd(); var i = s.LastIndexOf(' '); return i < 0 ? s : s[(i + 1)..]; }
+    // the card wears its cover's colours, as Now Playing and the playlist page do (flacie.npAccent sets --np-accent, --tone ... on the card only)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (heroArtKey == tintedFor) return;
+        tintedFor = heroArtKey;
+        if (heroArtKey is null) return;
+        try { await Js.InvokeVoidAsync("flacie.npAccent", heroEl, "/art/" + Uri.EscapeDataString(CoverOverrides.Map(heroArtKey)!) + "?v=3"); } catch (Exception) { }
+    }
+
+    /// <summary>The ready-made playlists for what was typed (Best of, Radio, decades, genres; Spotify's and Deezer's on a server that reads them).</summary>
+    RenderFragment MadeRow => @<section class="made-row sr-section" aria-label="Playlists for you">
+        <h2 class="section">Playlists <i>for you</i></h2>
+        <div class="row-scroll">
+            @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
+        </div>
+    </section>;
+
+    RenderFragment ArtistsRow(IReadOnlyList<Group> artists) => @<text>@if (artists.Count > 0 && Shows("artists"))
+    {
+        <section aria-label="Artists" class="sr-section">
+            <h2 class="section"><i>Artists</i></h2>
+            <div class="row-scroll">
+                @foreach (var a in artists)
+                {
+                    <a class="card artist" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Class="square round" /><span class="card-title">@a.Name</span><span class="card-sub"><span class="kind-tag">Artist</span>@Count(a) @(Count(a) == 1 ? "song" : "songs")</span></a>
+                }
+            </div>
+        </section>
+    }</text>;
 
     void Noop() { }
     /// <summary>The banner itself: play it and bring up the full-screen player.</summary>

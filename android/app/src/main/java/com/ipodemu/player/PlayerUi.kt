@@ -2074,167 +2074,219 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         val tracksById = remember(libSongs, w.songs, ownedSongs) { HashMap<String, Track>().also { m -> libSongs.forEach { m["L" + it.path] = it }; w.songs.forEach { s -> ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]?.let { m["L" + it.path] = it } } } }
         val webById = remember(w.songs) { w.songs.associateBy { "W" + it.artist + "|" + it.title } }
         val allIds = remember(libSongs, w.songs, ownedSongs) { (w.songs.map { webId(it) } + libSongs.map { "L" + it.path }).distinct() }
+        // one catalog song under "More music to download": open its page, Download, or Play once it is in the library; its menu has Hi-Res and Find on YouTube
+        val webSongRow: @Composable (WebCatalog.Song) -> Unit = { s ->
+            val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
+            val status = dl[app.library.songKey(s.artist, s.title)]
+            val more = w.versions[versionKey(s)].orEmpty()
+            WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) }
+                ?: ("Song · ${s.artist} · ${s.album}" + if (more.isNotEmpty()) " · +${more.size} version${if (more.size == 1) "" else "s"}" else ""), s.artUrl, owned, status,
+                onOpen = { searchFocus.clearFocus(); nav.push(Screen.CatalogSong(s, more)) },
+                onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
+                // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
+                onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") },
+                picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },
+                // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
+                onHiRes = {
+                    val items = ArrayList<SheetItem>()
+                    items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") }
+                    if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) items += SheetItem("✦ Hi-Res download…", Glyph.DOWN) {
+                        nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
+                            SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
+                            SheetItem("Cancel", Glyph.CLOSE) { },
+                        ))
+                    }
+                    items += SheetItem("Find on YouTube", Glyph.SEARCH) {
+                        app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=" + android.net.Uri.encode("${s.artist} ${s.title}"))).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                    nav.sheet = SheetSpec(s.title, s.artist.ifEmpty { null }, items)
+                })
+        }
         if (query.isBlank()) SearchIdle(nav)
         else if (nothingAtAll) {
             Column(Modifier.fillMaxSize()) {
-                Box(Modifier.weight(1f)) { EmptyState("No results") }
+                Box(Modifier.weight(1f)) { EmptyState("Nothing in your library or the catalog matches “$q”") }
                 if (!app.ui.guest) DownloadRequestBar(app, q)
             }
         }
         else Box(Modifier.fillMaxSize()) {
+        // owner, 25 Nov ("the search page on mobile is very outdated and looks terrible, hard to use"): the web's order and look (SearchLayout). The song
+        // asked for first and big, then the library's Songs, Artists, Albums and Playlists, and the catalog last as "More music to download", with its
+        // copies of a song the library has folded under one line ("keep them irrelevant because we have the song")
+        val artistMode = artistTop != null && artistPage != null && only == "" && picks == null
+        val showTop = topSong != null && only == "" && picks == null && !artistMode
+        val asked = remember(q, topSong) { com.ipodemu.library.SearchLayout.askedSong(q, topSong?.title) }
+        val shownWeb = if (webSongsExpanded || only == "songs" || only == "downloadable" || picks != null) w.songs else w.songs.take(8)
+        val (webRows, webCopies) = remember(shownWeb, asked) { com.ipodemu.library.SearchLayout.foldCopies(shownWeb, { it.title }, asked) }
+        var copiesOpen by remember(q) { mutableStateOf(false) }
+        val libArtists = remember(q, libRev) { if (q.length < 2) emptyList() else SearchArtists.matching(app.library.artists(), q) }
+        val hasWeb = w.songs.isNotEmpty() || w.albums.isNotEmpty() || webLoading
+        val order = com.ipodemu.library.SearchLayout.order(
+            top = showTop, songs = libSongs.isNotEmpty() && !artistMode, artists = libArtists.isNotEmpty() && !artistMode, albums = r.albums.isNotEmpty() && !artistMode,
+            playlists = ownLists.isNotEmpty() && picks == null, made = picks == null && !artistMode && (made.isNotEmpty() || only == "playlists"),
+            download = hasWeb || (!app.ui.guest && only != "playlists"), only = only)
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = if (picks != null) 150.dp else 24.dp)) {
             // a SoundCloud or YouTube song link pasted into search (owner, 8 Nov): FLACie Web gets just that song
             com.ipodemu.library.SongLinks.of(query)?.let { link -> item(key = "songlink") { SongLinkCard(link) } }
-            // Show only: All, Songs or Albums (as on the web), when there are both
-            val hasSongs = w.songs.isNotEmpty() || rankedSongs.isNotEmpty(); val hasAlbums = w.albums.isNotEmpty() || r.albums.isNotEmpty()
-            if (hasSongs && picks == null && only != "playlists") item(key = "select") {
-                Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { DesignChip("Select", false, { picks = PickSet() }, icon = Glyph.CHECK) }
-            }
-            // one choice, as on the web: All, Songs, Albums or Playlists (Playlists only with FLACie Web, which has them)
-            if (picks == null && (hasSongs || hasAlbums || webLists)) item(key = "kinds") {
-                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val kinds = listOf("" to "All", "songs" to "Songs", "albums" to "Albums") + (if (webLists) listOf("playlists" to "Playlists") else emptyList())
-                    for ((k, label) in kinds) DesignChip(label, only == k, { only = k })
-                }
-            }
-            fun shows(kind: String) = only == "" || only == kind
-            val artistMode = artistTop != null && artistPage != null && only == "" && picks == null
-            // the person's own playlists holding what was typed, before anything recommended (owner, 7 Nov: "dreamer" should show the playlists Dreamer is in)
-            if (ownLists.isNotEmpty() && picks == null && (only == "" || only == "playlists")) {
-                item { SectionHeader("Your playlists") }
-                item(key = "ownlists") {
-                    androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(ownLists, key = { "own" + it.list.id }) { h ->
-                            val pl = h.list
-                            val cover = remember(pl.id, libRev) { pl.paths.firstNotNullOfOrNull { byPath[it]?.artKey } }
-                            SearchCover(cover, pl.name, "Your playlist · " + (h.holds ?: "${pl.paths.size} ${if (pl.paths.size == 1) "song" else "songs"}"), "Open playlist ${pl.name}") {
-                                searchFocus.clearFocus(); nav.push(Screen.Detail(DetailKind.USER, pl.id))
-                            }
+            // the filter chips in one row, as on the web: All, Songs, Artists, Albums, Playlists, Downloadable (one choice), then Select
+            if (picks == null) item(key = "kinds") {
+                Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    for ((k, label) in com.ipodemu.library.SearchLayout.KINDS) {
+                        val has = when (k) {
+                            "songs" -> topSong != null || w.songs.isNotEmpty()
+                            "artists" -> libArtists.isNotEmpty()
+                            "albums" -> r.albums.isNotEmpty() || w.albums.isNotEmpty()
+                            "playlists" -> webLists || ownLists.isNotEmpty()
+                            "downloadable" -> w.songs.isNotEmpty() || w.albums.isNotEmpty()
+                            else -> true
                         }
+                        if (has || only == k) DesignChip(label, only == k, { only = k })
                     }
+                    if (topSong != null || w.songs.isNotEmpty()) DesignChip("Select", false, { picks = PickSet() }, icon = Glyph.CHECK)
                 }
             }
-            // the web's Search playlists (6 Nov): ours, Spotify's, Deezer's and SoundCloud's, under the top of the results
-            if (made.isNotEmpty() && only == "" && picks == null && !artistMode) {
-                item { SectionHeader("Playlists") }
-                item(key = "made") { ListRow(made, nav) { searchFocus.clearFocus() } }
-            }
-            // the Playlists chip (F26.3, one choice): every list that matches, narrowed by genre and decade as the web's Filters panel does
-            if (only == "playlists") {
-                item(key = "listfilters") {
-                    Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (g in listFilters.genres) DesignChip(g, listGenre == g, { listGenre = if (listGenre == g) "" else g })
-                        }
-                        Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (d in listFilters.decades) DesignChip(d, listDecade == d, { listDecade = if (listDecade == d) "" else d })
-                        }
-                    }
-                }
-                val shownLists = allLists
-                if (shownLists == null) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Finding playlists...", size = 13f, color = sc.onBgDim) } }
-                else if (shownLists.isEmpty()) item { Txt("No playlists for this yet.", Modifier.padding(16.dp), size = 14f, color = sc.onBgDim) }
-                // two covers a row
-                else items(shownLists.chunked(2), key = { row -> "pl" + row.first().id }) { row ->
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        for (m in row) ListCard(m, app, nav) { searchFocus.clearFocus() }
-                    }
-                }
-            }
-            // albums as one swipeable row of covers near the top, so they're visible with the keyboard up; a query naming an
-            // album ("short n sweet") puts that row first, like YT Music
-            val albumNamed = w.albums.firstOrNull()?.takeIf { it.kind != "Single" }?.let { a -> a.cleanTitle.lowercase().filter { it.isLetterOrDigit() } == q.lowercase().filter { it.isLetterOrDigit() } } == true
-            val webAlbums: androidx.compose.foundation.lazy.LazyListScope.() -> Unit = {
-                if (w.albums.isNotEmpty() && shows("albums")) {
-                    item { SectionHeader("Albums and EPs") }
-                    item(key = "walbums") {
-                        androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            items(w.albums, key = { it.id }) { a ->
-                                val owned = ownedAlbums[ownedAlbumKey(a.artist, a.cleanTitle)]
-                                AlbumCard(a, owned != null, dl[app.library.albumKey(a)],
-                                    onOpen = { searchFocus.clearFocus(); owned?.let { nav.push(Screen.Detail(DetailKind.ALBUM, it.tracks.first().albumKey)) } ?: nav.push(Screen.CatalogAlbum(a)) },
-                                    onDownload = { app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…") })
-                            }
-                        }
-                    }
-                }
-            }
-            if (albumNamed) webAlbums()
             if (artistMode && artistTop != null && artistPage != null) ArtistResults(artistTop, artistPage, made, similarArtists, nav, snap, featuring) { searchFocus.clearFocus() }
-            if (topSong != null && only == "" && picks == null && !artistMode) {
-                item { SectionHeader("Top result") }
-                item(key = "top${topSong.path}") {
-                    TopResultCard(topSong) { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } }
-                }
-            }
-            if (!albumNamed) webAlbums()
-            if (w.songs.isNotEmpty() && shows("songs")) {
-                item { SectionHeader("Songs") }
-                val shown = if (webSongsExpanded || only == "songs" || picks != null) w.songs else w.songs.take(8)
-                itemsIndexed(shown, key = { i, s -> "ws$i${s.artist}${s.title}" }) { i, s ->
-                  Box(Modifier.riseFirstTime("ws$i${s.artist}${s.title}", i)) {
-                    val owned = ownedSongs[com.ipodemu.library.matchKey(s.title, s.artist)]
-                    val status = dl[app.library.songKey(s.artist, s.title)]
-                    val more = w.versions[versionKey(s)].orEmpty()
-                    WebRow(s.title, status?.takeIf { it.stage != DownloadStage.DONE }?.let { st -> if (st.stage == DownloadStage.FAILED) st.message else com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(st.stage, st.message)) }
-                        ?: ("Song · ${s.artist} · ${s.album}" + if (more.isNotEmpty()) " · +${more.size} version${if (more.size == 1) "" else "s"}" else ""), s.artUrl, owned, status,
-                        onOpen = { searchFocus.clearFocus(); nav.push(Screen.CatalogSong(s, more)) },
-                        onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
-                        // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
-                        onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") },
-                        picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },
-                        // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
-                        onHiRes = {
-                            val items = ArrayList<SheetItem>()
-                            items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") }
-                            if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) items += SheetItem("✦ Hi-Res download…", Glyph.DOWN) {
-                                nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
-                                    SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
-                                    SheetItem("Cancel", Glyph.CLOSE) { },
-                                ))
-                            }
-                            items += SheetItem("Find on YouTube", Glyph.SEARCH) {
-                                app.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://www.youtube.com/results?search_query=" + android.net.Uri.encode("${s.artist} ${s.title}"))).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-                            }
-                            nav.sheet = SheetSpec(s.title, s.artist.ifEmpty { null }, items)
-                        })
-                  }
-                }
-                if (!webSongsExpanded && only != "songs" && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
-            }
-            // with only songs shown (or while choosing), the top song joins the library list (the Top result card is for All)
-            if (libSongs.isNotEmpty() && shows("songs") && !artistMode) {
-                item { SectionHeader("In your library") }
-                val shown = if (songsExpanded || only == "songs" || picks != null) libSongs else libSongs.take(4)
-                itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t ->
-                    val id = "L" + t.path
-                    Box(Modifier.riseFirstTime("s$i${t.path}", i)) { TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
-                        picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) }, kind = "Song") }
-                    // the song's other mixes and versions, folded under it (owner, 13 Nov; the web's "+1 version")
-                    val vers = versionsOf[t.songKey]?.filter { it.path != t.path }.orEmpty()
-                    if (vers.isNotEmpty()) {
-                        val open = t.path in openVersions
-                        Txt(if (open) "Hide versions" else "+${vers.size} ${if (vers.size == 1) "version" else "versions"}", Modifier.padding(start = 72.dp, bottom = 6.dp)
-                            .clip(RoundedCornerShape(12.dp)).clickable { if (open) openVersions.remove(t.path) else openVersions.add(t.path) }.padding(horizontal = 10.dp, vertical = 6.dp)
-                            .semantics { role = androidx.compose.ui.semantics.Role.Button }, size = 13f, weight = FontWeight.SemiBold, color = LocalScheme.current.accent)
-                        if (open) Column(Modifier.padding(start = 24.dp)) { vers.forEach { v -> TrackRow(v, nav, snap, onPlay = { app.player.play(listOf(v), 0, null, from = "search") }, kind = "Version") } }
+            for (sec in order) when (sec) {
+                com.ipodemu.library.SearchLayout.Section.TOP -> if (topSong != null) {
+                    item(key = "top${topSong.path}") {
+                        BestResultCard(topSong,
+                            onPlay = { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } },
+                            onMore = { searchFocus.clearFocus(); openTrackSheet(app, nav, topSong) })
+                    }
+                    // the song's other mixes and versions, folded under the card
+                    val vers = versionsOf[topSong.songKey]?.filter { it.path != topSong.path }.orEmpty()
+                    if (vers.isNotEmpty()) item(key = "topvers") {
+                        val open = topSong.path in openVersions
+                        Column {
+                            Txt(if (open) "Hide versions" else "+${vers.size} ${if (vers.size == 1) "version" else "versions"}", Modifier.padding(start = 20.dp, top = 4.dp)
+                                .clip(RoundedCornerShape(12.dp)).clickable { if (open) openVersions.remove(topSong.path) else openVersions.add(topSong.path) }.padding(horizontal = 10.dp, vertical = 12.dp)
+                                .semantics { role = androidx.compose.ui.semantics.Role.Button }, size = 13f, weight = FontWeight.SemiBold, color = sc.accent)
+                            if (open) vers.forEach { v -> TrackRow(v, nav, snap, onPlay = { app.player.play(listOf(v), 0, null, from = "search") }, kind = "Version") }
+                        }
                     }
                 }
-                if (!songsExpanded && only != "songs" && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
-            }
-            if (r.albums.isNotEmpty() && shows("albums") && !artistMode) {
-                item { SectionHeader("Your albums") }
-                val shownAlbums = if (albumsExpanded || only == "albums") r.albums else r.albums.take(3)
-                items(shownAlbums, key = { "b" + it.tracks.first().albumKey }) { g ->
-                    IpodRow({ nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey)) }, height = 56.dp, leading = { ArtImage(g.artKey, Modifier.size(48.dp), thumb = true, corner = 8.dp) },
-                        trailing = { OwnedTag() }) { hi ->
-                        Column { Txt(g.name, size = 16f, color = if (hi) Color.White else sc.onBg); Txt("Album · " + (g.tracks.firstOrNull()?.artist ?: ""), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim) }
+                com.ipodemu.library.SearchLayout.Section.SONGS -> {
+                    item { SectionHeader("Songs") }
+                    val shown = if (songsExpanded || only == "songs" || picks != null) libSongs else libSongs.take(4)
+                    itemsIndexed(shown, key = { i, t -> "s$i${t.path}" }) { i, t ->
+                        val id = "L" + t.path
+                        Box(Modifier.riseFirstTime("s$i${t.path}", i)) { TrackRow(t, nav, snap, onPlay = { app.player.play(listOf(t), 0, null, from = "search") }, sheetExtra = listOf(SheetItem("Select", Glyph.CHECK) { picks = PickSet().toggle(id) }),
+                            picked = picks?.contains(id), onPick = { picks = (picks ?: PickSet()).toggle(id) }, kind = "Song") }
+                        // the song's other mixes and versions, folded under it (owner, 13 Nov; the web's "+1 version")
+                        val vers = versionsOf[t.songKey]?.filter { it.path != t.path }.orEmpty()
+                        if (vers.isNotEmpty()) {
+                            val open = t.path in openVersions
+                            Txt(if (open) "Hide versions" else "+${vers.size} ${if (vers.size == 1) "version" else "versions"}", Modifier.padding(start = 72.dp, bottom = 6.dp)
+                                .clip(RoundedCornerShape(12.dp)).clickable { if (open) openVersions.remove(t.path) else openVersions.add(t.path) }.padding(horizontal = 10.dp, vertical = 6.dp)
+                                .semantics { role = androidx.compose.ui.semantics.Role.Button }, size = 13f, weight = FontWeight.SemiBold, color = LocalScheme.current.accent)
+                            if (open) Column(Modifier.padding(start = 24.dp)) { vers.forEach { v -> TrackRow(v, nav, snap, onPlay = { app.player.play(listOf(v), 0, null, from = "search") }, kind = "Version") } }
+                        }
+                    }
+                    if (!songsExpanded && only != "songs" && picks == null && libSongs.size > 4) item { ShowMoreRow(libSongs.size - 4) { songsExpanded = true } }
+                }
+                com.ipodemu.library.SearchLayout.Section.ARTISTS -> {
+                    item { SectionHeader("Artists") }
+                    item(key = "artists") {
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(libArtists, key = { "ar" + it.name }) { a ->
+                                SearchCover(a.artKey, a.name, "Artist · ${a.tracks.size} ${if (a.tracks.size == 1) "song" else "songs"}", "Open artist ${a.name}", circle = true) {
+                                    searchFocus.clearFocus(); nav.push(Screen.Detail(DetailKind.ARTIST, a.name))
+                                }
+                            }
+                        }
                     }
                 }
-                if (!albumsExpanded && only != "albums" && r.albums.size > 3) item { ShowMoreRow(r.albums.size - 3) { albumsExpanded = true } }
+                com.ipodemu.library.SearchLayout.Section.ALBUMS -> {
+                    item { SectionHeader("Albums") }
+                    item(key = "libalbums") {
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(r.albums, key = { "b" + it.tracks.first().albumKey }) { g ->
+                                SearchCover(g.artKey, g.name, "Album · " + (g.tracks.firstOrNull()?.let { it.albumArtist.ifEmpty { it.artist } } ?: ""), "Open album ${g.name}") {
+                                    searchFocus.clearFocus(); nav.push(Screen.Detail(DetailKind.ALBUM, g.tracks.first().albumKey))
+                                }
+                            }
+                        }
+                    }
+                }
+                // the person's own playlists holding what was typed, before anything recommended (owner, 7 Nov: "dreamer" should show the playlists Dreamer is in)
+                com.ipodemu.library.SearchLayout.Section.PLAYLISTS -> {
+                    item { SectionHeader("Your playlists") }
+                    item(key = "ownlists") {
+                        androidx.compose.foundation.lazy.LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            items(ownLists, key = { "own" + it.list.id }) { h ->
+                                val pl = h.list
+                                val cover = remember(pl.id, libRev) { pl.paths.firstNotNullOfOrNull { byPath[it]?.artKey } }
+                                SearchCover(cover, pl.name, "Your playlist · " + (h.holds ?: "${pl.paths.size} ${if (pl.paths.size == 1) "song" else "songs"}"), "Open playlist ${pl.name}") {
+                                    searchFocus.clearFocus(); nav.push(Screen.Detail(DetailKind.USER, pl.id))
+                                }
+                            }
+                        }
+                    }
+                }
+                com.ipodemu.library.SearchLayout.Section.MADE -> if (only == "playlists") {
+                    // the Playlists chip (F26.3, one choice): every list that matches, narrowed by genre and decade as the web's Filters panel does
+                    item(key = "listfilters") {
+                        Column(Modifier.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                for (g in listFilters.genres) DesignChip(g, listGenre == g, { listGenre = if (listGenre == g) "" else g })
+                            }
+                            Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                for (d in listFilters.decades) DesignChip(d, listDecade == d, { listDecade = if (listDecade == d) "" else d })
+                            }
+                        }
+                    }
+                    val shownLists = allLists
+                    if (shownLists == null) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Finding playlists...", size = 13f, color = sc.onBgDim) } }
+                    else if (shownLists.isEmpty()) item { Txt("No playlists for this yet.", Modifier.padding(16.dp), size = 14f, color = sc.onBgDim) }
+                    // two covers a row
+                    else items(shownLists.chunked(2), key = { row -> "pl" + row.first().id }) { row ->
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            for (m in row) ListCard(m, app, nav) { searchFocus.clearFocus() }
+                        }
+                    }
+                } else if (made.isNotEmpty()) {
+                    // the web's Search playlists (6 Nov): ours, Spotify's, Deezer's and SoundCloud's
+                    item { SectionHeader("Playlists for you") }
+                    item(key = "made") { ListRow(made, nav) { searchFocus.clearFocus() } }
+                }
+                com.ipodemu.library.SearchLayout.Section.DOWNLOAD -> {
+                    item(key = "dlhead") {
+                        Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+                            Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .12f)))
+                            SectionHeader("More music to download")
+                            MonoLabel(if (webLoading) "Searching…" else "Not in your library yet", Modifier.padding(start = 20.dp, end = 16.dp, bottom = 6.dp), size = 10.5f, maxLines = 2)
+                        }
+                    }
+                    if (w.albums.isNotEmpty() && only != "songs") {
+                        item { MonoLabel("Albums and EPs", Modifier.padding(start = 20.dp, top = 6.dp, bottom = 8.dp), size = 10.5f) }
+                        item(key = "walbums") {
+                            // the row keeps its scroll offset by item key; it snaps back to the start whenever the first album changes (so no card is clipped)
+                            androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                items(w.albums, key = { it.id }) { a ->
+                                    val owned = ownedAlbums[ownedAlbumKey(a.artist, a.cleanTitle)]
+                                    AlbumCard(a, owned != null, dl[app.library.albumKey(a)],
+                                        onOpen = { searchFocus.clearFocus(); owned?.let { nav.push(Screen.Detail(DetailKind.ALBUM, it.tracks.first().albumKey)) } ?: nav.push(Screen.CatalogAlbum(a)) },
+                                        onDownload = { app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…") })
+                                }
+                            }
+                        }
+                    }
+                    if (only != "albums") {
+                        itemsIndexed(webRows, key = { i, s -> "ws$i${s.artist}${s.title}" }) { i, s -> Box(Modifier.riseFirstTime("ws$i${s.artist}${s.title}", i)) { webSongRow(s) } }
+                        if (!webSongsExpanded && only != "songs" && only != "downloadable" && picks == null && w.songs.size > 8) item { ShowMoreRow(w.songs.size - 8) { webSongsExpanded = true } }
+                        if (webCopies.isNotEmpty()) {
+                            item(key = "copies") {
+                                Txt((if (copiesOpen) "Hide other copies" else "Other copies to download (${webCopies.size})"), Modifier.padding(start = 12.dp, top = 2.dp).heightIn(min = 48.dp)
+                                    .clip(RoundedCornerShape(12.dp)).clickable { copiesOpen = !copiesOpen }.padding(horizontal = 10.dp, vertical = 14.dp)
+                                    .semantics { role = androidx.compose.ui.semantics.Role.Button }, size = 13f, weight = FontWeight.SemiBold, color = sc.onBgDim)
+                            }
+                            if (copiesOpen) items(webCopies, key = { s -> "wc${s.artist}${s.title}" }) { s -> webSongRow(s) }
+                        }
+                    }
+                    if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
+                    if (!webLoading && w.songs.isEmpty() && !app.ui.guest) item { DownloadRequestBar(app, q) }
+                }
             }
-            if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
-            if (!webLoading && w.songs.isEmpty() && !app.ui.guest && only != "playlists") item { DownloadRequestBar(app, q) }
         }
         picks?.let { p ->
             SearchSelectBar(p.count, p.allOf(allIds), Modifier.align(Alignment.BottomCenter), onCancel = { picks = null }, onAll = { picks = p.selectAllOrNone(allIds) }) {
@@ -2256,6 +2308,14 @@ object SearchArtists {
         val words = com.ipodemu.library.SearchRank.words(q)
         if (words.isEmpty()) return emptyList()
         return artists.filter { it.name != top.name && com.ipodemu.library.SearchRank.words(it.name).joinToString("").let { n -> words.all { w -> n.contains(w) } } }
+            .sortedByDescending { it.tracks.size }.take(12)
+    }
+
+    /** The library's artists named like the search, most songs first (the Artists row, as on the web). */
+    fun matching(artists: List<com.ipodemu.library.Group>, q: String): List<com.ipodemu.library.Group> {
+        val words = com.ipodemu.library.SearchRank.words(q)
+        if (words.isEmpty()) return emptyList()
+        return artists.filter { a -> com.ipodemu.library.SearchRank.words(a.name).let { n -> words.all { w -> n.any { it.startsWith(w) } } } }
             .sortedByDescending { it.tracks.size }.take(12)
     }
 }
@@ -2345,10 +2405,10 @@ private fun ListCard(m: com.ipodemu.library.MadeLists.Summary, app: com.ipodemu.
 
 /** A square cover with a title and a line under it, for the search rows. */
 @Composable
-private fun SearchCover(artKey: String?, title: String, sub: String, description: String, picture: String? = null, onClick: () -> Unit) {
+private fun SearchCover(artKey: String?, title: String, sub: String, description: String, picture: String? = null, circle: Boolean = false, onClick: () -> Unit) {
     Column(Modifier.width(132.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).semantics { contentDescription = description }) {
-        // an outside list the phone has none of the songs of shows its own picture
-        if (artKey == null && picture != null) RemoteArtImage(picture, Modifier.size(132.dp), corner = 10.dp) else ArtImage(artKey, Modifier.size(132.dp), corner = 10.dp)
+        // an outside list the phone has none of the songs of shows its own picture; an artist is round
+        if (artKey == null && picture != null) RemoteArtImage(picture, Modifier.size(132.dp), corner = 10.dp) else ArtImage(artKey, Modifier.size(132.dp), corner = 10.dp, circle = circle)
         Txt(title, Modifier.padding(top = 6.dp), size = 14f, weight = FontWeight.SemiBold, maxLines = 2)
         Txt(sub, size = 12f, color = LocalScheme.current.onBgDim, maxLines = 2)
     }
@@ -2458,35 +2518,52 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
     }
 }
 
-/** The single best-matching owned song for the current query, shown large above everything else --
- * YT-Music-style "one clear answer first" instead of a flat wall of equally-weighted rows. */
+/**
+ * The song asked for, first and big, in Now Playing's look (owner, 25 Nov): the cover's colours behind it, the serif title with its last word in italics,
+ * the format chip, what it is to you ("In your library", or "Downloaded" when it is kept on this phone), Play and the song's menu.
+ */
 @Composable
-private fun TopResultCard(t: Track, onPlay: () -> Unit) {
+private fun BestResultCard(t: Track, onPlay: () -> Unit, onMore: () -> Unit) {
     val sc = LocalScheme.current
     val app = LocalApp.current
-    // NAS scans and Cloud/Soulseek injections never populate artKey (no embedded-tag reading, no
-    // local art cache entry) -- fall back to the same Lidarr cover lookup catalog rows use, so the
-    // one card the user actually sees first isn't stuck with the generic note-glyph placeholder.
+    // NAS scans and Cloud/Soulseek songs have no artKey: the catalog rows' cover lookup, so the card is not left with the note placeholder
     var fallbackArtUrl by remember(t.path) { mutableStateOf<String?>(null) }
-    LaunchedEffect(t.path) {
-        if (t.artKey == null) fallbackArtUrl = app.library.albumArtUrl(t.artist, t.album)
-    }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-            .clip(RoundedCornerShape(16.dp)).background(sc.accent.copy(alpha = 0.12f))
-            .clickable(onClick = onPlay).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    LaunchedEffect(t.path) { if (t.artKey == null) fallbackArtUrl = app.library.albumArtUrl(t.artist, t.album) }
+    val cols = rememberCoverColours(t.artKey)
+    val m = app.offline
+    val kept by remember(t.path, m) { derivedStateOf { m.stateRev; m.hasAny && com.ipodemu.library.offline.DownloadMarks.ofSong(m.stateOf(t.path)) == com.ipodemu.library.offline.DownloadMark.DOWNLOADED } }
+    val hiRes = remember(t, AudioFacts.version) { t.hiRes }
+    val fmt = remember(t.path) { trackExt(t).uppercase() }
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    // big text or a very narrow phone: a smaller cover, so the title keeps its room
+    val cover = if (cfg.fontScale >= 1.3f || cfg.screenWidthDp < 340) 92.dp else 116.dp
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(cols.main).copy(alpha = .30f), Color(cols.ground).copy(alpha = .55f))))
+            .border(1.dp, sc.onBg.copy(alpha = .09f), shape)
+            .clickable(onClick = onPlay).padding(16.dp)
+            .semantics { contentDescription = "Top result: ${t.title} by ${t.artist}, ${if (kept) "downloaded" else "in your library"}" },
     ) {
-        if (t.artKey == null && fallbackArtUrl != null) RemoteArtImage(fallbackArtUrl, Modifier.size(64.dp), corner = 10.dp)
-        else ArtImage(t.artKey, Modifier.size(64.dp), thumb = true, corner = 10.dp)
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Txt(t.title, size = 18f, weight = FontWeight.Bold, color = sc.onBg, maxLines = 1)
-            Txt("Song · " + t.artist, size = 14f, color = sc.onBgDim, maxLines = 1)
-            DownloadTagLine(t, size = 12f, compact = true, showNew = !(Tweaks.badges && LocalApp.current.library.mixedSources))
-            Box(Modifier.padding(top = 4.dp)) { SourceBadge(t.source) }
+        Row(verticalAlignment = Alignment.Top) {
+            if (t.artKey == null && fallbackArtUrl != null) RemoteArtImage(fallbackArtUrl, Modifier.size(cover).coverShadow(14.dp), corner = 14.dp)
+            else ArtImage(t.artKey, Modifier.size(cover).coverShadow(14.dp), corner = 14.dp)
+            Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF7CE0A0)))
+                    MonoLabel(if (kept) "Song · Downloaded" else "Song · In your library", size = 10.5f, color = sc.onBg.copy(alpha = .8f), maxLines = 2)
+                }
+                SerifTitle(t.title, size = 30f, maxLines = 3)
+                Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 14f, color = sc.onBgDim, maxLines = 2)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (hiRes) HiResBadge(compact = true) else FormatChip(fmt)
+                    DownloadedMark(t.path, 15.dp)
+                }
+            }
         }
-        Box(Modifier.size(44.dp).clip(CircleShape).background(sc.accent).semantics { contentDescription = "Play" }.clickable(onClick = onPlay), contentAlignment = Alignment.Center) {
-            GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), sc.accent.readableInk())
+        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AccentPill("Play", Glyph.PLAY, cols, onPlay, Modifier.semantics { contentDescription = "Play ${t.title}" })
+            IconAction(Glyph.MORE, "More for ${t.title}", onMore, size = 48.dp)
         }
     }
 }
@@ -2817,7 +2894,8 @@ private fun SearchIdle(nav: PlayerNav) {
         var recent by remember { mutableStateOf(app.prefs.recentSearches) }
         if (recent.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Txt("Recent searches", Modifier.weight(1f), size = 17f, weight = FontWeight.SemiBold)
+                // a serif heading like every other section (owner, 25 Nov: the search page should match the rest of the app)
+                SerifTitle("Recent searches", Modifier.weight(1f), size = 24f)
                 DesignChip("Clear", false, { app.prefs.recentSearches = emptyList(); recent = emptyList() })
             }
             Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

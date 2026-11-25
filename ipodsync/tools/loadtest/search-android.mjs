@@ -65,7 +65,10 @@ async function main() {
   const songsAt = Math.max(0, ...(res ?? []).filter((x) => /^More music to download$/.test(label(x)) && x.cy > 300).map((x) => x.cy));
   // a song row has its Download button on the same line (the catalog's album cards sit in the same section now, above the rows)
   const onRow = (x) => (res ?? []).some((d) => /^Download/.test(label(d)) && d !== x && Math.abs(d.cy - x.cy) < 70);
-  const row = (res ?? []).find((x) => /^you('ve)? got the love$/i.test(label(x)) && !/EditText/.test(x.cls) && x.cy > songsAt && songsAt > 0 && onRow(x)) ?? (res ?? []).find((x) => grouped.includes(x));
+  const titled = (x) => /^you('ve)? got the love/i.test(label(x)) && !/EditText/.test(x.cls) && x.cy > songsAt && songsAt > 0 && onRow(x);
+  // Florence's own row (the one with versions) first: the catalog's order of covers changes from day to day
+  const withVersions = (x) => (res ?? []).some((d) => /florence.*\+\d+ versions?/i.test(label(d)) && Math.abs(d.cy - x.cy) < 70);
+  const row = (res ?? []).find((x) => titled(x) && withVersions(x)) ?? (res ?? []).find(titled) ?? (res ?? []).find((x) => grouped.includes(x));
   if (row) tapNode(row);
   const page = await waitUi((n) => has(n, 'Other versions') || n.some((x) => label(x) === 'Download'), 15000, 1000);
   shot(path.join(here, 'search-shot-page.png'));

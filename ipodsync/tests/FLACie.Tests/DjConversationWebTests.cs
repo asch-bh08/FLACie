@@ -46,12 +46,14 @@ public class DjConversationWebTests
         me.AddToPlaylist(pop.Id, me.Extra["/p/Britney Spears/Toxic"]); me.AddToPlaylist(pop.Id, me.Extra["/p/Katy Perry/Firework"]);
         var engine = new DjAskEngine();
         var user = new SessionUser(me);
-        RetroHost.DjAsk = (s, text, current, recent, ct) => engine.AnswerAsync(user, text, current, recent, ct);
+        RetroHost.DjAsk = (s, text, current, recent, place, ct) => { LastPlace = place; return engine.AnswerAsync(user, text, current, recent, ct, place.Hour); };
         var p = new PlayerState(new Js());
         p.SetLibrary(() => new Library([.. me.Extra.Values]));
         p.SetPlanner(me, new PlayerDjLiveTests.NoPlanner());
         return (p, me);
     }
+
+    static DjAskPlace? LastPlace;
 
     static List<string> Pop(UserSession s) => s.Playlists.First(x => x.Name == "Pop").Entries.Select(e => e.Title).ToList();
 
@@ -96,6 +98,51 @@ public class DjConversationWebTests
         Assert.Equal("DeBarge", p.Current!.Artist);
     }
 
+    // ---- B13 (owner, 25 Nov: "for web the DJ doesn't have smart requests like Android"): the same engine, the same multi-step answers and follow-ups ----
+
+    [Fact]
+    public async Task The_web_asks_with_the_listeners_hour_and_its_surface_as_the_phone_does()
+    {
+        var (p, _) = Rig();
+        await p.AskDjAsync("what's this");
+        Assert.NotNull(LastPlace);
+        Assert.Equal(DjSwitches.LocalTime(DateTime.UtcNow, null).Hour, LastPlace!.Hour);
+        Assert.Equal(DjSurface.Web, LastPlace.Surface);
+    }
+
+    [Fact]
+    public async Task Play_this_then_that_on_the_web_plays_the_first_and_the_second_is_next()
+    {
+        var (p, _) = Rig();
+        await p.AskDjAsync("play toxic then firework");
+        Assert.Equal("Toxic", p.Current!.Title);
+        Assert.Equal("Firework", p.Queue[p.Index + 1].Title);
+    }
+
+    [Fact]
+    public async Task Which_playlist_then_the_second_one_on_the_web()
+    {
+        var (p, s) = Rig();
+        s.CreatePlaylist("Chill");
+        await p.Play([s.Extra["/p/Portishead/Roads"]], 0, "x");
+        var q = await p.AskDjAsync("add this to a playlist");
+        Assert.True(DjConversation.AskedBack(q!));
+        // the playlists as the DJ offered them ("Pop or Chill?"): the second of those
+        var offered = q!.Say[(q.Say.IndexOf('?') + 1)..].Trim().TrimEnd('?').Split([", ", " or "], StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(2, offered.Length);
+        await p.AskDjAsync("the second one");
+        Assert.Contains("Roads", s.Playlists.First(x => x.Name == offered[1]).Entries.Select(e => e.Title));
+        Assert.DoesNotContain("Roads", s.Playlists.First(x => x.Name == offered[0]).Entries.Select(e => e.Title));
+    }
+
+    [Fact]
+    public async Task Moods_on_the_web_are_moods()
+    {
+        var (p, _) = Rig();
+        var a = await p.AskDjAsync("play late night music");
+        Assert.Equal("Mood", a!.Intent);
+    }
+
     [Fact]
     public async Task The_web_runner_runs_every_step_kind()
     {
@@ -107,7 +154,7 @@ public class DjConversationWebTests
                 DjAskStep.RemoveFrom("Pop", [toxic]), DjAskStep.Create("Trip", [roads, toxic]), new(DjAskDo.RenamePlaylist, Title: "Road Trip", Playlist: "Trip"),
                 new(DjAskDo.VolumeDown), new(DjAskDo.Next), new(DjAskDo.Pause), new(DjAskDo.Resume), new(DjAskDo.Shuffle, Shuffle: true), DjAskStep.Question("Anything else?")],
         };
-        RetroHost.DjAsk = (_, _, _, _, _) => Task.FromResult(answer);
+        RetroHost.DjAsk = (_, _, _, _, _, _) => Task.FromResult(answer);
         await p.AskDjAsync("do it all");
         Assert.Equal(["Firework", "Roads"], Pop(s));
         Assert.Equal(["Roads", "Toxic"], Assert.Single(s.Playlists, x => x.Name == "Road Trip").Entries.Select(e => e.Title));

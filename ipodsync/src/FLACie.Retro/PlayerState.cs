@@ -1113,9 +1113,14 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     public async Task<DjAskAnswer?> AskDjAsync(string text, CancellationToken ct = default)
     {
         if (RetroHost.DjAsk is not { } ask || session is not { } s || string.IsNullOrWhiteSpace(text)) return null;
-        var a = await ask(s, text, Current?.Path, recent.ToList(), ct);
+        // the listener's hour and this player, as the phone sends them: "good evening", night-time requests and car requests read the same on both
+        int? hour = null;
+        try { hour = DjSwitches.LocalTime(DateTime.UtcNow, await BrowserOffsetAsync()).Hour; } catch (Exception) { }
+        var a = await ask(s, text, Current?.Path, recent.ToList(), new DjAskPlace(hour, DjSurface), ct);
         await DjAskRunner.RunAsync(new AskPlayer(this, s), a);
         await DjAnswerAsync(s, a);
+        // a question in the steps that the answer's own line did not say: shown, as the phone says it in its own voice
+        if (a.AllSteps.FirstOrDefault(x => x.Do == DjAskDo.Ask)?.Say is { Length: > 0 } q && !q.Trim().Equals(a.Say.Trim(), StringComparison.OrdinalIgnoreCase)) DjAskSaid?.Invoke(q);
         if (a.Wait is { } w) _ = WaitForDownloadAsync(s, w);
         return a;
     }

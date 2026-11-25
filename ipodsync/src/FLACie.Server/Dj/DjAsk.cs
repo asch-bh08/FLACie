@@ -15,7 +15,8 @@ public enum AskIntent { Play, Playlist, Favourites, Loved, MostPlayed, Unheard, 
 /// situation: car, night, morning, workout, chill or none). [Key]: a learned request's phrase; [Vibe]: "high" or "low" when the words say.</summary>
 /// <summary>[Playlist]: the playlist named (F10: PlayFrom, AddToPlaylist); [AndPlay]: AddToPlaylist also plays the song next. [Then]: what AddToPlaylist
 /// does after adding: "play" (play it now: "play X and add it to Y"), "shuffle" (shuffle that playlist, the song first: "... and shuffle pop").</summary>
-public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null, string? Playlist = null, bool AndPlay = false, string? Then = null);
+public sealed record AskParse(AskIntent Intent, string? What = null, string? Key = null, string? Vibe = null, string? Playlist = null, bool AndPlay = false, string? Then = null,
+    string? ThenPlay = null);
 
 /// <summary>
 /// The quick rules for "talk to the DJ": the phrases people say most, matched without any model. Null when none fits (then the text model is asked).
@@ -23,8 +24,9 @@ public sealed record AskParse(AskIntent Intent, string? What = null, string? Key
 /// </summary>
 public static partial class DjAskRules
 {
-    [GeneratedRegex(@"^(?:(?:hey|ok|okay|yo) (?:dj|deejay|flacie)\b ?|please|can you |could you |would you |will you |just )+")] private static partial Regex Lead();
-    [GeneratedRegex(@"(?: please| for me| now| thanks| thank you)+$")] private static partial Regex Tail();
+    // "dj" alone and "so" only before an ask ("dj off" and "so what" stay as said); "um", "uh", "er", "erm", "hmm" wherever they lead
+    [GeneratedRegex(@"^(?:(?:hey|ok|okay|yo|oi|hi) (?:dj|deejay|flacie)\b ?|(?:dj|deejay|so|well|right|ok so|okay so|alright) (?=play|put|can|could|would|will|please|what|who|skip|i |id |lets )|(?:um+|uh+|er+|erm+|uhm+|hmm+|ah+) |please |can you |could you |would you |will you |just |go on |maybe )+")] private static partial Regex Lead();
+    [GeneratedRegex(@"(?: please| for me| now| thanks| thank you| um+| uh+| then)+$")] private static partial Regex Tail();
 
     /// <summary>Lower case, no punctuation (apostrophes go too, so "what's" and "whats" are one), single spaces, without "hey DJ", "please" and the like.</summary>
     public static string Normalise(string text)
@@ -40,15 +42,15 @@ public static partial class DjAskRules
     [
         (new(@"^(?:(?:turn|switch) (?:the )?dj on|(?:turn|switch) on (?:the )?dj|dj on|start (?:the )?dj|start talking|talk to me)$"), AskIntent.DjOn),
         (new(@"^(?:(?:turn|switch) (?:the )?dj off|(?:turn|switch) off (?:the )?dj|dj off|stop (?:the )?dj|stop talking|no more talking|be quiet dj)$"), AskIntent.DjOff),
-        (new(@"^(?:next|skip|skip (?:it|this|this one|this song|this track|song|track)|next (?:song|track|one)|play the next (?:song|track|one)|go to the next (?:song|track|one))$"), AskIntent.Next),
+        (new(@"^(?:next|skip|skip (?:it|this|this one|this song|this track|song|track)|next (?:song|track|one)|play the next (?:song|track|one)|go to the next (?:song|track|one)|move on|next one please|skip ahead|skip forward|skip to the next (?:song|track|one))$"), AskIntent.Next),
         (new(@"^(?:pause|stop|hold on|pause (?:it|this|the music|music|the song)|stop (?:it|the music|music|playing))$"), AskIntent.Pause),
         (new(@"^(?:resume|play|continue|unpause|carry on|keep playing|resume (?:it|playing|the music|music)|play (?:it|the music) again|start (?:the )?music again)$"), AskIntent.Resume),
         (new(@"^(?:turn it up|turn this up|louder|a bit louder|volume up|crank it up|pump it up|turn (?:the )?(?:volume|music) up|turn up (?:the )?(?:volume|music|this))$"), AskIntent.VolumeUp),
         (new(@"^(?:turn it down|turn this down|quieter|a bit quieter|softer|volume down|turn (?:the )?(?:volume|music) down|turn down (?:the )?(?:volume|music|this))$"), AskIntent.VolumeDown),
-        (new(@"^(?:whats|what is) (?:this|that|playing|this song|that song|this track|that track|the song|the name of this song)$|^what (?:song|track) is (?:this|that|playing)$|^what am i listening to$|^name this (?:song|track)$"), AskIntent.WhatsThis),
-        (new(@"^who (?:sings|sang|is singing|s singing|is this by|performs|made|wrote) (?:this|that|it|this song|that song)$|^who is (?:this|that|the artist|the singer)$|^whos (?:this|that|singing)$"), AskIntent.WhoSings),
-        (new(@"^(?:play )?(?:more|more songs|more music|some more) like (?:this|that|this one|this song)$|^more of (?:this|that)$|^play (?:something|stuff|songs) like (?:this|that|this one|this song)$"), AskIntent.MoreLike),
-        (new(@"^(?:play )?less like (?:this|that|this one|this song)$|^(?:play )?something (?:different|else)$|^not (?:really )?my (?:thing|vibe)$"), AskIntent.LessLike),
+        (new(@"^(?:whats|what is) (?:this|that|playing|this song|that song|this track|that track|the song|the name of this song|the name of this track|the song called|this called|that called|this song called|this track called)$|^what is (?:this|that) (?:song|track) called$|^whats this song called$|^what (?:song|track) is (?:this|that|playing)$|^what am i listening to$|^name this (?:song|track)$"), AskIntent.WhatsThis),
+        (new(@"^who (?:sings|sang|is singing|s singing|is this by|performs|made|wrote) (?:this|that|it|this song|that song)$|^who is (?:this|that|the artist|the singer|the band|singing)$|^whos (?:this|that|singing|the singer|the artist|the band)$|^who(?:s| is) (?:this|that|it|this song) by$|^who(?:s| is) this song$"), AskIntent.WhoSings),
+        (new(@"^(?:play )?(?:more|more songs|more music|some more) like (?:this|that|this one|this song)$|^more of (?:this|that)$|^(?:play |find me |give me )?(?:something|stuff|songs|music|more stuff|more songs|more music|more) (?:like|similar to) (?:this|that|this one|this song|that one)$|^(?:play |find me |give me )?(?:something|some|more) similar$|^similar (?:songs|music|stuff)$|^(?:play )?(?:songs|music|stuff) (?:like|similar to) (?:this|this one)$|^keep (?:this|the|that) (?:vibe|mood|feel|energy) going$|^keep it going$|^more like this one$"), AskIntent.MoreLike),
+        (new(@"^(?:play )?less like (?:this|that|this one|this song)$|^(?:play )?something (?:different|else)$|^not (?:really )?my (?:thing|vibe)$|^(?:change|mix|switch) it up$|^(?:im |i am )?not (?:really )?feeling (?:this|it|this one|this song)$|^(?:play )?something (?:else|different) please$"), AskIntent.LessLike),
         (new(@"^(?:thumbs down|dislike(?: this| it| this song)?|i (?:dont|do not) like (?:this|it|this song)|i hate (?:this|it|this song))$"), AskIntent.ThumbsDown),
         (new(@"^(?:play |shuffle )?(?:my |the )?(?:liked songs|hearted songs|hearts|liked|hearted)$"), AskIntent.Favourites),
         (new(@"^(?:play |shuffle )?(?:my |the )?(?:favourites|favorites|favs|faves|favourite songs|favorite songs|loved songs|songs i (?:like|love))$"), AskIntent.Loved),
@@ -67,6 +69,10 @@ public static partial class DjAskRules
         ("hype", "Workout", MoodEnergy.High), ("high energy", "Workout", MoodEnergy.High), ("pump", "Workout", MoodEnergy.High), ("loud", "Workout", MoodEnergy.High),
         ("party", "Party", MoodEnergy.High), ("dance", "Party", MoodEnergy.High), ("dancing", "Party", MoodEnergy.High), ("danceable", "Party", MoodEnergy.High),
         ("happy", "Feel good", MoodEnergy.Any), ("feel good", "Feel good", MoodEnergy.Any), ("cheerful", "Feel good", MoodEnergy.Any), ("summery", "Feel good", MoodEnergy.Any), ("sunny", "Feel good", MoodEnergy.Any),
+        ("late at night", "Late night", MoodEnergy.Any), ("night time", "Late night", MoodEnergy.Any), ("nighttime", "Late night", MoodEnergy.Any), ("rainy", "Late night", MoodEnergy.Low),
+        ("rainy day", "Late night", MoodEnergy.Low), ("romantic", "Late night", MoodEnergy.Low), ("love songs", "Late night", MoodEnergy.Low), ("sleep", "Relax", MoodEnergy.Low), ("bedtime", "Relax", MoodEnergy.Low),
+        ("working out", "Workout", MoodEnergy.High), ("work out", "Workout", MoodEnergy.High), ("exercise", "Workout", MoodEnergy.High), ("run", "Workout", MoodEnergy.High), ("pumped", "Workout", MoodEnergy.High),
+        ("morning", "Feel good", MoodEnergy.Any), ("cooking", "Feel good", MoodEnergy.Any), ("dinner", "Relax", MoodEnergy.Any), ("sunday", "Relax", MoodEnergy.Low), ("cleaning", "Feel good", MoodEnergy.High),
         ("focus", "Focus", MoodEnergy.Low), ("study", "Focus", MoodEnergy.Low), ("studying", "Focus", MoodEnergy.Low), ("concentrate", "Focus", MoodEnergy.Low), ("work", "Focus", MoodEnergy.Any),
     ];
 
@@ -74,10 +80,21 @@ public static partial class DjAskRules
         "electronic", "dance", "folk", "reggae", "grunge", "techno", "house", "funk", "disco", "ambient", "soundtrack", "edm", "lo-fi", "lofi", "acoustic", "garage", "drum and bass", "trance"];
 
     static bool HasWord(string s, string w) => Regex.IsMatch(s, $@"(?:^|\s){Regex.Escape(w)}(?:\s|$)");
-    public static bool IsMoody(string s) => MoodWords.Any(m => HasWord(s, m.Word)) || GenreWords.Any(g => HasWord(s, g));
+    public static bool IsMoody(string s) => MoodWords.Any(m => HasWord(s, m.Word)) || GenreWords.Any(g => HasWord(s, g)) || HasDecade(s);
+    /// <summary>A decade said ("90s", "the nineties", "2000s"): a request for that era, which the library answers by year.</summary>
+    public static bool HasDecade(string s) => Regex.IsMatch(s, @"(?:^|\s)(?:(?:19|20)?\d0s|sixties|seventies|eighties|nineties|noughties)(?:\s|$)");
 
     [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:something|some|anything|a bit of|music|songs|tunes|stuff|a mix of|a playlist of|a playlist for)\b ?(.*)$")] private static partial Regex Vague();
-    [GeneratedRegex(@"^(?:play|put on|listen to|i want to hear|start playing)\s+(.+)$")] private static partial Regex PlayRx();
+    [GeneratedRegex(@"^(?:play|put on|listen to|i want to hear|i wanna hear|i want to listen to|i wanna listen to|can i hear|can we hear|can i get|could i hear|lets hear|let me hear|lets listen to|start playing|queue up|queue)\s+(?:me |us )?(?:(?:the|that|this) (?:song|track|tune|one) (?:called |named )?|a song called |the song |the track )?(.+)$")] private static partial Regex PlayRx();
+    // "put maps on"
+    [GeneratedRegex(@"^put (.+) on$")] private static partial Regex PutOnRx();
+    // owner, 25 Nov: "play X then Y" plays X now and Y straight after
+    [GeneratedRegex(@"^((?:play|put on|i want to hear|i wanna hear|can i hear|lets hear)\s.+?)\s+(?:and then|then|followed by|and after that|after that|and next)\s+(?:play\s+|put on\s+)?(.+)$")] private static partial Regex ThenRx();
+    // "put this on my pop playlist", "save this to pop"
+    [GeneratedRegex(@"^(?:put|save|stick|throw|pop) (?:this|it|that|this song|this one|this track) (?:on|in|to|into|onto) (?:my |the )?(.+?)(?: playlist)?$")] private static partial Regex SaveToRx();
+    // "the original", "not the remix", "the live one", "the album version": which version of the song playing
+    [GeneratedRegex(@"^(?:no )?(?:not the (?:remix|mix|live one|live version|cover|edit|acoustic one|acoustic version)\b.*|(?:play )?the (?:original|normal|regular|proper|album|studio|real)(?: one| version| mix| song)?(?: please)?|(?:play )?the original one|(?:play )?(?:the )?original version)$")] private static partial Regex OriginalRx();
+    [GeneratedRegex(@"^(?:no )?(?:play )?(?:the |a )?(remix|live|acoustic|extended|radio edit|club)(?: one| version| mix)?$")] private static partial Regex VersionRx();
     [GeneratedRegex(@"^((?:play|put on|shuffle|give me)\s.+?)\s+and (?:then |also )?(?:play|put on)\s.+$")] private static partial Regex TwoAsks();
     // F10: "play lovegame from my pop playlist (then the rest)"
     [GeneratedRegex(@"^(?:play|put on) (.+?) (?:from|off|out of|in) (?:my (.+?)(?: playlist)?|the (.+?) playlist)(?: (?:and )?(?:then )?(?:the rest|the rest of it|the rest of (?:it|them|the playlist)|keep going|carry on))?$")] private static partial Regex PlayFromRx();
@@ -96,13 +113,13 @@ public static partial class DjAskRules
     // F12: "remove this from the playlist", "take toxic off my pop playlist"; "make a backroads playlist", "make me a playlist called backroads"
     [GeneratedRegex(@"^(?:remove|take|delete|get rid of) (.+?) (?:from|off|out of) (?:my |the |this )?(.+?)(?: playlist)?$")] private static partial Regex RemoveRx();
     [GeneratedRegex(@"^(?:make|create|start|build)(?: me)? (?:a |an |my )?(?:new )?(?:playlist (?:called |named |for )?(.+)|(.+?) playlist)$")] private static partial Regex CreateRx();
-    [GeneratedRegex(@"^add (.+?) to (?:my |the )?(.+?)(?: playlist)?( (?:and |then )+(?:play it|put it on)(?: next| after this)?)?$")] private static partial Regex AddRx();
+    [GeneratedRegex(@"^add (.+?) to (?:my |the )?(.+?)(?: playlist)?( (?:and |then )+(?:play it|put it on|play|queue it)(?: next| after this)?)?$")] private static partial Regex AddRx();
     [GeneratedRegex(@"^(?:play |put on |give me |i want |i need |id like |i would like )?(?:me |us )?(?:some|a bit of)\s")] private static partial Regex SomeOf();
     static readonly HashSet<string> VagueRest = ["new", "different", "else", "good", "other", "more", "random", "nice", "decent", "fresh", "old", "classic", "classics", "of it", "of that", "of this", "of them"];
     [GeneratedRegex(@"^(?:play |put on |shuffle )?(?:my |the )?(.+?)\s+playlist$|^(?:play |put on )?(?:my |the )?playlist (?:called |named )?(.+)$")] private static partial Regex PlaylistRx();
 
     [GeneratedRegex(@"(?:^|\s)(?:car|cars|drive|drives|driving|road|roads|b-road|b-roads|back-road|back-roads|backroad|backroads|motorway|motorways|commute|commuting|road trip)(?:\s|$)")] private static partial Regex CarWords();
-    [GeneratedRegex(@"(?:^|\s)(?:music|songs|tunes|stuff|mix)$|^(?:play |put on |give me )?(?:me )?(?:something|some|anything)\b")] private static partial Regex Asking();
+    [GeneratedRegex(@"(?:^|\s)(?:music|songs|tunes|stuff|mix)$|^(?:play |put on |give me )?(?:me )?(?:something|some|anything|music|songs|tunes|stuff)\b")] private static partial Regex Asking();
 
     /// <summary>The controls that are never worth a wait for the model: they mean one thing whoever says them.</summary>
     static readonly HashSet<AskIntent> InstantIntents = [AskIntent.DjOn, AskIntent.DjOff, AskIntent.Next, AskIntent.Pause, AskIntent.Resume, AskIntent.VolumeUp,
@@ -133,7 +150,9 @@ public static partial class DjAskRules
         if (s.Length == 0 || s.Length > 200) return null;
         if (FavouritesOfRx().Match(s) is { Success: true } fo && fo.Groups[1].Value.Trim() is var fw && fw.Length > 0 && fw is not ("songs" or "tracks" or "tunes" or "music" or "ones" or "song"))
             return new(AskIntent.FavouritesOf, System.Text.RegularExpressions.Regex.Replace(fw, @"^(?:(?:songs|tracks|tunes|music) )?(?:by |from )", ""));
-        if (OtherRx().Match(s) is { Success: true } oo)
+        if (OriginalRx().IsMatch(s)) return new(AskIntent.OtherOne, "original");
+        if (VersionRx().Match(s) is { Success: true } vr) return new(AskIntent.OtherOne, vr.Groups[1].Value);
+        if (OtherRx().Match(s) is { Success: true } oo && !(oo.Groups[1].Success && oo.Groups[1].Value is "next" or "last" or "previous" or "same" or "first" or "second"))
             return new(AskIntent.OtherOne, oo.Groups[1].Success && oo.Groups[1].Value != "other" ? oo.Groups[1].Value.Trim() : oo.Groups[2].Success ? oo.Groups[2].Value.Trim() : null);
         if (RemoveRx().Match(s) is { Success: true } rm)
         {
@@ -154,6 +173,16 @@ public static partial class DjAskRules
             var (pl, then) = PlaylistAndThen(ad.Groups[2].Value);
             return new(AskIntent.AddToPlaylist, song is "it" or "this" or "that" or "this song" or "this one" ? null : song, Playlist: pl, AndPlay: ad.Groups[3].Success, Then: then);
         }
+        if (SaveToRx().Match(s) is { Success: true } sv)
+        {
+            var (pl, then) = PlaylistAndThen(sv.Groups[1].Value);
+            return new(AskIntent.AddToPlaylist, null, Playlist: pl, Then: then);
+        }
+        // "play maps then heads will roll": the first now, the second straight after it (owner, 25 Nov)
+        if (ThenRx().Match(s) is { Success: true } th && th.Groups[2].Value.Trim() is var second && second.Length > 1
+            && !Regex.IsMatch(second, @"^(?:the rest|the rest of (?:it|them|the playlist)|carry on|keep going|shuffle\b)")
+            && Parse(th.Groups[1].Value) is { Intent: AskIntent.Play } first)
+            return first with { ThenPlay = Regex.Replace(second, @"^(?:play|put on) ", "") };
         // two asks in one breath ("play some Prodigy and play Smack My Bitch Up"): the first is done
         if (TwoAsks().Match(s) is { Success: true } two) s = two.Groups[1].Value.Trim();
         foreach (var (rx, intent) in Fixed) if (rx.IsMatch(s)) return new(intent);
@@ -162,12 +191,18 @@ public static partial class DjAskRules
             var name = (pm.Groups[1].Success ? pm.Groups[1].Value : pm.Groups[2].Value).Trim();
             if (name.Length > 0 && name is not ("a" or "new" or "some" or "any")) return new(AskIntent.Playlist, name);
         }
+        // "shuffle the prodigy": that artist (or album), shuffled as an artist always is
+        if (Regex.Match(s, @"^shuffle (?:some )?(.+)$") is { Success: true } sh && !IsMoody(sh.Groups[1].Value)) return new(AskIntent.Play, sh.Groups[1].Value.Trim());
+        if (PutOnRx().Match(s) is { Success: true } po && po.Groups[1].Value.Trim() is { Length: > 1 } putWhat && !Regex.IsMatch(putWhat, @"^(?:it|this|that|something|some music|music)$"))
+            s = "play " + putWhat;
         // "play car songs", "something for the B-roads", "driving tunes": what this person plays in the car (never a song called "Road", nor a playlist named so)
         if (CarWords().IsMatch(s) && Asking().IsMatch(s)) return new(AskIntent.Situation, "car", PhraseKeys.Of(s));
         // "something chill", "some jazz", "music for the gym": a mood or a genre. Something vague without one is the model's to work out (never a song to download)
         if (Vague().Match(s) is { Success: true } vm)
         {
             var rest = vm.Groups[1].Value.Trim();
+            // "something by the prodigy", "songs by corona": that artist
+            if (Regex.Match(rest, @"^(?:else )?(?:by|from) (.+)$") is { Success: true } by && !IsMoody(by.Groups[1].Value)) return new(AskIntent.Play, by.Groups[1].Value.Trim());
             if (IsMoody(s) || GenreWords.Contains(rest)) return new(AskIntent.Mood, rest.Length > 0 ? rest : s);
             // "some Prodigy", "a bit of the Prodigy": a name (the library says whose); "something good", "anything new" are the model's
             return SomeOf().IsMatch(s) && rest.Length > 1 && !VagueRest.Contains(rest) ? new(AskIntent.Play, rest) : null;
@@ -177,6 +212,9 @@ public static partial class DjAskRules
             var what = play.Groups[1].Value.Trim();
             // "play jazz", "play upbeat music": a genre or a mood, not a song called that
             if (GenreWords.Contains(what) || Regex.IsMatch(what, @"^(?:.+ )?(?:music|songs|tunes|stuff|vibes)$") && IsMoody(what)) return new(AskIntent.Mood, what);
+            // "play 90s dance", "play some indie rock": a decade, or genre words and nothing else
+            if (HasDecade(what) && what.Split(' ').Length <= 4 || what.Split(' ').All(w => GenreWords.Contains(w) || w is "and" or "some" or "rock" or "music"))
+                return new(AskIntent.Mood, what);
             return new(AskIntent.Play, what);
         }
         // said without "play": "late night music", "chill vibes" (owner, 25 Nov)
@@ -656,6 +694,9 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
             case AskIntent.CreatePlaylist: return await MakePlaylistAsync(u, p.What ?? "", cur, recent, ct, text);
             case AskIntent.OtherOne:
             {
+                // "the original", "not the remix", "the live one": that version of the song playing (owner, 25 Nov)
+                if (p.What is { } vw && VersionWords.Contains(vw))
+                    return cur is null ? DjAskAnswer.Said("Nothing's playing right now.") : VersionOf(u, cur, vw);
                 // says which version it is now (owner, 9 Nov): "Here's the live version of Out of Space, by The Prodigy."
                 if (Pick.Other(u.Account, p.What) is { } o) { Remember(u, o); return new(DjAskDo.Play, $"Here's {DjPick.VersionName(o)} of {T(DjPick.Plain(o.Title))}, by {o.Artist}.", [o.Path], T(o.Title)); }
                 // "the corona one": this song by them (fetched when the library lacks it), not anything by them
@@ -668,8 +709,43 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                 }
                 return DjAskAnswer.Said(cur is null ? "That's the only one I've got." : $"That's the only {T(cur.Title)} I've got. Tell me who it’s by and I'll get theirs.");
             }
-            default: return await PlayAsync(u, p.What ?? "", cur, recent, ct);
+            default:
+            {
+                var first = await PlayAsync(u, p.What ?? "", cur, recent, ct);
+                if (p.ThenPlay is not { Length: > 0 } then || first.Do != DjAskDo.Play || first.Paths is not { Count: > 0 } now) return first;
+                // "play maps then heads will roll": the first now, the second straight after it (owner, 25 Nov)
+                var second = await PlayAsync(u, then, cur, recent, ct);
+                if (second.Do != DjAskDo.Play || second.Paths is not { Count: > 0 } after)
+                    return first with { Say = $"{first.Say} I couldn't find {then} to play after it." };
+                var queued = after.Take(20).ToList();
+                var said = $"{first.Title ?? T(p.What ?? "")}, then {second.Title ?? T(then)}.";
+                return new(DjAskDo.Play, said, now, first.Title, first.Shuffle) { Steps = [new(DjAskDo.Play, now, first.Title, first.Shuffle), new(DjAskDo.UpNext, queued)] };
+            }
         }
+    }
+
+    static readonly HashSet<string> VersionWords = ["original", "live", "remix", "acoustic", "extended", "radio edit", "club"];
+
+    /// <summary>The version of the song playing that [word] names ("original": the album one), by the same artist; said plainly when there is none.</summary>
+    DjAskAnswer VersionOf(IDjAskUser u, Track cur, string word)
+    {
+        var lead = Matching.PrimaryArtist(cur.Artist);
+        var others = DjPick.SameTitle(u, cur).Where(t => Playable(t) && t.Path != cur.Path && Matching.PrimaryArtist(t.Artist) == lead).ToList();
+        static bool Acoustic(Track t) => Regex.IsMatch(t.Title + " " + t.Album, @"\b(?:acoustic|unplugged)\b", RegexOptions.IgnoreCase);
+        var fits = others.Where(t => word switch
+        {
+            "original" => DjPick.VersionRank(t) <= 1,
+            "live" => DjPick.VersionRank(t) == 2 && !Acoustic(t),
+            "acoustic" => Acoustic(t),
+            "remix" or "club" => DjPick.VersionRank(t) == 3,
+            _ => Regex.IsMatch(t.Title, $@"\b{Regex.Escape(word)}\b", RegexOptions.IgnoreCase),
+        }).ToList();
+        var name = T(DjPick.Plain(cur.Title));
+        if (fits.Count == 0)
+            return DjAskAnswer.Said(word == "original" && DjPick.VersionRank(cur) <= 1 ? $"This is the original {name}." : $"I've only got this version of {name}.");
+        var pick = DjPick.Rank(u, fits, cur.Title)[0];
+        Remember(u, pick);
+        return new(DjAskDo.Play, $"Here's {DjPick.VersionName(pick)} of {name}, by {pick.Artist}.", [pick.Path], T(pick.Title));
     }
 
     /// <summary>The engine's picks after the songs played lately (or this one), best first.</summary>
@@ -686,6 +762,21 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         var genres = DjAskRules.GenreWords.Where(g => Regex.IsMatch(words, $@"(?:^|\s){Regex.Escape(g)}(?:\s|$)")).ToList();
         var shelves = moods.Select(m => HomeBuilder.Moods.First(x => x.Name == m.Shelf)).Distinct().ToList();
         var energy = moods.Select(m => m.Energy).FirstOrDefault(e => e != MoodEnergy.Any);
+        // "some 90s music", "the nineties": that decade, by the songs' years (with any genre or mood said as well)
+        var decade = words.Split(' ').Select(DjFavourites.Decade).FirstOrDefault(d => d is not null);
+        if (decade is { } y)
+        {
+            bool InDecade(Track t) => t.Year >= y && t.Year <= y + 9;
+            bool Also(Track t) => (genres.Count == 0 || genres.Any(g => t.Genre.Contains(g, StringComparison.OrdinalIgnoreCase)))
+                && (energy == MoodEnergy.Any || u.VibeOf(t) is not { } v0 || (energy == MoodEnergy.Low ? v0.Energy < 0.45 : v0.Energy > 0.55));
+            var era = Picks(u, cur, recent, 50).Where(t => InDecade(t) && Also(t)).ToList();
+            var have = era.Select(t => t.Path).ToHashSet();
+            era.AddRange(u.Songs.Where(t => Playable(t) && !have.Contains(t.Path) && InDecade(t) && Also(t)).OrderBy(_ => Random.Shared.Next()).Take(60));
+            var eraPaths = era.Select(t => t.Path).Distinct().Take(60).ToList();
+            var label = $"{y % 100:00}s" + (genres.FirstOrDefault() is { } gn ? " " + gn : "");
+            return eraPaths.Count == 0 ? DjAskAnswer.Said($"I couldn't find anything from the {label} in your library.")
+                : new(DjAskDo.Play, $"Some {label}, coming up.", eraPaths, Capital(label));
+        }
         bool GenreFits(Track t) => t.Genre.Length > 0 && (genres.Count > 0 ? genres : shelves.SelectMany(m => m.Genres)).Any(g => t.Genre.Contains(g, StringComparison.OrdinalIgnoreCase));
         bool EnergyFits(Track t) => energy == MoodEnergy.Any || u.VibeOf(t) is not { } v || (energy == MoodEnergy.Low ? v.Energy < 0.45 : v.Energy > 0.55);
         bool Fits(Track t) => genres.Count > 0 ? GenreFits(t) && EnergyFits(t)
@@ -787,8 +878,13 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
     async Task<DjAskAnswer> AddToAsync(IDjAskUser u, AskParse p, Track? cur, CancellationToken ct)
     {
         // "add this to the playlist": no name said, so nothing is made called "Playlist" (owner, 6 Nov: an empty one appeared)
-        if (p.Playlist is null or "" or "a" or "an" or "new" or "a new" or "playlist" or "list" or "a playlist" or "a list" or "my list" or "the list" or "it" or "one" or "a new one")
-            return DjAskAnswer.Said(p.What is null && cur is null ? "Nothing's playing right now." : "Which playlist should I add it to?", "Clarify");
+        if (p.Playlist is null or "" or "a" or "an" or "new" or "a new" or "playlist" or "list" or "a playlist" or "a list" or "my list" or "the list" or "it" or "one" or "a new one" or "my playlist" or "my playlists" or "one of my playlists")
+        {
+            if (p.What is null && cur is null) return DjAskAnswer.Said("Nothing's playing right now.");
+            var which = p.What is { Length: > 0 } w0 ? SongFor(u, w0) : cur;
+            if (which is null) return DjAskAnswer.Said("Which playlist should I add it to?", "Clarify");
+            return AskWhichPlaylist(u, which);
+        }
         var pl = PlaylistFor(u, p.Playlist);
         var name = pl?.Name ?? Capital(p.Playlist);
         var song = p.What is { Length: > 0 } w ? SongFor(u, w) : cur;
@@ -814,6 +910,27 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         if (p.Then == "play") return new(DjAskDo.Play, $"Added {T(song.Title)} to {name}. Here it is.", [song.Path], T(song.Title)) { Steps = [add, new(DjAskDo.Play, [song.Path], T(song.Title))] };
         if (!p.AndPlay) return new(DjAskDo.None, $"Added {T(song.Title)} to {name}.") { Steps = [add] };
         return new(DjAskDo.UpNext, $"Added {T(song.Title)} to {name}, and it's up next.", [song.Path]) { Steps = [add, new(DjAskDo.UpNext, [song.Path])] };
+    }
+
+    /// <summary>"Which playlist should I add it to? Pop, Running or Gym?": the reply (a name, "the second one", "yes" for the first, or a new name) adds it.</summary>
+    DjAskAnswer AskWhichPlaylist(IDjAskUser u, Track song)
+    {
+        var names = u.Playlists.Select(x => x.Name).Where(n => n.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Take(3).ToList();
+        DjAskAnswer Add(string name) => new(DjAskDo.None, $"Added {T(song.Title)} to {name}.", Intent: "AddToPlaylist") { Steps = [DjAskStep.AddTo(name, [song.Path])] };
+        var q = names.Count switch
+        {
+            0 => "Which playlist should I add it to? Say a name and I'll make it.",
+            1 => $"Which playlist should I add it to? {names[0]}, or a new one?",
+            _ => $"Which playlist should I add it to? {string.Join(", ", names.Take(names.Count - 1))} or {names[^1]}?",
+        };
+        Talk.Choose(u.Account, names.Select(n => (n, Add(n))).ToList(), reply =>
+        {
+            // a name not offered: one of theirs by that name, or a new playlist called that (a few words, not a request)
+            var said = Regex.Replace(DjAskRules.Normalise(reply), @"^(?:(?:add it |put it )?(?:to|in|into) )?(?:my |the )?|(?: one| playlist| list)$", "").Trim();
+            if (said.Length == 0 || said.Split(' ').Length > 4 || DjAskRules.Parse(reply) is not null) return null;
+            return Add(PlaylistFor(u, said)?.Name ?? Capital(said));
+        });
+        return new(DjAskDo.None, q, Intent: "Clarify") { Steps = [DjAskStep.Question(q)] };
     }
 
     /// <summary>The song whose title is what was said, when the match only contains it: "play macarena" is Los Del Rio's "Macarena - Bayside Boys Remix",

@@ -329,7 +329,9 @@ window.flacie = (() => {
   const db = (x) => 20 * Math.log10(Math.max(x, 1e-6));
   let deskFrame = null, deskSync = 0;   // the iPod desk's frame (vizFrame)
   const clockOut = [0, 0, true];
-  const freqData = () => { const d = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(d); return d; };
+  // one buffer for the whole page, filled once per drawing (a new one every frame was garbage for the collector to sweep up mid-animation)
+  let freqBuf = null;
+  const freqData = () => { if (!freqBuf || freqBuf.length !== an.frequencyBinCount) freqBuf = new Uint8Array(an.frequencyBinCount); an.getByteFrequencyData(freqBuf); return freqBuf; };
   const fill = (g, x, y, w, h, r, color, alpha) => { g.globalAlpha = alpha; g.fillStyle = color; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); g.globalAlpha = 1; };
   // Design I's graphs: drawn in the cover's colours (accent, tone, ground from the player, flacie.npAccent), labels in DM Mono, soft rounded shapes, no hard boxes
   const rgbArr = (s) => { s = (s || "").trim(); if (s[0] === "#") { const n = parseInt(s.length === 4 ? s.slice(1).replace(/./g, "$&$&") : s.slice(1, 7), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; } const m = s.match(/[\d.]+/g); return m ? m.slice(0, 3).map(Number) : [255, 255, 255]; };
@@ -411,12 +413,16 @@ window.flacie = (() => {
       vs.acc -= step;
       bg.drawImage(vs.buf, -step, 0);
       const data = freqData(), use = Math.floor(data.length * maxHz / nyq);
+      // the new column is written as pixels in one go (a fillRect per row, with a colour string for each, was most of a full-screen frame: owner, 25 Nov)
+      if (!vs.col || vs.col.width !== step || vs.col.height !== ph) vs.col = bg.createImageData(step, ph);
+      const px = vs.col.data;
       for (let y = 0; y < ph; y++) {
         const k0 = Math.floor((ph - 1 - y) * use / ph), k1 = Math.max(k0 + 1, Math.floor((ph - y) * use / ph)); let m = 0;
         for (let k = k0; k < k1; k++) if (data[k] > m) m = data[k];
         const i = Math.round(Math.pow(m / 255, 1.25) * 255);
-        bg.fillStyle = `rgb(${L[i * 3]},${L[i * 3 + 1]},${L[i * 3 + 2]})`; bg.fillRect(pw - step, y, step, 1);
+        for (let x = 0, o = y * step * 4; x < step; x++, o += 4) { px[o] = L[i * 3]; px[o + 1] = L[i * 3 + 1]; px[o + 2] = L[i * 3 + 2]; px[o + 3] = 255; }
       }
+      bg.putImageData(vs.col, pw - step, 0);
     }
     g.clearRect(0, 0, w, h);
     g.save(); g.beginPath(); g.roundRect(x0, y0, pw, ph, 12 * dpr); g.clip(); g.drawImage(vs.buf, x0, y0);
@@ -529,13 +535,22 @@ window.flacie = (() => {
   // ---- waveform: the sound itself, an oscilloscope trace that holds still on the beat (it starts each frame where the wave crosses upwards) ----
   const drawScope = (f) => {
     const { g, w, h, dpr, c } = f;
-    const n = an.fftSize, d = new Uint8Array(n); an.getByteTimeDomainData(d);
+    const n = an.fftSize, d = vs.wave && vs.wave.length === n ? vs.wave : (vs.wave = new Uint8Array(n)); an.getByteTimeDomainData(d);
     g.clearRect(0, 0, w, h);
     const mid = (h - 16 * dpr) / 2, amp = mid - 8 * dpr;
     g.strokeStyle = rgba(c.ink, 0.1); g.lineWidth = dpr; g.beginPath(); g.moveTo(0, mid); g.lineTo(w, mid); g.stroke();
     let start = 0; for (let i = 1; i < n / 2; i++) if (d[i - 1] < 128 && d[i] >= 128) { start = i; break; }
     const span = Math.min(n - start, Math.floor(n / 2));
-    const path = () => { g.beginPath(); for (let i = 0; i < span; i++) { const x = i / (span - 1) * w, y = mid - (d[start + i] - 128) / 128 * amp; if (i) g.lineTo(x, y); else g.moveTo(x, y); } };
+    // at most a point every 2 px: 1,024 points in two wide round-jointed strokes, every frame, was the full-screen waveform's lag (owner, 25 Nov). Each point
+    // keeps the biggest swing in its stretch, so a sharp peak is never smoothed away
+    const pts = Math.max(2, Math.min(span, Math.round(w / (2 * dpr)))), per = span / pts;
+    const path = () => {
+      g.beginPath();
+      for (let p = 0; p < pts; p++) {
+        let v = 128; for (let i = Math.floor(p * per), e = Math.max(i + 1, Math.floor((p + 1) * per)); i < e; i++) { const s = d[start + i]; if (Math.abs(s - 128) > Math.abs(v - 128)) v = s; }
+        const x = p / (pts - 1) * w, y = mid - (v - 128) / 128 * amp; if (p) g.lineTo(x, y); else g.moveTo(x, y);
+      }
+    };
     g.lineJoin = "round"; g.lineCap = "round";
     g.strokeStyle = rgba(c.accent, 0.25); g.lineWidth = 8 * dpr; path(); g.stroke();
     g.strokeStyle = c.accent; g.lineWidth = 2.5 * dpr; path(); g.stroke();
@@ -651,13 +666,31 @@ window.flacie = (() => {
         if (pos) { const t = Math.floor(audio.currentTime), m = Math.floor(t / 60); pos.textContent = (m >= 60 ? Math.floor(m / 60) + ":" + String(m % 60).padStart(2, "0") : m) + ":" + String(t % 60).padStart(2, "0"); }
       }
     }
-    const dpr = window.devicePixelRatio || 1, w = Math.round(cv.clientWidth * dpr), h = Math.round(cv.clientHeight * dpr);
+    // the canvas's size is measured when it changes (a ResizeObserver), not read off the page every frame; a graph that is not on screen is not drawn
+    if (vizCv !== cv) {
+      vizCv = cv; vizBox = null; vizSeen = true; vizCtx = null; if (vizRo) vizRo.disconnect(); if (vizIo) vizIo.disconnect();
+      vizRo = new ResizeObserver(([e]) => { vizBox = [e.contentRect.width, e.contentRect.height]; }); vizRo.observe(cv);
+      vizIo = new IntersectionObserver(([e]) => { vizSeen = e.isIntersecting; }); vizIo.observe(cv);
+    }
+    if (!vizBox) vizBox = [cv.clientWidth, cv.clientHeight];
+    if (!vizSeen || !vizBox[0] || !vizBox[1]) return;
+    // sharp (one canvas pixel per screen pixel) up to about 4 million pixels; past that (a full-screen graph at 2x on a big screen was 8 million pixels a
+    // frame and ran at 10-20 frames a second: owner, 25 Nov, "the waveform graph is very laggy") it is drawn at 4 million and scaled up by the browser
+    const dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(4e6 / (vizBox[0] * vizBox[1]))), w = Math.round(vizBox[0] * dpr), h = Math.round(vizBox[1] * dpr);
     if (!w || !h) return;
     if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; vs = {}; }
-    // the colours are read off the graph itself, so inside the player they are the cover's (accent, tone, ground)
-    const css = getComputedStyle(cv), v = (n, d) => css.getPropertyValue(n).trim() || d;
-    views[vizStyle](Object.assign({ g: cv.getContext("2d"), w, h, dpr, ts, playing: !audio.paused, c: { accent: v("--accent", "#ff4d8d"), dim: v("--ink-2", "") || v("--faint", "#8a8a94"), ink: v("--ink", "#f4f3f7"), tone: v("--tone", "#2a2a33"), ground: v("--ground", "#0b0b0e") } }));
+    // the colours are read off the graph itself, so inside the player they are the cover's (accent, tone, ground): twice a second, not every frame (each
+    // read made the browser work out the page's styles again)
+    if (!vizCol || ts - vizColAt > 500 || ts < vizColAt) {
+      vizColAt = ts; const css = getComputedStyle(cv), v = (n, d) => css.getPropertyValue(n).trim() || d;
+      vizCol = { accent: v("--accent", "#ff4d8d"), dim: v("--ink-2", "") || v("--faint", "#8a8a94"), ink: v("--ink", "#f4f3f7"), tone: v("--tone", "#2a2a33"), ground: v("--ground", "#0b0b0e") };
+    }
+    if (!vizCtx) vizCtx = cv.getContext("2d");
+    vizF.g = vizCtx; vizF.w = w; vizF.h = h; vizF.dpr = dpr; vizF.ts = ts; vizF.playing = !audio.paused; vizF.c = vizCol;
+    views[vizStyle](vizF);
   };
+  let vizCv = null, vizBox = null, vizSeen = true, vizRo = null, vizIo = null, vizCol = null, vizColAt = 0, vizCtx = null;
+  const vizF = {};
   // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
   const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
   const zoomOf = el => { let z = 1; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const v = parseFloat(getComputedStyle(n).zoom); if (v > 0) z *= v; } return z; };

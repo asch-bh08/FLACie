@@ -259,6 +259,12 @@ class FlacieWebClient(private val prefs: Prefs) {
     /** A stamp of this account's playlists on FLACie Web: differs after any change made there (the phone polls it, see [PlaylistWatch]). */
     fun playlistsRev(): String = JSONObject(send("/api/playlists/rev", "GET")).optString("rev")
 
+    /** Devices, "Where you were": every device's last day of play states (owner, 25 Nov). */
+    fun where(): List<WhereYouWere.Device> = WhereYouWere.parse(send("/api/where", "GET"))
+    fun whereOne(id: String): WhereYouWere.Full = WhereYouWere.parseOne(send("/api/where/" + java.net.URLEncoder.encode(id, "UTF-8"), "GET"))
+    /** Where this phone is now; the server keeps it when it is new. */
+    fun reportWhere(body: String) { send("/api/where", "POST", body) }
+
     /** A chart (0 = Top Songs; the ids come from [settings]), as the server read it from the public charts. */
     fun chart(id: Int): List<ChartSong> { val a = JSONArray(send("/api/charts/$id", "GET")); return List(a.length()) { a.getJSONObject(it).let { o -> ChartSong(o.optInt("rank"), o.optString("title"), o.optString("artist"), o.optString("art").takeIf { s -> s.isNotBlank() && s != "null" }) } } }
 

@@ -38,6 +38,10 @@ class JellyfinConnect(private val app: App) {
         val queue: List<String>, val queueIndex: Int, val at: Long = System.currentTimeMillis(),
         /** The cover to show: the song's own picture if it has one, else its album's (songs on an album often have none of their own). */
         val artKey: String? = null,
+        /** Jellyfin's id for the device, the one its "Where you were" states carry (Devices, owner 25 Nov). */
+        val deviceId: String? = null,
+        /** When the device last spoke to Jellyfin (ms since 1970), for "Seen 2 min ago"; 0 when not known. */
+        val lastSeen: Long = 0,
     )
 
     var sessions by mutableStateOf<List<Session>>(emptyList()); private set
@@ -126,6 +130,8 @@ class JellyfinConnect(private val app: App) {
                     (ps?.optLong("PositionTicks") ?: 0) / 10_000, (np?.optLong("RunTimeTicks") ?: 0) / 10_000, ps?.optBoolean("IsPaused") ?: true,
                     q, q.indexOf(np?.optString("Id")).coerceAtLeast(0),
                     artKey = np?.let { n -> artKeyOf(n) ?: ("jf" + n.optString("Id")) },   // the same rule as the listing: the album's picture, so the file is shared
+                    deviceId = o.optString("DeviceId").takeIf { it.isNotBlank() },
+                    lastSeen = try { java.time.Instant.parse(o.optString("LastActivityDate")).toEpochMilli() } catch (_: Exception) { 0L },
                 )
             }
             .sortedWith(compareBy({ !it.isSelf }, { it.itemId == null }, { it.device }))
@@ -147,6 +153,24 @@ class JellyfinConnect(private val app: App) {
         withContext(Dispatchers.Main) { app.player.playFrom(tracks, idx, s.positionMs, paused = false) }
         post("/Sessions/${s.id}/Playing/Stop", null)
         delay(800); loadSessions()
+    }
+
+    /** Devices, "Where you were": plays the queue a device had at that moment, from that song and second, under the name it came from (owner, 25 Nov).
+     *  False when not even the song can be found here. */
+    suspend fun carryOn(f: WhereYouWere.Full): Boolean {
+        val byPath = app.library.byPath()
+        val tracks = mutableListOf<Track>(); var at = -1
+        f.queue.forEachIndexed { i, k ->
+            val t = app.library.jellyfinTrack(k) ?: byPath[k] ?: if ('/' !in k && available) streamTrack(k) else null
+            if (t != null) { if (i == f.index) at = tracks.size; tracks += t }
+        }
+        if (at < 0) {
+            val m = f.moment
+            val t = m.itemId?.let { app.library.jellyfinTrack(it) ?: if (available) streamTrack(it) else null } ?: m.path?.let { byPath[it] } ?: return false
+            tracks.add(0, t); at = 0
+        }
+        withContext(Dispatchers.Main) { app.player.playFrom(tracks, at, f.moment.positionMs); app.player.contextName = f.moment.context }
+        return true
     }
 
     /** Sends what plays here to [s] (same song, same second) and pauses it here. */

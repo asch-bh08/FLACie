@@ -96,6 +96,7 @@ class App : Application() {
         library.onServicesChanged = { account.schedulePush() }
         autoplay = com.ipodemu.library.Autoplay(this)
         plays = com.ipodemu.library.PlaysReporter(prefs, player, bg)
+        com.ipodemu.library.WhereReporter(this, bg)   // Devices, "Where you were": where this phone is, for the server's day of states (owner, 25 Nov)
         player.onQueueLow = { autoplay.queueLow() }
         // another copy of a song the server lost: never the lost one itself (the phone's library can still list it: Moves Like Jagger, 2 Nov), else any song of that title
         offline.relocate = { e ->

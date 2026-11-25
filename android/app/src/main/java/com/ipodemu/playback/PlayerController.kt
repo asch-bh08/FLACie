@@ -219,13 +219,21 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
             val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
             Diag.add("queue", "car: ${id.take(60)} -> ${r?.tracks?.size ?: 0} songs (library ${if (App.of(ctx).library.loaded) "loaded" else "NOT loaded"})")
-            handler.post { if (r != null) play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key); done() }
+            handler.post {
+                if (r != null && r.tracks.isNotEmpty()) play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key)
+                // nothing to play: said on the car's screen, not silence (owner, 25 Nov: the car's buttons "sometimes ... don't even work")
+                else carNote(if (!online()) "No signal, and nothing there is downloaded" else "Nothing to play there yet")
+                done()
+            }
         }
         return true
     }
     /** What the system media session (media buttons, notification, Bluetooth, Android Auto) controls: a window of the queue, commands sent here (see [SessionPlayer]). */
     @OptIn(UnstableApi::class)
-    val sessionPlayer: Player by lazy { SessionPlayer(this, prefs) { t -> try { App.of(ctx).lyrics.cached(t) } catch (_: UninitializedPropertyAccessException) { null } } }
+    val sessionPlayer: Player by lazy {
+        SessionPlayer(this, prefs, { t -> try { App.of(ctx).lyrics.cached(t) } catch (_: UninitializedPropertyAccessException) { null } },
+            labelOf = { t -> BrowseTree.songLine(t, AppBrowseSource(App.of(ctx))) })
+    }
     @OptIn(UnstableApi::class)
     private val prefetcher = Prefetcher(ctx) { prefetchSource.createDataSource() as CacheDataSource }
     private val netWatch = NetworkWatch(ctx) { Handler(Looper.getMainLooper()).post { nudge() } }
@@ -361,6 +369,10 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** The car's line for a request ([MicTurn]: Listening…, Heard: "…" · Working…, the answer), shown in place of the artist; null when none. */
     var micLine: String? = null
         set(v) { if (field != v) { field = v; fire() } }
+    private var note: String? = null
+    private val clearNote = Runnable { if (micLine == note) micLine = null }
+    /** A short message in the car's artist line for [MicTurn.RESULT_SHOW_MS] (a request that could not be done): the car has no other place for it. */
+    fun carNote(text: String) { handler.removeCallbacks(clearNote); note = text; micLine = text; handler.postDelayed(clearNote, MicTurn.RESULT_SHOW_MS) }
     /** The fade between songs (see [FadeBetween]): 1 in the middle of a song. */
     private var xfade = 1f
     /** The music's level while the DJ speaks over it (see [DuckRamp], ticked by [DjPlayer]): 1 = untouched. */

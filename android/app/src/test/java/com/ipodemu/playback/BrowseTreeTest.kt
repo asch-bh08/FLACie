@@ -59,14 +59,18 @@ class BrowseTreeTest {
         assertNull(BrowseTree.resolve(BrowseTree.SHUFFLE, Src(songs = emptyList())))
     }
 
-    @Test fun coverListsAreGridsAndSongsSayArtistAndAlbum() {
+    @Test fun coverListsAreGridsAndSongsSayArtistFormatAndSource() {
         val src = Src(pls = mapOf("p1" to listOf(t(3), t(4))))
         val pl = BrowseTree.children(BrowseTree.PLAYLISTS, 0, 50, src)
         assertTrue(pl[0].grid); assertEquals(t(3).artKey, pl[0].artKey); assertEquals("2 songs", pl[0].subtitle)
         assertTrue(BrowseTree.children(BrowseTree.ALBUMS, 0, 50, src).all { it.grid && it.artKey != null })
         assertTrue(BrowseTree.children(BrowseTree.ARTISTS, 0, 50, src).all { it.grid })
         val song = BrowseTree.children(pl[0].id, 0, 50, src)[2]
-        assertFalse(song.grid); assertEquals("Ar · Al", song.subtitle)
+        assertFalse(song.grid); assertEquals("Ar · Jellyfin", song.subtitle)
+        // owner, 25 Nov: "no labels for FLAC or Jellyfin": the format when it is known, and Offline for a song on the phone
+        val withFormat = object : BrowseSource by Src(pls = mapOf("p1" to listOf(t(1), t(3)))) { override fun quality(t: Track) = "Hi-Res 24/96" }
+        assertEquals(listOf("Ar · Hi-Res 24/96 · Offline", "Ar · Hi-Res 24/96 · Jellyfin"),
+            BrowseTree.children(BrowseTree.playlistId("p1"), 0, 50, withFormat).filter { it.id.startsWith("s:") }.map { it.subtitle })
     }
 
     @Test fun albumsSortByTheirWordsNotLeadingQuotesOrDots() {

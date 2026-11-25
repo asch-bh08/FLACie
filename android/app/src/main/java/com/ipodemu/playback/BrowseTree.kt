@@ -13,6 +13,8 @@ interface BrowseSource {
     fun downloadedPlaylists(): List<Pair<String, String>> = emptyList()
     /** The albums whose every song is downloaded. */
     fun downloadedAlbums(): List<Group> = emptyList()
+    /** What the song's file is ("Hi-Res 24/96", "FLAC", "MP3 320", [CarLabel]), or null when not known. An in-memory look-up too. */
+    fun quality(t: Track): String? = null
     /** This song is on the phone (an in-memory look-up: it is asked of every row of a list). */
     fun isDownloaded(path: String): Boolean = false
     /** id to name. */
@@ -209,11 +211,16 @@ object BrowseTree {
             Group(name, gs.flatMap { it.tracks }.distinctBy { it.path }, big.artKey)
         }
 
-    /** A song row; [BrowseNode.offline] ticks it in every list when it is on the phone, not only in Downloads. */
-    private fun songNode(src: BrowseSource, parent: String, t: Track, group: String? = null) = BrowseNode(
-        songId(parent, t.path), t.title, listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · ").ifEmpty { null },
-        browsable = false, playable = true, artKey = t.artKey, path = t.path, group = group, offline = src.isDownloaded(t.path),
-    )
+    /** A song row; [BrowseNode.offline] ticks it in every list when it is on the phone, not only in Downloads. Its line is the artist, the format and where
+     *  it plays from ("Yeah Yeah Yeahs · FLAC · Jellyfin", [CarLabel]; owner, 25 Nov: "no labels for FLAC or Jellyfin"). */
+    private fun songNode(src: BrowseSource, parent: String, t: Track, group: String? = null): BrowseNode {
+        val offline = src.isDownloaded(t.path)
+        return BrowseNode(songId(parent, t.path), t.title, CarLabel.line(t.artist, src.quality(t), CarLabel.source(t.source, offline)).ifEmpty { null },
+            browsable = false, playable = true, artKey = t.artKey, path = t.path, group = group, offline = offline)
+    }
+
+    /** The line under [t] wherever the car shows it on its own (an item asked for by id, Now Playing). */
+    fun songLine(t: Track, src: BrowseSource): String = CarLabel.line(t.artist, src.quality(t), CarLabel.source(t.source, src.isDownloaded(t.path)))
 
     // by the words: "\"...And Crazy\"" files under A, not before everything (the car has an A-Z jump that goes by this order)
     private fun sorted(g: List<Group>) = g.filter { it.name.isNotBlank() }.sortedBy { it.name.trimStart { c -> !c.isLetterOrDigit() }.lowercase() }

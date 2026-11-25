@@ -23,13 +23,14 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.ipodemu.playback.MicTurn
 
 /**
  * What the DJ is doing after a press of the mic, for the bar above the mini player (as the web's DJ bar, 6 Nov): listening (with a level), then what it
  * heard and that it is thinking. Its words come after that as the mini bar's caption.
  */
 class DjStatus {
-    enum class Stage { NONE, LISTENING, THINKING }
+    enum class Stage { NONE, LISTENING, THINKING, RESULT }
 
     var stage by mutableStateOf(Stage.NONE); private set
     var heard by mutableStateOf(""); private set
@@ -39,12 +40,19 @@ class DjStatus {
     fun listening() { stage = Stage.LISTENING; heard = ""; level = 0f }
     fun level(rmsDb: Float) { level = (rmsDb / 8f).coerceIn(0f, 1f) }
     fun heard(text: String) { stage = Stage.THINKING; heard = text; level = 0f }
-    fun done() { stage = Stage.NONE; heard = ""; level = 0f }
+    /** The turn is over: the listening and working lines go; a result line stays until [clearResult] (it is shown for [MicTurn.RESULT_SHOW_MS]). */
+    fun done() { if (stage != Stage.RESULT) clear() }
+    /** What the request did, or why it did nothing (owner, 25 Nov: "there's no way of knowing if the DJ heard you"). */
+    fun result(text: String) { stage = Stage.RESULT; heard = text; level = 0f }
+    /** The result line [text] has been shown long enough (a newer line is left alone). */
+    fun clearResult(text: String) { if (stage == Stage.RESULT && heard == text) clear() }
+    private fun clear() { stage = Stage.NONE; heard = ""; level = 0f }
 
     fun text(): String? = when (stage) {
         Stage.NONE -> null
-        Stage.LISTENING -> "Listening…"
-        Stage.THINKING -> "“$heard” · Thinking…"
+        Stage.LISTENING -> MicTurn.LISTENING
+        Stage.THINKING -> MicTurn.heard(heard)
+        Stage.RESULT -> heard
     }
 
     companion object {
@@ -57,6 +65,8 @@ class DjStatus {
 fun DjStatusBar(modifier: Modifier = Modifier) {
     val s = DjStatus.now
     val text = s.text()
+    // a result line goes after a while
+    androidx.compose.runtime.LaunchedEffect(s.stage, s.heard) { if (s.stage == DjStatus.Stage.RESULT) { val t = s.heard; kotlinx.coroutines.delay(MicTurn.RESULT_SHOW_MS); s.clearResult(t) } }
     AnimatedVisibility(text != null, modifier) {
         val sc = LocalScheme.current
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(12.dp)).background(sc.accent.copy(alpha = 0.16f))

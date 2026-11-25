@@ -83,6 +83,8 @@ class PlaybackService : MediaLibraryService() {
                     if (waitMs > 0) Runnable { if (rec === r) { drop(); onHeard(null) } }.also { giveUp = it; main.postDelayed(it, waitMs) }
                     return true
                 }
+                // the listening limit: stop now and hand over what was heard (onResults follows)
+                override fun finish() { try { rec?.stopListening() } catch (_: Exception) { } }
                 override fun stop() = drop()
             },
             music = object : CarDjMic.Music {
@@ -95,6 +97,10 @@ class PlaybackService : MediaLibraryService() {
             later = { ms, run -> main.postDelayed(run, ms) },
             say = { app.player.djSay(it) },
             micAllowed = { androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED },
+            cancelAsk = { app.player.cancelAsk() },
+            hold = { app.player.holdForMic(it) },
+            // each stage on the car's screen, in the artist line (owner, 25 Nov: "no way of knowing if the DJ heard you")
+            show = { app.player.micLine = it },
         ).also { it.onChange = { refreshLayout(force = true) } }
     }
 
@@ -143,16 +149,24 @@ class PlaybackService : MediaLibraryService() {
         override fun onCustomCommand(session: MediaSession, controller: MediaSession.ControllerInfo, customCommand: SessionCommand, args: Bundle): ListenableFuture<SessionResult> {
             val app = App.of(this@PlaybackService)
             // the player's own thread is the main thread, where this runs
-            when (customCommand.customAction) {
-                CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it) }
-                CMD_SPEED -> app.player.setSpeed(SpeedPolicy.cycle(app.player.speed))
-                CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
-                CMD_REPEAT -> { app.prefs.repeat = RepeatCycle.next(app.prefs.repeat); app.player.applyModes() }
-                CMD_DJ -> app.player.flipDj()
-                CMD_TALK -> carMic.press()
+            // a button that can't do its job says so on the car's screen instead of doing nothing (owner, 25 Nov: "sometimes they don't even work")
+            val ok = try {
+                when (customCommand.customAction) {
+                    CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it); true } ?: false.also { app.player.carNote("Nothing playing to favourite") }
+                    CMD_SPEED -> { app.player.setSpeed(SpeedPolicy.cycle(app.player.speed)); true }
+                    CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes(); app.player.carNote(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off"); true }
+                    CMD_REPEAT -> { app.prefs.repeat = RepeatCycle.next(app.prefs.repeat); app.player.applyModes(); app.player.carNote(RepeatCycle.label(app.prefs.repeat)); true }
+                    CMD_DJ -> if (!app.player.djAvailable) false.also { app.player.carNote("The DJ needs FLACie Web: sign in on the phone") }
+                        else { val on = app.player.flipDj(); app.player.carNote(if (on) "DJ on" else "DJ off"); true }
+                    CMD_TALK -> { carMic.press(); true }
+                    else -> false
+                }
+            } catch (e: Exception) {
+                Diag.add("error", "car button ${customCommand.customAction.substringAfterLast('.')}: ${e.message ?: e.javaClass.simpleName}")
+                app.player.carNote("Couldn't do that just now. Try again."); false
             }
             refreshLayout(force = true)
-            return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
+            return Futures.immediateFuture(SessionResult(if (ok) SessionResult.RESULT_SUCCESS else SessionResult.RESULT_ERROR_UNKNOWN))
         }
 
         override fun onGetLibraryRoot(session: MediaLibrarySession, browser: MediaSession.ControllerInfo, params: LibraryParams?): ListenableFuture<LibraryResult<MediaItem>> =
@@ -174,7 +188,7 @@ class PlaybackService : MediaLibraryService() {
             async {
                 val src = AppBrowseSource(App.of(this@PlaybackService))
                 val node = BrowseTree.root().firstOrNull { it.id == mediaId }
-                    ?: BrowseTree.resolve(mediaId, src)?.let { r -> r.tracks.getOrNull(r.index) }?.let { t -> BrowseNode(mediaId, t.title, t.artist.ifEmpty { null }, false, true, t.artKey, t.path) }
+                    ?: BrowseTree.resolve(mediaId, src)?.let { r -> r.tracks.getOrNull(r.index) }?.let { t -> BrowseNode(mediaId, t.title, BrowseTree.songLine(t, src).ifEmpty { null }, false, true, t.artKey, t.path, offline = src.isDownloaded(t.path)) }
                 if (node == null) LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE) else LibraryResult.ofItem(nodeItem(node), null)
             }
 
@@ -285,7 +299,7 @@ class PlaybackService : MediaLibraryService() {
         val buttons = CarActions.order(carDj, speedButton).map { id ->
             when (id) {
                 CarActions.Id.TALK -> carMic.let { m ->
-                    button(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Thinking…"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" },
+                    button(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Working… tap to cancel"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" },
                         if (m.conversing) R.drawable.ic_car_mic_on else R.drawable.ic_car_mic, talkCommand)
                 }
                 CarActions.Id.FAVORITE -> button(if (fav) "Remove from favourites" else "Favourite",

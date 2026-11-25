@@ -21,7 +21,11 @@ import com.ipodemu.library.Track
  * app's content provider so other apps can read them.
  */
 @UnstableApi
-class SessionPlayer(private val c: PlayerController, private val prefs: Prefs, private val lyricsOf: (Track) -> com.ipodemu.library.Lyrics?) : SimpleBasePlayer(Looper.getMainLooper()) {
+class SessionPlayer(
+    private val c: PlayerController, private val prefs: Prefs, private val lyricsOf: (Track) -> com.ipodemu.library.Lyrics?,
+    /** The car's line for the playing song when nothing else is shown: artist, format and source ([BrowseTree.songLine]). */
+    private val labelOf: (Track) -> String? = { null },
+) : SimpleBasePlayer(Looper.getMainLooper()) {
     /** Queue indices of the items last shown, in order (what a controller's item index means). */
     private var shown: List<Int> = emptyList()
 
@@ -39,6 +43,8 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs, p
     private fun artistFor(t: Track?): String? {
         handler.removeCallbacks(askAgain)
         if (c.carControllers <= 0) { captionGate.reset(); return null }
+        // a spoken request's stage (Listening…, Heard: "…" · Working…, the answer) comes first and at once, not held back by the caption gate
+        c.micLine?.let { return it }
         val now = android.os.SystemClock.elapsedRealtime()
         val caption = captionGate.show(c.djCaption, now)
         val wait = captionGate.waitMs(c.djCaption, now)
@@ -47,7 +53,8 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs, p
         val lyric = lyrics?.let { CarActions.lyricAt(it.lines, it.synced, c.positionMs) }
         if (lyrics != null && exoPlaying()) CarActions.untilNextLine(lyrics.lines, lyrics.synced, c.positionMs, c.speed)?.let { again = minOf(again ?: it, it) }
         again?.let { handler.postDelayed(askAgain, it) }
-        return CarActions.artistLine(caption, lyric, prefs.lyricsInCar)
+        // else the artist with what the file is and where it plays from (owner, 25 Nov: "no labels for FLAC or Jellyfin")
+        return CarActions.artistLine(caption, lyric, prefs.lyricsInCar) ?: t?.let { try { labelOf(it) } catch (_: Exception) { null } }
     }
     private fun exoPlaying() = c.exo.isPlaying
 

@@ -7,10 +7,11 @@ enum class MicState { IDLE, LISTENING, THINKING }
 enum class MicPress { START, STOP, END, WAIT }
 
 object DjMicLimits {
-    /** The longest one turn listens: a recogniser left open while music plays hears words with no pause (owner, 9 Nov: stuck on "listening"). */
-    const val LISTEN_MAX_MS = 15_000L
-    /** The longest it waits for the DJ's answer before letting go, so the mic takes a press again. */
-    const val THINK_MAX_MS = 30_000L
+    /** The longest one turn listens: a recogniser left open while music plays hears words with no pause (owner, 9 Nov: stuck on "listening"); about
+     *  8 s (owner, 25 Nov: "it listens forever"), the same as the car's ([com.ipodemu.playback.MicTurn]). */
+    const val LISTEN_MAX_MS = com.ipodemu.playback.MicTurn.LISTEN_MAX_MS
+    /** The longest it waits for the DJ's answer before letting go, so the mic takes a press again (the phone answers by itself before this). */
+    const val THINK_MAX_MS = com.ipodemu.playback.MicTurn.THINK_MAX_MS
 }
 
 /**

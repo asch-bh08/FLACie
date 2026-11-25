@@ -43,7 +43,7 @@ object DjConversation {
      */
     fun after(a: DjAskDo, asked: Boolean, turn: Int, intent: String = ""): DjTurn = if (asked && intent != "Goodbye" && intent != "ThumbsDown" && turn < MAX_TURNS) DjTurn.LISTEN_AGAIN else when (a) {
         DjAskDo.PLAY, DjAskDo.NEXT, DjAskDo.RESUME, DjAskDo.PAUSE -> DjTurn.END_MUSIC_CHOSEN
-        DjAskDo.NONE -> if (intent != "Goodbye" && intent != "ThumbsDown" && turn < MAX_TURNS) DjTurn.LISTEN_AGAIN else DjTurn.END
+        DjAskDo.NONE -> if (intent != "Goodbye" && intent != "ThumbsDown" && intent != OfflineAsk.INTENT && turn < MAX_TURNS) DjTurn.LISTEN_AGAIN else DjTurn.END
         else -> DjTurn.END
     }
 

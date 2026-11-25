@@ -10,8 +10,24 @@ class DjStatusTest {
         val s = DjStatus()
         assertNull(s.text())
         s.listening(); assertEquals("Listening…", s.text())
-        s.heard("play my favourite prodigy songs"); assertEquals("“play my favourite prodigy songs” · Thinking…", s.text())
+        s.heard("play my favourite prodigy songs"); assertEquals("Heard: “play my favourite prodigy songs” · Working…", s.text())
         s.done(); assertNull(s.text())
+    }
+
+    @Test fun theResultStaysAfterTheTurnUntilItsTimeIsUp() {
+        val s = DjStatus()
+        s.listening(); s.heard("play maps")
+        s.result("No signal: playing Maps from your downloads.")
+        s.done()                                                  // the mic going idle leaves the result on show
+        assertEquals("No signal: playing Maps from your downloads.", s.text())
+        s.clearResult("something older"); assertEquals("No signal: playing Maps from your downloads.", s.text())
+        s.clearResult("No signal: playing Maps from your downloads."); assertNull(s.text())
+    }
+
+    @Test fun aNewPressReplacesTheResult() {
+        val s = DjStatus()
+        s.result("Done"); s.listening()
+        assertEquals("Listening…", s.text())
     }
 
     @Test fun theLevelIsZeroToOneAndGoesBackToZero() {

@@ -26,6 +26,7 @@ class AppBrowseSource(private val app: App) : BrowseSource {
         return app.library.albums().filter { g -> DownloadMarks.ofList(g.tracks.map { it.path }) { p -> app.offline.stateOf(p) } == DownloadMark.DOWNLOADED }
     }
     override fun isDownloaded(path: String): Boolean = app.offline.isDownloaded(path)
+    override fun quality(t: Track): String? = CarLabel.qualityOf(t)
     override fun playlists(): List<Pair<String, String>> { val hidden = app.prefs.hiddenPlaylists; return app.userData.playlists.toList().filter { it.id !in hidden }.map { it.id to it.name } }
     override fun playlistTracks(id: String): List<Track> = app.userData.playlists.toList().firstOrNull { it.id == id }?.let { resolve(it.paths.toList()) } ?: emptyList()
     override fun playlistSummary(id: String): Pair<Int, String?> = app.userData.playlists.toList().firstOrNull { it.id == id }?.let { pl ->

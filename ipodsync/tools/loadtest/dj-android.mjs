@@ -94,6 +94,37 @@ async function main() {
   const mini = (dump() ?? []).filter((n) => /^Song \d+$/.test(label(n)) && n.cy > 1900 && n.cy < 2200).pop();
   if (mini) { tapNode(mini); await sleep(2500); step('now-playing'); sh('input keyevent KEYCODE_BACK', { quiet: true }); }
 
+  // 4b. spoken requests ("Hey Google, play ... on FLACie", the same path as the car's voice search) with the server up, down, and no signal at all
+  // (owner, 25 Nov: "it plays the song 2 mins later", "doesn't understand play X when there's no signal"). The answer must come at once or within the
+  // phone's 6 s deadline, from the phone itself when FLACie Web can't be reached.
+  const voiceChecks = [];
+  const ask = (q) => { sh('logcat -c', { quiet: true }); sh(`am start -a android.media.action.MEDIA_PLAY_FROM_SEARCH --es query "${q}" -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true }); return Date.now(); };
+  const heardLine = () => String(sh('logcat -d -s FLACieDiag', { quiet: true }) ?? '').split('\n').find((l) => /heard: /.test(l) && / -> /.test(l));
+  async function waitHeard(ms) { const t0 = Date.now(); while (Date.now() - t0 < ms) { const l = heardLine(); if (l) return { line: l.trim(), ms: Date.now() - t0 }; await sleep(300); } return { line: null, ms }; }
+  async function waitPlaying(title, ms) { const t0 = Date.now(); while (Date.now() - t0 < ms) { if ((mediaSession().description ?? '').startsWith(title + ',')) return Date.now() - t0; await sleep(500); } return -1; }
+  {
+    ask('Song 7');
+    const a = await waitHeard(15000); const p = await waitPlaying('Song 7', 8000);
+    log('voice, server up:', a.line, `answer ${a.ms} ms, playing ${p} ms`);
+    voiceChecks.push(['a spoken request with the server up is answered within the deadline', a.line && a.ms <= 8000, a.line]);
+    // FLACie Web gone (the phone still has a network): answered by the phone, and the song plays from Jellyfin
+    web.kill('SIGKILL'); await sleep(1500);
+    ask('Song 12');
+    const b = await waitHeard(15000); const pb = await waitPlaying('Song 12', 10000);
+    log('voice, server down:', b.line, `answer ${b.ms} ms, playing ${pb} ms`);
+    step('voice-server-down');
+    voiceChecks.push(['with FLACie Web down the phone answers itself within 8 s', b.line && /phone, no_server/.test(b.line) && b.ms <= 8000, b.line]);
+    voiceChecks.push(['and the asked-for song plays', pb >= 0, mediaSession().description]);
+    // no signal at all: answered at once, saying why (nothing is downloaded on this emulator, so it says the song isn't downloaded)
+    sh('svc wifi disable', { quiet: true }); sh('svc data disable', { quiet: true }); await sleep(4000);
+    ask('Song 15');
+    const c = await waitHeard(10000);
+    log('voice, no signal:', c.line, `answer ${c.ms} ms`);
+    step('voice-no-signal');
+    voiceChecks.push(['with no signal the phone answers at once and says why', c.line && /No signal/.test(c.line) && c.ms <= 3000, c.line]);
+    sh('svc wifi enable', { quiet: true }); sh('svc data enable', { quiet: true });
+  }
+
   // 5. what happened
   const diag = path.join(data, 'diag'); const files = fs.existsSync(diag) ? fs.readdirSync(diag) : [];
   log('phone log entries:'); for (const f of files) for (const l of fs.readFileSync(path.join(diag, f), 'utf8').trim().split('\n')) { try { const o = JSON.parse(l); console.log(`  ${o.Kind}: ${o.Text}`); } catch { } }
@@ -119,6 +150,7 @@ async function main() {
   check('the DJ is heard after Next onto a song nobody asked about', skipped.length > 0 && heardBeforeNext(skipped[skipped.length - 1]), skipped.length ? lines[skipped[skipped.length - 1]] : 'no such skip');
   const dropped = lines.filter((t) => /line dropped/.test(t));
   check('no line is dropped while its voice is made', dropped.length === 0, dropped.join(' | '));
+  for (const [name, pass, detail] of voiceChecks) check(name, pass, detail ?? '');
   const failed = checks.filter((c) => !c.pass).length;
   console.log(`dj: ${checks.length - failed} passed, ${failed} failed`);
   process.exit(failed ? 1 : 0);

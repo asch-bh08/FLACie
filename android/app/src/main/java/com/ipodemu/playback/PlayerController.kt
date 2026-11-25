@@ -219,13 +219,21 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             // a playlist picked in the car keeps its DJ switch (the key is the Jellyfin playlist id when it has one, as on the phone's own screens)
             val key = BrowseTree.playlistOf(id)?.let { pl -> try { App.of(ctx).userData.playlists.toList().firstOrNull { it.id == pl }?.let { it.jfId ?: it.id } } catch (_: Exception) { null } }
             Diag.add("queue", "car: ${id.take(60)} -> ${r?.tracks?.size ?: 0} songs (library ${if (App.of(ctx).library.loaded) "loaded" else "NOT loaded"})")
-            handler.post { if (r != null) play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key); done() }
+            handler.post {
+                if (r != null && r.tracks.isNotEmpty()) play(r.tracks, r.index, shuffle = BrowseTree.shuffleFor(id), context = name, contextId = key)
+                // nothing to play: said on the car's screen, not silence (owner, 25 Nov: the car's buttons "sometimes ... don't even work")
+                else carNote(if (!online()) "No signal, and nothing there is downloaded" else "Nothing to play there yet")
+                done()
+            }
         }
         return true
     }
     /** What the system media session (media buttons, notification, Bluetooth, Android Auto) controls: a window of the queue, commands sent here (see [SessionPlayer]). */
     @OptIn(UnstableApi::class)
-    val sessionPlayer: Player by lazy { SessionPlayer(this, prefs) { t -> try { App.of(ctx).lyrics.cached(t) } catch (_: UninitializedPropertyAccessException) { null } } }
+    val sessionPlayer: Player by lazy {
+        SessionPlayer(this, prefs, { t -> try { App.of(ctx).lyrics.cached(t) } catch (_: UninitializedPropertyAccessException) { null } },
+            labelOf = { t -> BrowseTree.songLine(t, AppBrowseSource(App.of(ctx))) })
+    }
     @OptIn(UnstableApi::class)
     private val prefetcher = Prefetcher(ctx) { prefetchSource.createDataSource() as CacheDataSource }
     private val netWatch = NetworkWatch(ctx) { Handler(Looper.getMainLooper()).post { nudge() } }
@@ -347,7 +355,24 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private var fade = 1f
     /** The levelling factor of the song that plays (see [Loudness]); 1 when the setting is off or the server gave no gain. */
     private var loud = 1f
-    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade * xfade * duck, loud) }
+    private fun applyOutputVolume() { exo.volume = Loudness.output(volume, fade * xfade * duck * micHold, loud) }
+    /** 0 while the mic listens and the DJ works on a request (owner, 25 Nov: "the song starts playing again, then it hears the song"): the music is
+     *  paused then too, and this keeps it silent even if something starts it (a car's play, a stream retry). Let go by itself after a minute. */
+    private var micHold = 1f
+    private val micUnhold = Runnable { holdForMic(false) }
+    fun holdForMic(on: Boolean) {
+        handler.removeCallbacks(micUnhold)
+        if (on) handler.postDelayed(micUnhold, 60_000L)
+        val v = if (on) 0f else 1f
+        if (v != micHold) { micHold = v; applyOutputVolume() }
+    }
+    /** The car's line for a request ([MicTurn]: Listening…, Heard: "…" · Working…, the answer), shown in place of the artist; null when none. */
+    var micLine: String? = null
+        set(v) { if (field != v) { field = v; fire() } }
+    private var note: String? = null
+    private val clearNote = Runnable { if (micLine == note) micLine = null }
+    /** A short message in the car's artist line for [MicTurn.RESULT_SHOW_MS] (a request that could not be done): the car has no other place for it. */
+    fun carNote(text: String) { handler.removeCallbacks(clearNote); note = text; micLine = text; handler.postDelayed(clearNote, MicTurn.RESULT_SHOW_MS) }
     /** The fade between songs (see [FadeBetween]): 1 in the middle of a song. */
     private var xfade = 1f
     /** The music's level while the DJ speaks over it (see [DuckRamp], ticked by [DjPlayer]): 1 = untouched. */
@@ -465,55 +490,114 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** Says [text] in the phone's own voice over whatever plays (the car's mic button telling what it needs: the car has no screen of the app's for it). */
     fun djSay(text: String) { try { voice().say(DjCue(text, text, null, true)) } catch (_: Exception) { } }
 
+    /** One spoken request at a time, answered once and at once ([DjAskGate]); late or superseded answers are dropped (owner, 25 Nov). */
+    private val askGate = DjAskGate()
+    /** The requests go on threads of their own: on the DJ's one thread they queued behind its song lines (each up to 15 s on a weak signal). */
+    private val askExec = java.util.concurrent.Executors.newCachedThreadPool { r -> Thread(r, "dj-ask").also { it.isDaemon = true } }
+    /** True while an answer is carried out: its own new queue is not "the person started something else". */
+    private var carryingOut = false
+    /** The person moved on (pressed the mic again, gave up waiting): the request still waiting is dropped, and a song fetched for it is not played. */
+    fun cancelAsk() { askGate.cancel() }
+
     fun askDj(text: String, search: Boolean = false, done: (DjAskAnswer) -> Unit = {}) {
         val cur = current
         val body = DjAskAnswer.body(text, cur?.title, cur?.artist, djSurface, java.time.LocalDateTime.now().hour, search)
-        djExec.execute {
-            val a = try { djWeb.djAsk(body) } catch (_: Exception) { null } ?: DjAskAnswer.SORRY
-            Diag.add("heard", "\"${text.take(120)}\" -> ${a.say.take(120)}")
-            handler.post {
-                askedQuestion = null
-                DjAskRunner.run(askPlayer, a)
-                if (a.say.isNotBlank() && (a.clip != null || a.deviceVoice)) try { voice().say(DjCue(a.say, a.say, a.clip, a.deviceVoice)) } catch (_: Exception) { }
-                // an ask step's question the line did not already say: said in the phone's voice
-                askedQuestion?.takeIf { !it.trim().equals(a.say.trim(), ignoreCase = true) }?.let { djSay(it) }
-                done(a)
+        val ticket = askGate.begin()
+        val askedAt = android.os.SystemClock.elapsedRealtime()
+        fun carryOut(a: DjAskAnswer, from: String) {
+            Diag.add("heard", "\"${text.take(120)}\" -> ${a.say.take(120)} ($from, ${android.os.SystemClock.elapsedRealtime() - askedAt} ms)")
+            askedQuestion = null
+            carryingOut = true
+            try { DjAskRunner.run(askPlayer, a) } finally { carryingOut = false }
+            val phoneVoice = a.intent == OfflineAsk.INTENT
+            if (a.say.isNotBlank() && (a.clip != null || a.deviceVoice || phoneVoice)) try { voice().say(DjCue(a.say, a.say, a.clip, a.deviceVoice || phoneVoice)) } catch (_: Exception) { }
+            // an ask step's question the line did not already say: said in the phone's voice
+            askedQuestion?.takeIf { !it.trim().equals(a.say.trim(), ignoreCase = true) }?.let { djSay(it) }
+            done(a)
+        }
+        // FLACie Web can't be asked (no signal, or no answer in time): the phone understands "play X" itself, from its downloads when there is no signal
+        fun onPhone(why: OfflineAsk.Why) = askExec.execute {
+            val a = try { OfflineAsk.answer(text, why, offlineLib()) } catch (e: Exception) { DjAskAnswer(DjAskDo.NONE, if (why == OfflineAsk.Why.NO_SIGNAL) "No signal." else "I couldn't reach the server.", intent = OfflineAsk.INTENT) }
+            // in the search box's mic, words that play nothing fill the search
+            val out = if (search && a.doThis == DjAskDo.NONE) DjAskAnswer(DjAskDo.SEARCH, "", intent = OfflineAsk.INTENT) else a
+            handler.post { if (askGate.age(ticket) != null) carryOut(out, "phone, ${why.name.lowercase()}") else Diag.add("heard", "\"${text.take(60)}\": the phone's answer dropped (something else was asked)") }
+        }
+        if (!online()) { if (askGate.timedOut(ticket)) onPhone(OfflineAsk.Why.NO_SIGNAL); return }
+        // the server has [DjAskGate.ASK_DEADLINE_MS]; after that the phone answers and the server's answer is dropped when it comes
+        handler.postDelayed({
+            if (askGate.timedOut(ticket)) {
+                Diag.add("heard", "\"${text.take(60)}\": no answer from FLACie Web in ${DjAskGate.ASK_DEADLINE_MS / 1000} s, the phone answers")
+                onPhone(if (online()) OfflineAsk.Why.NO_SERVER else OfflineAsk.Why.NO_SIGNAL)
             }
-            val artist = a.waitArtist; val title = a.waitTitle
-            // waited for on its own thread, so the DJ's next lines are not held up
-            if (artist != null && title != null) Thread({
-                for (i in 0 until 120) {
-                    try { Thread.sleep(5_000) } catch (_: InterruptedException) { return@Thread }
-                    val landed = try { djWeb.djLanded(artist, title) } catch (_: Exception) { false }
-                    if (landed) {
-                        // the phone's library learns of the song at its next sync; by title until then nothing is played
-                        val t = App.of(ctx).library.let { it.findSong(title, artist) ?: it.findLoose(title, artist) }
-                        // here on the server but not on the phone yet: Jellyfin's changes are fetched now, not at the next sync (owner, 12 Nov: the DJ said
-                        // "getting that one", then "still getting it" a song later, and never played it)
-                        if (t == null) App.of(ctx).library.lookAgain()
-                        if (t != null) {
-                            handler.post {
-                                // "... and add it to pop (and shuffle pop)": added now it is here, then that playlist shuffled with it first
-                                val list = a.waitAddTo
-                                var order = listOf(t)
-                                if (list != null) {
-                                    val ud = App.of(ctx).userData
-                                    com.ipodemu.library.DjPlaylistEdits(ud).add(list, listOf(t.path))
-                                    val lib = App.of(ctx).library.byPath()
-                                    val paths = ud.playlists.firstOrNull { it.name.trim().equals(list.trim(), ignoreCase = true) }?.paths.orEmpty()
-                                    order = DjAskRunner.landedOrder(t.path, paths, a.waitShuffle).mapNotNull { lib[it] }.ifEmpty { listOf(t) }
-                                }
-                                play(order, 0, shuffle = false, context = if (list != null && a.waitShuffle) list else null)
-                                done(DjAskAnswer(DjAskDo.NONE, "Here it is: ${t.title}, by ${t.artist}." + if (list != null) " It's in $list." else ""))
+        }, DjAskGate.ASK_DEADLINE_MS)
+        askExec.execute {
+            val a = try { djWeb.djAsk(body) } catch (_: Exception) { null }
+            handler.post {
+                when {
+                    a == null -> if (askGate.timedOut(ticket)) onPhone(if (online()) OfflineAsk.Why.NO_SERVER else OfflineAsk.Why.NO_SIGNAL)
+                    askGate.answer(ticket) -> { carryOut(a, "server"); waitForFetch(a, ticket, done) }
+                    else -> Diag.add("heard", "\"${text.take(60)}\": FLACie Web's answer came after ${android.os.SystemClock.elapsedRealtime() - askedAt} ms, too late, dropped")
+                }
+            }
+        }
+    }
+
+    /** The phone's own lists, for [OfflineAsk] (read on a background thread). */
+    private fun offlineLib(): OfflineAsk.Lib {
+        val app = App.of(ctx); val src = AppBrowseSource(app)
+        return object : OfflineAsk.Lib {
+            override fun songs() = app.library.songs()
+            override fun playlists() = src.playlists().map { (id, name) -> name to src.playlistTracks(id) }
+            override fun favourites() = src.favorites()
+            override fun isDownloaded(path: String) = app.offline.isDownloaded(path)
+        }
+    }
+
+    /** A song the server is fetching for request [ticket]: played once it lands, at once when that is soon, else up next ([DjAskGate.landed]); not at all
+     *  once something else was asked for or started. Asked every 5 s for 10 minutes, on its own thread. */
+    private fun waitForFetch(a: DjAskAnswer, ticket: Int, done: (DjAskAnswer) -> Unit) {
+        val artist = a.waitArtist ?: return; val title = a.waitTitle ?: return
+        Thread({
+            for (i in 0 until 120) {
+                try { Thread.sleep(5_000) } catch (_: InterruptedException) { return@Thread }
+                if (askGate.landed(ticket) == DjAskGate.Landed.DROP) { Diag.add("heard", "\"$title\": no longer waited for (something else was asked or played)"); return@Thread }
+                val landed = try { djWeb.djLanded(artist, title) } catch (_: Exception) { false }
+                if (landed) {
+                    // the phone's library learns of the song at its next sync; by title until then nothing is played
+                    val t = App.of(ctx).library.let { it.findSong(title, artist) ?: it.findLoose(title, artist) }
+                    // here on the server but not on the phone yet: Jellyfin's changes are fetched now, not at the next sync (owner, 12 Nov: the DJ said
+                    // "getting that one", then "still getting it" a song later, and never played it)
+                    if (t == null) App.of(ctx).library.lookAgain()
+                    if (t != null) {
+                        handler.post {
+                            val how = askGate.landed(ticket)
+                            if (how == DjAskGate.Landed.DROP) return@post
+                            // "... and add it to pop (and shuffle pop)": added now it is here, then that playlist shuffled with it first
+                            val list = a.waitAddTo
+                            var order = listOf(t)
+                            if (list != null) {
+                                val ud = App.of(ctx).userData
+                                com.ipodemu.library.DjPlaylistEdits(ud).add(list, listOf(t.path))
+                                val lib = App.of(ctx).library.byPath()
+                                val paths = ud.playlists.firstOrNull { it.name.trim().equals(list.trim(), ignoreCase = true) }?.paths.orEmpty()
+                                order = DjAskRunner.landedOrder(t.path, paths, a.waitShuffle).mapNotNull { lib[it] }.ifEmpty { listOf(t) }
                             }
-                            return@Thread
+                            // a song that took a while is put up next, not cut in over whatever plays by then (owner, 25 Nov: "it plays the song 2 mins later")
+                            val now = how == DjAskGate.Landed.PLAY_NOW || !hasQueue
+                            carryingOut = true
+                            try { if (now) play(order, 0, shuffle = false, context = if (list != null && a.waitShuffle) list else null) else addNext(t) } finally { carryingOut = false }
+                            val msg = (if (now) "Here it is: ${t.title}, by ${t.artist}." else "${t.title} is here. It's up next.") + if (list != null) " It's in $list." else ""
+                            // in the car the conversation is over by now: said, as nothing on a screen would be seen
+                            if (carControllers > 0) djSay(msg)
+                            done(DjAskAnswer(DjAskDo.NONE, msg))
                         }
+                        return@Thread
                     }
                 }
-                // ten minutes and still not here: said, rather than the DJ going quiet about it
-                handler.post { done(DjAskAnswer(DjAskDo.NONE, "Couldn't get $title in time, sorry. If it comes in later it'll be in your library.")) }
-            }, "dj-ask-wait").apply { isDaemon = true }.start()
-        }
+            }
+            // ten minutes and still not here: said, rather than the DJ going quiet about it
+            handler.post { if (askGate.landed(ticket) != DjAskGate.Landed.DROP) done(DjAskAnswer(DjAskDo.NONE, "Couldn't get $title in time, sorry. If it comes in later it'll be in your library.")) }
+        }, "dj-ask-wait").apply { isDaemon = true }.start()
     }
 
     private val askPlayer = object : DjAskPlayer<Track> {
@@ -731,13 +815,15 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                 android.util.Log.w("FLACie", "playback error at ${exo.currentPosition}ms: ${error.errorCodeName}", error)
                 // a song on the Opus copy that fails is tried once more on the original stream, from the same spot; the next songs stay full quality until the line is measured again
+                // (prepare only, in the three retries below: play or pause stays as it was. They called play(), which started a song the DJ's mic had paused
+                // on a weak signal, and the mic heard it: owner, 25 Nov)
                 val cur1 = current
                 if (cur1 != null && StreamQuality.retryOnFlac(exo.currentMediaItem?.localConfiguration?.uri?.toString() ?: "", cur1.path in opusFailed)) {
                     opusFailed.add(cur1.path)
                     autoPick = StreamQuality.Pick.FLAC; opusHeldAt = measuredBytes.get()
                     Diag.add("quality", "\"${cur1.title}\" would not play as Opus (${error.errorCodeName}): trying full quality")
                     val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
-                    exo.replaceMediaItem(idx, item(cur1)); selfSeekTo(idx, at); exo.prepare(); exo.play()
+                    exo.replaceMediaItem(idx, item(cur1)); selfSeekTo(idx, at); exo.prepare()
                     adaptUpcoming(); fire(); return
                 }
                 // a song this phone cannot decode (no decoder for the format) is played through the server's conversion instead of going silent
@@ -748,7 +834,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                         androidx.media3.common.PlaybackException.ERROR_CODE_AUDIO_TRACK_INIT_FAILED)) {
                     forceHls.add(cur0.path)
                     val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
-                    exo.replaceMediaItem(idx, item(cur0)); selfSeekTo(idx, at); exo.prepare(); exo.play()
+                    exo.replaceMediaItem(idx, item(cur0)); selfSeekTo(idx, at); exo.prepare()
                     fire(); return
                 }
                 // a song whose file is not there any more (swapped for a Hi-Res copy, moved): the library's other copy of it, from the same spot
@@ -760,7 +846,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
                     Diag.add("error", "\"${cur2.title}\" is not there any more: playing the library's other copy")
                     val idx = exo.currentMediaItemIndex; val at = exo.currentPosition
                     queue = queue.map { if (it.path == cur2.path) other else it }; queueRev++
-                    exo.replaceMediaItem(idx, item(other)); selfSeekTo(idx, at); exo.prepare(); exo.play()
+                    exo.replaceMediaItem(idx, item(other)); selfSeekTo(idx, at); exo.prepare()
                     fire(); return
                 }
                 val key = exo.currentMediaItemIndex to (current?.path ?: "")
@@ -1222,6 +1308,8 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     /** [contextId]: the playlist it came from, for the DJ's per-playlist switch (the Jellyfin playlist id when it has one, else the app's own id). */
     fun play(list: List<Track>, index: Int, shuffle: Boolean? = null, context: String? = null, contextId: String? = null, from: String? = null) {
         contextName = context; listenFrom = from
+        // a new queue started by anything but an answer: the request still waiting is dropped
+        if (!carryingOut) askGate.cancel()
         if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
         queue = list

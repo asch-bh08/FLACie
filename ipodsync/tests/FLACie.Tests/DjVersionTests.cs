@@ -39,6 +39,18 @@ public class DjVersionTests
     }
 
     [Fact]
+    public async Task A_plain_titled_mix_on_a_compilation_loses_and_only_the_song_asked_for_is_queued()
+    {
+        // owner, 25 Nov: "I asked it to play Out of Space and it plays some random remix", and asking for one song queued 25 more by the artist
+        var u = Library(demoPlayed: true);
+        u.Library.Insert(0, new("/p/va/Rave Anthems/Out of Space", "Out of Space", "The Prodigy", "Rave Anthems", "Various Artists", 1, 1, 420000, 1996, null, 1, TrackSource.Jellyfin, JellyfinId: "x1"));
+        u.Top.Insert(0, u.Library[0]);
+        var a = await new DjAskEngine().AnswerAsync(u, "play out of space", null, []);
+        Assert.Equal("/p/The Prodigy/Experience/Out of Space", a.Paths![0]);
+        Assert.Single(a.Paths);
+    }
+
+    [Fact]
     public async Task A_played_demo_still_loses_to_the_album_version()
     {
         var a = await new DjAskEngine().AnswerAsync(Library(demoPlayed: true), "play out of space by the prodigy", null, []);

@@ -934,8 +934,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                         ranked = [picked, .. ranked.Where(v => v.Path != picked.Path)];
                     var song = ranked[0];
                     Pick.Keep(u.Account, ranked.Skip(1).ToList());
-                    var others = u.Songs.Where(x => x.Path != song.Path && Playable(x) && Matching.PrimaryArtist(x.Artist) == Matching.PrimaryArtist(song.Artist)).OrderBy(_ => Random.Shared.Next()).Take(25).Select(x => x.Path);
-                    return new(DjAskDo.Play, $"{T(song.Title)}, by {song.Artist}.", [song.Path, .. others], T(song.Title));
+                    // the song asked for alone: Autoplay follows with a spread of artists (owner, 25 Nov: one song asked for queued 25 more by its artist)
+                    return new(DjAskDo.Play, $"{T(song.Title)}, by {song.Artist}.", [song.Path], T(song.Title));
                 case Track t when !Playable(t) && ArtistFits(query.Artist, t):
                     return DjAskAnswer.Said($"{T(t.Title)} is on its way into your library. Give it a minute.");
                 case FLACie.Core.Group g when best.Kind == MatchKind.Artist:

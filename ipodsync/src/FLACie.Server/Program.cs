@@ -146,6 +146,8 @@ builder.Services.AddSingleton(_ => new StreamStalls());
 builder.Services.AddSingleton<TokenCache>();
 builder.Services.AddSingleton<ListenLogStore>();   // each account's listening log (recommendations)
 builder.Services.AddSingleton<DiagLogStore>();   // each account's playback problems from its devices (stalls, errors, what the mic heard)
+builder.Services.AddSingleton<WhereStore>();   // where each device was over the last day, so the person can carry on from there (owner, 25 Nov)
+builder.Services.AddHostedService<WhereSampler>();   // records where each open browser is
 builder.Services.AddSingleton<FormatProbeService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<FormatProbeService>());
 builder.Services.AddSingleton<VibeIndex>();   // how each song feels (recommendations), filled in the background
@@ -306,6 +308,7 @@ app.MapStaticAssets();
 app.MapAuth();
 app.MapMedia(dataDir);
 app.MapApi();
+app.MapWhere();
 app.MapRecommend();
 app.MapMade();
 app.MapAlexa();

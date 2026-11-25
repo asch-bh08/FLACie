@@ -50,6 +50,7 @@ import androidx.core.content.ContextCompat
 import com.ipodemu.playback.DjAskDo
 import com.ipodemu.playback.DjConversation
 import com.ipodemu.playback.DjTurn
+import com.ipodemu.playback.MicTurn
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -89,6 +90,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         gate.ended()
         if (!conversing) return
         conversing = false
+        app.player.holdForMic(false)
         if (DjConversation.resumeAtEnd(pausedByMic, how) && !app.player.isPlaying) app.player.resume()
         pausedByMic = false
     }
@@ -102,8 +104,11 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         DjStatus.now.heard(text)
         state = MicState.THINKING; gate.thinking(clock())
         app.player.askDj(text, search = onSearch != null) { a ->
+            // a song fetched for an earlier request landing: just said
+            if (state != MicState.THINKING) { if (a.say.isNotBlank()) app.ui.say(a.say); return@askDj }
             state = MicState.IDLE
-            if (a.doThis == DjAskDo.SEARCH) { end(DjTurn.END); onSearch?.invoke(text); return@askDj }
+            if (a.doThis == DjAskDo.SEARCH) { DjStatus.now.done(); end(DjTurn.END); onSearch?.invoke(text); return@askDj }
+            DjStatus.now.result(MicTurn.done(a))
             // the answer is always shown; it is also said in the DJ's voice when it could be
             if (a.say.isNotBlank()) app.ui.say(a.say)
             val how = if (goodbye) DjTurn.END else DjConversation.after(a.mainDo, a.asked, ++turn, a.intent)
@@ -130,15 +135,17 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
                 if (rec.value !== r) return
                 val text = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.trim().orEmpty()
                 stop()
-                if (text.isEmpty()) { state = MicState.IDLE; end(DjTurn.END) } else heard(text)
+                if (text.isEmpty()) { val first = turn == 0; state = MicState.IDLE; end(DjTurn.END); if (first) DjStatus.now.result(MicTurn.NOTHING_HEARD) } else heard(text)
             }
             // nothing said (no match, silence) ends the conversation quietly; anything else says so
             override fun onError(error: Int) {
                 if (rec.value !== r) return
                 // the on-device recogniser failed at once: the same turn again with the online one
                 if (!MicSpeech.onDeviceBroken && MicSpeech.retryOnline(error)) { MicSpeech.useOnline(ctx); listen(waitMs); return }
+                val first = turn == 0
                 stop(); state = MicState.IDLE; end(DjTurn.END)
-                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) app.ui.say("Sorry, I didn't catch that.")
+                if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) { app.ui.say(MicTurn.NOT_CAUGHT); DjStatus.now.result(MicTurn.NOT_CAUGHT) }
+                else if (first) DjStatus.now.result(MicTurn.NOTHING_HEARD)
             }
             override fun onReadyForSpeech(params: Bundle?) { timing.listening(); MicSpeech.beep() }
             override fun onBeginningOfSpeech() { giveUp.value?.let { handler.removeCallbacks(it) }; giveUp.value = null }
@@ -161,8 +168,20 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         if (state == MicState.IDLE) return@LaunchedEffect
         while (true) {
             delay(500)
+            val wasThinking = state == MicState.THINKING
             if (gate.tick(clock(), app.player.isPlaying)) {
                 val music = app.player.isPlaying
+                val r = rec.value
+                if (!wasThinking && !music && r != null) {
+                    // the listening limit (about 8 s, owner, 25 Nov: "it listens forever"): what was heard so far is used (onResults follows and this
+                    // effect starts again for the new state); nothing back soon after gives up and says so
+                    try { r.stopListening() } catch (_: Exception) { }
+                    delay(MicTurn.RESULT_GRACE_MS)
+                    if (rec.value === r) { stop(); state = MicState.IDLE; end(DjTurn.END); DjStatus.now.result(MicTurn.NOT_CAUGHT); app.ui.say(MicTurn.NOT_CAUGHT) }
+                    break
+                }
+                // no answer in time: the request is dropped (a late answer must not play something a minute later) and that is said
+                if (wasThinking) { app.player.cancelAsk(); DjStatus.now.result(MicTurn.NO_ANSWER) }
                 stop(); state = MicState.IDLE; end(if (music) DjTurn.END_MUSIC_CHOSEN else DjTurn.END)
                 break
             }
@@ -175,6 +194,8 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         conversing = true; turn = 0
         pausedByMic = app.player.isPlaying
         if (pausedByMic) app.player.pause()
+        // and silent until the conversation ends, so the mic never hears the song even if something starts it again (owner, 25 Nov)
+        app.player.holdForMic(true)
         listen(0L)
     }
 
@@ -183,7 +204,8 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         if (state == MicState.IDLE && !conversing) timing.press()
         when (state) {
             MicState.LISTENING -> { stop(); state = MicState.IDLE; end(DjTurn.END) }
-            MicState.THINKING -> {}
+            // while it works: the request is dropped, the turn ends and the song carries on
+            MicState.THINKING -> { app.player.cancelAsk(); state = MicState.IDLE; DjStatus.now.done(); end(DjTurn.END) }
             // between turns (the DJ is answering): a press ends the conversation
             MicState.IDLE -> if (conversing) end(DjTurn.END) else when {
                 ContextCompat.checkSelfPermission(ctx, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> begin()
@@ -208,7 +230,7 @@ fun DjMicButton(size: Dp = 44.dp, tint: Color = Color.White, glass: Color = Colo
         .then(if (lit2) Modifier.border(2.dp, lit, CircleShape) else Modifier).focusRing(CircleShape)
     val action = Modifier
         .semantics {
-            contentDescription = when (state) { MicState.LISTENING -> "Listening. Press to stop"; MicState.THINKING -> "Thinking"; else -> if (conversing) "Talking with the DJ. Press to stop" else "Talk to the DJ" }
+            contentDescription = when (state) { MicState.LISTENING -> "Listening. Press to stop"; MicState.THINKING -> "Working. Press to cancel"; else -> if (conversing) "Talking with the DJ. Press to stop" else "Talk to the DJ" }
             role = Role.Button; stateDescription = state.name.lowercase()
         }
         .clickable(onClick = ::press)

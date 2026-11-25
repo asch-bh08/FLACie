@@ -236,7 +236,8 @@ class FlacieWebClient(private val prefs: Prefs) {
     /** "Talk to the DJ": the recognised words ([body] from DjAskAnswer.body) to the server's one request reader. Null when it can't be reached in time. */
     fun djAsk(body: String): com.ipodemu.playback.DjAskAnswer? {
         val c = open("/api/dj/ask", "POST")
-        c.connectTimeout = 5_000; c.readTimeout = 10_000
+        // inside the phone's own deadline (DjAskGate): a weak signal is not waited out here, the phone answers by itself
+        c.connectTimeout = com.ipodemu.playback.DjAskGate.CONNECT_MS.toInt(); c.readTimeout = com.ipodemu.playback.DjAskGate.ASK_DEADLINE_MS.toInt()
         try {
             val b = body.toByteArray()
             c.doOutput = true; c.setRequestProperty("Content-Type", "application/json"); c.setFixedLengthStreamingMode(b.size)

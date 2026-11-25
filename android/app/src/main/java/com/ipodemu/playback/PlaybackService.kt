@@ -83,6 +83,8 @@ class PlaybackService : MediaLibraryService() {
                     if (waitMs > 0) Runnable { if (rec === r) { drop(); onHeard(null) } }.also { giveUp = it; main.postDelayed(it, waitMs) }
                     return true
                 }
+                // the listening limit: stop now and hand over what was heard (onResults follows)
+                override fun finish() { try { rec?.stopListening() } catch (_: Exception) { } }
                 override fun stop() = drop()
             },
             music = object : CarDjMic.Music {
@@ -95,6 +97,10 @@ class PlaybackService : MediaLibraryService() {
             later = { ms, run -> main.postDelayed(run, ms) },
             say = { app.player.djSay(it) },
             micAllowed = { androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED },
+            cancelAsk = { app.player.cancelAsk() },
+            hold = { app.player.holdForMic(it) },
+            // each stage on the car's screen, in the artist line (owner, 25 Nov: "no way of knowing if the DJ heard you")
+            show = { app.player.micLine = it },
         ).also { it.onChange = { refreshLayout(force = true) } }
     }
 
@@ -285,7 +291,7 @@ class PlaybackService : MediaLibraryService() {
         val buttons = CarActions.order(carDj, speedButton).map { id ->
             when (id) {
                 CarActions.Id.TALK -> carMic.let { m ->
-                    button(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Thinking…"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" },
+                    button(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Working… tap to cancel"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" },
                         if (m.conversing) R.drawable.ic_car_mic_on else R.drawable.ic_car_mic, talkCommand)
                 }
                 CarActions.Id.FAVORITE -> button(if (fav) "Remove from favourites" else "Favourite",

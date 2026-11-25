@@ -39,6 +39,8 @@ class SessionPlayer(private val c: PlayerController, private val prefs: Prefs, p
     private fun artistFor(t: Track?): String? {
         handler.removeCallbacks(askAgain)
         if (c.carControllers <= 0) { captionGate.reset(); return null }
+        // a spoken request's stage (Listening…, Heard: "…" · Working…, the answer) comes first and at once, not held back by the caption gate
+        c.micLine?.let { return it }
         val now = android.os.SystemClock.elapsedRealtime()
         val caption = captionGate.show(c.djCaption, now)
         val wait = captionGate.waitMs(c.djCaption, now)

@@ -739,6 +739,25 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     }
                 }
             }
+            // playlists right under Quick picks, as on the web's top half (owner, 25 Nov: "I feel like I've lost my playlists": they were fifth, under
+            // the moods and Artists on repeat), with All to the Playlists page
+            val lists = shownPlaylists(app); val by0 = lib.byPath()
+            if (lists.isNotEmpty() && mood == null) {
+                item(key = "playlists-head") {
+                    Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.weight(1f)) { SectionHeader("Your playlists") }
+                        GlossPill("All ${lists.size}", { nav.push(Screen.Lib(LibKind.PLAYLISTS)) }, height = 28.dp)
+                    }
+                }
+                item {
+                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        items(lists.take(14), key = { it.id }) { pl ->
+                            val ts = remember(pl.paths.size, libRev) { pl.paths.asSequence().take(8).mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) }.toList() }   // only the first few: the cover needs one, and a 350-song playlist resolved whole on every Home build was a stutter
+                            AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
+                        }
+                    }
+                }
+            }
             // the moods (owner, 12 Nov: "these huge random buttons, why?"): smaller cards in one row that scrolls, each with a fan of covers from its own
             // songs, so you can see what is in it; a card again goes back to everything. As on the web
             if (modern && moodList.isNotEmpty()) {
@@ -806,20 +825,6 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                                     Txt(name, Modifier.padding(top = 6.dp), size = 12.5f, weight = FontWeight.SemiBold, maxLines = 1)
                                 }
                             }
-                        }
-                    }
-                }
-            }
-            // playlists are one tap away here as well as in the Playlists tab: near the top, before the other shelves, as on the web (at the foot of
-            // Home the owner never saw them)
-            val lists = shownPlaylists(app); val by0 = lib.byPath()
-            if (lists.isNotEmpty() && mood == null) {
-                item { SectionHeader("Your playlists") }
-                item {
-                    LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        items(lists.take(14), key = { it.id }) { pl ->
-                            val ts = remember(pl.paths.size, libRev) { pl.paths.asSequence().take(8).mapNotNull { by0[it] ?: lib.resolve(it, app.userData.meta[it]) }.toList() }   // only the first few: the cover needs one, and a 350-song playlist resolved whole on every Home build was a stutter
-                            AlbumCard(com.ipodemu.library.Group("${pl.name} (${pl.paths.size})", ts, ts.firstNotNullOfOrNull { it.artKey }), Modifier.width(150.dp)) { nav.push(Screen.Detail(DetailKind.USER, pl.id)) }
                         }
                     }
                 }

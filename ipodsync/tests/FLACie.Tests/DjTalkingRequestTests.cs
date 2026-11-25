@@ -127,6 +127,35 @@ public class DjTalkingRequestTests
         Assert.Contains(then, a.Say);
     }
 
+    /// <summary>The phone's emulator library: "Song 1".."Song 400" by "Artist 001".. (phone DJ test, 25 Nov: "play Song 7" answered "Sorry, I didn't catch that").</summary>
+    static User Numbered()
+    {
+        var u = new User();
+        for (var i = 1; i <= 400; i++)
+            u.Library.Add(new($"/m/{i}", $"Song {i}", $"Artist {i % 40 + 1:000}", $"Album {i % 30}", $"Artist {i % 40 + 1:000}", 1, 1, 200000, 2000, null, 1, TrackSource.Jellyfin,
+                FilePath: $"/music/Artist {i % 40 + 1:000}/Song {i}.flac", JellyfinId: $"id{i}"));
+        return u;
+    }
+
+    [Theory]
+    [InlineData("play Song 7", "Song 7")]
+    [InlineData("play song 7", "Song 7")]
+    [InlineData("play Song 70", "Song 70")]
+    [InlineData("play song seven", "Song 7")]
+    [InlineData("play Song 7 by Artist 008", "Song 7")]
+    public async Task A_numbered_title_plays_that_song_quickly_with_its_file(string said, string title)
+    {
+        var u = Numbered();
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var a = await new DjAskEngine().AnswerAsync(u, said, null, []);
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(5), $"{sw.ElapsedMilliseconds} ms");
+        Assert.True(a.Do == DjAskDo.Play, a.Say);
+        Assert.Equal(title, Title(u, a.Paths![0]));
+        // the phone finds the song by its file: the answer's songs carry it
+        var json = DjAskService.Json(a, u.Find);
+        Assert.Equal($"/music/Artist 008/{title}.flac".Replace("Artist 008", u.Find(a.Paths[0])!.Artist), json["songs"]![0]!["file"]!.GetValue<string>());
+    }
+
     sealed class OneActionModel : IDjAskModel
     {
         public Task<string?> AskAsync(string system, string user, CancellationToken ct) => Task.FromResult<string?>("{\"action\": \"play\", \"query\": \"maps\"}");

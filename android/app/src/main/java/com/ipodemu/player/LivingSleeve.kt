@@ -466,9 +466,10 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         GlassButton("Options", onOptions) { SlidersIcon(Color.White) }
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
         Spacer(Modifier.width(gap + 2.dp))
-        GlassButton("Retro", { openRetro(ctx) }) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) }
-        // Settings up here where there is room (a tablet, an open Fold); on a phone it is in More (owner, 12 Nov)
-        if (!narrow && this@BoxWithConstraints.maxWidth >= 600.dp) { Spacer(Modifier.width(gap + 2.dp)); GlassButton("Settings", { nav.nowPlaying = false; nav.push(Screen.Settings) }) { GlyphIcon(Glyph.GEAR, Modifier.size(22.dp), Color.White) } }
+        // Settings always up here, as on the web's player (owner, 25 Nov: "there's still no settings in Now Playing on mobile": it was only in More);
+        // on a phone it takes Retro's place (Retro is in More), with room (a tablet, an open Fold) both are here
+        GlassButton("Settings", { nav.nowPlaying = false; nav.push(Screen.Settings) }) { GlyphIcon(Glyph.GEAR, Modifier.size(22.dp), Color.White) }
+        if (this@BoxWithConstraints.maxWidth >= 600.dp) { Spacer(Modifier.width(gap + 2.dp)); GlassButton("Retro", { openRetro(ctx) }) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) } }
     }
     }
 }

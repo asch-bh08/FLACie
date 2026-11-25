@@ -41,10 +41,11 @@ else
             }
             else { var (head, last) = SplitTitle(p.Name); <h1>@head<i>@last</i></h1> }
             <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")@(waiting is { Count: > 0 } ? $" · {waiting.Count} still to come" : "")</p>
-            @if (imp is { } im2) { <p class="pl-import"><a href="/imports/@im2.JobId/downloads" data-testid="pl-downloads"><Icon Name="download" Size="14" />Downloads for this playlist</a></p> }
             <div class="chips">
                 <button class="btn primary pl-play" @onclick="() => Player.PlayInOrder(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                @* a button like the others, not an underlined link (owner, 25 Nov) *@
+                @if (imp is { } im2) { <a class="btn pl-downloads" href="/imports/@im2.JobId/downloads" data-testid="pl-downloads" title="This playlist's downloads: what came in, what is still to come"><Icon Name="download" Size="18" />Downloads</a> }
                 @if (confirm)
                 {
                     <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>

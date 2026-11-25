@@ -127,6 +127,20 @@ public class DjTalkingRequestTests
         Assert.Contains(then, a.Say);
     }
 
+    sealed class OneActionModel : IDjAskModel
+    {
+        public Task<string?> AskAsync(string system, string user, CancellationToken ct) => Task.FromResult<string?>("{\"action\": \"play\", \"query\": \"maps\"}");
+    }
+
+    [Fact]
+    public async Task Play_this_then_that_keeps_both_songs_when_the_model_is_on()
+    {
+        var u = Lib();
+        var a = await new DjAskEngine(new OneActionModel()).AnswerAsync(u, "play maps then heads will roll", null, []);
+        Assert.Equal(2, a.AllSteps.Count);
+        Assert.Equal("Heads Will Roll", Title(u, a.AllSteps[1].Paths![0]));
+    }
+
     [Theory]
     [InlineData("Heads Will Roll (A-Trak Remix)", "the original", "Heads Will Roll")]
     [InlineData("Heads Will Roll (A-Trak Remix)", "not the remix", "Heads Will Roll")]

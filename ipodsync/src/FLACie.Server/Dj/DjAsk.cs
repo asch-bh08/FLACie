@@ -489,6 +489,8 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         // a plain control is done at once; anything else the model understands first (owner: "I want it to know what I mean all the time, and if it
         // doesn't, ask me"), and the quick rules are what's left when the model has no answer (not set up, over the cap, too slow)
         parse ??= DjAskRules.Instant(text);
+        // "play X then Y": the rules see both songs, the model's one action would drop the second (owner, 25 Nov)
+        if (parse is null && DjAskRules.Parse(text) is { ThenPlay.Length: > 0 } both) parse = both;
         string? clarify = null;
         // past the account's "dj-ask" limit a minute (far beyond anyone talking to it) the model, a paid call, is left out as if it were not set up: the
         // quick rules still answer, so "next", "pause" and plain requests keep working, and a runaway client cannot spend the day's allowance

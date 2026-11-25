@@ -14,16 +14,55 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
+ * Where the graphs read the tapped sound from, so the picture moves on smoothly. The player hands decoded sound over in bursts (a FLAC block of 4,096
+ * frames is 93 ms at 44.1 kHz) and the graphs used to read the newest frames: the picture changed about 11 times a second, in jumps (owner, 25 Nov: "the
+ * waveform graph is very laggy"). The read point moves on at the song's own rate between bursts, about a burst behind the newest frame, and is eased
+ * towards there; after a seek, a new song or a stall it jumps straight to the new sound. Never past what has arrived. Pure (no clock of its own): tested.
+ */
+class SmoothHead {
+    private var written = 0L
+    private var lead = 0L
+    private var pos = 0.0
+    private var lastNs = 0L
+    private var started = false
+
+    /** The tap now holds [total] frames since the last [reset], the newest arrived at [nowNs]. */
+    fun wrote(total: Long, nowNs: Long) {
+        val chunk = total - written
+        if (chunk > 0 && chunk > lead) lead = chunk
+        written = total
+    }
+
+    /** A seek, a new song, a new format: the sound starts again. */
+    fun reset() { written = 0; lead = 0; pos = 0.0; started = false }
+
+    /** The frame (counted since [reset]) the graphs' window should end at, at [nowNs]. */
+    fun readEnd(nowNs: Long, rate: Int): Long {
+        if (written <= 0) return 0
+        if (!started) { started = true; pos = (written - lead).toDouble(); lastNs = nowNs }
+        else { pos += (nowNs - lastNs) * rate / 1e9; lastNs = nowNs }
+        val target = (written - lead).toDouble()
+        val err = target - pos
+        pos = if (kotlin.math.abs(err) > rate * 0.5) target else pos + err * 0.05
+        pos = pos.coerceIn(0.0, written.toDouble())
+        return pos.toLong()
+    }
+}
+
+/**
  * The sound as it goes to the speaker, for the Info tab's live graphs. ExoPlayer hands every buffer of decoded audio to this sink (it does not
  * change the sound); the last few thousand frames of left and right are kept so the screen can read them at its own pace.
  */
 @UnstableApi
 class LiveAudio : TeeAudioProcessor.AudioBufferSink {
-    private val size = 8192
+    // (room for a burst or two behind the newest frame plus the graphs' window, at 192 kHz: SmoothHead reads a little behind)
+    private val size = 32768
     private val left = FloatArray(size)
     private val right = FloatArray(size)
     private var head = 0          // next frame to write
     private var filled = 0
+    private var total = 0L        // frames since the last flush (SmoothHead counts the same way)
+    private val smooth = SmoothHead()
     private val lock = Any()
     @Volatile var sampleRate = 44100; private set
     @Volatile var channels = 2; private set
@@ -37,7 +76,7 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
 
     override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
         this.sampleRate = sampleRateHz; channels = channelCount; this.encoding = encoding
-        synchronized(lock) { head = 0; filled = 0 }
+        synchronized(lock) { head = 0; filled = 0; total = 0; smooth.reset() }
     }
 
     /** While true, the energy of every decoded buffer is added up for the seek bar's exact shape (WaveAnalyzer.hear): one pass over the first channel, read only. */
@@ -73,6 +112,8 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
                 head = (head + 1) % size
             }
             filled = min(size, filled + frames - skip)
+            total += frames
+            smooth.wrote(total, System.nanoTime())
         }
     }
 
@@ -84,10 +125,12 @@ class LiveAudio : TeeAudioProcessor.AudioBufferSink {
         else -> ((b.get(at).toInt() and 0xFF) - 128) / 128f
     }
 
-    /** Copies the newest [n] frames (oldest first) into [outL] and [outR]; false when nothing has played yet. */
+    /** Copies [n] frames (oldest first) into [outL] and [outR], ending where [SmoothHead] says the graphs are now (moving on smoothly between the
+     *  player's bursts, not jumping to each new one); false when nothing has played yet. */
     fun latest(outL: FloatArray, outR: FloatArray, n: Int): Boolean = synchronized(lock) {
         if (filled < n) return false
-        var i = (head - n + size) % size
+        val behind = (total - smooth.readEnd(System.nanoTime(), sampleRate)).coerceIn(0L, (filled - n).toLong()).toInt()
+        var i = (head - behind - n + 2 * size) % size
         for (k in 0 until n) { outL[k] = left[i]; outR[k] = right[i]; i = (i + 1) % size }
         true
     }

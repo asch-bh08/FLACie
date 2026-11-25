@@ -492,6 +492,8 @@ private fun RateBars(kbps: Int, accent: Color) {
 // ---- live graphs: the web's design I views (flacie.js drawCurve, drawLeds, drawWall, drawLoud, drawStereo) -----------------------------------------
 
 private class GraphState {
+    // the waveform's line, kept and refilled each frame (a new Path every frame, 120 a second on the Fold, was garbage mid-animation)
+    val scopePath = Path()
     // spectrum / visualizer
     var peaks = FloatArray(0); var holds = FloatArray(0); var heights = FloatArray(0); var bass = 0f
     // orbit: each ring's level and where its dots are
@@ -534,11 +536,12 @@ internal fun LiveGraph(mode: String, analysis: LiveAnalysis, playing: Boolean, h
     var frameNs by remember { mutableLongStateOf(0L) }
     // the tap on the sound is only on while a graph is shown
     androidx.compose.runtime.DisposableEffect(analysis) { analysis.watch(true); onDispose { analysis.watch(false) } }
-    // the analysis (a 2048-point transform and 1,024 logarithms) runs on a background thread about 40 times a second: on the main thread, once per frame (120 a second on the Fold),
-    // it took frames from the screen, and waiting for the audio thread's lock after each new song made it stutter
+    // the analysis (a 2048-point transform and 1,024 logarithms) runs on a background thread: on the main thread, once per frame (120 a second on the Fold),
+    // it took frames from the screen, and waiting for the audio thread's lock after each new song made it stutter. About 70 times a second (it was 40, so at
+    // 60 frames a second every third frame showed the same picture again: owner, 25 Nov, "the waveform graph is very laggy")
     LaunchedEffect(analysis) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-            while (true) { analysis.update(); kotlinx.coroutines.delay(24) }
+            while (true) { analysis.update(); kotlinx.coroutines.delay(14) }
         }
     }
     LaunchedEffect(mode) {
@@ -782,7 +785,17 @@ private class Gfx(
         d.drawLine(ink.copy(alpha = .1f), Offset(0f, mid), Offset(w, mid), dp)
         var start = 0; for (i in 1 until n / 2) if (s[i - 1] < 0f && s[i] >= 0f) { start = i; break }
         val span = min(n - start, n / 2)
-        val path = Path().apply { for (i in 0 until span) { val x = i / (span - 1f) * w; val y = mid - s[start + i].coerceIn(-1f, 1f) * amp; if (i == 0) moveTo(x, y) else lineTo(x, y) } }
+        // at most a point every 2 dp, each the biggest swing in its stretch (1,024 points in two wide round-jointed strokes every frame was the lag; a sharp
+        // peak is never smoothed away); the path is kept and refilled
+        val pts = max(2, min(span, (w / (2 * dp)).toInt())); val per = span.toFloat() / pts
+        val path = st.scopePath.apply {
+            reset()
+            for (p in 0 until pts) {
+                var v = 0f; var i = (p * per).toInt(); val e = max(i + 1, ((p + 1) * per).toInt())
+                while (i < e && start + i < n) { val x = s[start + i]; if (kotlin.math.abs(x) > kotlin.math.abs(v)) v = x; i++ }
+                val x = p / (pts - 1f) * w; val y = mid - v.coerceIn(-1f, 1f) * amp; if (p == 0) moveTo(x, y) else lineTo(x, y)
+            }
+        }
         d.drawPath(path, accent.copy(alpha = .25f), style = androidx.compose.ui.graphics.drawscope.Stroke(8 * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
         d.drawPath(path, accent, style = androidx.compose.ui.graphics.drawscope.Stroke(2.5f * dp, cap = StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
         text("THE SOUND, LIVE", 7 * dp, h - 3 * dp)

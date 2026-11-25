@@ -38,6 +38,8 @@ try {
   if (-not $Reuse) {
     $online = (& $adb devices) -match 'emulator-\d+\s+device'
     if ($online) { throw 'an emulator is already online: another run owns it (use -Reuse to drive it anyway)' }
+    # only an emulator this run boots is shut down at the end: refusing because another run owns one must leave that one alone (25 Nov: a refused run used to shut down the other run's emulator here)
+    $script:ownsEmulator = $true
     Log "booting AVD $Avd headless (memory $Memory MB)"
     $emu = Start-Process -FilePath $emuExe -WindowStyle Hidden -PassThru -ArgumentList @('-avd', $Avd, '-no-window', '-no-audio', '-no-snapshot', '-no-boot-anim', '-gpu', 'swiftshader_indirect', '-memory', "$Memory", '-netfast')
   }
@@ -103,7 +105,7 @@ try {
   }
 }
 finally {
-  if (-not $Reuse) { Log 'shutting the emulator down'; Stop-Emulator }
+  if (-not $Reuse -and $script:ownsEmulator) { Log 'shutting the emulator down'; Stop-Emulator }
   # the driver kills its mock itself; make sure nothing is left on the port
   try {
     Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | ForEach-Object {

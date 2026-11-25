@@ -176,9 +176,11 @@ public static partial class DjAskRules
         {
             var what = play.Groups[1].Value.Trim();
             // "play jazz", "play upbeat music": a genre or a mood, not a song called that
-            if (GenreWords.Contains(what) || Regex.IsMatch(what, @"^(?:\S+ )?(?:music|songs|tunes|stuff)$") && IsMoody(what)) return new(AskIntent.Mood, what);
+            if (GenreWords.Contains(what) || Regex.IsMatch(what, @"^(?:.+ )?(?:music|songs|tunes|stuff|vibes)$") && IsMoody(what)) return new(AskIntent.Mood, what);
             return new(AskIntent.Play, what);
         }
+        // said without "play": "late night music", "chill vibes" (owner, 25 Nov)
+        if (Regex.IsMatch(s, @"^(?:.+ )?(?:music|songs|tunes|vibes)$") && IsMoody(s)) return new(AskIntent.Mood, s);
         return null;
     }
 }
@@ -918,6 +920,10 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         if (query.Genre is not null || query.Decade is not null) return Mood(u, what, cur, recent);
         if (query.SimilarTo is not null) query = query with { Artist = query.SimilarTo };
         var m = MatcherFor(u).Match(query);
+        // a mood said ("late night music") is a mood unless a song really has that title (owner, 25 Nov: it played "Fight Music")
+        if (DjAskRules.IsMoody(DjAskRules.Normalise(what)) && !(m.Decision != Decision.NotFound && m.Ranked[0].Item is Track named
+                && Matching.NormTitle(DjPick.Plain(named.Title)) == Matching.NormTitle(query.Title ?? what)))
+            return Mood(u, what, cur, recent);
         if (m.Decision != Decision.NotFound)
         {
             var best = m.Ranked[0];

@@ -1032,6 +1032,42 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
         p.Entries.Select(e => u.Find(e.Path) ?? u.Songs.FirstOrDefault(x => Matching.MatchKey(x.Title, x.Artist) == Matching.MatchKey(e.Title, e.Artist)))
             .OfType<Track>().Where(Playable).Select(t => t.Path).Distinct().Take(500).ToList();
 
+    static readonly string[] NumberWords = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen",
+        "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+    static readonly string[] TensWords = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+
+    /// <summary>Numbers said as words written as digits ("song seven" → "song 7", "twenty one" → "21"), as speech recognition often writes them out.</summary>
+    static string Digits(string s)
+    {
+        var w = s.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
+        var res = new List<string>();
+        for (var i = 0; i < w.Count; i++)
+        {
+            var tens = Array.IndexOf(TensWords, w[i]);
+            if (tens >= 2)
+            {
+                var unit = i + 1 < w.Count ? Array.IndexOf(NumberWords, w[i + 1]) : -1;
+                if (unit is >= 1 and <= 9) { res.Add((tens * 10 + unit).ToString(CultureInfo.InvariantCulture)); i++; } else res.Add((tens * 10).ToString(CultureInfo.InvariantCulture));
+                continue;
+            }
+            var n = Array.IndexOf(NumberWords, w[i]);
+            res.Add(n >= 0 ? n.ToString(CultureInfo.InvariantCulture) : w[i]);
+        }
+        return string.Join(' ', res);
+    }
+
+    /// <summary>The playable library songs whose title (without its brackets and " - " note) is what was said, numbers as digits; "X by Y": only Y's.</summary>
+    static List<Track> SaidTitle(IDjAskUser u, string what)
+    {
+        static string K(string s) => Digits(Matching.NormTitle(s));
+        var said = K(what); string? artist = null;
+        var by = said.LastIndexOf(" by ", StringComparison.Ordinal);
+        if (said.Length == 0) return [];
+        var all = u.Songs.Where(t => Playable(t) && K(DjPick.Plain(t.Title)) == said).ToList();
+        if (all.Count == 0 && by > 0) { artist = said[(by + 4)..]; said = said[..by]; all = u.Songs.Where(t => Playable(t) && K(DjPick.Plain(t.Title)) == said && ArtistFits(artist, t)).ToList(); }
+        return all;
+    }
+
     async Task<DjAskAnswer> PlayAsync(IDjAskUser u, string what, Track? cur, IReadOnlyList<string> recent, CancellationToken ct)
     {
         if (!u.Ready) return DjAskAnswer.Said("I'm still loading your library. Try again in a moment.");
@@ -1076,6 +1112,14 @@ public sealed partial class DjAskEngine(IDjAskModel? model = null, DjContexts? c
                     if (paths.Count > 0) return new(DjAskDo.Play, $"Here's your {p.Name} playlist.", paths, p.Name);
                     break;
             }
+        }
+        // a library song whose title is exactly what was said: "play Song 7" (the phone's DJ test, 25 Nov: the words "song" and "7" were read as a kind and
+        // a title, and nothing was found), "play song seven", "play Song 7 by Artist 008"
+        if (SaidTitle(u, what) is { Count: > 0 } exact)
+        {
+            var ranked = DjPick.Rank(u, exact, what);
+            Pick.Keep(u.Account, ranked.Skip(1).ToList());
+            return new(DjAskDo.Play, $"{T(ranked[0].Title)}, by {ranked[0].Artist}.", [ranked[0].Path], T(ranked[0].Title));
         }
         // not in the library: fetched as Alexa fetches it, and played when it lands
         var words = query.Title is { Length: > 0 } ti ? (query.Artist is { Length: > 0 } ar ? $"{ti} {ar}" : ti) : query.Album ?? query.Raw ?? query.Artist ?? what;

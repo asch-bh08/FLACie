@@ -65,7 +65,15 @@ async function main() {
   tapNode(find(ui, 'Sign in with Jellyfin'));
   ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
   const field = ui?.find((n) => /EditText/.test(n.cls));
-  tapAt(field.cx, field.cy); await sleep(600); typeText(`http://10.0.2.2:${PORT}`); await sleep(600); key('KEYCODE_BACK'); await sleep(800);
+  // the field may hold a suggested address: cleared first, and typed again until it reads right (as v1-shots.mjs does)
+  const addr = `http://10.0.2.2:${PORT}`;
+  for (let i = 0; i < 4; i++) {
+    tapAt(field.cx, field.cy); await sleep(600); key('KEYCODE_MOVE_END'); key('--longpress KEYCODE_DEL'); await sleep(300);
+    for (let k = 0; k < 3; k++) key('KEYCODE_DEL ' + 'KEYCODE_DEL '.repeat(12));
+    typeText(addr); await sleep(1000);
+    if ((dump() || []).some((n) => /EditText/.test(n.cls) && n.text === addr)) break;
+  }
+  key('KEYCODE_BACK'); await sleep(800);
   ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 20000, 1000);
   tapNode(find(ui, 'Sign in with Quick Connect'));
   await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);

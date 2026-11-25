@@ -45,8 +45,9 @@
     root.classList.add("vt-" + kind);
     let vt;
     try { vt = document.startViewTransition(update); } catch { root.classList.remove("vt-" + kind); return null; }
-    M.runs++; M.last = kind; M.active = true;
+    M.runs++; M.last = kind; M.active = true; M.vt = vt;
     const clean = () => {
+      if (M.vt === vt) M.vt = null;
       root.classList.remove("vt-" + kind);
       for (const el of [...named]) unname(el);
       M.active = false;
@@ -104,19 +105,9 @@
     });
   };
   // flacie.js calls this as the player starts to close (Back, Esc, the ⌄): the big cover flies back to the player bar
-  M.npClosing = () => {
-    if (!vtOK() || !document.querySelector(".np") || M.active) return;
-    const from = npCover();
-    name(from, "m-cover");
-    root.classList.add("np-morph");
-    run("np", async () => {
-      await until(() => !document.querySelector(".np:not(.closing)"), 600);
-      root.classList.add("np-hide");
-      unname(from);
-      const to = barCover();
-      if (from && visible(to)) name(to, "m-cover");
-    });
-  };
+  // (no page-wide transition on close any more: its picture covered the page and ate the next click on the bar, owner 25 Nov: "it needs 2 clicks".
+  // The player's own slide-down plays instead.)
+  M.npClosing = () => { };
 
   // ---- Retro: a new scene, look, model or colour cross-fades with a slide (the panel stays) ----
   const sceneMove = btn => {

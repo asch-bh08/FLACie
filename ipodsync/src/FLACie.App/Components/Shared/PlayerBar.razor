@@ -1,12 +1,12 @@
 @inherits UserComponent
 @if (Player.Current is { } t)
 {
-    @if (open) { <NowPlaying OnClose="() => open = false" /> }
+    @if (open) { var g = openGen; <NowPlaying @key="g" OnClosing="() => closingGen = g" OnClose="() => { if (g == openGen) open = false; }" /> }
     @* data-pip-*: what the mini player (flacie-pip.js) shows beside the song: the next song and the seek bar's loudness shape *@
     <section class="player" aria-label="Player" @ref="barEl" data-pip-path="@t.Path" data-pip-next="@NextLine()">
         <input class="bar-progress" type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" style="@Fill(hold.Value(Player.Position), Player.Duration)" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release" @oninput="hold.Input" @onchange="OnSeek" />
-        <div class="bar" @onclick="() => open = true">
-            <button class="bar-song" data-np @key="t.Path" @onclick="() => open = true" aria-label="Open Now Playing">
+        <div class="bar" @onclick="Open">
+            <button class="bar-song" data-np @key="t.Path" @onclick="Open" @onclick:stopPropagation="true" aria-label="Open Now Playing">
                 <Cover ArtKey="@(Art.KeyFor(t))" Size="52" Eager="true" />
                 <span class="bar-text"><b>@Title(Lib.DisplayTitle(t))</b><small>@t.Artist</small>@if (chip is { Length: > 0 }) { <span class="bar-chip">@chip</span> }<DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
             </button>
@@ -50,7 +50,7 @@
                     }
                 </div>
                 <VolumeControl />
-                <button class="icon-btn" data-np @onclick="() => open = true" aria-label="Full screen player"><Icon Name="expand" /></button>
+                <button class="icon-btn" data-np @onclick="Open" aria-label="Full screen player"><Icon Name="expand" /></button>
                 <button class="icon-btn" @onclick="Player.StopAsync" aria-label="Stop playing and close the player" title="Stop playing"><Icon Name="x" /></button>
             </div>
         </div>
@@ -60,6 +60,10 @@
     // drawn again on each tick of the player's clock: the bar shows the time and the progress line
     protected override bool FollowsTime => true;
     bool open, volumeLoaded, pipOk, pipOn, barMore;
+    /// <summary>Which opening of the player is on screen: a click while the last one is still closing (its 260 ms fade) opens a fresh one, and the old
+    /// one's close no longer shuts it (owner, 25 Nov: "it needs 2 clicks").</summary>
+    int openGen, closingGen = -1;
+    void Open() { if (open) openGen++; open = true; }   // the bar is under the player while it is open: a click on it means the player is going
     // the bar's More menu closes on a click anywhere outside it or Escape (flacie.watchOutside calls DismissBarMore)
     DotNetObjectReference<PlayerBar>? barSelf;
     async Task ToggleBarMore()
@@ -151,7 +155,7 @@
     string? lastPath;
     DotNetObjectReference<PlayerBar>? barRef;
     /// <summary>Back onto the "#now-playing" history entry (from a page the player linked to) brings the full-screen player back.</summary>
-    [JSInvokable] public void ReopenFull() => InvokeAsync(() => { open = true; StateHasChanged(); });
+    [JSInvokable] public void ReopenFull() => InvokeAsync(() => { Open(); StateHasChanged(); });
     void OnNavigated(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
     {
         // only a real page change closes it at once; the #now-playing in the address coming and going is the player's own open/close (which animates)

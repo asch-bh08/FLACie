@@ -266,8 +266,11 @@
         if (order[i] == "cover") panelOpen = false; else { tab = order[i]; panelOpen = true; if (tab == "lyrics") _ = LoadLyrics(); }
         StateHasChanged();
     });
+    /// <summary>Raised as the close starts (before its fade): a click on the bar meanwhile opens the player again.</summary>
+    [Parameter] public EventCallback OnClosing { get; set; }
     [JSInvokable] public async Task Closed()
     {
+        await OnClosing.InvokeAsync();
         await InvokeAsync(async () => { closing = true; StateHasChanged(); await Task.Delay(260); });
         await OnClose.InvokeAsync();
     }

@@ -28,7 +28,7 @@
 /* Now Playing opening or closing with a flying cover: the player fades instead of sliding up (the slide would carry the cover away from its flight) */
 :root.vt-np::view-transition-old(root), :root.vt-np::view-transition-new(root) { animation-duration: .34s; }
 :root.np-morph .np, :root.np-morph .np.closing, :root.np-morph .np .np-cover-btn { animation: none; }
-:root.np-hide .np { visibility: hidden; }
+:root.np-hide .np.closing { visibility: hidden; }   /* only the one closing: a player opened again meanwhile shows (owner, 25 Nov) */
 
 /* ---- Retro: changing the scene, the look or the model cross-fades with a short slide; the panel stays where it is ---- */
 :root.vt-scene .ipod-dock { view-transition-name: m-dock; }

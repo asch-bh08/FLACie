@@ -57,7 +57,7 @@ test('the player bar cover flies into Now Playing: named only while it moves', a
   await idle(page);
   expect(await page.evaluate(() => (window as any).flacieMotion.last)).toBe('np');
   expect(await leftovers(page)).toEqual([]);
-  // and back: closing flies it to the bar; afterwards nothing is named and the player is gone
+  // and back: the player slides down (no page-wide transition: it ate the next click on the bar); afterwards nothing is named and the player is gone
   await page.getByRole('button', { name: 'Close Now Playing' }).click();
   await expect(page.locator('.np')).toHaveCount(0);
   await idle(page);

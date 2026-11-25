@@ -245,7 +245,7 @@ var app = builder.Build();
     // web Autoplay asks the engine first (songs in the library only; the player keeps its own list when this fails or is empty)
     // "talk to the DJ" from the web player's mic button, in process
     var djAsk = app.Services.GetRequiredService<FLACie.Server.Dj.DjAskService>();
-    RetroHost.DjAsk = (s, text, current, recent, ct) => djAsk.AskAsync(s, text, current, recent, ct, null, DjSurface.Web);
+    RetroHost.DjAsk = (s, text, current, recent, place, ct) => djAsk.AskAsync(s, text, current, recent, ct, place.Hour, place.Surface);
     RetroHost.DjLanded = (s, artist, title) => djAsk.Landed(s, artist, title);
     RetroHost.DjIsRequest = text => FLACie.Server.Dj.DjAskRules.Parse(text) is not null;
     RetroHost.VibeOf = vibes.Of;

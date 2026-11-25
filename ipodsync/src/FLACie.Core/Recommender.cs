@@ -21,6 +21,11 @@ public sealed class TasteProfile
     readonly Dictionary<string, int> finishes = new();
     readonly HashSet<string> hearted = new(), thumbedDown = new();
     readonly Dictionary<string, List<string>> playedLists = new();
+    // what this person plays together: songs (and artists) heard within three songs of each other in one sitting, fading as the plays age
+    // (only where each song and artist was played is kept up front; a row of ties is worked out the first time it is asked for, so a big log costs nothing extra)
+    List<(long At, string Key, string Artist)> sittings = [];
+    readonly Dictionary<string, List<int>> songAt = new(), artistAt = new();
+    readonly System.Collections.Concurrent.ConcurrentDictionary<string, Dictionary<string, double>> withSong = new(), withArtist = new();
     double artistMax = 1, genreMax = 1, decadeMax = 1, albumMax = 1, songMax = 1;
 
     public bool Empty => songs.Count == 0;
@@ -40,6 +45,7 @@ public sealed class TasteProfile
         foreach (var f in favourites) if (lib.Resolve(f.Path, f.Title, f.Artist) is { } t) Add(t, 3);
         // what the person did in FLACie, oldest first so a heart taken back is taken back
         var fromList = new Dictionary<string, double>();
+        var sitting = new List<(long At, string Key, string Artist)>();
         foreach (var e in (events ?? []).OrderBy(e => e.At))
         {
             var fade = Math.Pow(0.5, Math.Max(0, (now - e.At) / 86_400_000.0) / 30);
@@ -63,6 +69,7 @@ public sealed class TasteProfile
                     if (skip) Bump(skips, k, 0.25 * fade);
                     if (finish && now - e.At < 90L * 86_400_000) finishes[k] = finishes.GetValueOrDefault(k) + 1;
                     lastPlayed[k] = Math.Max(lastPlayed.GetValueOrDefault(k), e.At);
+                    if (!skip && !e.Id.StartsWith("day:")) sitting.Add((e.At, k, Matching.PrimaryArtist(t.Artist)));
                     break;
                 case ListenKind.Heart: hearted.Add(k); Add(t, 3); break;
                 case ListenKind.Unheart: hearted.Remove(k); break;
@@ -93,7 +100,52 @@ public sealed class TasteProfile
             if (p.LastMs > 0) { var k = Matching.MatchKey(t); lastPlayed[k] = Math.Max(lastPlayed.GetValueOrDefault(k), p.LastMs); }
         }
         artistMax = Max(artist); genreMax = Max(genre); decadeMax = Max(decade); albumMax = Max(album); songMax = Max(songs);
+        // the old play history counts only when there is no listening log yet (the log holds the same plays, better)
+        if (events is null || events.Count == 0)
+            foreach (var h in history.OrderBy(h => h.At))
+                if (lib.Resolve(h.Path, h.Title, h.Artist) is { } t) sitting.Add((h.At, Matching.MatchKey(t), Matching.PrimaryArtist(t.Artist)));
+        Together(sitting, now);
     }
+
+    /// <summary>
+    /// Plays (oldest first) cut into sittings (a gap of 30 minutes starts a new one), and each song tied to the three after it: the nearer, the more
+    /// (owner, 25 Nov: the engine should know what this person plays after Heads Will Roll). A skip ties nothing; the tie fades as the plays age (halving every 60 days).
+    /// </summary>
+    void Together(List<(long At, string Key, string Artist)> plays, long now)
+    {
+        sittings = plays; nowMs = now;
+        for (var i = 0; i < plays.Count; i++)
+        {
+            if (!songAt.TryGetValue(plays[i].Key, out var s)) songAt[plays[i].Key] = s = [];
+            s.Add(i);
+            if (!artistAt.TryGetValue(plays[i].Artist, out var a)) artistAt[plays[i].Artist] = a = [];
+            a.Add(i);
+        }
+    }
+    long nowMs;
+
+    /// <summary>What was played within three songs of each play of [key] in the same sitting, by [of] (the song or the artist).</summary>
+    Dictionary<string, double> Row(string key, Dictionary<string, List<int>> at, Func<(long At, string Key, string Artist), string> of)
+    {
+        var row = new Dictionary<string, double>(StringComparer.Ordinal);
+        if (!at.TryGetValue(key, out var places)) return row;
+        var p = sittings;
+        foreach (var i in places)
+        {
+            var fade = Math.Pow(0.5, Math.Max(0, (nowMs - p[i].At) / 86_400_000.0) / 60);
+            // after it (full weight), and before it (a little less: what led up to it)
+            for (var j = i + 1; j < p.Count && j <= i + 3 && p[j].At - p[j - 1].At <= 30 * 60_000L; j++) Bump(row, of(p[j]), fade / (j - i));
+            for (var j = i - 1; j >= 0 && j >= i - 3 && p[j + 1].At - p[j].At <= 30 * 60_000L; j--) Bump(row, of(p[j]), 0.6 * fade / (i - j));
+        }
+        row.Remove(key);
+        return row;
+    }
+
+    /// <summary>0..1: how much this person plays song [b] near song [a] (by their match keys); 1 from about two sittings together.</summary>
+    public double PlayedTogether(Track a, Track b) => PlayedTogether(Matching.MatchKey(a), Matching.MatchKey(b));
+    internal double PlayedTogether(string a, string b) => songAt.Count == 0 ? 0 : Math.Min(1, withSong.GetOrAdd(a, k => Row(k, songAt, x => x.Key)).GetValueOrDefault(b) / 1.5);
+    /// <summary>0..1: how much this person plays artist [b] near artist [a] (lead artists as <see cref="Matching.PrimaryArtist"/> spells them).</summary>
+    internal double ArtistsTogether(string a, string b) => artistAt.Count == 0 ? 0 : Math.Min(1, withArtist.GetOrAdd(a, k => Row(k, artistAt, x => x.Artist)).GetValueOrDefault(b) / 3);
 
     static double Max(Dictionary<string, double> d) => d.Count == 0 ? 1 : Math.Max(1, d.Values.Max());
     // a library has few decades and genres, so their names are made once rather than for every song each time

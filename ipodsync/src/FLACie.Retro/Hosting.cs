@@ -53,10 +53,15 @@ public static class RetroHost
     public static Func<UserSession, IReadOnlyList<string>, int, IReadOnlyList<(Track Track, string Why)>?>? RecommendNext { get; set; }
     /// <summary>The songs' vibes, for "Recommended songs" under a playlist (<see cref="PlaylistRecs"/>); null where the host has none (they are then left out).</summary>
     public static Func<Track, Vibe?>? VibeOf { get; set; }
-    /// <summary>"Talk to the DJ": the answer to the recognised words (the song playing, the last few played); null when the host has no DJ.</summary>
-    public static Func<UserSession, string, string?, IReadOnlyList<string>, CancellationToken, Task<DjAskAnswer>>? DjAsk { get; set; }
+    /// <summary>"Talk to the DJ": the answer to the recognised words (the song playing, the last few played, and where the listener is: their hour and this
+    /// player's surface, as the phone sends them); null when the host has no DJ.</summary>
+    public static Func<UserSession, string, string?, IReadOnlyList<string>, DjAskPlace, CancellationToken, Task<DjAskAnswer>>? DjAsk { get; set; }
     /// <summary>The path of a song fetched for a request once it can be played (artist, title), else null.</summary>
     public static Func<UserSession, string, string, string?>? DjLanded { get; set; }
     /// <summary>Whether words heard by a mic are a request to the DJ ("play my pop playlist", "next") rather than something to search for.</summary>
     public static Func<string, bool>? DjIsRequest { get; set; }
 }
+
+/// <summary>Where a request to the DJ was said: the listener's local hour (null when not known) and the player it came from. The phone sends the same two
+/// with each ask (owner, 25 Nov: the web DJ should be as smart as the phone's).</summary>
+public sealed record DjAskPlace(int? Hour, DjSurface Surface);

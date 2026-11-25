@@ -63,6 +63,11 @@ test.describe.serial('talk to the DJ', () => {
     expect(await ask('DJ off')).toMatchObject({ do: 'djoff' });
     expect(await ask('shuffle my library')).toMatchObject({ do: 'play', say: 'Shuffling your library.' });
     expect(await ask('blah blah weather')).toMatchObject({ do: 'none', say: "Sorry, I didn't catch that." });
+    // owner, 25 Nov: fillers, "something by", moods and decades on the web as on the phone
+    expect(await ask('hey dj um can you play something by Cobalt Sky')).toMatchObject({ do: 'play', intent: 'Play' });
+    expect((await ask('play late night music')).intent).toBe('Mood');
+    expect((await ask('play some 90s music')).intent).toBe('Mood');
+    expect(await ask('move on')).toMatchObject({ do: 'next' });
     expect((await page.request.post('/api/dj/ask', { data: { nope: 1 } })).status()).toBe(400);
     // no sign-in, no answer
     const anon = await playwright.request.newContext({ baseURL });

@@ -114,6 +114,7 @@ let streamDelay = 0, firstByte = 0;
 // GET /__stream?hang=next: the next song whose stream is asked for never gets an answer (no headers, nothing), on every request for it, like a Jellyfin
 // that takes the request and goes quiet (1z-jellyfin-no-reply). Any other /__stream call without hang= clears it.
 let hang = '', hungId = '';
+let outageUntil = 0;
 let prefsDelay = 0;
 // the library listing carries MediaSources/MediaStreams when asked (Fields=MediaSources,MediaStreams), like Jellyfin: plain songs are CD-quality FLAC.
 // The Hi-Res lab songs are left out on purpose, so 1e-hires.spec.ts keeps exercising the per-song read (with its one HTTP 500).
@@ -147,6 +148,9 @@ http
     // first=ms: a wait before a song's first byte, like a real Jellyfin opening a big FLAC file from disk (1z-song-start)
     // /__prefs?delay=ms: the profile (DisplayPreferences) answers this much later, like a busy Jellyfin just after sign-in (1z-skeleton)
     if (p === '/__prefs') { prefsDelay = Number(q.get('delay') || 0); return json(res, 200, { delay: prefsDelay }); }
+    // /__outage?ms=3000: for that long every Jellyfin request answers 503, like a Jellyfin restarting (1z-song-outage); ms=0 ends it
+    if (p === '/__outage') { outageUntil = Date.now() + Number(q.get('ms') || 0); return json(res, 200, { until: outageUntil }); }
+    if (!p.startsWith('/__') && p !== '/System/Info/Public' && Date.now() < outageUntil) return json(res, 503, { error: 'outage' });
     if (p === '/__stream') { streamDelay = Number(q.get('delay') || 0); firstByte = Number(q.get('first') || 0); hang = q.get('hang') || ''; hungId = ''; return json(res, 200, { delay: streamDelay, first: firstByte, hang }); }
     // /__touch?id=s5&name=New title: the song was saved again (what a metadata edit does); the next MinDateLastSaved question returns it
     if (p === '/__touch') {

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using FLACie.Core;
 
 namespace FLACie.Server;
 
@@ -34,6 +35,39 @@ public static class JellyfinFirstReply
         catch (Exception) { }
         throw new JellyfinNoReplyException(limit);
     }
+
+    /// <summary>The waits before asking for a song again after a passing error: two more tries, quickly.</summary>
+    public static readonly TimeSpan[] SongRetries = [TimeSpan.FromMilliseconds(150), TimeSpan.FromMilliseconds(500)];
+
+    /// <summary>
+    /// <see cref="SendAsync"/> for a song someone is waiting for, asked again (a fresh request from <paramref name="make"/>, after each of
+    /// <paramref name="waits"/>) when Jellyfin answers with an error that may pass (5xx, 429) or the connection fails. Nothing has been sent to the browser
+    /// yet, so a try that worked is all it sees. Before this, one 503 reached the browser as it was: it waited 1.5 s, and four in a row skipped the song
+    /// without a word (owner, 25 Nov: "sometimes about 10 s to play, sometimes not at all"). No reply at all (<see cref="JellyfinNoReplyException"/>) is
+    /// not tried again here: that already took the whole limit, and the player says so and tries once more itself.
+    /// </summary>
+    public static async Task<HttpResponseMessage> SendSongAsync(HttpClient http, Func<HttpRequestMessage> make, TimeSpan limit, CancellationToken ct, IReadOnlyList<TimeSpan>? waits = null)
+    {
+        waits ??= SongRetries;
+        for (var attempt = 0; ; attempt++)
+        {
+            var last = attempt >= waits.Count;
+            var req = make();
+            HttpResponseMessage res;
+            try { res = await SendAsync(http, req, limit, ct).ConfigureAwait(false); }
+            catch (HttpRequestException e) when (!last && !ct.IsCancellationRequested && e is not JellyfinUnavailableException && (e.StatusCode is null || Passing(e.StatusCode.Value)))
+            {
+                req.Dispose();
+                await Task.Delay(waits[attempt], ct).ConfigureAwait(false);
+                continue;
+            }
+            if (last || !Passing(res.StatusCode)) return res;
+            res.Dispose(); req.Dispose();
+            await Task.Delay(waits[attempt], ct).ConfigureAwait(false);
+        }
+    }
+
+    static bool Passing(System.Net.HttpStatusCode code) => (int)code >= 500 || code == System.Net.HttpStatusCode.TooManyRequests;
 }
 
 /// <summary>

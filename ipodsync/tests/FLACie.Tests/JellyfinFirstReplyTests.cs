@@ -109,4 +109,71 @@ public class JellyfinFirstReplyTests
         stalls.Clear("u1", "/music/a.flac");                     // the song came through after all
         Assert.False(stalls.Recent("u1", "/music/a.flac"));
     }
+
+    /// <summary>Answers with the statuses given, one per request (the last one again after that), counting the requests.</summary>
+    sealed class Answers(params HttpStatusCode[] codes) : HttpMessageHandler
+    {
+        public int Asked;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct)
+        {
+            var code = codes[Math.Min(Interlocked.Increment(ref Asked) - 1, codes.Length - 1)];
+            return Task.FromResult(new HttpResponseMessage(code) { Content = new ByteArrayContent([1, 2, 3]) });
+        }
+    }
+
+    /// <summary>Refuses the connection the first <paramref name="times"/> times, then answers 200.</summary>
+    sealed class RefusesFirst(int times) : HttpMessageHandler
+    {
+        public int Asked;
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage r, CancellationToken ct) =>
+            Interlocked.Increment(ref Asked) <= times ? throw new HttpRequestException("refused") : Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
+    }
+
+    static readonly TimeSpan[] Quick = [TimeSpan.FromMilliseconds(5), TimeSpan.FromMilliseconds(5)];
+
+    // owner, 25 Nov: "sometimes about 10 s to play, sometimes not at all". One 503 from Jellyfin reached the browser as it was; the browser waited 1.5 s,
+    // and four in a row skipped the song without a word. A song someone is waiting for is asked again at once, a couple of times, before anything is sent.
+    [Fact]
+    public async Task A_song_Jellyfin_answers_with_a_passing_error_is_asked_again_at_once()
+    {
+        var jf = new Answers(HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK);
+        using var http = new HttpClient(jf) { Timeout = Timeout.InfiniteTimeSpan };
+        using var res = await JellyfinFirstReply.SendSongAsync(http, Song, TimeSpan.FromSeconds(5), CancellationToken.None, Quick);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal(2, jf.Asked);
+    }
+
+    [Fact]
+    public async Task A_refused_connection_is_tried_again_too()
+    {
+        var jf = new RefusesFirst(2);
+        using var http = new HttpClient(jf) { Timeout = Timeout.InfiniteTimeSpan };
+        using var res = await JellyfinFirstReply.SendSongAsync(http, Song, TimeSpan.FromSeconds(5), CancellationToken.None, Quick);
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        Assert.Equal(3, jf.Asked);
+    }
+
+    [Fact]
+    public async Task Tries_are_limited_and_the_last_answer_is_passed_on()
+    {
+        var jf = new Answers(HttpStatusCode.BadGateway);
+        using var http = new HttpClient(jf) { Timeout = Timeout.InfiniteTimeSpan };
+        using var res = await JellyfinFirstReply.SendSongAsync(http, Song, TimeSpan.FromSeconds(5), CancellationToken.None, Quick);
+        Assert.Equal(HttpStatusCode.BadGateway, res.StatusCode);
+        Assert.Equal(3, jf.Asked);   // the first try and the two again
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.NotFound)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.RequestedRangeNotSatisfiable)]
+    [InlineData(HttpStatusCode.PartialContent)]
+    public async Task An_answer_that_asking_again_cannot_change_is_passed_on_at_once(HttpStatusCode code)
+    {
+        var jf = new Answers(code);
+        using var http = new HttpClient(jf) { Timeout = Timeout.InfiniteTimeSpan };
+        using var res = await JellyfinFirstReply.SendSongAsync(http, Song, TimeSpan.FromSeconds(5), CancellationToken.None, Quick);
+        Assert.Equal(code, res.StatusCode);
+        Assert.Equal(1, jf.Asked);
+    }
 }

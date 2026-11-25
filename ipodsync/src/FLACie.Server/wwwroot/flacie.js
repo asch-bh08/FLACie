@@ -112,8 +112,10 @@ window.flacie = (() => {
     }
     if (audio.src !== src) return;
     failures = src === failedSrc ? failures + 1 : 1; failedSrc = src;
-    if (failures > 3) { failures = 0; send("OnEnded"); return; }
-    setTimeout(() => { if (audio.src !== src) return; audio.src = src; selfSeek = true; audio.currentTime = at; audio.play().catch(() => {}); }, 1500);
+    // (a song that never started says so as it is skipped: owner, 25 Nov, "sometimes not at all")
+    if (failures > 3) { failures = 0; send("OnStreamProblem", "play", "skip"); return; }
+    // the first try again is quick (a passing hiccup should cost a moment, not 1.5 s of silence at the start of a song), then 1.5 s apart
+    setTimeout(() => { if (audio.src !== src) return; audio.src = src; selfSeek = true; audio.currentTime = at; audio.play().catch(() => {}); }, failures === 1 ? 300 : 1500);
   });
   if ("mediaSession" in navigator) {
     navigator.mediaSession.setActionHandler("play", () => audio.play());

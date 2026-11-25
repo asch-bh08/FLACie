@@ -604,8 +604,11 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// rather than running down the whole queue; play asks for the song again).</summary>
     [JSInvokable] public async Task OnStreamProblem(string why, string next)
     {
-        if (why != "jellyfin") return;
         var title = Current?.Title;
+        // a song that failed to load every time it was asked for (not a Jellyfin that went quiet): said, then skipped. It used to be skipped without a
+        // word, so a song that never started looked like the player jumping ahead by itself (owner, 25 Nov)
+        if (why == "play" && next == "skip") { Problem?.Invoke(title is null ? "A song wouldn't play, so it was skipped" : $"“{title}” wouldn't play, so it was skipped"); await OnEnded(); return; }
+        if (why != "jellyfin") return;
         switch (next)
         {
             case "retry": Problem?.Invoke("Couldn't reach Jellyfin. Trying the song again…"); break;

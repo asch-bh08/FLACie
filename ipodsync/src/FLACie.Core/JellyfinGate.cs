@@ -79,7 +79,7 @@ public sealed class JellyfinGate
 
     public JellyfinGate(GateOptions? options = null) { Options = options ?? new(); limit = Math.Clamp(Options.InitialLimit, Options.MinLimit, Options.MaxLimit); }
 
-    sealed class Waiter { public required GatePriority P; public TaskCompletionSource<bool> Start = new(TaskCreationOptions.RunContinuationsAsynchronously); public LinkedListNode<Waiter>? Node; }
+    sealed class Waiter { public required GatePriority P; public bool Probe; public TaskCompletionSource<bool> Start = new(TaskCreationOptions.RunContinuationsAsynchronously); public LinkedListNode<Waiter>? Node; }
 
     public int Limit { get { lock (lk) return limit; } }
     public BreakerState Breaker { get { lock (lk) { Tick(); return state; } } }
@@ -97,14 +97,14 @@ public sealed class JellyfinGate
         var allowed = maxRetries ?? Options.MaxRetries;
         for (var attempt = 0; ; attempt++)
         {
-            await AcquireAsync(priority, ct);
+            var probe = await AcquireAsync(priority, ct);
             var t0 = NowMs();
             Exception? fail = null, thrown = null; T result = default!; var ok = false;
             try { result = await send(ct); fail = classify?.Invoke(result); ok = fail is null; }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { Release(priority, t0, Outcome.Neutral, slowMs); throw; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { Release(priority, t0, Outcome.Neutral, slowMs, probe); throw; }
             catch (Exception e) when (IsTransient(e)) { fail = thrown = e; }
-            catch { Release(priority, t0, Outcome.Success, slowMs); throw; }   // the server answered (401, 404 ...): not a failure of the server
-            Release(priority, t0, ok ? Outcome.Success : Outcome.Failure, slowMs);
+            catch { Release(priority, t0, Outcome.Success, slowMs, probe); throw; }   // the server answered (401, 404 ...): not a failure of the server
+            Release(priority, t0, ok ? Outcome.Success : Outcome.Failure, slowMs, probe);
             if (ok) return result;
             if (attempt >= allowed || ct.IsCancellationRequested || Breaker == BreakerState.Open)
             {
@@ -164,14 +164,16 @@ public sealed class JellyfinGate
 
     // ---- queue ----
 
-    Task AcquireAsync(GatePriority p, CancellationToken ct)
+    /// <summary>Waits for a slot; true when this request is the breaker's probe.</summary>
+    Task<bool> AcquireAsync(GatePriority p, CancellationToken ct)
     {
         ct.ThrowIfCancellationRequested();
         var w = new Waiter { P = p };
         lock (lk)
         {
             Tick();
-            if (state == BreakerState.Open) { fastFails++; return Task.FromException(new JellyfinUnavailableException(TimeSpan.FromMilliseconds(Math.Max(0, openUntil - NowMs())))); }
+            // (the song someone is waiting for is let through as the probe, one at a time: owner, 25 Nov, songs that did not start at all for 15 s)
+            if (state == BreakerState.Open && !(p == GatePriority.Playing && !probeInFlight)) { fastFails++; return Task.FromException<bool>(new JellyfinUnavailableException(TimeSpan.FromMilliseconds(Math.Max(0, openUntil - NowMs())))); }
             w.Node = queues[(int)p].AddLast(w);
         }
         if (ct.CanBeCanceled)
@@ -204,10 +206,21 @@ public sealed class JellyfinGate
             Tick();
             if (state == BreakerState.Open)
             {
+                // everything waiting fails at once, except one song someone is waiting for: it goes to Jellyfin as the probe (a success closes the breaker)
                 failWait = TimeSpan.FromMilliseconds(Math.Max(0, openUntil - NowMs()));
                 failed = [];
-                foreach (var q in queues) { foreach (var w in q) { w.Node = null; failed.Add(w); } q.Clear(); }
+                Waiter? probe = null;
+                foreach (var q in queues)
+                {
+                    foreach (var w in q)
+                    {
+                        w.Node = null;
+                        if (probe is null && w.P == GatePriority.Playing && !probeInFlight && inFlight < limit) probe = w; else failed.Add(w);
+                    }
+                    q.Clear();
+                }
                 fastFails += failed.Count;
+                if (probe is not null) { inFlight++; peak = Math.Max(peak, inFlight); probeInFlight = true; probe.Probe = true; (grant ??= []).Add(probe); }
             }
             else
             {
@@ -228,14 +241,14 @@ public sealed class JellyfinGate
                     inFlight++; peak = Math.Max(peak, inFlight);
                     if (w.P == GatePriority.Background) bgInFlight++;
                     if (w.P == GatePriority.Prefetch) preInFlight++;
-                    if (state == BreakerState.HalfOpen) probeInFlight = true;
+                    if (state == BreakerState.HalfOpen) { probeInFlight = true; w.Probe = true; }
                     (grant ??= []).Add(w);
                 }
                 if (hold && !redispatchScheduled) { redispatchScheduled = true; _ = ReDispatchLaterAsync(); }
             }
         }
         if (failed is not null) foreach (var w in failed) w.Start.TrySetException(new JellyfinUnavailableException(failWait));
-        if (grant is not null) foreach (var w in grant) w.Start.TrySetResult(true);
+        if (grant is not null) foreach (var w in grant) w.Start.TrySetResult(w.Probe);
     }
 
     bool MayRun(GatePriority p) => p switch   // lk held
@@ -255,7 +268,7 @@ public sealed class JellyfinGate
 
     enum Outcome { Success, Failure, Neutral }
 
-    void Release(GatePriority p, long startedAt, Outcome o, int? slowMs = null)
+    void Release(GatePriority p, long startedAt, Outcome o, int? slowMs = null, bool probe = false)
     {
         lock (lk)
         {
@@ -268,7 +281,7 @@ public sealed class JellyfinGate
                 if (o == Outcome.Success && ms <= Options.SlowMs)
                 {
                     consecutiveFailures = 0;
-                    if (state == BreakerState.HalfOpen) { state = BreakerState.Closed; probeInFlight = false; }
+                    if (state != BreakerState.Closed) { state = BreakerState.Closed; probeInFlight = false; }   // (a song let through while open answered: Jellyfin is back)
                     if (ms <= Options.FastMs && ++fastRun >= Options.FastRunToGrow) { fastRun = 0; limit = Math.Min(Options.MaxLimit, limit + 1); }
                     else if (ms > Options.FastMs) fastRun = 0;
                 }
@@ -279,12 +292,12 @@ public sealed class JellyfinGate
                     if (o == Outcome.Failure)
                     {
                         consecutiveFailures++;
-                        if (state == BreakerState.HalfOpen || consecutiveFailures >= Options.BreakerFailures) { state = BreakerState.Open; openUntil = NowMs() + (long)Options.CoolDown.TotalMilliseconds; probeInFlight = false; consecutiveFailures = 0; }
+                        if (state == BreakerState.HalfOpen || (state == BreakerState.Open && probe) || consecutiveFailures >= Options.BreakerFailures) { state = BreakerState.Open; openUntil = NowMs() + (long)Options.CoolDown.TotalMilliseconds; probeInFlight = false; consecutiveFailures = 0; }
                     }
-                    else if (state == BreakerState.HalfOpen) { state = BreakerState.Closed; probeInFlight = false; }   // slow, but it answered
+                    else if (state != BreakerState.Closed) { state = BreakerState.Closed; probeInFlight = false; }   // slow, but it answered
                 }
             }
-            else if (state == BreakerState.HalfOpen) probeInFlight = false;
+            else if (probe) probeInFlight = false;
         }
         Dispatch();
     }

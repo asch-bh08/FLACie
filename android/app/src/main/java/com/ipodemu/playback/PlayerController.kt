@@ -501,7 +501,9 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
 
     fun askDj(text: String, search: Boolean = false, done: (DjAskAnswer) -> Unit = {}) {
         val cur = current
-        val body = DjAskAnswer.body(text, cur?.title, cur?.artist, djSurface, java.time.LocalDateTime.now().hour, search)
+        // the songs played lately, oldest first, so "more like this" and moods go by more than the one song (as the web sends)
+        val recent = App.of(ctx).userData.recents.take(20).reversed()
+        val body = DjAskAnswer.body(text, cur?.title, cur?.artist, djSurface, java.time.LocalDateTime.now().hour, search, recent)
         val ticket = askGate.begin()
         val askedAt = android.os.SystemClock.elapsedRealtime()
         fun carryOut(a: DjAskAnswer, from: String) {
@@ -606,7 +608,11 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             return DjAskRunner.resolve(s, { lib.byPath()[it] }, { f -> lib.songs().firstOrNull { it.filePath == f } }, { t, a, al -> lib.findSong(t, a, al) })
         }
         override fun play(list: List<Track>, title: String, shuffle: Boolean) = this@PlayerController.play(list, 0, shuffle = shuffle, context = title.ifBlank { null })
-        override fun upNext(list: List<Track>, replace: Boolean) { list.asReversed().forEach { addNext(it) } }
+        // "more like this" / "less like this" send replace: what was up next goes, these take its place (the DJ agent, 25 Nov: the phone only added)
+        override fun upNext(list: List<Track>, replace: Boolean) {
+            if (replace) { val at = exo.currentMediaItemIndex; if (at >= 0 && exo.mediaItemCount > at + 1) exo.removeMediaItems(at + 1, exo.mediaItemCount) }
+            list.asReversed().forEach { addNext(it) }
+        }
         override fun next() = this@PlayerController.next()
         override fun pause() = this@PlayerController.pause()
         override fun resume() = this@PlayerController.resume()

@@ -70,8 +70,9 @@ data class DjAskAnswer(
         }
 
         /** The request body: the words, the song playing (by title and artist: the server's paths are not the phone's), where, and the hour. */
-        fun body(text: String, title: String?, artist: String?, surface: DjSurface, hour: Int, search: Boolean = false): String = JSONObject()
+        fun body(text: String, title: String?, artist: String?, surface: DjSurface, hour: Int, search: Boolean = false, recent: List<String> = emptyList()): String = JSONObject()
             .put("text", text.take(300)).apply { if (search) put("search", true) }
+            .apply { if (recent.isNotEmpty()) put("recent", org.json.JSONArray(recent)) }
             .apply { if (title != null && artist != null) put("currentSong", JSONObject().put("title", title).put("artist", artist)) }
             .put("surface", surface.name).put("hour", hour).toString()
     }

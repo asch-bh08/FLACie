@@ -72,7 +72,7 @@ class Autoplay(private val app: App) {
             val session = (chosen.ifEmpty { app.userData.recents.take(9).reversed() }.filter { it != seed.path } + seed.path)
             val plan = AutoplaySource.choose({ web.recommendNext(session, 10) }, { p -> lib.resolve(p.path ?: "", p.title to p.artist) }, seen)
             if (plan != null) {
-                val tracks = spreadArtists(plan.tracks.filter { it.isMusic }, seed).take(6)
+                val tracks = spreadArtists(plan.tracks.filter { it.isMusic }, seed, queued).take(6)
                 synchronized(reasons) { tracks.forEach { t -> plan.why[t.path]?.let { reasons[t.path] = it } } }
                 val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (tracks.isNotEmpty() && gen == app.player.queueGen) { mark(tracks) }; if (tracks.isNotEmpty()) app.player.appendAutoplay(tracks, gen); n + tracks.size }
                 if (app.prefs.autoplayFetch && lib.downloadsConfigured() && gen == app.player.queueGen) request(plan.fresh.take(5).map { it.song() }, ahead, gen)
@@ -103,7 +103,7 @@ class Autoplay(private val app: App) {
         take(mates.shuffled().asSequence(), 3)
         if (seed.genre.isNotEmpty()) take(songs.asSequence().filter { it.genre.equals(seed.genre, true) }.shuffled(), 3)
         take(songs.asSequence().shuffled(), 6)
-        val spread = spreadArtists(pick, seed)
+        val spread = spreadArtists(pick, seed, queued)
         val ahead = withContext(Dispatchers.Main) { val n = app.player.upNext(50).size; if (spread.isNotEmpty() && gen == app.player.queueGen) { mark(spread) }; if (spread.isNotEmpty()) app.player.appendAutoplay(spread, gen); n + spread.size }
 
         // songs the library lacks: ask for the next few now so they are there in time
@@ -116,8 +116,10 @@ class Autoplay(private val app: App) {
     }
 
     /** At most two more by the artist of the song asked for (loved ones aside), never an artist twice in a row (AutoplaySpread). */
-    private fun spreadArtists(list: List<Track>, seed: Track): List<Track> {
-        return AutoplaySpread.spread(list, { it.artist }, seed.artist, { app.userData.isFavorite(it.path) })
+    private fun spreadArtists(list: List<Track>, seed: Track, queued: List<Track>): List<Track> {
+        val artist = primaryArtist(seed.artist)
+        val already = queued.count { isAutoplay(it) && primaryArtist(it.artist) == artist }
+        return AutoplaySpread.spread(list, { it.artist }, seed.artist, { app.userData.isFavorite(it.path) }, already = already)
     }
 
     /** [songsAhead] = songs between the one playing and the first of [songs] in the queue: each one further back is asked of FLACie Web for Hi-Res from the third place on (see SmartDownload.modeFor). */

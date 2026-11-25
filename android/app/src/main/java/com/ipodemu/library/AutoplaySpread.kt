@@ -8,12 +8,18 @@ package com.ipodemu.library
 object AutoplaySpread {
     const val MAX_SEED = 2
 
-    fun <T> spread(songs: List<T>, artistOf: (T) -> String, seedArtist: String, loved: (T) -> Boolean = { false }, maxSeed: Int = MAX_SEED): List<T> {
+    /** [already]: the seed artist's songs Autoplay already queued in this run; the cap is for the whole run, and loved songs have their own cap
+     *  (owner, 25 Nov: Heads Will Roll, then 10-20 Yeah Yeah Yeahs songs). */
+    fun <T> spread(songs: List<T>, artistOf: (T) -> String, seedArtist: String, loved: (T) -> Boolean = { false }, maxSeed: Int = MAX_SEED,
+                   already: Int = 0, maxLoved: Int = MAX_SEED): List<T> {
         val seed = primaryArtist(seedArtist)
         fun a(t: T) = primaryArtist(artistOf(t))
-        val kept = ArrayList<T>(); var seedCount = 0
+        val kept = ArrayList<T>(); var seedCount = already; var lovedCount = 0
         for (t in songs) {
-            if (a(t) == seed && !loved(t)) { if (seedCount >= maxSeed) continue; seedCount++ }
+            if (a(t) == seed) {
+                if (loved(t)) { if (lovedCount >= maxLoved) continue; lovedCount++ }
+                else { if (seedCount >= maxSeed) continue; seedCount++ }
+            }
             kept.add(t)
         }
         val out = ArrayList<T>(); val waiting = ArrayList<T>()

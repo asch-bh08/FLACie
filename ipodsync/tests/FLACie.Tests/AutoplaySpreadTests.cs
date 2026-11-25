@@ -34,6 +34,16 @@ public class AutoplaySpreadTests
     }
 
     [Fact]
+    public void The_cap_holds_across_refills_and_for_loved_songs_too()
+    {
+        // owner, 25 Nov: "I play Heads Will Roll and the next 10-20 songs are by Yeah Yeah Yeahs". Each refill gave two more, and loved ones were never capped.
+        var refill = S("Yeah Yeah Yeahs", "Yeah Yeah Yeahs", "MGMT", "Yeah Yeah Yeahs");
+        Assert.Empty(AutoplaySpread.Spread(refill, a => a, "Yeah Yeah Yeahs", already: 2).Where(a => a == "Yeah Yeah Yeahs"));
+        var loved = Enumerable.Repeat(("Yeah Yeah Yeahs", true), 8).Append(("MGMT", false)).ToList();
+        Assert.Equal(2, AutoplaySpread.Spread(loved, s => s.Item1, "Yeah Yeah Yeahs", s => s.Item2).Count(s => s.Item1 == "Yeah Yeah Yeahs"));
+    }
+
+    [Fact]
     public void Other_versions_of_a_song_count_as_the_same_song()
     {
         // owner, 12 Nov: Autoplay played "Dreamer", then "Dreamer - Re-Original 7-inch Mix", then "Dreamer (Janice Robinson Vocal)"

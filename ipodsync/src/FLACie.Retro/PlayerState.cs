@@ -118,8 +118,14 @@ public sealed class PlayerState(IJSRuntime js, IPlayerOutput? output = null) : I
     /// <summary>The chosen song Autoplay goes by now (AutoplaySpread.Lead): the one playing in the person's own queue; under Autoplay, one of the songs
     /// their queue ended with (a playlist's last songs, or the one song they asked for or clicked), never one Autoplay picked itself.</summary>
     Track? LeadSeed() => AutoplaySpread.Lead(Queue, AutoplayFrom, Index);
-    List<Track> SpreadArtists(IReadOnlyList<Track> list, Track cur) =>
-        AutoplaySpread.Spread(list, t => t.Artist, SeedArtist(cur), t => session?.Favorites.Any(f => f.Path == t.Path) ?? false);
+    List<Track> SpreadArtists(IReadOnlyList<Track> list, Track cur)
+    {
+        var seed = SeedArtist(cur);
+        // the seed artist's songs Autoplay already played in this run count towards its cap (owner, 25 Nov)
+        var already = AutoplayFrom > 0 && AutoplayFrom < Queue.Count
+            ? Queue.Skip(AutoplayFrom).Count(t => Matching.PrimaryArtist(t.Artist) == Matching.PrimaryArtist(seed)) : 0;
+        return AutoplaySpread.Spread(list, t => t.Artist, seed, t => session?.Favorites.Any(f => f.Path == t.Path) ?? false, already: already);
+    }
 
     // ---- the listening log: how much of each song was really heard (a seek does not count as listening) ----
 

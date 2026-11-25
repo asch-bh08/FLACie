@@ -9,15 +9,21 @@ public static class AutoplaySpread
 {
     public const int MaxSeed = 2;
 
-    public static List<T> Spread<T>(IReadOnlyList<T> songs, Func<T, string> artistOf, string seedArtist, Func<T, bool>? loved = null, int maxSeed = MaxSeed)
+    /// <summary>[already]: the seed artist's songs Autoplay has queued or played so far in this run. The cap is for the whole run, not each refill (owner,
+    /// 25 Nov: Heads Will Roll, then 10-20 Yeah Yeah Yeahs songs). Loved songs have a cap of their own ([maxLoved]) so a loved artist cannot take over either.</summary>
+    public static List<T> Spread<T>(IReadOnlyList<T> songs, Func<T, string> artistOf, string seedArtist, Func<T, bool>? loved = null, int maxSeed = MaxSeed,
+        int already = 0, int maxLoved = MaxSeed)
     {
         var seed = Matching.PrimaryArtist(seedArtist);
         string A(T t) => Matching.PrimaryArtist(artistOf(t));
-        // the seed artist's songs past the cap go (loved ones stay)
-        var kept = new List<T>(); var seedCount = 0;
+        var kept = new List<T>(); var seedCount = already; var lovedCount = 0;
         foreach (var t in songs)
         {
-            if (A(t) == seed && !(loved?.Invoke(t) ?? false)) { if (seedCount >= maxSeed) continue; seedCount++; }
+            if (A(t) == seed)
+            {
+                if (loved?.Invoke(t) ?? false) { if (lovedCount >= maxLoved) continue; lovedCount++; }
+                else { if (seedCount >= maxSeed) continue; seedCount++; }
+            }
             kept.Add(t);
         }
         // no artist twice in a row: a song that would follow its own artist waits for the next one that does not

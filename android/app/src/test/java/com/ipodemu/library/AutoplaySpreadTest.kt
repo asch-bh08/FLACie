@@ -27,6 +27,13 @@ class AutoplaySpreadTest {
         assertEquals(2, next.count { it.first == "X" && !it.second })
     }
 
+    @Test fun theCapHoldsAcrossRefillsAndForLovedSongs() {
+        val refill = listOf("Yeah Yeah Yeahs", "Yeah Yeah Yeahs", "MGMT", "Yeah Yeah Yeahs")
+        assertEquals(0, AutoplaySpread.spread(refill, { it }, "Yeah Yeah Yeahs", already = 2).count { it == "Yeah Yeah Yeahs" })
+        val loved = List(8) { "Yeah Yeah Yeahs" to true } + ("MGMT" to false)
+        assertEquals(2, AutoplaySpread.spread(loved, { it.first }, "Yeah Yeah Yeahs", { it.second }).count { it.first == "Yeah Yeah Yeahs" })
+    }
+
     @Test fun autoplayKeepsToWhatWasChosen() {
         val q = (1..30).map { "p$it" } + listOf("auto1", "auto2", "auto3")
         val isAuto = { x: String -> x.startsWith("auto") }

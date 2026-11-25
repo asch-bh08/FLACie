@@ -74,6 +74,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
     @Composable
     fun SettingRow(title: String, value: String? = null, chevron: Boolean = false, toggle: Boolean = false, desc: String? = null,
                    choices: List<String>? = null, picked: Int = -1, onPick: ((Int) -> Unit)? = null, action: String? = null, onClick: () -> Unit = {}) {
+        if (!setMatches(LocalSetQuery.current, title, desc, value, choices?.joinToString(" "), action)) return
         val tapRow = choices == null && action == null
         // big text on a narrow phone: the value and the chip go under the name instead of pressing it to nothing (SettingsFit)
         val cfg = androidx.compose.ui.platform.LocalConfiguration.current
@@ -133,7 +134,10 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             androidx.compose.runtime.withFrameNanos { }
             at[s]?.let { list.scrollToItem(it) }
         }
+        var query by remember { mutableStateOf("") }
+        androidx.compose.runtime.CompositionLocalProvider(LocalSetQuery provides query) {
         LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), state = list, contentPadding = PaddingValues(bottom = 30.dp)) {
+            if (!dashboard) item(key = "find") { SettingsFind(query) { query = it } }
             // design I, the web's Settings page (Settings.razor): a row of section chips, then each section as one panel with a serif heading and a
             // DM Mono hint, in the web's order: Playback, Music sources, Look and feel, then what only the phone has, Account and About
             if (!dashboard) {
@@ -500,6 +504,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
             }
             }
         }
+        }   // CompositionLocalProvider (Find a setting)
         }
     }
 }
@@ -508,8 +513,19 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
  * A Settings section as the web draws it: one rounded card with a serif heading and a one-line hint, the rows inside. The hint is a sentence, so it
  * is in the sans (owner, 9 Nov: plain sentences in the sans, mono only for short labels and numbers).
  */
+/** What Find a setting holds (owner, 25 Nov: the web has a search box in Settings, the phone did not): rows that don't match hide, and while searching
+ *  the panels drop their frame and heading so only the matching rows show, one list. */
+internal val LocalSetQuery = androidx.compose.runtime.compositionLocalOf { "" }
+
+internal fun setMatches(q: String, vararg text: String?): Boolean {
+    val words = q.lowercase().split(' ').filter { it.isNotBlank() }
+    val hay = text.filterNotNull().joinToString(" ").lowercase()
+    return words.all { hay.contains(it) }
+}
+
 @Composable
 internal fun SetPanel(title: String, hint: String?, content: @Composable () -> Unit) {
+    if (LocalSetQuery.current.isNotBlank()) { Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth()) { content() }; return }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(20.dp)).padding(vertical = 14.dp)) {
         SerifTitle(title, Modifier.padding(horizontal = 16.dp), size = 26f)
         if (hint != null) Txt(hint, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp), size = 13.5f, color = LocalScheme.current.onBgDim, maxLines = 6)
@@ -598,5 +614,22 @@ private fun DjLevelRow(title: String, desc: String, value: Int, onSet: (Int) -> 
             drawLine(sc.accent, androidx.compose.ui.geometry.Offset(inset, y), androidx.compose.ui.geometry.Offset(x, y), strokeWidth = 5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
             drawCircle(sc.accent, inset, androidx.compose.ui.geometry.Offset(x, y))
         }
+    }
+}
+
+/** Find a setting, at the top of Settings as on the web: filters the rows as you type. */
+@Composable
+private fun SettingsFind(query: String, onChange: (String) -> Unit) {
+    val sc = LocalScheme.current
+    val shape = RoundedCornerShape(16.dp)
+    Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(shape).background(Palette.surface).border(1.dp, Palette.line, shape)
+        .padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), sc.onBgDim)
+        Box(Modifier.weight(1f).padding(start = 10.dp)) {
+            if (query.isEmpty()) Txt("Find a setting", size = 15f, color = sc.onBgDim)
+            androidx.compose.foundation.text.BasicTextField(query, onChange, Modifier.fillMaxWidth().semantics { contentDescription = "Find a setting" }, singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)), cursorBrush = androidx.compose.ui.graphics.SolidColor(sc.accent))
+        }
+        if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear", { onChange("") }, size = 32.dp)
     }
 }

@@ -350,6 +350,14 @@ public static class ApiEndpoints
             return Results.Json(new { running, log = done });
         });
 
+        // Retry all on the phone's download log, as on the web's Downloads page (owner, 25 Nov: the phone lacked it): the failed downloads the server
+        // can try again are started again; answers how many
+        app.MapPost("/api/downloads/retry", async (HttpContext ctx, SessionStore store, JellyfinClient jf, DownloadManager downloads, DownloadLog log) =>
+        {
+            if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();
+            return Results.Json(new { retried = downloads.RetryAll(s, log.For(s.Id)) });
+        }).DisableAntiforgery();
+
         app.MapPost("/api/import/{id}/cancel", async (HttpContext ctx, string id, SessionStore store, JellyfinClient jf, ImportManager imports) =>
         {
             if (await Who(ctx, store, jf) is not { } s) return Results.Unauthorized();

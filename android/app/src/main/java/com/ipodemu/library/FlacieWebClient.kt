@@ -195,6 +195,8 @@ class FlacieWebClient(private val prefs: Prefs) {
         } } } ?: emptyList()
         return ServerDownloads(run, log)
     }
+    /** Retry all: FLACie Web starts again the failed downloads it can (as its Downloads page does); returns how many. */
+    fun retryAllDownloads(): Int = JSONObject(send("/api/downloads/retry", "POST", "{}")).optInt("retried")
     /**
      * Tells FLACie Web a download finished on this phone (`POST /api/downloaded`, the Jellyfin token in `X-Emby-Token` like `/api/played`).
      * [body] comes from [DownloadReport.json]. Returns the HTTP status; throws only when the server cannot be reached. Nothing is logged here.

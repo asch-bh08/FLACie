@@ -36,6 +36,7 @@ import com.ipodemu.library.OpenSourceNames
 import com.ipodemu.library.RunningDownload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -92,6 +93,7 @@ fun DownloadsScreen() {
     LaunchedEffect(Unit) { while (true) { delay(1000); tick++ } }
     @Suppress("UNUSED_EXPRESSION") tick
 
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var pick by remember { mutableStateOf("all") }
     val shown = remember { mutableStateMapOf<String, Int>() }
     val open = remember { mutableStateMapOf<String, Boolean>() }
@@ -126,7 +128,17 @@ fun DownloadsScreen() {
                 if (pick != "all" && pick != id) continue
                 item(key = "h-$id") {
                     val n = if (id == "running") running.size else by[id]?.size ?: 0
-                    Txt("$name  $n", Modifier.padding(top = 10.dp), size = 17f, weight = FontWeight.Bold, color = Color.White)
+                    Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Txt("$name  $n", Modifier.weight(1f), size = 17f, weight = FontWeight.Bold, color = Color.White)
+                        // Retry all, as on the web's Downloads page (owner, 25 Nov): the server's failed downloads start again
+                        if (id == "failed" && web.available && by["failed"].orEmpty().any { it.origin == "server" })
+                            GlossPill("Retry all", {
+                                scope.launch {
+                                    val n2 = try { withContext(Dispatchers.IO) { web.retryAllDownloads() } } catch (_: Exception) { -1 }
+                                    app.ui.say(when { n2 < 0 -> "Couldn't reach FLACie Web"; n2 == 0 -> "Nothing to retry"; else -> "Trying $n2 again: they show under Running" })
+                                }
+                            }, height = 32.dp)
+                    }
                 }
                 if (id == "running") {
                     if (running.isEmpty()) item(key = "e-running") { Txt("Nothing is downloading.", size = 13f, color = Color(0x99FFFFFF)) }

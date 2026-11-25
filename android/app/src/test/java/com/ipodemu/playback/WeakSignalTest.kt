@@ -47,7 +47,14 @@ class WeakSignalTest {
         for (n in 1..NetPatience.LOADER_RETRIES) waited += NetPatience.loaderDelayMs(n)
         assertTrue("waited $waited ms", waited >= 120_000L)
         // but a returning signal is never left unused for long
-        for (n in 1..100) assertTrue(NetPatience.loaderDelayMs(n) in 1_000L..5_000L)
+        for (n in 2..100) assertTrue(NetPatience.loaderDelayMs(n) in 1_000L..5_000L)
+    }
+
+    // owner, 25 Nov: songs "sometimes about 10 s to play". A passing error at the start of a song (a 503 from a busy Jellyfin, a dropped connection) cost
+    // a whole second of silence before the first try again, and each later one waited longer: the first try again is quick, as on the web server
+    @Test fun theFirstTryAgainAfterAFailedReadIsQuick() {
+        assertTrue(NetPatience.loaderDelayMs(1) <= 300L)
+        assertTrue(NetPatience.loaderDelayMs(0) <= 300L)
     }
 
     @Test fun aSongThatIsGoneFailsAtOnceInsteadOfWaiting() {

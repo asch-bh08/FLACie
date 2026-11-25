@@ -49,8 +49,9 @@ object NetPatience {
     /** Times the player prepares the song again (from where it stopped) after an error before it gives up and says so. */
     const val PLAYER_RETRIES = 12
 
-    /** 1 s after the first failure, then a second more each time, never more than 5 s: a returning signal is used within seconds. */
-    fun loaderDelayMs(errorCount: Int): Long = (errorCount.coerceAtLeast(1) * 1_000L).coerceAtMost(5_000L)
+    /** 300 ms after the first failure (a passing error, a 503 from a busy Jellyfin, should cost a moment, not a second of silence at the start of a song:
+     *  owner, 25 Nov, songs "sometimes about 10 s to play"), then 2 s, 3 s ... never more than 5 s: a returning signal is used within seconds. */
+    fun loaderDelayMs(errorCount: Int): Long = if (errorCount <= 1) 300L else (errorCount * 1_000L).coerceAtMost(5_000L)
 
     /** An answer that no amount of waiting changes: not allowed, not there, gone, a range past the end. */
     fun hopeless(httpCode: Int): Boolean = httpCode in setOf(401, 403, 404, 410, 416)

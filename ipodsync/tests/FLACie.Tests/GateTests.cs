@@ -193,6 +193,44 @@ public class GateTests
         Assert.Equal(1, await g.RunAsync(GatePriority.Visible, _ => Task.FromResult(1), default));
     }
 
+    // owner, 25 Nov: songs "sometimes not at all". With the breaker open (a few failed covers or pages are enough), every song failed at once for
+    // 15 s and the player skipped down the queue in silence. The song someone presses is the probe instead: it goes through, one at a time.
+    [Fact]
+    public async Task While_the_breaker_is_open_the_song_someone_waits_for_still_goes_through_as_its_probe()
+    {
+        long now = 1_000;
+        var g = Gate(o => { o.BreakerFailures = 2; o.MaxRetries = 0; o.CoolDown = TimeSpan.FromSeconds(15); }, () => now);
+        for (var i = 0; i < 2; i++)
+            await Assert.ThrowsAsync<JellyfinHttpException>(() => g.RunAsync<int>(GatePriority.Visible, _ => throw new JellyfinHttpException(HttpStatusCode.InternalServerError, "500"), default, maxRetries: 0));
+        Assert.Equal(BreakerState.Open, g.Breaker);
+        // a cover still fails fast
+        await Assert.ThrowsAsync<JellyfinUnavailableException>(() => g.RunAsync(GatePriority.Visible, _ => Task.FromResult(1), default));
+        // the song goes through, and Jellyfin answering it closes the breaker
+        Assert.Equal(7, await g.RunAsync(GatePriority.Playing, _ => Task.FromResult(7), default));
+        Assert.Equal(BreakerState.Closed, g.Breaker);
+        Assert.Equal(1, await g.RunAsync(GatePriority.Visible, _ => Task.FromResult(1), default));
+    }
+
+    [Fact]
+    public async Task A_song_that_fails_while_the_breaker_is_open_keeps_it_open_and_only_one_song_probes_at_a_time()
+    {
+        long now = 1_000;
+        var g = Gate(o => { o.BreakerFailures = 1; o.MaxRetries = 0; o.CoolDown = TimeSpan.FromSeconds(15); }, () => now);
+        await Assert.ThrowsAsync<JellyfinHttpException>(() => g.RunAsync<int>(GatePriority.Visible, _ => throw new JellyfinHttpException(HttpStatusCode.InternalServerError, "500"), default, maxRetries: 0));
+        Assert.Equal(BreakerState.Open, g.Breaker);
+        var h = new Held();
+        var probe = h.Run(g, GatePriority.Playing);
+        await Until(() => h.Started == 1);
+        // a second song while the first is still probing: fails fast, never two at once at a failing Jellyfin
+        await Assert.ThrowsAsync<JellyfinUnavailableException>(() => g.RunAsync(GatePriority.Playing, _ => Task.FromResult(1), default));
+        h.Release(); await probe;
+        Assert.Equal(BreakerState.Closed, g.Breaker);
+        // a song that fails opens it again
+        await Assert.ThrowsAsync<JellyfinHttpException>(() => g.RunAsync<int>(GatePriority.Visible, _ => throw new JellyfinHttpException(HttpStatusCode.InternalServerError, "500"), default, maxRetries: 0));
+        await Assert.ThrowsAsync<JellyfinHttpException>(() => g.RunAsync<int>(GatePriority.Playing, _ => throw new JellyfinHttpException(HttpStatusCode.InternalServerError, "500"), default, maxRetries: 0));
+        Assert.Equal(BreakerState.Open, g.Breaker);
+    }
+
     [Fact]
     public async Task While_the_breaker_is_open_waiting_requests_fail_at_once_instead_of_piling_up()
     {

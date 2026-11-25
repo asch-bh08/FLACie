@@ -7,6 +7,7 @@
 //   --capacity n   the server works on at most n requests at once; the rest wait their turn (a small, busy Jellyfin: more parallel
 //                  requests do not finish sooner, they only wait longer). 0 = unlimited.
 //   --streamms ms  an audio answer takes this long to send (so a stream the client abandons is seen as aborted, not as complete)
+//   --first ms     an audio answer waits this long before its first byte (a real Jellyfin opening a big FLAC from disk; song-starts-web.mjs)
 //   --wavsec 3     length of every song's audio in seconds (3; use 180 to test seeking)  --nopic 1  three songs the server has no picture for at all
 //   --album-art 1  tracks also carry their album's cover (AlbumId + AlbumPrimaryImageTag), as a Jellyfin with embedded art does (default 1)
 // The same switches can be changed while it runs:  GET /__config?latency=300&jitter=100&flaky=0.1&ratelimit=40
@@ -22,7 +23,7 @@ import fs from 'node:fs';
 
 const arg = (name, def) => { const i = process.argv.indexOf('--' + name); return i > 0 ? process.argv[i + 1] : (process.env[name.toUpperCase()] ?? def); };
 const PORT = Number(arg('port', 8196)), HOST = arg('host', '0.0.0.0'), N = Number(arg('items', 10000));
-const cfg = { latency: Number(arg('latency', 0)), jitter: Number(arg('jitter', 0)), flaky: Number(arg('flaky', 0)), ratelimit: Number(arg('ratelimit', 0)), capacity: Number(arg('capacity', 0)), streamms: Number(arg('streamms', 0)) };
+const cfg = { latency: Number(arg('latency', 0)), jitter: Number(arg('jitter', 0)), flaky: Number(arg('flaky', 0)), ratelimit: Number(arg('ratelimit', 0)), capacity: Number(arg('capacity', 0)), streamms: Number(arg('streamms', 0)), first: Number(arg('first', 0)) };
 const ALBUM_ART = Number(arg('album-art', 1)) !== 0;
 const PROFILES = { fast: { latency: 0, jitter: 0, flaky: 0, ratelimit: 0, capacity: 0 }, slow: { latency: 300, jitter: 100, flaky: 0, ratelimit: 0, capacity: 8 },
   flaky: { latency: 30, jitter: 20, flaky: 0.1, ratelimit: 0, capacity: 0 }, ratelimit: { latency: 30, jitter: 20, flaky: 0, ratelimit: 20, capacity: 0 } };
@@ -158,6 +159,8 @@ http.createServer(async (req, res) => {
     const r = /bytes=(\d*)-(\d*)/.exec(req.headers.range || '');
     const from = r && r[1] !== '' ? +r[1] : 0, to = r && r[2] !== '' ? Math.min(+r[2], wav.length - 1) : wav.length - 1;
     stats.streamsOpened++;
+    if (cfg.first > 0) await sleep(cfg.first);
+    if (res.destroyed) return;
     res.writeHead(r ? 206 : 200, { 'content-type': arg('audio', '') ? 'audio/flac' : 'audio/wav', 'accept-ranges': 'bytes', 'content-length': to - from + 1, ...(r ? { 'content-range': `bytes ${from}-${to}/${wav.length}` } : {}) });
     const body = wav.subarray(from, to + 1);
     if (!cfg.streamms || body.length < 8) return res.end(body);

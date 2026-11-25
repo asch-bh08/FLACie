@@ -44,10 +44,15 @@ public static class MediaEndpoints
             // where this play really comes from, decided here where the stream is resolved: Jellyfin plays are announced by Jellyfin's own watcher, so only
             // NAS files and the file mover's direct fallback (a song Jellyfin has not scanned yet) are ever reported as "music played"
             if (!early && !quiet && !notify.PlaysQuietFor(s.DisplayName)) plays.Served(s.Id, t.Path, t.Source switch { TrackSource.Nas => "NAS", TrackSource.Cloud => "direct", TrackSource.Jellyfin when notify.Current.JellyfinPlays => "Jellyfin", _ => null });
-            async Task<IResult> Proxy(HttpRequestMessage req, bool ranges = true, bool keepHead = false)
+            async Task<IResult> Proxy(Func<HttpRequestMessage> make, bool ranges = true, bool keepHead = false)
             {
-                if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString(), PrefetchBytesFor(t)) : ctx.Request.Headers.Range.ToString());
-                else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange("", PrefetchBytesFor(t)));
+                HttpRequestMessage Ranged()
+                {
+                    var req = make();
+                    if (ranges && ctx.Request.Headers.Range.Count > 0) req.Headers.TryAddWithoutValidation("Range", early ? PrefetchRange(ctx.Request.Headers.Range.ToString(), PrefetchBytesFor(t)) : ctx.Request.Headers.Range.ToString());
+                    else if (ranges && early) req.Headers.TryAddWithoutValidation("Range", PrefetchRange("", PrefetchBytesFor(t)));
+                    return req;
+                }
                 // the browser gave up (a skip, a closed tab): RequestAborted cancels the call to Jellyfin too, so it stops reading the file at once. Not for the early
                 // read of the next song: the browser's hidden player often stops reading once it has enough, and the start must still be kept (its own 30 s limit)
                 using var own = keepHead ? new CancellationTokenSource(TimeSpan.FromSeconds(30)) : null;
@@ -57,8 +62,9 @@ public static class MediaEndpoints
                     // a song someone is waiting for: Jellyfin's first reply (its headers) gets a time limit, the song itself none (JellyfinFirstReply). The
                     // early read and the seek bar's whole-file read are background work that waits out a slow Jellyfin (the early read has its own 30 s)
                     var http = hf.CreateClient("media");
-                    using var res = early || quiet ? await http.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, upstream)
-                        : await JellyfinFirstReply.SendAsync(http, req, JellyfinFirstReply.Limit, upstream);
+                    // (a passing error from Jellyfin, a 503 or a refused connection, is asked again at once for a song someone waits for: SendSongAsync)
+                    using var res = early || quiet ? await http.SendAsync(Ranged(), HttpCompletionOption.ResponseHeadersRead, upstream)
+                        : await JellyfinFirstReply.SendSongAsync(http, Ranged, JellyfinFirstReply.Limit, upstream);
                     if (!early && !quiet) stalls.Clear(s.Id, t.Path);
                     ctx.Response.StatusCode = (int)res.StatusCode;
                     foreach (var h in new[] { "Content-Type", "Content-Length", "Content-Range", "Accept-Ranges" })
@@ -85,6 +91,8 @@ public static class MediaEndpoints
                 // Jellyfin is not answering (the gate's breaker is open): say so at once and when to try again, instead of an error page
                 catch (JellyfinUnavailableException e) when (!ctx.Response.HasStarted)
                 {
+                    // noted like a stall, so the player says "Couldn't reach Jellyfin" and tries once more instead of skipping songs in silence
+                    if (!early && !quiet) stalls.Mark(s.Id, t.Path);
                     ctx.Response.StatusCode = 503;
                     ctx.Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling(e.Wait.TotalSeconds)).ToString();
                 }
@@ -111,10 +119,10 @@ public static class MediaEndpoints
                     await ctx.Response.Body.WriteAsync(head.Bytes.AsMemory((int)plan.HeadFrom, (int)(plan.HeadTo - plan.HeadFrom + 1)), ctx.RequestAborted);
                     await ctx.Response.Body.FlushAsync(ctx.RequestAborted);
                     if (plan.UpFrom < 0) return Results.Empty;
-                    using var req = rest();
-                    req.Headers.TryAddWithoutValidation("Range", $"bytes={plan.UpFrom}-{plan.UpTo}");
-                    // the rest of the song gets the same first-reply limit; past it the connection is dropped (below) and the browser asks again from where it got to
-                    using var res = await JellyfinFirstReply.SendAsync(hf.CreateClient("media"), req, JellyfinFirstReply.Limit, ctx.RequestAborted);
+                    HttpRequestMessage Rest() { var req = rest(); req.Headers.TryAddWithoutValidation("Range", $"bytes={plan.UpFrom}-{plan.UpTo}"); return req; }
+                    // the rest of the song gets the same first-reply limit (and the same quick second try after a passing error); past it the connection is
+                    // dropped (below) and the browser asks again from where it got to
+                    using var res = await JellyfinFirstReply.SendSongAsync(hf.CreateClient("media"), Rest, JellyfinFirstReply.Limit, ctx.RequestAborted);
                     // Jellyfin must send exactly the rest; anything else (a whole file, an error) can't be joined on: the connection is dropped and the browser asks again
                     if ((int)res.StatusCode != 206 || res.Content.Headers.ContentRange?.From != plan.UpFrom) { ctx.Abort(); return Results.Empty; }
                     await using var body = await res.Content.ReadAsStreamAsync(ctx.RequestAborted);
@@ -133,17 +141,15 @@ public static class MediaEndpoints
                 // the start of this song was kept by the early read: sent at once, the rest asked of Jellyfin from where it ends
                 if (!transcode && kept is { } head && SongHeadCache.Plan(ctx.Request.Headers.Range.ToString(), head.Bytes.Length, head.Total) is { } plan)
                     return await FromHead(head, plan, () => jf.Authorized(a, jf.StreamUrl(a, t.JellyfinId!)));
-                using var req = jf.Authorized(a, transcode ? $"{a.Server}/Audio/{t.JellyfinId}/stream.mp3?AudioCodec=mp3&AudioBitRate=256000&MaxAudioChannels=2" : jf.StreamUrl(a, t.JellyfinId!));
+                var url = transcode ? $"{a.Server}/Audio/{t.JellyfinId}/stream.mp3?AudioCodec=mp3&AudioBitRate=256000&MaxAudioChannels=2" : jf.StreamUrl(a, t.JellyfinId!);
                 var keep = early && !transcode;
                 var ended = keep ? heads.Begin(s.Id, t.Path) : null;
-                try { return await Proxy(req, !transcode, keepHead: keep); } finally { ended?.Invoke(); }
+                try { return await Proxy(() => jf.Authorized(a, url), !transcode, keepHead: keep); } finally { ended?.Invoke(); }
             }
             // a song just downloaded, playing from the file mover before Jellyfin has scanned it (only that service, with the key kept here)
             if (t.Source == TrackSource.Cloud && s.Services is { FileMoverUrl.Length: > 0 } svc && t.Path.StartsWith(svc.FileMoverUrl.TrimEnd('/') + "/file?", StringComparison.Ordinal))
             {
-                using var req = new HttpRequestMessage(HttpMethod.Get, t.Path);
-                req.Headers.TryAddWithoutValidation("X-Api-Key", svc.FileMoverKey);
-                return await Proxy(req);
+                return await Proxy(() => { var req = new HttpRequestMessage(HttpMethod.Get, t.Path); req.Headers.TryAddWithoutValidation("X-Api-Key", svc.FileMoverKey); return req; });
             }
             if (t.Source == TrackSource.Nas && s.Nas is { } n)
             {

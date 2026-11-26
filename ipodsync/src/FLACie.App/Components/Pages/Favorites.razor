@@ -4,8 +4,11 @@
 <PageTitle>Favourites · FLACie</PageTitle>
 @{ var tracks = Session.Resolve(Session.Favorites); }
 @* design I: like a playlist, a hero with the first song's cover in its own colours, a serif title with the last word in italics, mono facts, a big Play and a tinted Shuffle *@
-<header class="pl-hero" @ref="heroEl">
+@* the colours are set on the whole page, so the playing row takes them too (as on a playlist) *@
+<div class="pl-page" @ref="heroEl">
+<header class="pl-hero">
     <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="pl-cover" />
+    @if (tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null) is { } washKey) { <div class="pl-wash" aria-hidden="true"><Cover ArtKey="@washKey" /></div> }
     <div class="pl-hero-text">
         <h1><i>Favourites</i></h1>
         <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")</p>
@@ -14,21 +17,26 @@
             <button class="btn pl-shuffle" @onclick='() => Player.ShuffleAll(tracks, "Favourites")' disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
             @if (Session.Favorites.Count > 0)
             {
+                <div class="pl-tools">
                 @if (confirmClear)
                 {
                     <button class="btn danger" @onclick="Clear">Clear all @Session.Favorites.Count</button>
-                    <button class="btn" @onclick="() => confirmClear = false">Keep them</button>
+                    <button class="btn pl-tool" @onclick="() => confirmClear = false">Keep them</button>
                 }
-                else { <button class="btn ghost" @onclick="() => confirmClear = true">Clear all</button> }
+                else { <button class="btn pl-tool" @onclick="() => confirmClear = true">Clear all</button> }
+                </div>
             }
         </div>
     </div>
 </header>
+<div class="pl-main">
 @if (tracks.Count == 0)
 {
     <div class="empty-state"><p class="status">No favourites yet.<small>Tap the heart beside any song and it waits for you here.</small></p><a class="btn" href="/songs">Browse songs</a></div>
 }
 <TrackList Tracks="tracks" PlayContext="Favourites" />
+</div>
+</div>
 @code {
     ElementReference heroEl; string? heroFor = "";
     [Inject] Toasts Toast { get; set; } = default!;

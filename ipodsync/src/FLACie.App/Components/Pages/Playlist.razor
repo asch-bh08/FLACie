@@ -26,9 +26,13 @@ else
         waiting = wait;
     }
     <PageTitle>@p.Name · FLACie</PageTitle>
-    @* design I: the first song's cover in its own colours (flacie.npAccent), a serif title with the last word in italics, mono facts, a big Play in the accent and a tinted Shuffle *@
-    <header class="pl-hero" @ref="heroEl">
+    @* design I: the first song's cover in its own colours (flacie.npAccent), a serif title with the last word in italics, mono facts, a big Play in the accent and a tinted Shuffle.
+       The colours are set on the whole page, not only the hero, so the playing row and the recommendations' buttons take them too (as Now Playing's queue does) *@
+    <div class="pl-page" @ref="heroEl">
+    <header class="pl-hero">
         <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="pl-cover" />
+        @* the cover blurred behind the card, as each Devices card has its song's (after the cover, so the cover stays the first picture here) *@
+        @if (tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null) is { } washKey) { <div class="pl-wash" aria-hidden="true"><Cover ArtKey="@washKey" /></div> }
         <div class="pl-hero-text">
             <p class="eyebrow">Playlist</p>
             @if (renaming)
@@ -44,12 +48,14 @@ else
             <div class="chips">
                 <button class="btn primary pl-play" @onclick="() => Player.PlayInOrder(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                @* the quieter actions in one row of equal glass buttons, as Now Playing's row under the controls (on a phone: the icon over its word) *@
+                <div class="pl-tools">
                 @* a button like the others, not an underlined link (owner, 25 Nov) *@
-                @if (imp is { } im2) { <a class="btn pl-downloads" href="/imports/@im2.JobId/downloads" data-testid="pl-downloads" title="This playlist's downloads: what came in, what is still to come"><Icon Name="download" Size="18" />Downloads</a> }
+                @if (imp is { } im2) { <a class="btn pl-tool pl-downloads" href="/imports/@im2.JobId/downloads" data-testid="pl-downloads" title="This playlist's downloads: what came in, what is still to come"><Icon Name="download" Size="16" />Downloads</a> }
                 @if (confirm)
                 {
                     <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
-                    <button class="btn" @onclick="() => confirm = false">Keep it</button>
+                    <button class="btn pl-tool" @onclick="() => confirm = false">Keep it</button>
                 }
                 else
                 {
@@ -57,14 +63,14 @@ else
                     @if (Player.Dj is { } dj)
                     {
                         var djChoice = DjSwitches.OfPlaylist(dj.Settings(Session), DjSwitches.KeyOf(p));
-                        <button class="btn ghost pl-dj @(djChoice is null ? "" : "set")" @onclick="() => CycleDj(p)" title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change.">
+                        <button class="btn pl-tool pl-dj @(djChoice is null ? "" : "set")" @onclick="() => CycleDj(p)" title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change.">
                             <Icon Name="dj" Size="16" />DJ: @DjSwitches.Label(djChoice)
                         </button>
                     }
-                    <button class="btn ghost" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="16" />Share</button>
+                    <button class="btn pl-tool" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="16" />Share</button>
                     @* Rename and Delete behind More, as on the phone: Rename sat where a second click on the playlist landed and renamed it by accident (owner, 1 Nov) *@
                     <span class="pl-more">
-                        <button class="btn ghost" aria-haspopup="menu" aria-expanded="@(plMore ? "true" : "false")" aria-label="More for this playlist" @onclick="() => plMore = !plMore"><Icon Name="more" Size="16" />More</button>
+                        <button class="btn pl-tool" aria-haspopup="menu" aria-expanded="@(plMore ? "true" : "false")" aria-label="More for this playlist" @onclick="() => plMore = !plMore"><Icon Name="more" Size="16" />More</button>
                         @if (plMore)
                         {
                             <button class="scrim" aria-label="Close" @onclick="() => plMore = false"></button>
@@ -75,6 +81,7 @@ else
                         }
                     </span>
                 }
+                </div>
             </div>
         </div>
     </header>
@@ -100,6 +107,7 @@ else
         </section>
     }
     <PlaylistRecsSection List="p" />
+    </div>
     </div>
 }
 @code {

@@ -73,6 +73,16 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       const bg = await play.evaluate((e) => getComputedStyle(e).backgroundColor);
       const shuffleBg = await hero.getByRole('button', { name: 'Shuffle' }).evaluate((e) => getComputedStyle(e).backgroundColor);
       expect(bg).not.toBe(shuffleBg);
+      // the Devices look (owner, 26 Nov): the songs on a rounded card, the quieter actions as outlined round buttons, and calm tags: no file format
+      // or source on every row (only Hi-Res and Streaming show), every tag the same outlined round pill
+      const list = page.locator('.pl-main > ol.tracks');
+      expect(await radius(list)).toBeGreaterThanOrEqual(20);
+      const share = hero.getByRole('button', { name: 'Share' });
+      expect(await share.evaluate((e) => e.closest('.pl-tools') !== null)).toBe(true);
+      expect(await radius(share)).toBeGreaterThanOrEqual(18);
+      const shownTags = await list.locator('.track .pills .badge, .track .track-src, .track .track-tag').evaluateAll((els) =>
+        els.filter((e) => getComputedStyle(e).display !== 'none').map((e) => ({ cls: e.className, r: parseFloat(getComputedStyle(e).borderRadius), border: getComputedStyle(e).borderStyle })));
+      for (const t of shownTags) { expect(t.cls).toMatch(/hires|cloud/); expect(t.r).toBeGreaterThanOrEqual(10); expect(t.border).toBe('solid'); }
       // Rename and Delete are behind More, never where a second click on the playlist lands (owner, 1 Nov)
       await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0);
       await page.getByRole('button', { name: 'More for this playlist' }).click();

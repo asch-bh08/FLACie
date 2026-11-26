@@ -19,7 +19,8 @@
                 else { <Cover ArtKey="@(Art.KeyFor(t))" Size="@ThumbSize" /> }
                 <span class="track-text">
                     <span class="track-title">@Lib.DisplayTitle(t)</span>
-                    <span class="track-sub">@if (KindTag is { Length: > 0 }) { <span class="kind-tag">@KindTag</span> }@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(t.Source)</span></span>
+                    @* the meaningful tags again, before the artist: a playlist on a phone shows them here instead of beside the time (design-i-playlists.css), as the phone app does *@
+                    <span class="track-sub">@if (KindTag is { Length: > 0 }) { <span class="kind-tag">@KindTag</span> }@if (fmt == "HI-RES") { <span class="track-tag hires">✦ Hi-Res</span> }@if (t.Source == TrackSource.Cloud) { <span class="track-tag cloud">@SourceLabel.Short(t.Source)</span> }@t.Artist@(ShowAlbum && t.Album.Length > 0 ? " · " + t.Album : "")@(t.Year > 0 ? " · " + t.Year : "")<span class="track-src" aria-hidden="true">@SourceLabel.Short(t.Source)</span></span>
                     <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" />
                 </span>
             </button>

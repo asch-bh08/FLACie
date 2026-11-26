@@ -305,9 +305,8 @@ private fun OfflineEntryRow(e: OfflineEntry, onPlay: () -> Unit, onRemove: () ->
  * On a playlist ([listId] set) it also keeps the playlist up to date: songs added to it later download too, and songs taken out go again.
  */
 @Composable
-fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title: String) {
+fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title: String, slot: Modifier? = null) {
     val app = LocalApp.current
-    val sc = LocalScheme.current
     val m = app.offline
     val st = m.keepStatus(tracks)   // reads the downloads' revision, so the label follows their progress
     if (st.kind == KeepStatus.Kind.UNAVAILABLE) return
@@ -319,25 +318,40 @@ fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title:
         app.ui.say(if (n > 0) "Downloading ${OfflineMath.songs(n)}" + (if (listId != null) ". New songs added to \"$title\" download too" else "") else "Already on this phone")
         if (listId != null) app.offlineSyncSoon()
     }
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        DesignChip(st.label, st.kind == KeepStatus.Kind.DONE, {
-            when (st.kind) {
-                KeepStatus.Kind.NONE, KeepStatus.Kind.FAILED -> start()
-                else -> nav.sheet = SheetSpec(if (st.kind == KeepStatus.Kind.BUSY) "Stop downloading \"$title\"?" else "Remove the download of \"$title\"?", OfflineMath.songs(st.total) + (if (kept) ". Kept up to date" else ""), listOf(
-                    SheetItem(if (st.kind == KeepStatus.Kind.BUSY) "Yes, stop and remove" else "Yes, remove the downloads", Glyph.CLOSE) {
-                        if (listId != null) m.setKept(listId, false)
-                        m.forget(tracks)
-                    },
-                    SheetItem("Keep it", Glyph.CHECK) { },
-                ))
-            }
-        }, icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.CHECK else Glyph.DOWNLOADED)
-        // the tick for "new songs download too" (owner, 1 Nov: it should be an option you can see); on by default when a playlist is downloaded
-        if (listId != null && st.kind != KeepStatus.Kind.NONE) Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).clickable {
-            m.setKept(listId, !kept); if (!kept) app.offlineSyncSoon()
-        }.semantics(mergeDescendants = true) { stateDescription = if (kept) "On" else "Off" }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SwitchPill(kept)
-            Txt("Download new songs added to this playlist", size = 13f, color = sc.onBgDim, maxLines = 2)
+    val tap = {
+        when (st.kind) {
+            KeepStatus.Kind.NONE, KeepStatus.Kind.FAILED -> start()
+            else -> nav.sheet = SheetSpec(if (st.kind == KeepStatus.Kind.BUSY) "Stop downloading \"$title\"?" else "Remove the download of \"$title\"?", OfflineMath.songs(st.total) + (if (kept) ". Kept up to date" else ""), listOf(
+                SheetItem(if (st.kind == KeepStatus.Kind.BUSY) "Yes, stop and remove" else "Yes, remove the downloads", Glyph.CLOSE) {
+                    if (listId != null) m.setKept(listId, false)
+                    m.forget(tracks)
+                },
+                SheetItem("Keep it", Glyph.CHECK) { },
+            ))
         }
+    }
+    val icon = if (st.kind == KeepStatus.Kind.DONE) Glyph.CHECK else Glyph.DOWNLOADED
+    // [slot]: one of a playlist hero's equal slots (PlaylistLookUi.kt); the hero puts KeepNewSongsSwitch under its row itself
+    if (slot != null) { ToolSlot(st.label, icon, { tap() }, slot, on = st.kind == KeepStatus.Kind.DONE); return }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        DesignChip(st.label, st.kind == KeepStatus.Kind.DONE, { tap() }, icon = icon)
+        if (listId != null) KeepNewSongsSwitch(tracks, listId)
+    }
+}
+
+/** The tick for "new songs download too" (owner, 1 Nov: it should be an option you can see); on by default when a playlist is downloaded. Shown once it is. */
+@Composable
+fun KeepNewSongsSwitch(tracks: List<Track>, listId: String) {
+    val app = LocalApp.current
+    val sc = LocalScheme.current
+    val m = app.offline
+    val st = m.keepStatus(tracks)
+    if (st.kind == KeepStatus.Kind.UNAVAILABLE || st.kind == KeepStatus.Kind.NONE) return
+    val kept = m.isKept(listId)
+    Row(Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp)).clickable {
+        m.setKept(listId, !kept); if (!kept) app.offlineSyncSoon()
+    }.semantics(mergeDescendants = true) { stateDescription = if (kept) "On" else "Off" }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        SwitchPill(kept)
+        Txt("Download new songs added to this playlist", size = 13f, color = sc.onBgDim, maxLines = 2)
     }
 }

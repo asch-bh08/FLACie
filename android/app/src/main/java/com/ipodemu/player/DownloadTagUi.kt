@@ -1,6 +1,9 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -10,11 +13,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ipodemu.library.DownloadTag
 import com.ipodemu.library.DownloadTags
@@ -70,7 +75,7 @@ private val StreamingInk = Color(0xFF6DB3FF)
 @Composable
 fun DownloadTagLine(
     key: String, addedMs: Long?, modifier: Modifier = Modifier, hi: Boolean = false, size: Float = 11.5f, align: TextAlign = TextAlign.Start,
-    cloud: Boolean = false, compact: Boolean = false, showNew: Boolean = true,
+    cloud: Boolean = false, compact: Boolean = false, showNew: Boolean = true, pill: Boolean = false,
 ) {
     val store = LocalApp.current.library.tags
     val sc = LocalScheme.current
@@ -92,10 +97,11 @@ fun DownloadTagLine(
         tag is DownloadTag.Failed -> FailedInk
         tag is DownloadTag.Recent -> RecentInk
         tag is DownloadTag.NewDownload -> StreamingInk   // "Streaming": the same fixed blue as the badge and the pill
-        else -> sc.onBgDim   // running and "New download": the quiet secondary text colour (the accent changes with the user's setting)
+        else -> if (pill) sc.accent else sc.onBgDim   // running and "New download": the quiet secondary text colour (the accent changes with the user's setting); a pill is in the accent, as on the web
     }
+    // [pill]: a playlist's rows draw the tag as the Devices chip, an outlined round pill in its own ink (the web's .pl-page .dl-tag)
     BasicText(
-        text, modifier.fillMaxWidth(),
+        text, if (pill) modifier.padding(top = 4.dp).clip(RoundedCornerShape(50)).border(1.dp, (if (hi) Color.White else ink).copy(alpha = .6f), RoundedCornerShape(50)).padding(horizontal = 9.dp, vertical = 2.dp) else modifier.fillMaxWidth(),
         style = TextStyle(color = ink, fontSize = size.sp, fontWeight = FontWeight.SemiBold, fontFamily = LocalStyle.current.font, textAlign = align),
         maxLines = 1, overflow = TextOverflow.Ellipsis,
         onTextLayout = { r ->
@@ -108,8 +114,8 @@ fun DownloadTagLine(
 @Composable
 fun DownloadTagLine(
     t: Track, modifier: Modifier = Modifier, hi: Boolean = false, size: Float = 11.5f, align: TextAlign = TextAlign.Start,
-    compact: Boolean = false, showNew: Boolean = true,
-) = DownloadTagLine(t.matchKey, DownloadTags.cloudAdded(t), modifier, hi, size, align, DownloadTags.isCloud(t), compact, showNew)
+    compact: Boolean = false, showNew: Boolean = true, pill: Boolean = false,
+) = DownloadTagLine(t.matchKey, DownloadTags.cloudAdded(t), modifier, hi, size, align, DownloadTags.isCloud(t), compact, showNew, pill)
 
 /** Whether a tag line will show for this song right now: rows use it to make room for the extra line (a structural change only: it does not tick). */
 @Composable

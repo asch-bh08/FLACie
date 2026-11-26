@@ -1,0 +1,105 @@
+package com.ipodemu.player
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+
+/*
+ * A playlist (and Favourites) in the look of the Devices page and Now Playing, the same page as the web's (design-i-playlists.css, .pl-page):
+ * rounded glass cards with the cover blurred behind the hero (DevicesUi.kt's DeviceCard), Play and Shuffle as full pills, the quieter actions as
+ * Now Playing's row of equal slots, the songs on one glass card with the playing row tinted in the cover's colour, and tags as the Devices chip
+ * (an outlined round pill), only the ones that say something: Hi-Res, Streaming and the download state.
+ */
+
+/** The Devices page's glass: a faint fill and a hairline rim. */
+internal val GlassFill = Color(0x0FFFFFFF)
+internal val GlassRim = Color(0x24FFFFFF)
+
+/** The first cover's colours, for the page's tinted parts. Rows read it from [LocalPlaylistLook]; null everywhere else keeps the plain rows. */
+class PlaylistLook(val colours: SleeveColours) {
+    val accent = Color(colours.main)
+}
+
+val LocalPlaylistLook = compositionLocalOf<PlaylistLook?> { null }
+
+@Composable
+fun rememberPlaylistLook(art: String?): PlaylistLook {
+    val cols = rememberCoverColours(art)
+    return remember(cols) { PlaylistLook(cols) }
+}
+
+/** What a tag says, which picks its ink (the web's .badge.fmt.hires, .badge.cloud). */
+enum class TagKind { PLAIN, HIRES, CLOUD }
+
+/** One tag: the Devices chip, an outlined round pill in the sans. [small] fits it in front of the artist on a narrow row. */
+@Composable
+fun PlTag(text: String, kind: TagKind = TagKind.PLAIN, small: Boolean = false) {
+    val ink = when (kind) { TagKind.HIRES -> Color(0xFFFFC857); TagKind.CLOUD -> Color(0xFF6DB3FF); TagKind.PLAIN -> Color(0xB3FFFFFF) }
+    val shape = RoundedCornerShape(50)
+    Box(Modifier.clip(shape).border(1.dp, ink.copy(alpha = if (kind == TagKind.PLAIN) .35f else .6f), shape)
+        .padding(horizontal = if (small) 7.dp else 10.dp, vertical = if (small) 0.dp else 2.dp)) {
+        Txt(text, size = if (small) 10.5f else 11.5f, weight = FontWeight.SemiBold, color = ink)
+    }
+}
+
+/** A quieter action of the page: Now Playing's phone slot, the icon over its word on glass; [on] lights it in the cover's colour (a playlist's own DJ choice, a download kept). */
+@Composable
+fun ToolSlot(label: String, icon: Glyph, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false, accent: Color = LocalScheme.current.accent) {
+    val sc = LocalScheme.current
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier.height(56.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
+            .semantics { role = Role.Button }.focusRing(shape).clickable(onClick = onClick).padding(horizontal = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+    ) {
+        GlyphIcon(icon, Modifier.size(18.dp), sc.onBg)
+        Txt(label, size = 11.5f, weight = FontWeight.SemiBold, color = sc.onBg)
+    }
+}
+
+/** The hero: a glass card with the cover blurred behind it (a Devices card), holding the cover, the title, the facts and the buttons. */
+@Composable
+fun PlaylistHeroCard(look: PlaylistLook, art: String?, content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(22.dp)
+    Box(Modifier.fillMaxWidth().clip(shape).background(GlassFill).border(1.dp, GlassRim, shape)) {
+        // the cover's colours behind the card (a plain faint fill on phones too old to blur), and the accent faintly when there is no cover
+        if (art != null) ArtImage(art, Modifier.matchParentSize().blur(48.dp).alpha(.4f), thumb = true, corner = 0.dp)
+        else Box(Modifier.matchParentSize().background(look.accent.copy(alpha = .14f)))
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { content() }
+    }
+}
+
+/** The songs' glass card is drawn a row at a time (the rows are a lazy list): the first rounds the top, the last the bottom (the web's ol.tracks card). */
+fun Modifier.playlistCardRow(index: Int, count: Int): Modifier {
+    val top = if (index == 0) 22.dp else 0.dp
+    val bottom = if (index == count - 1) 22.dp else 0.dp
+    return this.padding(horizontal = 12.dp).clip(RoundedCornerShape(top, top, bottom, bottom)).background(GlassFill)
+        .padding(start = 4.dp, end = 4.dp, top = if (index == 0) 4.dp else 0.dp, bottom = if (index == count - 1) 4.dp else 0.dp)
+}
+
+/** The playing row: tinted in the cover's colour, as Now Playing's queue marks it. */
+fun Modifier.playlistNowRow(look: PlaylistLook?, now: Boolean): Modifier =
+    if (look != null && now) this.clip(RoundedCornerShape(16.dp)).background(look.accent.copy(alpha = .20f)) else this

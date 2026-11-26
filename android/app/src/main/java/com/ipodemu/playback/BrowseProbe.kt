@@ -60,7 +60,8 @@ object BrowseProbe {
                 val hits = call { b.getSearchResult("song 1", 0, 10, null) }.value?.size
                 Log.i(TAG, "search 'song 1': $hits")
                 if (songs.isNotEmpty()) {
-                    Handler(ht.looper).post { b.setMediaItem(songs[0]); b.prepare(); b.play() }
+                    // Shuffle all: a long queue, so the queue check has songs to tap
+                    Handler(ht.looper).post { b.setMediaItem(MediaItem.Builder().setMediaId(BrowseTree.SHUFFLE).build()); b.prepare(); b.play() }
                     Thread.sleep(4000)
                     val app = App.of(ctx)
                     // the player is read on the main thread, where it lives

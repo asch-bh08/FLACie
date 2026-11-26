@@ -41,22 +41,31 @@ async function main() {
   sh(`am start -n ${PKG}/com.ipodemu.ui.MainActivity`, { quiet: true });
   let ui = await waitUi((n) => has(n, 'Sign in with Jellyfin'), 120000, 2000);
   tapNode(find(ui, 'Sign in with Jellyfin'));
-  for (let tries = 0; tries < 3; tries++) {
-    ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
-    const field = ui?.find((n) => /EditText/.test(n.cls));
-    tapAt(field.cx, field.cy); await sleep(1200); typeText(PHONE_BASE); await sleep(900); key('KEYCODE_BACK'); await sleep(1200);
-    ui = await waitUi((n) => has(n, 'Sign in with Quick Connect') || has(n, 'Sign in with Jellyfin'), 20000, 1000);
-    if (has(ui, 'Sign in with Quick Connect') && ui.some((n) => /EditText/.test(n.cls) && label(n).includes(PHONE_BASE.replace('http://', '')))) break;
-    if (has(ui, 'Sign in with Quick Connect')) { const f2 = ui.find((n) => /EditText/.test(n.cls)); tapAt(f2.cx, f2.cy); await sleep(600); key('KEYCODE_MOVE_END'); for (let k = 0; k < 40; k++) key('KEYCODE_DEL'); key('KEYCODE_BACK'); await sleep(800); continue; }
-    tapNode(find(ui, 'Sign in with Jellyfin'));
+  ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 30000, 1000);
+  const field = ui?.find((n) => /EditText/.test(n.cls));
+  // typed again until the box holds the whole address (the emulator sometimes drops keys), as smoke-android does
+  for (let i = 0; i < 4; i++) {
+    tapAt(field.cx, field.cy); await sleep(600); key('KEYCODE_MOVE_END'); key('--longpress KEYCODE_DEL'); await sleep(300);
+    for (let k = 0; k < 3; k++) key('KEYCODE_DEL ' + 'KEYCODE_DEL '.repeat(12));
+    typeText(PHONE_BASE); await sleep(1000);
+    if ((dump() || []).some((n) => /EditText/.test(n.cls) && n.text === PHONE_BASE)) break;
   }
+  key('KEYCODE_BACK'); await sleep(800);
+  ui = await waitUi((n) => has(n, 'Sign in with Quick Connect'), 20000, 1000);
   tapNode(find(ui, 'Sign in with Quick Connect'));
-  await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);
-  // the 10,000 songs come in
-  await sleep(45000);
-  const got = dump() ?? []; if (has(got, 'Got it')) tapNode(find(got, 'Got it'));
+  const gone = await waitUi((n) => !has(n, 'Sign in with Quick Connect') && !has(n, 'Jellyfin server') && !has(n, 'Signing in'), 60000, 1500);
+  check('Quick Connect sign-in completes', !!gone);
+  shot(path.join(here, 'car-shot-signed-in.png'));
 
-  const first = await probe();
+  // the 10,000 songs come in: the probe is run until the car's Albums tab has some
+  let first = '';
+  for (let i = 0; i < 3; i++) {
+    // (a probe restarts the app, which stops a sync under way: long waits)
+    await sleep(i === 0 ? 120000 : 90000);
+    first = await probe();
+    if (/timing albums: [1-9]/.test(first)) break;
+    log(`library not in yet (${line(first, /timing albums:/)})`);
+  }
   fs.writeFileSync(path.join(here, 'car-probe-1.txt'), first);
   check('the probe ran', /probe done/.test(first), line(first, /probe (done|failed)/));
   const sections = line(first, /home sections:/);

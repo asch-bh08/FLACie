@@ -411,4 +411,14 @@ class BrowseTreeTest {
         val start = System.nanoTime(); BrowseTree.searchNodes("artist 1", 0, 50, src)
         assertTrue((System.nanoTime() - start) / 1_000_000 < 1500)
     }
+
+    // the merged artists are kept while the library's list is the same one, and made again when it changes
+    @Test fun artistsFollowTheLibraryWhenItsListChanges() {
+        var list = listOf(Group("Blur", listOf(t(1, artist = "Blur")), null))
+        val src = object : BrowseSource by Src() { override fun artists() = list }
+        assertEquals(listOf("Blur"), BrowseTree.children(BrowseTree.ARTISTS, 0, 50, src).map { it.title })
+        assertEquals(listOf("Blur"), BrowseTree.children(BrowseTree.ARTISTS, 0, 50, src).map { it.title })
+        list = list + Group("Abba", listOf(t(2, artist = "Abba")), null)
+        assertEquals(listOf("Abba", "Blur"), BrowseTree.children(BrowseTree.ARTISTS, 0, 50, src).map { it.title })
+    }
 }

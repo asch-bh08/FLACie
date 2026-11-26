@@ -212,7 +212,17 @@ object BrowseTree {
     private val credits = Regex("\\s*(;|,|&|/|\\s+(feat\\.?|ft\\.?|featuring)\\s+)\\s*", RegexOption.IGNORE_CASE)
 
     /** Artists merged by their main credit however it is spelt ("2Pac", "2PAC", "2Pac; Dr. Dre"), named as their biggest spelling's main credit. */
-    private fun mergedArtists(src: BrowseSource): List<Group> = src.artists().filter { it.name.isNotBlank() }
+    // the merge is kept while the library's artist list is the same one (owner, 26 Nov: the car's Artists tab took 1.6 s per page with 10,000 songs)
+    private var mergedFor: List<Group>? = null
+    private var mergedOut: List<Group> = emptyList()
+    private fun mergedArtists(src: BrowseSource): List<Group> {
+        val raw = src.artists()
+        synchronized(this) { if (raw === mergedFor) return mergedOut }
+        val out = sorted(merge(raw))
+        synchronized(this) { mergedFor = raw; mergedOut = out }
+        return out
+    }
+    private fun merge(artists: List<Group>): List<Group> = artists.filter { it.name.isNotBlank() }
         .groupBy { com.ipodemu.library.primaryArtist(it.name).ifEmpty { it.name.lowercase() } }.values.map { gs ->
             val big = gs.maxBy { it.tracks.size }
             val name = big.name.split(credits).firstOrNull { it.isNotBlank() }?.trim() ?: big.name

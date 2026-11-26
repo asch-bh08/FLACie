@@ -22,6 +22,8 @@ class UiState(private val prefs: Prefs) {
     var devicesOpen by mutableStateOf(false)
     /** The full-screen remote for music playing on another device (RemoteUi.kt). */
     var remoteOpen by mutableStateOf(false)
+    /** The device the remote shows when it was opened from its bar or its card in Devices; null lets it pick the one playing. */
+    var remoteId by mutableStateOf<String?>(null)
     var jamOpen by mutableStateOf(false)
     /** Car mode (CarMode.kt): the full-screen player with bigger controls and the cover swiping through every graph. */
     var carOpen by mutableStateOf(false)

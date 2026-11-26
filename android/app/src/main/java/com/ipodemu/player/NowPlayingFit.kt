@@ -122,7 +122,18 @@ object NowPlayingFit {
 
     fun timeHeight(fs: Float): Float = 2f + line(15f, fs, 1.4f)
 
-    fun controlsHeight(width: Float): Float = 64f * ((min(width - 28f, 520f)) / 330f).coerceIn(.8f, 1f)
+    fun controlsHeight(width: Float): Float = PLAY_H * controlsScale(width - 28f)
+
+    // the web phone's control sizes (living-sleeve.css .ls-play, .ls-pillbtn); shuffle and repeat are 48 dp touch targets (the web's are 44 px)
+    const val PLAY_W = 76f; const val PLAY_H = 60f; const val PILL_W = 58f; const val PILL_H = 52f; const val ROUND = 48f
+    /** Shuffle, previous | play | next, repeat at full size, end to end. */
+    const val CONTROLS_W = 2 * ROUND + 2 * PILL_W + PLAY_W
+
+    /**
+     * How much the pills and play shrink in a row [room] dp wide: 1 where the five fit at the web's sizes, less on a very narrow screen, never under .8.
+     * Shuffle and repeat never shrink, so they keep 48 dp.
+     */
+    fun controlsScale(room: Float): Float = ((min(room, 520f) - 2 * ROUND) / (CONTROLS_W - 2 * ROUND)).coerceIn(.8f, 1f)
 
     private fun gaps(stageH: Float) = if (stageH < 700f) 8f + 10f else 14f + 16f
 

@@ -125,6 +125,8 @@ fun DevicesScreen() {
                     ) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             if (playing) GlossPill("Play here", { c.takeOver(s) }, icon = Glyph.PLAY, primary = true, height = 40.dp)
+                            // its Now Playing: the same player as this phone's, driving that device (owner, 26 Nov)
+                            if (playing && s.controllable) GlossPill("Now Playing", { ui.remoteId = s.id; ui.remoteOpen = true; ui.devicesOpen = false }, icon = Glyph.NOTE, height = 40.dp)
                             if (here != null && s.controllable) GlossPill("Send to " + short(s.device), { c.sendTo(s) }, icon = Glyph.DEVICES, height = 40.dp)
                             if (playing && s.controllable) {
                                 GlossPill("Previous", { c.command(s, "PreviousTrack") }, icon = Glyph.PREV, height = 40.dp)

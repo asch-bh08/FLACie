@@ -136,4 +136,41 @@ class NowPlayingFitTest {
         val g = NowPlayingFit.infoGraphHeight(280f)
         assertTrue(g + 28f + 48f + 10f + 44f + 10f <= 280f + .5f)
     }
+
+    // ---- the web phone's sizes (living-sleeve.css), and the remote that uses the same player ----
+
+    @Test fun theControlsAreTheWebPhonesSizesWhereTheyFit() {
+        // a 375 dp phone: the row has 375 - 28 dp
+        assertEquals(1f, NowPlayingFit.controlsScale(347f), 0f)
+        assertEquals(60f, NowPlayingFit.controlsHeight(375f), .01f)
+        assertTrue(NowPlayingFit.CONTROLS_W <= 347f)
+    }
+
+    @Test fun aVeryNarrowScreenShrinksOnlyThePillsAndPlay() {
+        // 300 dp: the pills and play give way, shuffle and repeat keep 48 dp, and the five still fit side by side
+        val room = 300f - 28f
+        val k = NowPlayingFit.controlsScale(room)
+        assertTrue(k < 1f && k >= .8f)
+        assertTrue(2 * NowPlayingFit.ROUND + k * (2 * NowPlayingFit.PILL_W + NowPlayingFit.PLAY_W) <= room + .01f)
+        assertTrue("play keeps a 48 dp target", NowPlayingFit.PLAY_H * k >= 48f)
+    }
+
+    @Test fun theTitleIsTheWebsSize() {
+        assertEquals(40f, SleeveText.titleSize(false, 860, "Moves Like Jagger"), 0f)
+        assertEquals(32f, SleeveText.titleSize(false, 860, "A Long Title That Goes On And On"), 0f)
+        assertEquals(26f, SleeveText.titleSize(false, 860, "Iniquity Worker (Number of the Beast) [Live at Somewhere]"), 0f)
+        // a phone 760 dp tall or less
+        assertEquals(32f, SleeveText.titleSize(false, 667, "Chandelier"), 0f)
+        assertEquals(52f, SleeveText.titleSize(true, 900, "Chandelier"), 0f)
+        assertEquals(40f, SleeveText.titleSize(true, 900, "A Long Title That Goes On And On"), 0f)
+    }
+
+    @Test fun theRemoteSaysWhichDeviceAndWhere() {
+        assertEquals("LISTENING ON KITCHEN SPEAKER", SleeveText.listeningOn("Kitchen speaker"))
+        val f: (Long) -> String = { ms -> "%d:%02d".format(ms / 60000, ms / 1000 % 60) }
+        assertEquals("Sia · 1:02 / 3:45", SleeveText.remoteLine("Sia", 62_000, 225_000, f))
+        assertEquals("Sia", SleeveText.remoteLine("Sia", 62_000, 0, f))
+        // a report a little past the end never shows past it
+        assertEquals("Sia · 3:45 / 3:45", SleeveText.remoteLine("Sia", 230_000, 225_000, f))
+    }
 }

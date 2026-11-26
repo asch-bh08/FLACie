@@ -68,6 +68,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
@@ -224,7 +225,7 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                     Modifier.padding(horizontal = 14.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Glass).clickable { tip = false; app.prefs.playerTips = 3 }
                         .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    SText("Swipe sideways for Lyrics, Song info and Up next, or tap the buttons below", Modifier.weight(1f), size = 12.5f, color = Ink, maxLines = 2)
+                    SText("Swipe sideways for Lyrics, Info and Up next, or tap the buttons below", Modifier.weight(1f), size = 12.5f, color = Ink, maxLines = 2)
                     SText("OK", Modifier.padding(start = 10.dp), size = 13f, weight = FontWeight.Bold, color = Ink)
                 }
                 // Lyrics, Up next, Info and More: secondary actions, so they take the bottom strip (above the gesture bar) instead of leaving it empty;
@@ -273,17 +274,21 @@ private fun SleevePane(id: String, snap: PlayerSnap, nav: PlayerNav, t: Track, p
 
 /** The cover's colours, read once per cover off the main thread from a 24 px copy; a song with no cover gets the default, and one whose cover is still loading keeps the last colours until it is in. */
 @Composable
-internal fun rememberSleevePalette(t: Track): SleevePalette {
-    val bmp = rememberArt(t.artKey, thumb = false, full = true)
+internal fun rememberSleevePalette(t: Track): SleevePalette = rememberSleevePalette(t.artKey)
+
+/** The same colours from a cover key alone: another device's song (the remote) has no Track here. */
+@Composable
+internal fun rememberSleevePalette(artKey: String?): SleevePalette {
+    val bmp = rememberArt(artKey, thumb = false, full = true)
     var cols by remember { mutableStateOf(SleeveColours.DEFAULT) }
-    LaunchedEffect(bmp, t.artKey) {
+    LaunchedEffect(bmp, artKey) {
         if (bmp != null) cols = withContext(Dispatchers.Default) {
             val small = android.graphics.Bitmap.createScaledBitmap(bmp, 24, 24, true)
             val px = IntArray(24 * 24)
             small.getPixels(px, 0, 24, 0, 0, 24, 24)
             if (small !== bmp) small.recycle()
             SleeveColours.extract(px)
-        } else if (t.artKey == null) cols = SleeveColours.DEFAULT
+        } else if (artKey == null) cols = SleeveColours.DEFAULT
     }
     val ms = if (Tweaks.motion) 1200 else 0
     return SleevePalette(
@@ -323,6 +328,8 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
         drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f))
     }) {
         val h = maxHeight
+        // the web phone's hero: the cover itself, blurred and dimmed, behind the top of the player
+        if (!wide) SleeveHero(t.artKey, p, h)
         // nothing scrolls: a short phone shrinks the cover, then the frame's band, then puts the secondary things behind More (NowPlayingFit), and a phone
         // on its side puts the cover beside the controls. Only a split-screen sliver that no plan fits still scrolls, as a last resort
         val cramped = !fit.fits
@@ -389,6 +396,24 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
             if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, actions = fit.actions, onMore = onMore) }
         }
+    }
+}
+
+/**
+ * The web phone's hero (living-sleeve.css .ls-hero): the cover across the top ~62% of the screen, blurred and at half brightness, fading into the
+ * ground, so the frame's bars read on any cover. Blur needs Android 12; an older phone keeps the plain tone-to-ground wash rather than a sharp picture.
+ */
+@Composable
+private fun SleeveHero(artKey: String?, p: SleevePalette, screenH: Dp) {
+    if (android.os.Build.VERSION.SDK_INT < 31 || artKey == null) return
+    Box(Modifier.fillMaxWidth().height((screenH * .616f).coerceIn(340.dp, 560.dp)).clipToBounds()) {
+        ArtImage(artKey, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.15f; scaleY = 1.15f }.blur(26.dp), thumb = true, corner = 0.dp)
+        // half brightness, the fade into the ground from 42% down, and the shade at the top for the buttons, as the web draws them
+        Box(Modifier.fillMaxSize().drawBehind {
+            drawRect(Color(0x80000000))
+            drawRect(Brush.verticalGradient(0f to Color.Transparent, .42f to Color.Transparent, .92f to p.ground.value, 1f to p.ground.value))
+            drawRect(Brush.verticalGradient(listOf(Color(0x66000000), Color.Transparent), endY = 110.dp.toPx()))
+        })
     }
 }
 
@@ -484,7 +509,8 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
             val (lead, last) = remember(t.title) { SleeveText.split(t.title) }
             val title = remember(lead, last) { buildAnnotatedString { append(lead); withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(last) } } }
             // on a short screen the title is smaller, then one line (NowPlayingFit), so the controls below stay on screen
-            SText(title, family = SleeveFonts.serif, size = minOf(if (t.title.length > 44) 30f else if (t.title.length > SleeveText.LONG_TITLE) 38f else 52f, fit.titleSp), weight = FontWeight.Normal, maxLines = if (t.title.length > SleeveText.LONG_TITLE) maxOf(fit.titleLines, 3) else fit.titleLines, spacing = -.01f, lineHeight = .98f)
+            val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+            SText(title, family = SleeveFonts.serif, size = minOf(SleeveText.titleSize(fit.layout == NowPlayingFit.Layout.WIDE, screenH, t.title), fit.titleSp), weight = FontWeight.Normal, maxLines = if (t.title.length > SleeveText.LONG_TITLE) maxOf(fit.titleLines, 3) else fit.titleLines, spacing = -.01f, lineHeight = .98f)
             // the chips wrap under the artist on a narrow screen rather than squeezing the name down to a few letters; on a short screen only the
             // artist is here (the format is in Song info, the download in More)
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
@@ -492,10 +518,16 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
                 SText(t.artist.ifEmpty { "Unknown Artist" }, Modifier.align(Alignment.CenterVertically).clickable(enabled = t.artist.isNotEmpty()) {
                     nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
                 }, size = 17f, weight = FontWeight.Bold)
-                if (fit.chips) {
+                if (fit.chips) Row(Modifier.align(Alignment.CenterVertically), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    // the web's chips: Streaming in blue for a cloud song, the format with its sampling dimmed, and where a library song plays from
+                    val cloud = t.source == com.ipodemu.library.TrackSource.CLOUD
+                    if (cloud) SleeveChip("Streaming", Color(0xCC12233B), Color(0xFF6DB3FF))
                     val main = if (ai.hiRes) "Hi-Res" else ai.codec
-                    if (main.isNotEmpty()) SleeveChip(main + if (ai.sampling.isNotEmpty()) " " + ai.sampling else "", if (ai.hiRes) p.main.value else p.tone.value, if (ai.hiRes) Color(DesignColour.readableOn(p.main.value.toArgb())) else p.toneFg.value)
-                    SleeveChip(com.ipodemu.library.SourceLabel.line(t.source), Color(0x1FFFFFFF), InkDim)
+                    if (main.isNotEmpty()) {
+                        val fg = if (ai.hiRes) Color(DesignColour.readableOn(p.main.value.toArgb())) else p.toneFg.value
+                        SleeveChip(buildAnnotatedString { append(main); if (ai.sampling.isNotEmpty()) withStyle(SpanStyle(color = fg.copy(alpha = .8f))) { append(" " + ai.sampling) } }, if (ai.hiRes) p.main.value else p.tone.value, fg)
+                    }
+                    if (!cloud) SleeveChip(com.ipodemu.library.SourceLabel.line(t.source), Color(0x3D000000), Ink)
                 }
             }
             if (fit.chips) DownloadTagLine(t, size = 13f, showNew = false)
@@ -510,7 +542,10 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
 
 /** A small round chip: the file's format, or where it plays from. A pill in the sans like every chip in the app (owner, 9 Nov: no boxy or mono chips). */
 @Composable
-private fun SleeveChip(text: String, bg: Color, fg: Color) {
+private fun SleeveChip(text: String, bg: Color, fg: Color) = SleeveChip(AnnotatedString(text), bg, fg)
+
+@Composable
+private fun SleeveChip(text: AnnotatedString, bg: Color, fg: Color) {
     SText(text, Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 10.dp, vertical = 4.dp), size = 12f, weight = FontWeight.SemiBold, color = fg, spacing = .01f)
 }
 
@@ -537,17 +572,20 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
     val app = LocalApp.current
     // shuffle, previous | play | next, repeat. Play is a plain rounded square in the cover's colour
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
-        // the DJ and the mic are in the top bar (owner, 8 Nov), so these five are always full size
-        val k = (maxWidth / 330.dp).coerceIn(.8f, 1f)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        // the DJ and the mic are in the top bar (owner, 8 Nov). The web phone's sizes with its 14 dp gaps, centred; only a very narrow screen shrinks the
+        // pills and play a little, and shuffle and repeat always keep 48 dp (NowPlayingFit.controlsScale)
+        val k = NowPlayingFit.controlsScale(maxWidth.value)
+        val round = NowPlayingFit.ROUND.dp
+        val roomy = maxWidth.value >= NowPlayingFit.CONTROLS_W + 4 * 14f
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (roomy) Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally) else Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.shuffleTap() },
-                tint = if (snap.shuffle) p.main.value else InkDim, size = 48.dp * k, iconScale = .48f, dot = snap.shuffle)
+                tint = if (snap.shuffle) p.main.value else InkDim, size = round, iconScale = .46f, dot = snap.shuffle)
             SleevePillButton(Glyph.PREV, "Previous", p, k) { app.player.prev() }
-            SleevePlay(snap, p, k)
+            SleevePlay(snap.playing, p, k, focus = true) { app.player.toggle() }
             SleevePillButton(Glyph.NEXT, "Next", p, k) { app.player.next() }
             // off, all (the queue starts again at its end, Autoplay adds nothing), one; a short note says which, as the glyph alone did not
             IconAction(if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, RepeatCycle.label(snap.repeat),
-                { repeatTap(app) }, tint = if (snap.repeat != RepeatCycle.OFF) p.main.value else InkDim, size = 48.dp * k, iconScale = .48f, dot = snap.repeat != RepeatCycle.OFF)
+                { repeatTap(app) }, tint = if (snap.repeat != RepeatCycle.OFF) p.main.value else InkDim, size = round, iconScale = .46f, dot = snap.repeat != RepeatCycle.OFF)
         }
     }
 }
@@ -570,7 +608,7 @@ private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, k: Float
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     Box(
-        Modifier.size(62.dp * k, 52.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        Modifier.size(NowPlayingFit.PILL_W.dp * k, NowPlayingFit.PILL_H.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(RoundedCornerShape(26.dp)).drawBehind { drawRect(p.tone.value) }.focusRing(RoundedCornerShape(26.dp))
             .semantics { contentDescription = label; role = Role.Button }.clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -586,6 +624,22 @@ private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, k: Float
 private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, pos: State<Long>, dur: State<Long>, scrub: androidx.compose.runtime.MutableFloatState, compact: Boolean = false) {
     val app = LocalApp.current
     val shape by rememberWaveShape(t)
+    CoverFrame(t.artKey, snap.playing, shape, p, side, pos, dur, scrub, compact, shared = true,
+        onSeek = { app.player.seekTo(it) }, onToggle = { app.player.toggle() }, onSkip = { app.player.skipBy(it) })
+}
+
+/**
+ * The frame and the cover inside it, for this phone's song ([SleeveFrame]) or another device's (the remote, whose loudness is not known here, so its
+ * bars rest level). [onSeek] takes a place in ms, [onSkip] a step in ms; [shared] lets the mini player's cover fly into this one.
+ */
+@Composable
+private fun CoverFrame(
+    artKey: String?, playing: Boolean, shape: IntArray?, p: SleevePalette, side: Dp, pos: State<Long>, dur: State<Long>, scrub: androidx.compose.runtime.MutableFloatState,
+    compact: Boolean, shared: Boolean, onSeek: (Long) -> Unit, onToggle: () -> Unit, onSkip: (Long) -> Unit,
+) {
+    // the gesture below outlives a recomposition, so it calls the newest lambdas (the remote's device report changes under it)
+    val toggleNow by androidx.compose.runtime.rememberUpdatedState(onToggle)
+    val seekNow by androidx.compose.runtime.rememberUpdatedState(onSeek)
     val density = LocalDensity.current
     // the frame's width: room for the gap and the bars on each side of the cover (the web uses 40 px on a PC; a phone gets a little less). On a short
     // screen the band is compact (NowPlayingFit): shorter bars, the same 3 dp bars at the same spacing, so the graph keeps its detail
@@ -598,7 +652,7 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
     val n = remember(geo, bw) { geo.bars(bw) }
     val heights = remember(shape, n) { WaveBars.heights(shape, n) }
     fun fraction() = if (scrub.floatValue >= 0f) scrub.floatValue else if (dur.value > 0) (pos.value.toFloat() / dur.value).coerceIn(0f, 1f) else 0f
-    fun seek(f: Float) { val d = dur.value; if (d > 0) app.player.seekTo((f.coerceIn(0f, 1f) * d).toLong()) }
+    fun seek(f: Float) { val d = dur.value; if (d > 0) seekNow((f.coerceIn(0f, 1f) * d).toLong()) }
     // how many bars are played: only a change in this whole number repaints the frame (not every 250 ms tick)
     val played by remember(n) { derivedStateOf { (0 until n).count { RingSeek.isPlayed(it, n, fraction()) } } }
     Box(
@@ -609,8 +663,8 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
                 progressBarRangeInfo = ProgressBarRangeInfo(fraction(), 0f..1f)
                 setProgress { f -> seek(f); true }
                 customActions = listOf(
-                    CustomAccessibilityAction("Back 10 seconds") { app.player.skipBy(-10_000L); true },
-                    CustomAccessibilityAction("Forward 30 seconds") { app.player.skipBy(30_000L); true },
+                    CustomAccessibilityAction("Back 10 seconds") { onSkip(-10_000L); true },
+                    CustomAccessibilityAction("Forward 30 seconds") { onSkip(30_000L); true },
                 )
             }
             .pointerInput(geo) {
@@ -626,7 +680,7 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
                             val ev = awaitPointerEvent()
                             val c = ev.changes.firstOrNull { it.id == down.id } ?: break
                             if ((c.position - down.position).getDistance() > viewConfiguration.touchSlop) moved = true
-                            if (!c.pressed) { c.consume(); if (!moved) app.player.toggle(); break }
+                            if (!c.pressed) { c.consume(); if (!moved) toggleNow(); break }
                         }
                         return@awaitEachGesture
                     }
@@ -677,37 +731,39 @@ private fun SleeveFrame(snap: PlayerSnap, t: Track, p: SleevePalette, side: Dp, 
         }
         // the cover, rounded, with a soft shadow; a tap on it is play / pause (handled above, so a press on the frame never reaches it)
         ArtImage(
-            t.artKey,
+            artKey,
             // the cover that opened the player (the mini player's, or a row's) flies into this one and back (SharedCover.kt)
-            Modifier.size(cover).sharedCover().shadow(24.dp, RoundedCornerShape(corner), clip = false, ambientColor = Color.Black, spotColor = Color.Black)
-                .semantics { contentDescription = if (snap.playing) "Pause" else "Play"; role = Role.Button },
+            Modifier.size(cover).then(if (shared) Modifier.sharedCover() else Modifier).shadow(24.dp, RoundedCornerShape(corner), clip = false, ambientColor = Color.Black, spotColor = Color.Black)
+                .semantics { contentDescription = if (playing) "Pause" else "Play"; role = Role.Button },
             corner = corner, full = true,
         )
     }
 }
 
-/** The play button: a rounded square in the cover's colour with dark text, between the previous and next pills. */
+/**
+ * The play button: a rounded square in the cover's colour with dark text, between the previous and next pills (the web phone's 76 x 60).
+ * [focus] hands it the focus when the player opens, for a keyboard or remote; [onClick] plays or pauses this phone, or the device being controlled.
+ */
 @Composable
-private fun SleevePlay(snap: PlayerSnap, p: SleevePalette, k: Float = 1f) {
-    val app = LocalApp.current
+private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, focus: Boolean = false, label: String? = null, onClick: () -> Unit) {
     val playFocus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
+    if (focus) LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val keys = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
     val pressed by src.collectIsPressedAsState()
     val shape = RoundedCornerShape(22.dp)
     Box(
-        Modifier.size(84.dp * k, 64.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        Modifier.size(NowPlayingFit.PLAY_W.dp * k, NowPlayingFit.PLAY_H.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(shape).drawBehind { drawRect(p.main.value) }
             // the ring only for a keyboard or remote: the player hands focus to play when it opens, and a finger should not see that
             .then(if (focused && keys) Modifier.border(3.dp, Ink, shape) else Modifier)
             .focusRequester(playFocus)
-            .semantics { contentDescription = if (snap.playing) "Pause" else "Play"; role = Role.Button }
-            .clickable(src, null) { app.player.toggle() },
+            .semantics { contentDescription = label ?: if (playing) "Pause" else "Play"; role = Role.Button }
+            .clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        androidx.compose.animation.AnimatedContent(snap.playing, label = "sleevePlay", transitionSpec = {
+        androidx.compose.animation.AnimatedContent(playing, label = "sleevePlay", transitionSpec = {
             if (Tweaks.motion) (androidx.compose.animation.fadeIn(tween(140)) + androidx.compose.animation.scaleIn(tween(160), initialScale = .6f)) togetherWith
                 (androidx.compose.animation.fadeOut(tween(90)) + androidx.compose.animation.scaleOut(tween(120), targetScale = .6f))
             else EnterTransition.None togetherWith ExitTransition.None
@@ -1216,5 +1272,119 @@ private fun DesignSheet(spec: SheetSpec?, p: SleevePalette, onDismiss: () -> Uni
                 }
             }
         }
+    }
+}
+// ---- another device's song: the same player, driving that device ------------------------------------------------------------
+
+/**
+ * Another device's Now Playing (opened from its bar, or from its card in Devices), drawn as this phone's own player is (owner, 26 Nov: the same
+ * player "if it is now playing on devices"): the cover's colours and blurred hero, the top bar, the cover in its frame (the frame seeks that device;
+ * its bars rest level, as a song's loudness is only known for songs played here), the time, the serif title with its chips, then previous | play |
+ * next. At the foot, "Play here" brings the music to this phone, same song and same second. Shuffle, repeat, the DJ, lyrics and Up next belong to
+ * the queue on that device, which Jellyfin does not share, so they are not offered.
+ */
+@Composable
+fun RemoteSleeveBody(s: com.ipodemu.library.JellyfinConnect.Session, onClose: () -> Unit, onDevices: () -> Unit, onPlayHere: () -> Unit) {
+    val app = LocalApp.current
+    val c = app.connect
+    val art = s.artKey ?: "jf${s.itemId}"
+    val p = rememberSleevePalette(art)
+    // the session is replaced on every poll: the ticking clock and the buttons always use the newest report
+    val latest by androidx.compose.runtime.rememberUpdatedState(s)
+    val pos = remember { mutableLongStateOf(s.estimatedMs(System.currentTimeMillis())) }
+    val dur = remember { mutableLongStateOf(s.durationMs) }
+    LaunchedEffect(Unit) { while (true) { val x = latest; pos.longValue = x.estimatedMs(System.currentTimeMillis()); dur.longValue = x.durationMs; delay(250) } }
+    val scrub = remember { mutableFloatStateOf(-1f) }
+    fun seek(ms: Long) { val x = latest; if (x.controllable && x.durationMs > 0) c.seek(x, ms.coerceIn(0, x.durationMs)) }
+    BoxWithConstraints(Modifier.fillMaxSize().drawBehind {
+        drawRect(p.ground.value)
+        drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f))
+    }) {
+        val h = maxHeight
+        val nav0 = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val top0 = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
+        val fontScale = LocalDensity.current.fontScale
+        // the same plan as this phone's player: on a short screen the frame's band compacts first; only a sliver no plan fits scrolls
+        val fit = remember(maxWidth, maxHeight, fontScale, top0, nav0) { NowPlayingFit.plan(maxWidth.value, maxHeight.value, fontScale, top0.value, nav0.value) }
+        val wide = fit.layout == NowPlayingFit.Layout.WIDE
+        if (!wide) SleeveHero(art, p, h)
+        val cramped = !fit.fits
+        Column(
+            Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+                .then(if (cramped) Modifier.verticalScroll(rememberScrollState()) else Modifier).padding(bottom = maxDp(nav0 + 10.dp, 18.dp)),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            RemoteTopBar(s.device, onClose, onDevices)
+            BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
+                val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                CoverFrame(art, !s.paused, null, p, side, pos, dur, scrub, fit.compactBand, shared = false,
+                    onSeek = { seek(it) }, onToggle = { c.command(latest, "PlayPause") }, onSkip = { d -> seek(pos.longValue + d) })
+            }
+            SleeveTime(pos, dur, scrub)
+            Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
+            RemoteTitle(s, p, fit, Modifier.padding(horizontal = 22.dp))
+            Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
+            // the web phone's 14 dp between the pills and play; three buttons always fit at full size
+            Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                SleevePillButton(Glyph.PREV, "Previous on ${s.device}", p) { c.command(latest, "PreviousTrack") }
+                SleevePlay(!s.paused, p, focus = true, label = if (s.paused) "Play on ${s.device}" else "Pause ${s.device}") { c.command(latest, "PlayPause") }
+                SleevePillButton(Glyph.NEXT, "Next on ${s.device}", p) { c.command(latest, "NextTrack") }
+            }
+            Spacer(Modifier.height(18.dp))
+            RemotePlayHere(p, onPlayHere)
+        }
+    }
+}
+
+/** The remote's top bar: close, "LISTENING ON <DEVICE>" in the pill where this phone's player names the album, and Devices on the right. */
+@Composable
+private fun RemoteTopBar(device: String, onClose: () -> Unit, onDevices: () -> Unit) {
+    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        GlassButton("Close", onClose) { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), Color.White) }
+        Spacer(Modifier.width(10.dp))
+        Box(Modifier.weight(1f).padding(end = 8.dp)) {
+            SText(
+                SleeveText.listeningOn(device),
+                Modifier.clip(RoundedCornerShape(50)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp).basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500),
+                family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f, maxLines = 1,
+            )
+        }
+        GlassButton("Devices", onDevices) { GlyphIcon(Glyph.DEVICES, Modifier.size(22.dp), Color.White) }
+    }
+}
+
+/** The remote's title, as [SleeveTitle]: the serif with its last word in italics, the artist, and chips for what the device is and whether it is paused. */
+@Composable
+private fun RemoteTitle(s: com.ipodemu.library.JellyfinConnect.Session, p: SleevePalette, fit: NowPlayingFit.Plan, modifier: Modifier) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val (lead, last) = remember(s.title) { SleeveText.split(s.title) }
+        val title = remember(lead, last) { buildAnnotatedString { append(lead); withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(last) } } }
+        val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
+        SText(title, family = SleeveFonts.serif, size = minOf(SleeveText.titleSize(fit.layout == NowPlayingFit.Layout.WIDE, screenH, s.title), fit.titleSp), weight = FontWeight.Normal,
+            maxLines = if (s.title.length > SleeveText.LONG_TITLE) maxOf(fit.titleLines, 3) else fit.titleLines, spacing = -.01f, lineHeight = .98f)
+        @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+        androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            SText(s.artist.ifEmpty { "Unknown Artist" }, Modifier.align(Alignment.CenterVertically), size = 17f, weight = FontWeight.Bold)
+            if (fit.chips) Row(Modifier.align(Alignment.CenterVertically), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SleeveChip(com.ipodemu.library.WhereYouWere.kind(s.device), p.tone.value, p.toneFg.value)
+                if (s.paused) SleeveChip("Paused", Color(0x3D000000), Ink)
+            }
+        }
+    }
+}
+
+/** "Play here" across the foot, where this phone's player has its Lyrics / Up next / More row: a slot of the same height in the cover's colour. */
+@Composable
+private fun RemotePlayHere(p: SleevePalette, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(18.dp)
+    val fg = Color(DesignColour.readableOn(p.main.value.toArgb()))
+    Row(
+        Modifier.padding(horizontal = 14.dp).fillMaxWidth().height(58.dp).clip(shape).drawBehind { drawRect(p.main.value) }.focusRing(shape)
+            .semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
+    ) {
+        GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), fg)
+        Spacer(Modifier.width(9.dp))
+        SText("Play here", size = 15f, weight = FontWeight.SemiBold, color = fg)
     }
 }

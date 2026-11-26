@@ -91,7 +91,10 @@ fun AppRoot(activity: MainActivity) {
             if (ui.downloadsOpen) overlay { DownloadsScreen() }
             if (ui.headphonesOpen) overlay { HeadphoneTestScreen() }
             if (ui.accountOpen) overlay { AccountScreen() }
-            if (ui.remoteOpen) overlay { RemoteScreen() }
+            // the remote is a full Now Playing: its cover colours reach the screen's edges and it keeps clear of the system bars itself
+            if (ui.remoteOpen) CompositionLocalProvider(LocalStyle provides oStyle, LocalScheme provides if (ui.ipodTheme) LocalScheme.current else remember { buildModernScheme(null) }) {
+                Box(Modifier.fillMaxSize().background(Palette.bg)) { RemoteScreen() }
+            }
             if (ui.devicesOpen) overlay { DevicesScreen() }
             if (ui.jamOpen) overlay { JamScreen() }
             // car mode (owner, 12 Nov: "I liked it better the first time"): its own screen again

@@ -98,6 +98,29 @@ object SleeveText {
 
     /** A title longer than this gets the smaller heading (40 sp instead of 52), as on the web. */
     const val LONG_TITLE = 26
+    /** A title longer than this gets the smallest heading and up to three lines (the web's h2.longer). */
+    const val LONGER_TITLE = 44
+
+    /**
+     * The title's serif size as the web sets it (living-sleeve.css): a phone 40, 32 when long, 26 when longer, and 32 on a phone 760 dp tall or less;
+     * a wide screen 52, 40 when long, 30 when longer. NowPlayingFit may cap it lower on a short screen.
+     */
+    fun titleSize(wide: Boolean, screenHeightDp: Int, title: String): Float {
+        val n = title.length
+        return when {
+            wide -> if (n > LONGER_TITLE) 30f else if (n > LONG_TITLE) 40f else 52f
+            n > LONGER_TITLE -> 26f
+            n > LONG_TITLE || screenHeightDp <= 760 -> 32f
+            else -> 40f
+        }
+    }
+
+    /** The remote's top pill, where this phone's player names the album: "LISTENING ON KITCHEN", as the web's strip says it. */
+    fun listeningOn(device: String): String = "LISTENING ON ${device.uppercase()}"
+
+    /** The remote bar's small line, as the web's (RemoteNowPlaying.razor): "Artist · 1:02 / 3:45", the times only when the length is known. */
+    fun remoteLine(artist: String, posMs: Long, durMs: Long, fmt: (Long) -> String): String =
+        if (durMs > 0) "$artist · ${fmt(posMs.coerceIn(0, durMs))} / ${fmt(durMs)}" else artist
 }
 
 /**

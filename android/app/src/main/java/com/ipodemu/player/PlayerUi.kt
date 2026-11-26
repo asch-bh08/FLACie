@@ -531,7 +531,7 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     items += SheetItem(if (ud.isFavorite(t)) "Remove from favourites" else "Add to favourites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
     if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
     if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
-    if (t.isMusic) items += SheetItem("Share", Glyph.JAM) { shareTrack(app, t) }
+    if (t.isMusic) items += SheetItem("Share", Glyph.SHARE) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)
         if (off == null) items += SheetItem("Download for offline", Glyph.DOWN) { val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading \"${t.title}\"" else "Already offline") }
@@ -1850,7 +1850,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
 
 /** A playlist's More: Rename, Remove duplicates, Delete (and Share where the page has no Share button of its own). */
 private fun playlistMoreSheet(app: App, nav: PlayerNav, title: String, playlistId: String, tracks: List<Track>, withShare: Boolean) = SheetSpec(title, "Playlist", listOfNotNull(
-    if (withShare) SheetItem("Share", Glyph.LIST) { shareSongs(app, "playlist", title, tracks) } else null,
+    if (withShare) SheetItem("Share", Glyph.SHARE) { shareSongs(app, "playlist", title, tracks) } else null,
     SheetItem("Rename", Glyph.NOTE) { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } },
     SheetItem("Remove duplicates", Glyph.CHECK) {
         val ud = app.userData
@@ -1888,7 +1888,7 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
             // an album or a playlist can be kept on the phone as a whole; a playlist then also keeps itself up to date
             if (isList && tracks.isNotEmpty()) KeepOfflineChip(tracks, nav, listId, title, slot = Modifier.weight(1f))
             if (playlistId != null && djKey != null && app.player.djAvailable) PlaylistDjChip(djKey, slot = Modifier.weight(1f), accent = look.accent)
-            if (isList && tracks.isNotEmpty()) ToolSlot("Share", Glyph.LIST, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
+            if (isList && tracks.isNotEmpty()) ToolSlot("Share", Glyph.SHARE, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
             if (playlistId != null) ToolSlot("More", Glyph.MORE, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = false) }, Modifier.weight(1f))
             // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
             if (kind == "Your favourites" && tracks.isNotEmpty()) ToolSlot("Clear all", Glyph.CLOSE, {

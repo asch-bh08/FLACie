@@ -100,7 +100,7 @@ val LocalApp = staticCompositionLocalOf<App> { error("App not provided") }
 
 enum class Glyph {
     PLAY, PAUSE, NEXT, PREV, SHUFFLE, REPEAT, REPEAT_ONE, HEART, HEART_FILLED, SEARCH, QUEUE, CHEVRON, BACK, MORE, CLOSE,
-    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE, DJ,
+    NOTE, GEAR, VOLUME, CHECK, PLUS, ALBUM, ARTIST, MIC, CLOCK, IPOD, LIST, STAR, DOWN, JELLYFIN, PLEX, NAS, LYRICS, DEVICES, JAM, INFO, CASSETTE, DJ, SHARE,
     /** The downloaded mark: a ring with an arrow down into it (Spotify's green arrow, drawn in the app's own line style). */
     DOWNLOADED,
     /** Car mode: a car from the front, its roof, body and two wheels. */
@@ -327,6 +327,12 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawRoundRect(c, Offset(x(.7f), y(.46f)), Size(s * .18f, s * .28f), androidx.compose.ui.geometry.CornerRadius(s * .06f))
             drawPath(path { moveTo(x(.79f), y(.74f)); quadraticBezierTo(x(.79f), y(.88f), x(.6f), y(.88f)) }, c, style = line)
             drawCircle(c, s * .06f, Offset(x(.55f), y(.88f)))
+        }
+        Glyph.SHARE -> {
+            // the usual share mark: an arrow up out of an open box (the web's share icon)
+            drawPath(path { moveTo(x(.5f), y(.12f)); lineTo(x(.5f), y(.62f)) }, c, style = line)
+            drawPath(path { moveTo(x(.32f), y(.3f)); lineTo(x(.5f), y(.12f)); lineTo(x(.68f), y(.3f)) }, c, style = line)
+            drawPath(path { moveTo(x(.3f), y(.44f)); lineTo(x(.18f), y(.44f)); lineTo(x(.18f), y(.88f)); lineTo(x(.82f), y(.88f)); lineTo(x(.82f), y(.44f)); lineTo(x(.7f), y(.44f)) }, c, style = line)
         }
         Glyph.JAM -> {
             // two people side by side: listening together

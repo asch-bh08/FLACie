@@ -381,6 +381,9 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
                 .then(if (cramped) Modifier.verticalScroll(scroll) else Modifier).padding(bottom = bottomClear),
             horizontalAlignment = Alignment.CenterHorizontally,
+            // whatever height is left (more once the first-run tip has gone) is shared out between the parts, not left as one empty band at the
+            // foot (owner, 26 Nov: "when that help prompt goes there's empty space")
+            verticalArrangement = if (cramped) Arrangement.Top else Arrangement.SpaceBetween,
         ) {
             SleeveTopBar(snap, nav, t, p, onOptions)
             // the cover in its frame of bars takes whatever height is left, as a square: on a short screen the plan has already made room by

@@ -1,6 +1,9 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,7 +64,11 @@ fun PlaylistRecsSection(playlistId: String, songs: List<Track>, title: String) {
         if (got.isNullOrEmpty()) failed = true else picks = got
     }
     if (failed) return
-    Column(Modifier.padding(bottom = 8.dp)) {
+    // on a playlist page: a glass card of its own, as on the web (PlaylistLookUi.kt)
+    val glass = LocalPlaylistLook.current != null
+    val card = RoundedCornerShape(22.dp)
+    Column(if (glass) Modifier.padding(start = 12.dp, end = 12.dp, top = 18.dp, bottom = 8.dp).clip(card).background(GlassFill).border(1.dp, GlassRim, card).padding(bottom = 6.dp)
+        else Modifier.padding(bottom = 8.dp)) {
         SectionHeader("Recommended songs")
         Txt("Based on the songs in this playlist", Modifier.padding(start = 20.dp, bottom = 8.dp), size = 13f, color = sc.onBgDim)
         val shown = picks
@@ -71,14 +78,16 @@ fun PlaylistRecsSection(playlistId: String, songs: List<Track>, title: String) {
             IpodRow({ app.player.play(listOf(t), 0, null, title) }, height = 56.dp,
                 leading = { ArtImage(t.artKey, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = {
-                    Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = !done) {
+                    // a round outlined "+" (the Devices buttons), green once added
+                    val ring = if (done) androidx.compose.ui.graphics.Color(0x8C4EE0A1) else sc.onBg.copy(alpha = .35f)
+                    Box(Modifier.size(40.dp).clip(CircleShape).then(if (glass) Modifier.border(1.dp, ring, CircleShape) else Modifier).clickable(enabled = !done) {
                         if (PlaylistRecs.add(ud, playlistId, t)) {
                             ticked.add(t.path)
                             app.ui.say("Added “${t.title}” to $title")
                             scope.launch { delay(900); ticked.remove(t.path); picks = picks?.filter { it.path != t.path } }
                         }
                     }.semantics { contentDescription = if (done) "Added ${t.title}" else "Add ${t.title} to this playlist" }, contentAlignment = Alignment.Center) {
-                        GlyphIcon(if (done) Glyph.CHECK else Glyph.PLUS, Modifier.size(22.dp), sc.accent)
+                        GlyphIcon(if (done) Glyph.CHECK else Glyph.PLUS, Modifier.size(if (glass) 18.dp else 22.dp), if (!glass) sc.accent else if (done) androidx.compose.ui.graphics.Color(0xFF4EE0A1) else sc.onBg)
                     }
                 }) { hi ->
                 Column { Txt(t.title, size = 16f, maxLines = 1, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg); Txt(t.artist, size = 13f, color = sc.onBgDim, maxLines = 1) }

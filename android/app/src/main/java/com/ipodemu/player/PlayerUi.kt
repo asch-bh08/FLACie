@@ -421,7 +421,10 @@ fun TrackRow(
     // a download tag (running, recently finished, failed, or "New download" for a Cloud song past the hour) takes a third line under the artist;
     // the "New download" marker is left to the row's own badge where that is shown
     val badgeShown = !narrow && Tweaks.badges && app.library.mixedSources
-    val tagged = isTagged(t, showNew = !badgeShown)
+    // a playlist's page (PlaylistLookUi.kt): fewer, calmer tags, the download state as a pill, the playing row tinted
+    val look = LocalPlaylistLook.current
+    val cloud = t.source == com.ipodemu.library.TrackSource.CLOUD
+    val tagged = isTagged(t, showNew = !badgeShown && look == null)
     val right = remember(t, fav, rCode, hw) { if (hw) null else swipeAction(rCode, app, t, fav, ctx) }
     val left = remember(t, fav, lCode, hw) { if (hw) null else swipeAction(lCode, app, t, fav, ctx) }
     SwipeRow(right = right, left = left, modifier = modifier) {
@@ -429,7 +432,8 @@ fun TrackRow(
     // tapping the song that is already playing opens the player (or resumes it) instead of starting it over; any tap puts the keyboard away
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val tap = { focus.clearFocus(); keyboard?.hide(); if (picked != null && onPick != null) onPick() else if (isCurrent) { if (!snap.playing) app.player.toggle(); nav.openFromCover("row:" + t.path) } else onPlay() }
-    IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = if (tagged) 74.dp else 56.dp,
+    IpodRow(onClick = tap, onLong = { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, height = if (tagged) (if (look != null) 80.dp else 74.dp) else if (look != null) 60.dp else 56.dp,
+        modifier = Modifier.playlistNowRow(look, isCurrent),
         leading = {
             // choosing several songs: the cover stays, with a tick on it (an album's numbered list gets the tick alone)
             if (picked != null && showArt) Box(Modifier.size(42.dp)) {
@@ -453,8 +457,13 @@ fun TrackRow(
                 // on the phone for listening without signal (a dim mark while it is still on its way)
                 DownloadedMark(t.path, 15.dp)
                 if (fav) GlyphIcon(Glyph.HEART_FILLED, Modifier.size(18.dp), sc.accent)
-                if (hiRes && !narrow) HiResBadge()
-                if (!narrow) SourceBadge(t.source)
+                if (look != null) {
+                    // only what says something: Hi-Res, and Streaming (a song not filed into the library yet); a phone puts them before the artist
+                    if (!narrow && Tweaks.badges) { if (hiRes) PlTag("✦ Hi-Res", TagKind.HIRES); if (cloud) PlTag(com.ipodemu.library.SourceLabel.badge(t.source), TagKind.CLOUD) }
+                } else {
+                    if (hiRes && !narrow) HiResBadge()
+                    if (!narrow) SourceBadge(t.source)
+                }
                 // times are DM Mono in design I, so the columns of digits line up
                 if (t.durationMs > 0 && showTime) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
@@ -468,11 +477,16 @@ fun TrackRow(
             Txt(t.title, size = 16f, weight = if (isCurrent) FontWeight.Bold else FontWeight.Medium, color = if (hi) Color.White else if (isCurrent) sc.accent else sc.onBg)
             // search rows say what they are first ("Song · …"), as on the web (owner, 7 Nov: "a label like Spotify")
             val sub = remember(t.artist, t.album, kind) { (kind?.let { "$it · " } ?: "") + (if (t.artist.isEmpty()) t.album else if (t.album.isEmpty()) t.artist else t.artist + " · " + t.album) }
-            if (narrow && hiRes) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val lead = look != null && narrow && Tweaks.badges && (hiRes || cloud)
+            if (lead) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (hiRes) PlTag("✦ Hi-Res", TagKind.HIRES, small = true)
+                if (cloud) PlTag(com.ipodemu.library.SourceLabel.badge(t.source), TagKind.CLOUD, small = true)
+                if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
+            } else if (look == null && narrow && hiRes) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 HiResBadge(compact = true)
                 if (sub.isNotEmpty()) Txt(sub, Modifier.weight(1f), size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
             } else if (sub.isNotEmpty()) Txt(sub, size = 13f, color = if (hi) Color(0xDDFFFFFF) else sc.onBgDim)
-            if (tagged) DownloadTagLine(t, hi = hi, showNew = !badgeShown)
+            if (tagged) DownloadTagLine(t, hi = hi, showNew = !badgeShown && look == null, pill = look != null)
         }
     }
     }
@@ -1066,6 +1080,8 @@ fun SongList(
     val app = LocalApp.current
     if (tracks.isEmpty() && missing.isEmpty() && missingBefore.isEmpty()) { EmptyState("Nothing here yet"); return }
     val sc = LocalScheme.current
+    // a playlist's page: its rows on glass cards (PlaylistLookUi.kt)
+    val look = LocalPlaylistLook.current
     val missingRow: @Composable (String, String) -> Unit = { t, a ->
         val st = app.library.downloads[app.library.songKey(a, t)]
         IpodRow({ app.library.requestDownload(a, t, "", 0) }, height = 56.dp, trailing = { Txt(st?.message?.take(18) ?: "Download", size = 13f, color = sc.accent) }) { _ ->
@@ -1103,8 +1119,9 @@ fun SongList(
             if (inPlace > 0) item {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all $inPlace", { missingBefore.values.flatten().forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
             }
+            // a playlist's songs sit on one card, as on the web (PlaylistLookUi.kt)
             itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }, contentType = { _, _ -> "song" }) { i, t ->
-                Column { missingBefore[i]?.forEach { (mt, ma) -> missingRow(mt, ma) }; row(i, t) }
+                Column(if (look != null) Modifier.playlistCardRow(i, tracks.size) else Modifier) { missingBefore[i]?.forEach { (mt, ma) -> missingRow(mt, ma) }; row(i, t) }
             }
             missingBefore[tracks.size]?.let { last -> item { Column { last.forEach { (mt, ma) -> missingRow(mt, ma) } } } }
         }
@@ -1114,7 +1131,9 @@ fun SongList(
             item {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all ${missing.size}", { missing.forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
             }
-            itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { _, (t, a) -> missingRow(t, a) }
+            itemsIndexed(missing, key = { i, m -> "m$i${m.first}" }) { i, (t, a) ->
+                if (look != null) Box(Modifier.playlistCardRow(i, missing.size)) { missingRow(t, a) } else missingRow(t, a)
+            }
         }
         if (footer != null) item(contentType = "footer") { footer() }
         if (chosen != null) item { Spacer(Modifier.height(140.dp)) }
@@ -1560,8 +1579,12 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     val missingBefore = remember(albumMissing, tracks) { missingPlaces(tracks, albumMissing) }
     // kept here, outside the list, so the cover and title rise in once as the page opens and not again when scrolled back to
     val entrance = rememberEntrance()
+    // a playlist and Favourites in the web's playlist look (PlaylistLookUi.kt): covers on the rows (the songs come from many albums), a card, calm tags
+    val listLook = LocalStyle.current.modern && (d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER || d.kind == DetailKind.FAVORITES)
+    val look = if (listLook) rememberPlaylistLook(art) else null
+    androidx.compose.runtime.CompositionLocalProvider(LocalPlaylistLook provides look) {
     Column(Modifier.fillMaxSize()) {
-        val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER)
+        val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER || listLook)
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty() && missingBefore.isEmpty()) {
             // an emptied playlist keeps its Play / Rename / Delete buttons (the only way to rename or delete it from its own page)
@@ -1584,16 +1607,17 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
                     Column(Modifier.width(DetailFit.sideWidth(this@BoxWithConstraints.maxWidth.value).dp).fillMaxHeight().verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
-                    SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs)
+                    SongList(tracks, nav, snap, showArt = listLook, numbered = !listLook, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs)
                 }
             } else {
-                SongList(tracks, nav, snap, showArt = false, numbered = true, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs, header = {
+                SongList(tracks, nav, snap, showArt = listLook, numbered = !listLook, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs, header = {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                 })
             }
         }
+    }
     }
 }
 
@@ -1758,6 +1782,8 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
 private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null, since: Long = 0L) {
     val app = LocalApp.current
     val sc = LocalScheme.current
+    // a playlist and Favourites: the web's playlist hero (PlaylistLookUi.kt)
+    LocalPlaylistLook.current?.let { look -> PlaylistHeader(look, art, title, line2, tracks, nav, playlistId, kind, djKey, since); return }
     if (LocalStyle.current.modern) {
         // design I (the web's detail-album): the cover large with a soft shadow, a DM Mono kind label, the serif title with its last word in
         // italics, the artist, a mono facts line, then Play in the cover's colour and Shuffle tinted with its tone
@@ -1817,19 +1843,65 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     if (playlistId != null) {
         // the playlist's own actions behind one More button (songs have Move and Remove in their menu): Rename used to sit where a second tap on the
         // playlist landed while its page opened, and renamed it by accident (owner, 1 Nov)
-        DesignChip("More", false, {
-            nav.sheet = SheetSpec(title, "Playlist", listOf(
-                SheetItem("Share", Glyph.LIST) { shareSongs(app, "playlist", title, tracks) },
-                SheetItem("Rename", Glyph.NOTE) { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } },
-                SheetItem("Remove duplicates", Glyph.CHECK) {
-                    val ud = app.userData
-                    val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
-                    app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
-                },
-                SheetItem("Delete playlist", Glyph.CLOSE) { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) },
-            ))
-        }, icon = Glyph.MORE)
+        DesignChip("More", false, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = true) }, icon = Glyph.MORE)
         if (djKey != null && app.player.djAvailable) PlaylistDjChip(djKey)
+    }
+}
+
+/** A playlist's More: Rename, Remove duplicates, Delete (and Share where the page has no Share button of its own). */
+private fun playlistMoreSheet(app: App, nav: PlayerNav, title: String, playlistId: String, tracks: List<Track>, withShare: Boolean) = SheetSpec(title, "Playlist", listOfNotNull(
+    if (withShare) SheetItem("Share", Glyph.LIST) { shareSongs(app, "playlist", title, tracks) } else null,
+    SheetItem("Rename", Glyph.NOTE) { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } },
+    SheetItem("Remove duplicates", Glyph.CHECK) {
+        val ud = app.userData
+        val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
+        app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
+    },
+    SheetItem("Delete playlist", Glyph.CLOSE) { nav.sheet = SheetSpec("Delete this playlist?", null, listOf(SheetItem("Delete", Glyph.CLOSE) { app.userData.deletePlaylist(playlistId); nav.pop() }, SheetItem("Cancel", Glyph.BACK) {})) },
+))
+
+/**
+ * A playlist's or Favourites' hero, the web's .pl-hero (design-i-playlists.css): a glass card with the cover blurred behind it, the cover, a mono kind label,
+ * the serif title, the mono facts, Play and Shuffle as two full pills side by side, then the quieter actions as Now Playing's row of equal slots:
+ * Download (kept on the phone), DJ, Share and More on a playlist; Clear all on Favourites.
+ */
+@Composable
+private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, facts: String, tracks: List<Track>, nav: PlayerNav, playlistId: String?, kind: String, djKey: String?, since: Long) {
+    val app = LocalApp.current
+    val cfg = androidx.compose.ui.platform.LocalConfiguration.current
+    val cap = DetailFit.coverCap(cfg.screenWidthDp.toFloat(), cfg.screenHeightDp.toFloat())
+    val isList = kind == "Playlist"
+    val listId = playlistId ?: "folder:$title"
+    PlaylistHeroCard(look, art) {
+        ArtImage(art, Modifier.entranceRise(since, 0).align(Alignment.CenterHorizontally).fillMaxWidth(.7f).widthIn(max = minOf(cap, 240f).dp).aspectRatio(1f).coverShadow(20.dp, 18.dp), corner = 20.dp)
+        Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (kind.isNotEmpty()) MonoLabel(kind)
+            SerifTitle(title, size = DetailFit.titleSp(title.length > SleeveText.LONG_TITLE, cfg.fontScale), maxLines = 3)
+            if (facts.isNotEmpty()) MonoLabel(facts, Modifier.padding(top = 2.dp), maxLines = 2)
+        }
+        // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
+        if (tracks.isNotEmpty()) Row(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            AccentPill("Play", Glyph.PLAY, look.colours, { app.player.play(tracks, 0, false, title, djKey) }, Modifier.weight(1f), height = 52.dp)
+            TonePill("Shuffle", Glyph.SHUFFLE, look.colours, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, Modifier.weight(1f), height = 52.dp)
+        }
+        Row(Modifier.entranceRise(since, 5), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // an album or a playlist can be kept on the phone as a whole; a playlist then also keeps itself up to date
+            if (isList && tracks.isNotEmpty()) KeepOfflineChip(tracks, nav, listId, title, slot = Modifier.weight(1f))
+            if (playlistId != null && djKey != null && app.player.djAvailable) PlaylistDjChip(djKey, slot = Modifier.weight(1f), accent = look.accent)
+            if (isList && tracks.isNotEmpty()) ToolSlot("Share", Glyph.LIST, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
+            if (playlistId != null) ToolSlot("More", Glyph.MORE, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = false) }, Modifier.weight(1f))
+            // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
+            if (kind == "Your favourites" && tracks.isNotEmpty()) ToolSlot("Clear all", Glyph.CLOSE, {
+                nav.sheet = SheetSpec("Clear all favourites?", "${tracks.size} songs. Every device you're signed in on follows.", listOf(
+                    SheetItem("Yes, clear them", Glyph.CLOSE) {
+                        val was = app.userData.clearFavorites()
+                        app.ui.say("Cleared ${was.size} favourites", "Undo") { app.userData.restoreFavorites(was) }
+                    },
+                    SheetItem("Keep them", Glyph.CHECK) { },
+                ))
+            }, Modifier.weight(1f))
+        }
+        if (isList && tracks.isNotEmpty()) KeepNewSongsSwitch(tracks, listId)
     }
 }
 
@@ -1838,7 +1910,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
  * a bedtime list), or Auto (no entry: the DJ's own settings decide). Taps go round Auto, On, Off. [key]: the Jellyfin playlist id, else the app's own.
  */
 @Composable
-private fun PlaylistDjChip(key: String) {
+private fun PlaylistDjChip(key: String, slot: Modifier? = null, accent: Color = LocalScheme.current.accent) {
     val app = LocalApp.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val web = remember { com.ipodemu.library.FlacieWebClient(app.prefs) }
@@ -1849,20 +1921,24 @@ private fun PlaylistDjChip(key: String) {
         val s = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.djSettings() } } catch (_: Exception) { null } ?: return@LaunchedEffect
         app.player.djSettingsFetched(s); if (!busy) on = s.playlists[key]
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        DesignChip("DJ: " + when (on) { true -> "On"; false -> "Off"; null -> "Auto" }, on != null, {
-            if (!busy) {
-                val was = on; val next = when (was) { null -> true; true -> false; false -> null }
-                on = next; busy = true
-                scope.launch {
-                    try {
-                        val s = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.setDjPlaylist(key, next) }
-                        app.player.djSettingsChanged(s); on = s.playlists[key]
-                        app.ui.say(when (on) { true -> "The DJ talks on this playlist"; false -> "The DJ stays quiet on this playlist"; null -> "This playlist follows your DJ settings" })
-                    } catch (_: Exception) { on = was; app.ui.say("Couldn't reach FLACie Web", warn = true) } finally { busy = false }
-                }
+    val tap = {
+        if (!busy) {
+            val was = on; val next = when (was) { null -> true; true -> false; false -> null }
+            on = next; busy = true
+            scope.launch {
+                try {
+                    val s = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { web.setDjPlaylist(key, next) }
+                    app.player.djSettingsChanged(s); on = s.playlists[key]
+                    app.ui.say(when (on) { true -> "The DJ talks on this playlist"; false -> "The DJ stays quiet on this playlist"; null -> "This playlist follows your DJ settings" })
+                } catch (_: Exception) { on = was; app.ui.say("Couldn't reach FLACie Web", warn = true) } finally { busy = false }
             }
-        }, icon = Glyph.DJ)
+        }
+    }
+    val label = "DJ: " + when (on) { true -> "On"; false -> "Off"; null -> "Auto" }
+    // [slot]: one of a playlist hero's equal slots (PlaylistLookUi.kt), lit in the cover's colour once this playlist has its own On or Off
+    if (slot != null) { ToolSlot(label, Glyph.DJ, { tap() }, slot, on = on != null, accent = accent); return }
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        DesignChip(label, on != null, { tap() }, icon = Glyph.DJ)
     }
 }
 

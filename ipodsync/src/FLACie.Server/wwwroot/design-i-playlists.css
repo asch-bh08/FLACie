@@ -8,29 +8,100 @@
 .pl-grid .card-sub { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
 .pl-grid .card .cover.square { box-shadow: 0 14px 30px #00000059; }
 
-/* ---- a playlist or Favourites: cover left, text right, tinted by the cover's colours (set from flacie.npAccent) ---- */
-.pl-hero { --np-accent: var(--accent); position: relative; display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap; margin: 0 0 26px; padding: 24px; border-radius: 26px;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--np-accent) 26%, var(--bg)), var(--bg) 78%); transition: background 1.2s; }
+
+/* ==== A playlist or Favourites, in the look of the Devices page and Now Playing (owner, 26 Nov: "the playlist view needs a whole revamp ... the tags
+   look weird"). Rounded glass cards with the cover's colours washed in behind (devices.css .dv-card), one kind of outlined round pill for every tag
+   (.dv-chip), outlined buttons with an icon and a word (.dv-btn), Play filled with the cover's colour, and the playing row tinted as in Now Playing's
+   queue. Only the tags that say something: Hi-Res, Streaming and the download state (the source and the file format were the same on every row).
+   flacie.npAccent sets the cover's colours on .pl-page. The phone app draws the same page (android player/PlaylistLookUi.kt). ==== */
+.pl-page { --np-accent: var(--accent); --tone: var(--surface-3); --tonefg: var(--ink);
+  --pl-glass: color-mix(in srgb, var(--ink) 6%, transparent); --pl-rim: color-mix(in srgb, var(--ink) 14%, transparent); }
+
+/* ---- the hero: a glass card with the cover blurred behind it; cover left, text right ---- */
+.pl-hero { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: flex-end; gap: 28px; flex-wrap: wrap; margin: 0 0 22px; padding: 24px;
+  border-radius: 26px; background: var(--pl-glass); border: 1px solid var(--pl-rim); }
+.pl-wash { position: absolute; inset: -40px; z-index: -1; pointer-events: none; opacity: .4; filter: blur(42px) saturate(1.4); }
+.pl-wash .cover { width: 100% !important; height: 100% !important; max-width: none; border-radius: 0; background: none; }
+.pl-wash .cover img { width: 100%; height: 100%; object-fit: cover; border-radius: 0; }
+.pl-wash .cover-ph, .pl-wash .cover svg { display: none; }
 .pl-hero .pl-cover, .pl-hero .pl-cover img { border-radius: 20px; }
 .pl-hero .pl-cover { flex: none; width: clamp(150px, 20vw, 240px); height: auto; aspect-ratio: 1; box-shadow: 0 22px 50px #00000080; }
 .pl-hero-text { flex: 1 1 280px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
 .pl-hero .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; font-weight: 500; margin: 0; }
 .pl-hero h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: clamp(40px, 5.2vw, 64px); line-height: .95; letter-spacing: -.01em; overflow-wrap: anywhere; }
 .pl-hero h1 i { font-style: italic; }
-.pl-hero .pl-facts { margin: 4px 0 6px; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 75%, transparent); }
+.pl-hero .pl-facts { margin: 2px 0 8px; font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: color-mix(in srgb, var(--ink) 75%, transparent); }
 .pl-hero .chips { gap: 10px; align-items: center; }
-.pl-hero .pl-play { height: 56px; padding: 0 28px; border-radius: 18px; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); font-family: var(--sans); font-weight: 700; font-size: 16px; transition: background 1.2s, transform .12s; }
+/* Play and Shuffle: full pills, Play in the cover's colour and Shuffle in its tone (the phone's AccentPill and TonePill) */
+.pl-hero .pl-play, .pl-hero .pl-shuffle { height: 52px; border-radius: 999px; font-family: var(--sans); font-size: 16px; transition: background 1.2s, color 1.2s, transform .12s; }
+.pl-hero .pl-play { padding: 0 30px; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); font-weight: 700; }
 .pl-hero .pl-play:hover:not(:disabled) { background: var(--np-accent); filter: brightness(1.08); }
-.pl-hero .pl-shuffle { height: 56px; padding: 0 22px; border-radius: 999px; background: var(--tone, var(--surface-3)); color: var(--tonefg, var(--ink)); font-family: var(--sans); font-weight: 600; transition: background 1.2s, color 1.2s; }
-.pl-hero .chips .btn.ghost, .pl-hero .chips .btn.danger, .pl-hero .chips .btn:not(.pl-play):not(.pl-shuffle) { border-radius: 14px; font-family: var(--sans); }
-/* the playlist's DJ switch: quiet on Auto, brighter once this playlist has its own On or Off */
-.pl-hero .pl-dj.set { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.pl-hero .pl-shuffle { padding: 0 24px; background: var(--tone); color: var(--tonefg); font-weight: 600; }
+.pl-hero .pl-shuffle:hover:not(:disabled) { background: var(--tone); filter: brightness(1.12); }
+/* the quieter actions: the Devices buttons (outlined, an icon and a word) on a computer; on a phone Now Playing's row of equal slots */
+.pl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.pl-tool, .pl-hero .pl-tools .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; height: 44px; padding: 0 16px;
+  border: 1px solid var(--i-line); border-radius: 999px; background: transparent; color: var(--ink); font: 600 14px/1 var(--sans); text-decoration: none; white-space: nowrap; }
+.pl-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.pl-hero .pl-tools .btn.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+.pl-tools .pl-more .pl-tool { width: 100%; }
+/* the playlist's DJ switch: quiet on Auto, lit in the cover's colour once this playlist has its own On or Off (a device's "This device" chip) */
+.pl-hero .pl-dj.set { border-color: color-mix(in srgb, var(--np-accent) 70%, transparent); background: color-mix(in srgb, var(--np-accent) 18%, transparent); }
 .pl-rename { display: flex; flex-wrap: wrap; gap: 8px; }
 .pl-rename input { flex: 1 1 200px; min-width: 0; border-radius: 14px; border: 1px solid var(--i-line); background: var(--surface-2); padding: 12px 16px; font-family: var(--serif); font-size: 28px; }
+
+/* ---- the songs on one glass card, rows as in Now Playing's queue ---- */
+.pl-main > ol.tracks:has(> li), .pl-page .pl-recs, .pl-page .missing-list { border: 1px solid var(--pl-rim); border-radius: 22px; background: var(--pl-glass); }
+.pl-main > ol.tracks:has(> li) { padding: 6px; }
+.pl-page .track { min-height: 60px; border-radius: 16px; }
+.pl-page .track:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pl-page .track.now { background: color-mix(in srgb, var(--np-accent) 20%, transparent); }
+.pl-page .track-sub { font-size: 13px; }
+
+/* ---- tags: the Devices chip, an outlined round pill in the sans; coloured only where the colour means something ---- */
+.track-tag, .pl-page .track-src, .pl-page .track .pills .badge { display: none; }
+.pl-page .track .pills .badge.cloud, .pl-page .track .pills .badge.fmt.hires { display: inline-flex; }
+.pref-nobadges .pl-page .track .pills .badge, .pref-nobadges .pl-page .track-tag { display: none !important; }
+.pl-page .track .pills .badge, .pl-page .track-tag, .pl-page .dl-tag { align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--i-line); border-radius: 999px;
+  background: none; box-shadow: none; text-transform: none; font-family: var(--sans); font-size: 11.5px; font-weight: 600; letter-spacing: .02em; line-height: 1.5; color: var(--dim); }
+.pl-page .track .pills .badge.fmt.hires, .pl-page .track-tag.hires { border-color: #ffc8578c; color: #ffc857; }
+.pl-page .track .pills .badge.cloud, .pl-page .track-tag.cloud { border-color: #6db3ff8c; color: #6db3ff; }
+/* the download state under the artist: green once it is here (a playing device's chip), the accent while it comes, red when it failed */
+.pl-page .dl-tag { display: inline-flex; align-self: flex-start; max-width: 100%; margin-top: 5px; overflow: hidden; border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--accent-text); }
+.pl-page .dl-tag.ok { border-color: #4ee0a18c; color: #4ee0a1; }
+.pl-page .dl-tag.bad { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+.pl-page .dl-tag i { width: 6px; height: 6px; }
+.pl-page .dl-tag.ok i, .pl-page .dl-tag.bad i { display: none; }
+.pl-page .track:has(.dl-tag) { min-height: 72px; }
+
+/* ---- Recommended songs and the songs not in the library: glass cards of their own; "+" is a round outlined button that turns green when added ---- */
+.pl-page .pl-recs, .pl-page .missing-list { margin-top: 26px; padding: 20px 8px 12px; }
+.pl-page .pl-recs .shelf-head, .pl-page .missing-list .shelf-head, .pl-page .missing-list .hint { padding: 0 12px; }
+.pl-page .pl-rec-add { width: 40px; height: 40px; padding: 0; border-radius: 50%; border: 1px solid var(--i-line); background: transparent; color: var(--ink); }
+.pl-page .pl-rec-add:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.pl-page .pl-rec-add:disabled { opacity: 1; border-color: #4ee0a18c; color: #4ee0a1; }
+.pl-page .pl-recs-refresh { margin: 8px 6px 0; }
 
 @media (max-width: 760px) {
   .pl-hero { flex-direction: column; align-items: stretch; gap: 18px; padding: 18px; border-radius: 22px; }
   .pl-hero-text { flex: none; }
   .pl-hero .pl-cover { width: min(70%, 240px); align-self: center; }
-  .pl-hero .pl-play, .pl-hero .pl-shuffle { flex: 1 1 auto; }
+  main.content .pl-hero .pl-play, main.content .pl-hero .pl-shuffle { flex: 1 1 0; }
+  /* Now Playing's phone row: equal glass slots, the icon over its word */
+  .pl-hero .pl-tools { flex: 1 1 100%; flex-wrap: nowrap; }
+  .pl-hero .pl-tools > * { flex: 1 1 0; min-width: 0; }
+  .pl-hero .pl-tools .btn { flex-direction: column; gap: 3px; height: 56px; padding: 0 6px; border-radius: 18px; border-color: var(--pl-rim); background: var(--pl-glass);
+    font-size: 11.5px; width: 100%; }
+  .pl-main > ol.tracks:has(> li) { padding: 4px; margin: 0 -4px; }
+  /* the tags move in front of the artist (the title keeps its room), as the phone app puts them */
+  .pl-page .track .pills { display: none; }
+  .pl-page .track-tag { display: inline-flex; vertical-align: 1px; margin-right: 7px; padding: 0 7px; font-size: 10.5px; }
 }
+
+/* the light theme: the same pills in darker inks that read on paper */
+:root[data-theme="light"] .pl-page .track .pills .badge.fmt.hires, :root[data-theme="light"] .pl-page .track-tag.hires { border-color: #b08a2a88; color: #6d4c00; }
+:root[data-theme="light"] .pl-page .track .pills .badge.cloud, :root[data-theme="light"] .pl-page .track-tag.cloud { border-color: #1c4c8c66; color: #1c4c8c; }
+:root[data-theme="light"] .pl-page .dl-tag.ok, :root[data-theme="light"] .pl-page .pl-rec-add:disabled { border-color: #17603b66; color: #17603b; }
+:root[data-theme="light"] .pl-page .dl-tag.bad { border-color: #9b1c1666; color: #9b1c16; }
+:root[data-theme="light"] .pl-hero .pl-cover { box-shadow: 0 18px 40px #1a171440; }
+:root[data-theme="light"] .pl-wash { opacity: .28; }

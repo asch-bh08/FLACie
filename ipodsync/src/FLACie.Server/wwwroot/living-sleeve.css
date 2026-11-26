@@ -790,3 +790,19 @@ body.np-open .dj-bar { display: none; }
   .upnext .q-item .q-edit { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); z-index: 2; padding: 3px; border-radius: 12px;
     background: color-mix(in srgb, var(--ground, #16161b) 88%, transparent); box-shadow: 0 6px 18px #0006; }
 }
+
+/* the Devices button's word shows only in Now Playing's bar on a PC (the player bar keeps the bare icon) */
+.dp-word { display: none; }
+
+/* PC: the left of the bar as the phone's rounded buttons, the icon over its word (owner, 26 Nov: "I like these better... add them to web"):
+   More, Add, Share, Devices and the DJ. The right side (mic, heart, EQ, volume) keeps its round buttons. Only from 1200 px: on a tablet or a zoomed
+   laptop the five wider buttons ran into the transport, so there they stay round. */
+@media (min-width: 1200px) {
+  .ls-dock .ls-dock-l .ls-dbtn, .ls-dock .ls-dock-l .ls-dbtn-wrap > button, .ls-dock .ls-dock-l .ls-dbtn-wrap .icon-btn, .ls-dock .ls-dock-l .np-more.d .ls-more-btn {
+    display: flex !important; flex-direction: column; justify-content: center; align-items: center; gap: 3px;
+    width: 66px !important; min-width: 66px !important; height: 52px !important; border-radius: 16px !important;
+    background: var(--glass) !important; color: var(--ink) !important; font: inherit; font-size: 11px; font-weight: 600; }
+  .ls-dock .ls-dock-l .ls-dbtn span, .ls-dock .ls-dock-l .np-more.d .ls-more-btn span, .ls-dock .ls-dock-l .ls-dbtn-wrap .icon-btn span { display: block; line-height: 1; }
+  .ls-dock .ls-dock-l .ls-dbtn svg, .ls-dock .ls-dock-l .ls-more-btn svg, .ls-dock .ls-dock-l .ls-dbtn-wrap svg { width: 18px; height: 18px; }
+  .ls-dock .ls-dock-l .ls-dbtn.on { background: color-mix(in srgb, var(--np-accent) 22%, transparent) !important; }
+}

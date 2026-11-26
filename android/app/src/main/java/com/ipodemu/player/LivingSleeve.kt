@@ -239,7 +239,7 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                 // Lyrics, Up next, Info and More: secondary actions, so they take the bottom strip (above the gesture bar) instead of leaving it empty;
                 // on its side the phone has them at the foot of the controls' column instead
                 if (fit.layout != NowPlayingFit.Layout.SIDE) Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
-                    SleeveActions(false, pane, toggle, addToPlaylist, fit.actions) { moreMode = "all" }
+                    SleeveActions(false, pane, toggle, addToPlaylist, fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
                 }
             }
         }
@@ -462,11 +462,11 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
         Spacer(Modifier.width(gap + 2.dp))
         val fallback = app.player.contextName ?: com.ipodemu.library.SourceLabel.line(t.source)
         // the pill takes what it needs from the space left (up to all of it), and the buttons stay against the right edge
-        Box(Modifier.weight(1f).padding(end = 8.dp)) {
+        Box(Modifier.weight(1f).padding(end = 8.dp), contentAlignment = Alignment.Center) {
             SText(
                 SleeveText.where(t.album, t.trackNo, fallback),
-                // a name too long for the room left by DJ and mic scrolls slowly instead of being cut ("JUNGLE M..."; owner, 12 Nov)
-                Modifier.clip(RoundedCornerShape(50)).background(Glass).padding(horizontal = 12.dp, vertical = 7.dp).basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500),
+                // plain centred text as on the web ("THE ALBUM · TRACK 1"), no pill (owner, 26 Nov); a name too long for the room scrolls slowly (12 Nov)
+                Modifier.padding(vertical = 7.dp).basicMarquee(iterations = Int.MAX_VALUE, initialDelayMillis = 1500),
                 family = SleeveFonts.mono, size = 11f, color = Color.White, spacing = .14f, maxLines = 1,
             )
         }
@@ -503,14 +503,14 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
             val title = remember(lead, last) { buildAnnotatedString { append(lead); withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append(last) } } }
             // on a short screen the title is smaller, then one line (NowPlayingFit), so the controls below stay on screen
             val screenH = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp
-            SText(title, family = SleeveFonts.serif, size = minOf(SleeveText.titleSize(fit.layout == NowPlayingFit.Layout.WIDE, screenH, t.title), fit.titleSp), weight = FontWeight.Normal, maxLines = if (t.title.length > SleeveText.LONG_TITLE) maxOf(fit.titleLines, 3) else fit.titleLines, spacing = -.01f, lineHeight = .98f)
+            SText(title, family = SleeveFonts.serif, size = minOf(SleeveText.titleSize(fit.layout == NowPlayingFit.Layout.WIDE, screenH, t.title), fit.titleSp, if (fit.layout == NowPlayingFit.Layout.WIDE) 52f else 34f), weight = FontWeight.Normal, maxLines = if (t.title.length > SleeveText.LONG_TITLE) maxOf(fit.titleLines, 3) else fit.titleLines, spacing = -.01f, lineHeight = .98f)
             // the chips wrap under the artist on a narrow screen rather than squeezing the name down to a few letters; on a short screen only the
             // artist is here (the format is in Song info, the download in More)
             @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 SText(t.artist.ifEmpty { "Unknown Artist" }, Modifier.align(Alignment.CenterVertically).clickable(enabled = t.artist.isNotEmpty()) {
                     nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist }))
-                }, size = 17f, weight = FontWeight.Bold)
+                }, size = 15.5f, weight = FontWeight.Bold)
                 if (fit.chips) Row(Modifier.align(Alignment.CenterVertically), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     // the web's chips: Streaming in blue for a cloud song, the format with its sampling dimmed, and where a library song plays from
                     val cloud = t.source == com.ipodemu.library.TrackSource.CLOUD
@@ -526,20 +526,21 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
             if (fit.chips) DownloadTagLine(t, size = 13f, showNew = false)
         }
         Box(
-            Modifier.size(52.dp).clip(CircleShape).drawBehind { drawRect(p.tone.value) }.focusRing(CircleShape)
+            Modifier.size(48.dp).clip(CircleShape).drawBehind { drawRect(p.tone.value) }.focusRing(CircleShape)
                 .semantics { contentDescription = if (fav) "Unfavorite" else "Favorite"; role = Role.Button }.clickable { app.userData.toggleFavorite(t) },
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(24.dp), if (fav) p.main.value else p.toneFg.value) }
     }
 }
 
-/** A small round chip: the file's format, or where it plays from. A pill in the sans like every chip in the app (owner, 9 Nov: no boxy or mono chips). */
+/** A small chip: the file's format, or where it plays from. The web's look, small square-cornered mono capitals ("HI-RES 24-BIT / 48 KHZ", "JELLYFIN";
+ *  owner, 26 Nov: the web's Now Playing looked better than the round pills). */
 @Composable
 private fun SleeveChip(text: String, bg: Color, fg: Color) = SleeveChip(AnnotatedString(text), bg, fg)
 
 @Composable
 private fun SleeveChip(text: AnnotatedString, bg: Color, fg: Color) {
-    SText(text, Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 10.dp, vertical = 4.dp), size = 12f, weight = FontWeight.SemiBold, color = fg, spacing = .01f)
+    SText(text.toUpperCase(), Modifier.clip(RoundedCornerShape(5.dp)).background(bg).padding(horizontal = 7.dp, vertical = 4.dp), family = SleeveFonts.mono, size = 10.5f, weight = FontWeight.SemiBold, color = fg, spacing = .06f)
 }
 
 // ---- the ring: the song's loudness round the play button -----------------------------------------------------------------
@@ -835,7 +836,7 @@ private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette,
 // ---- Lyrics, Up next, More --------------------------------------------------------------------------------------------------
 
 @Composable
-private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, onMore: () -> Unit) {
+private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, fill: Color? = null, onMore: () -> Unit) {
     // five equal slots, More in the middle: Lyrics, Up next | More | Info, Add. Each is an icon over its word (icons alone, or words beside two bare icons,
     // left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream. On a short screen (NowPlayingFit) the slots are
     // 44 dp with the word alone, and at the last step only More is left, its sheet listing Lyrics, Up next and Song info
@@ -843,15 +844,16 @@ private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit,
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         @Composable
         fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true) {
-            val shape = RoundedCornerShape(18.dp)
+            // the owner likes these rounded rectangles: kept, a little smaller, on a faint glass like the web's row (owner, 26 Nov: "dial them down a bit")
+            val shape = RoundedCornerShape(16.dp)
             Column(
-                Modifier.weight(1f).height(if (full) 58.dp else 44.dp).clip(shape).background(if (on) Ink else Glass).focusRing(shape)
+                Modifier.weight(1f).height(if (full) 50.dp else 40.dp).clip(shape).background(if (on) Ink else fill ?: Glass).focusRing(shape)
                     .semantics(mergeDescendants = true) { contentDescription = label; role = if (tab) Role.Tab else Role.Button; if (on) stateDescription = "Selected" }
                     .clickable(onClick = onClick),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
             ) {
-                if (full) GlyphIcon(glyph, Modifier.size(20.dp), if (on) OnMain else Ink)
-                SText(word, size = if (full) 11.5f else 13f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink)
+                if (full) GlyphIcon(glyph, Modifier.size(18.dp), if (on) OnMain else Ink)
+                SText(word, size = if (full) 11f else 12.5f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink)
             }
         }
         if (actions == NowPlayingFit.Actions.MORE_ONLY) Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)

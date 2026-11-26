@@ -693,6 +693,8 @@ window.flacie = (() => {
     views[vizStyle](vizF);
   };
   let vizCv = null, vizBox = null, vizSeen = true, vizRo = null, vizIo = null, vizCol = null, vizColAt = 0, vizCtx = null, vizBoxAt = 0;
+  // opening or closing the full-screen graph measures the canvas again at once (it was drawn at the small size for a moment and looked blurry, 26 Nov)
+  window.flacieVizDirty = () => { vizBox = null; };
   const vizF = {};
   // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
   const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };
@@ -2079,6 +2081,11 @@ window.flacieUi = (() => {
 // A graph of the Info tab on the whole screen (owner, 8 Nov): the browser's own full screen where it has one (Esc closes it), else the box fills the window.
 // [onlyOpen]: a click on the graph opens it but never closes it.
 flacie.graphFull = (box, onlyOpen) => {
+  // the canvas is sized for the new box at once, whether or not the graph is drawing just then (paused, or between frames): it looked blurry for a moment
+  const fit = () => { try { window.flacieVizDirty?.(); const cv = box && box.querySelector('canvas'); if (!cv) return; const r = cv.getBoundingClientRect(); if (!r.width || !r.height) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, Math.sqrt(4e6 / (r.width * r.height))), w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; } } catch { } };
+  for (const ms of [0, 60, 200, 450, 900]) setTimeout(fit, ms);
   if (!box) return;
   const on = document.fullscreenElement === box || box.classList.contains("full");
   if (on) { if (onlyOpen) return; if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); box.classList.remove("full"); return; }

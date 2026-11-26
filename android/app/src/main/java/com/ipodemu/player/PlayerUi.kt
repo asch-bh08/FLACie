@@ -575,11 +575,11 @@ internal fun thumbsDown(app: App, t: Track) {
 internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val ud = app.userData
     val items = ArrayList<SheetItem>()
-    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added \"${t.title}\" to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
+    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added “${t.title}” to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
     shownPlaylists(app).forEach { p ->
         items += SheetItem(p.name, Glyph.LIST) {
-            if (p.paths.any { it == t.path || app.library.resolve(it, ud.meta[it])?.let { r -> r.matchKey == t.matchKey } == true }) app.ui.say("\"${t.title}\" is already in ${p.name}", warn = true)
-            else { ud.addToPlaylist(p.id, t.path); app.ui.say("Added \"${t.title}\" to ${p.name}", "Undo") { ud.removeFromPlaylist(p.id, t.path); app.ui.say("Removed \"${t.title}\" from ${p.name}") } }
+            if (p.paths.any { it == t.path || app.library.resolve(it, ud.meta[it])?.let { r -> r.matchKey == t.matchKey } == true }) app.ui.say("“${t.title}” is already in ${p.name}", warn = true)
+            else { ud.addToPlaylist(p.id, t.path); app.ui.say("Added “${t.title}” to ${p.name}", "Undo") { ud.removeFromPlaylist(p.id, t.path); app.ui.say("Removed “${t.title}” from ${p.name}") } }
         }
     }
     return SheetSpec("Add to playlist", t.title, items)
@@ -792,7 +792,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                 Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     // shuffles what is queued after the song playing; off puts the queue back in order (Shuffle All starts a new shuffled queue)
-                    GlossPill(if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }, icon = Glyph.SHUFFLE, height = 32.dp, primary = snap.shuffle)
+                    GlossPill(if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.shuffleTap() }, icon = Glyph.SHUFFLE, height = 32.dp, primary = snap.shuffle)
                     GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                     GlossPill("Offline music", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 32.dp)
@@ -2841,7 +2841,7 @@ private fun playlistSongItems(app: App, id: String, t: Track): List<SheetItem> {
     items += SheetItem("Remove from playlist", Glyph.CLOSE) {
         // not gone until the Undo message has run out: Undo just cancels it
         val path = ud.removeLater(id, i)
-        if (path != null) app.ui.say("Removed \"${t.title}\" from ${p.name}", "Undo") { ud.cancelRemoval() }
+        if (path != null) app.ui.say("Removed “${t.title}” from ${p.name}", "Undo") { ud.cancelRemoval() }
     }
     return items
 }

@@ -1,6 +1,8 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -164,6 +166,7 @@ fun DeviceFrame(m: Model, cw: Colorway, onWheel: (Zone) -> Unit, onStep: (Int) -
             val atBottom = scroll.value > scroll.maxValue / 2
             Box(
                 Modifier.align(Alignment.BottomEnd).padding(12.dp).size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).background(Color(0xAA000000))
+                    .semantics { contentDescription = if (atBottom) "Scroll to top" else "Scroll to bottom" }
                     .clickable { scope.launch { scroll.animateScrollTo(if (atBottom) 0 else scroll.maxValue) } },
                 contentAlignment = Alignment.Center,
             ) { GlyphIcon(Glyph.DOWN, Modifier.size(22.dp).graphicsLayer { rotationZ = if (atBottom) 180f else 0f }, Color.White) }

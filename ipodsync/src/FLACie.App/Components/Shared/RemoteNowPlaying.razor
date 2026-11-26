@@ -12,9 +12,9 @@
             <small>@s.Artist@(s.DurationMs > 0 ? " · " + Time(Pos(live, s) / 1000.0) + " / " + Time(s.DurationMs / 1000.0) : "")</small>
         </span>
         <span class="rn-controls">
-            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous on @s.Device"><Icon Name="prev" Size="20" /></button>
-            <button class="play small" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause") on @s.Device"><Icon Name="@(s.Paused ? "play" : "pause")" Size="18" /></button>
-            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next on @s.Device"><Icon Name="next" Size="20" /></button>
+            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "PreviousTrack")' aria-label="Previous on @s.Device" title="Previous on @s.Device"><Icon Name="prev" Size="20" /></button>
+            <button class="play small" @onclick='() => live.Connect.CommandAsync(s, "PlayPause")' aria-label="@(s.Paused ? "Play" : "Pause") on @s.Device" title="@(s.Paused ? "Play" : "Pause") on @s.Device"><Icon Name="@(s.Paused ? "play" : "pause")" Size="18" /></button>
+            <button class="icon-btn" @onclick='() => live.Connect.CommandAsync(s, "NextTrack")' aria-label="Next on @s.Device" title="Next on @s.Device"><Icon Name="next" Size="20" /></button>
             <button class="btn" @onclick="() => live.Connect.TakeOverAsync(s)">Play here</button>
         </span>
         @if (s.DurationMs > 0) { <i class="rn-progress" style="width:@Pct(live, s)%"></i> }

@@ -19,7 +19,7 @@
                             <Cover ArtKey="@s.ArtKey" Size="44" />
                             <span class="track-text"><span class="track-title">@s.Title</span><span class="track-sub">@s.Artist</span></span>
                         </button>
-                        <button class="btn ghost icon pl-rec-add" disabled="@done" aria-label="@(done ? "Added " + s.Title : "Add " + s.Title + " to this playlist")" @onclick="() => Add(s)">
+                        <button class="btn ghost icon pl-rec-add" disabled="@done" aria-label="@(done ? "Added " + s.Title : "Add " + s.Title + " to this playlist")" @onclick="() => Add(s)" title="@(done ? "Added " + s.Title : "Add " + s.Title + " to this playlist")">
                             <Icon Name="@(done ? "check" : "plus")" Size="18" />
                         </button>
                     </li>

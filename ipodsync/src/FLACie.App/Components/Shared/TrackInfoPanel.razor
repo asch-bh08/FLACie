@@ -11,7 +11,7 @@ else
         <div class="graph-box">
             @* the tabs scroll sideways: arrows at both ends and the mouse wheel (owner, 12 Nov: "I can't reach the last graph") *@
             <div class="graph-tabs-row">
-                <button type="button" class="graph-tabs-arrow prev" aria-label="Earlier graphs" onclick="this.parentElement.querySelector('.graph-tabs').scrollBy({ left: -240, behavior: 'smooth' })"><Icon Name="chevron-left" Size="18" /></button>
+                <button type="button" class="graph-tabs-arrow prev" aria-label="Earlier graphs" onclick="this.parentElement.querySelector('.graph-tabs').scrollBy({ left: -240, behavior: 'smooth' })" title="Earlier graphs"><Icon Name="chevron-left" Size="18" /></button>
                 <div class="graph-tabs" role="tablist" aria-label="Graph to show" onwheel="if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && this.scrollWidth > this.clientWidth) { event.preventDefault(); this.scrollLeft += event.deltaY; }">
                     @foreach (var (id, name) in Picks())
                     {
@@ -19,7 +19,7 @@ else
                         <button role="tab" class="gtab @(mode == m ? "on" : "")" aria-selected="@((mode == m) ? "true" : "false")" @onclick="() => Pick(m)">@name</button>
                     }
                 </div>
-                <button type="button" class="graph-tabs-arrow next" aria-label="More graphs" onclick="this.parentElement.querySelector('.graph-tabs').scrollBy({ left: 240, behavior: 'smooth' })"><Icon Name="chevron-right" Size="18" /></button>
+                <button type="button" class="graph-tabs-arrow next" aria-label="More graphs" onclick="this.parentElement.querySelector('.graph-tabs').scrollBy({ left: 240, behavior: 'smooth' })" title="More graphs"><Icon Name="chevron-right" Size="18" /></button>
             </div>
             <div class="graph-head">
                 <h4>@Title</h4>
@@ -49,11 +49,11 @@ else
                 @* the song, previous / play / next and a seek bar, like the player bar along the bottom (owner, 12 Nov) *@
                 <span class="graph-transport">
                     @* the player bar's other buttons too (owner, 12 Nov: "keep this, or what you can of it"): shuffle and repeat round the transport *@
-                    <button type="button" class="icon-btn graph-plain @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="20" /></button>
-                    <button type="button" class="icon-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="22" /></button>
-                    <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
-                    <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="22" /></button>
-                    <button type="button" class="icon-btn graph-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="20" /></button>
+                    <button type="button" class="icon-btn graph-plain @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); Toast.ShuffleSaid(Player.Shuffle); }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")" title="Shuffle @(Player.Shuffle ? "on" : "off")"><Icon Name="shuffle" Size="20" /></button>
+                    <button type="button" class="icon-btn" @onclick="Player.Prev" aria-label="Previous" title="Previous"><Icon Name="prev" Size="22" /></button>
+                    <button type="button" class="graph-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")" title="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="26" /></button>
+                    <button type="button" class="icon-btn" @onclick="Player.Next" aria-label="Next" title="Next"><Icon Name="next" Size="22" /></button>
+                    <button type="button" class="icon-btn graph-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); Toast.RepeatSaid(Player.Repeat); }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })" title="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="20" /></button>
                 </span>
                 <span class="graph-seek">
                     <span class="graph-pos">@Clock(Player.Position)</span>
@@ -107,6 +107,7 @@ else
     </div>
 }
 @code {
+    [Inject] Toasts Toast { get; set; } = default!;
     [Parameter] public Track Track { get; set; } = default!;
     [Parameter] public MediaInfo? Info { get; set; }
     [Parameter] public bool Loading { get; set; }

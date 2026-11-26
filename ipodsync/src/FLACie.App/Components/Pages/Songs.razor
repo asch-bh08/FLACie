@@ -25,8 +25,8 @@
                 @if (QuickFormats.Of(row.T) is { Length: > 0 } fmt) { <span class="badge fmt @(fmt == "HI-RES" ? "hires" : MediaInfo.LosslessCodecs.Contains(fmt.ToLowerInvariant()) ? "lossless" : "")" title="@(fmt == "HI-RES" ? "Hi-Res: lossless at more than CD quality" : "File format")">@(fmt == "HI-RES" ? "✦ Hi-Res" : fmt)</span> }
             </span>
             <span class="track-time">@(row.T.DurationMs > 0 ? Time(row.T.DurationMs / 1000.0) : "")</span>
-            <button class="icon-btn @(Session.IsFavorite(row.T) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, row.T); SaveProfile(); }" aria-label="@(Session.IsFavorite(row.T) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(row.T) ? "heart-fill" : "heart")" /></button>
-            <button class="icon-btn" @onclick="() => { menu = menu == row.I ? -1 : row.I; sub = string.Empty; }" aria-label="More for @row.T.Title" aria-expanded="@((menu == row.I) ? "true" : "false")"><Icon Name="more" /></button>
+            <button class="icon-btn @(Session.IsFavorite(row.T) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, row.T, SaveProfile); }" aria-label="@(Session.IsFavorite(row.T) ? "Remove from favourites" : "Add to favourites")" title="@(Session.IsFavorite(row.T) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(row.T) ? "heart-fill" : "heart")" /></button>
+            <button class="icon-btn" @onclick="() => { menu = menu == row.I ? -1 : row.I; sub = string.Empty; }" aria-label="More for @row.T.Title" aria-expanded="@((menu == row.I) ? "true" : "false")" title="More for @row.T.Title"><Icon Name="more" /></button>
             @if (menu == row.I)
             {
                 <div class="menu" role="menu">

@@ -14,6 +14,8 @@ class App : Application() {
     lateinit var library: Library; private set
     lateinit var player: PlayerController; private set
     lateinit var ui: UiState; private set
+    /** Every Shuffle button: flips it and says what it is now (the same words as FLACie Web; owner, 26 Nov: buttons that give no sign). */
+    fun shuffleTap() { prefs.shuffle = !prefs.shuffle; player.applyModes(); ui.say(if (prefs.shuffle) "Shuffle on" else "Shuffle off") }
     /** Home's shelves as the last run left them (see HomeSnapshot): what the first frame draws before the library has loaded. */
     @Volatile var homeSnapshot: com.ipodemu.library.HomeSnapshot.Data? = null; private set
     lateinit var userData: com.ipodemu.library.UserData; private set
@@ -67,6 +69,7 @@ class App : Application() {
         mb = com.ipodemu.library.mb.MbService(this, prefs, art)
         Boot.span("restoreQueue") { player.restoreQueue(); player.restoreSleepTimer() }
         userData = com.ipodemu.library.UserData(this)
+        userData.say = { ui.say(it) }
         // favourites kept offline follow the favourites list (a pause first, so a run of taps is one change)
         userData.onFavoritesChanged = { offlineSyncSoon() }
         userData.onRated = { t, stars -> rateOnJellyfin(t, stars) }

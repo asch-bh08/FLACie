@@ -136,7 +136,7 @@ else
             <span class="track-actions">
             @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
             <span class="dl-more">
-                <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="@MoreLabel(s.Title)" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey"><Icon Name="lines" Size="20" /></button>
+                <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="@MoreLabel(s.Title)" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey" title="@MoreLabel(s.Title)"><Icon Name="lines" Size="20" /></button>
                 @if (dlMenu == hiKey)
                 {
                     <button class="scrim" aria-label="Close" @onclick="() => dlMenu = null"></button>

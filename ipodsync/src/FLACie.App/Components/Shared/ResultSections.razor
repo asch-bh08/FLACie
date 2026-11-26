@@ -107,7 +107,7 @@
                     <span class="sr-hero-sub">Artist</span>
                     <span class="pills"><span class="badge plain">@Count(ta) @(Count(ta) == 1 ? "song" : "songs")</span></span>
                 </div>
-                <button class="sr-play" aria-label="@(On(ta.Tracks) ? "Pause" : "Play") @ta.Name" @onclick="() => PlayOnly(ta.Tracks.Where(X.Allows).ToList(), ta.Name)" @onclick:stopPropagation><Icon Name="@(On(ta.Tracks) ? "pause" : "play")" Size="22" /></button>
+                <button class="sr-play" aria-label="@(On(ta.Tracks) ? "Pause" : "Play") @ta.Name" @onclick="() => PlayOnly(ta.Tracks.Where(X.Allows).ToList(), ta.Name)" @onclick:stopPropagation title="@(On(ta.Tracks) ? "Pause" : "Play") @ta.Name"><Icon Name="@(On(ta.Tracks) ? "pause" : "play")" Size="22" /></button>
             </div>
         </div>
         <div class="sr-top-songs" aria-label="Top songs">
@@ -209,7 +209,7 @@ var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
                     <span class="sr-hero-sub">Artist</span>
                     <span class="pills"><span class="badge plain">@Count(topArtist) @(Count(topArtist) == 1 ? "song" : "songs")</span><span class="sr-have">In your library</span></span>
                 </div>
-                <button class="sr-play" aria-label="@(On(topArtist.Tracks) ? "Pause" : "Play") @topArtist.Name" @onclick="() => PlayOnly(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)" @onclick:stopPropagation><Icon Name="@(On(topArtist.Tracks) ? "pause" : "play")" Size="22" /></button>
+                <button class="sr-play" aria-label="@(On(topArtist.Tracks) ? "Pause" : "Play") @topArtist.Name" @onclick="() => PlayOnly(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)" @onclick:stopPropagation title="@(On(topArtist.Tracks) ? "Pause" : "Play") @topArtist.Name"><Icon Name="@(On(topArtist.Tracks) ? "pause" : "play")" Size="22" /></button>
             </div>
         }
         else if (heroAlbum && topAlbum is not null)
@@ -222,7 +222,7 @@ var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
                     <span class="sr-hero-sub">Album · @(ht.AlbumArtist.Length > 0 ? ht.AlbumArtist : ht.Artist)@(hy > 0 ? " · " + hy : "")</span>
                     <span class="pills"><span class="badge @ht.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(ht.Source)</span><span class="badge plain">@Count(topAlbum) @(Count(topAlbum) == 1 ? "song" : "songs")</span><span class="sr-have">In your library</span></span>
                 </div>
-                <button class="sr-play" aria-label="@(On(topAlbum.Tracks) ? "Pause" : "Play") @topAlbum.Name" @onclick="() => PlayOnly(topAlbum.Tracks.Where(X.Allows).ToList(), topAlbum.Name)" @onclick:stopPropagation><Icon Name="@(On(topAlbum.Tracks) ? "pause" : "play")" Size="22" /></button>
+                <button class="sr-play" aria-label="@(On(topAlbum.Tracks) ? "Pause" : "Play") @topAlbum.Name" @onclick="() => PlayOnly(topAlbum.Tracks.Where(X.Allows).ToList(), topAlbum.Name)" @onclick:stopPropagation title="@(On(topAlbum.Tracks) ? "Pause" : "Play") @topAlbum.Name"><Icon Name="@(On(topAlbum.Tracks) ? "pause" : "play")" Size="22" /></button>
             </div>
         }
         else if (heroSong is not null)
@@ -248,7 +248,7 @@ var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
                         <button class="btn sr-go" aria-label="@(On([hs]) ? "Pause" : "Play") @hs.Title" @onclick='() => PlayOnly([hs], context)'><Icon Name="@(On([hs]) ? "pause" : "play")" Size="18" />@(On([hs]) ? "Pause" : "Play")</button>
                         @if (vers.Count > 0) { <button class="btn sr-vers" aria-expanded="@(heroVersions ? "true" : "false")" @onclick="() => heroVersions = !heroVersions">+@vers.Count @(vers.Count == 1 ? "version" : "versions")</button> }
                         <span class="sr-menu-wrap">
-                            <button class="icon-btn sr-menu-btn" aria-haspopup="menu" aria-expanded="@(heroMenu ? "true" : "false")" aria-label="More for @hs.Title" @onclick="() => { heroMenu = !heroMenu; heroSub = false; }"><Icon Name="more" /></button>
+                            <button class="icon-btn sr-menu-btn" aria-haspopup="menu" aria-expanded="@(heroMenu ? "true" : "false")" aria-label="More for @hs.Title" @onclick="() => { heroMenu = !heroMenu; heroSub = false; }" title="More for @hs.Title"><Icon Name="more" /></button>
                             @if (heroMenu)
                             {
                                 <button class="scrim" aria-label="Close" @onclick="() => heroMenu = false"></button>

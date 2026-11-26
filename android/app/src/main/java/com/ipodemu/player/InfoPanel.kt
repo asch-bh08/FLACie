@@ -368,7 +368,7 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
             val snap = rememberSnap(app.player, app.prefs)
             val controls: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FgPlain(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", snap.shuffle, accent) { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }
+                    FgPlain(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", snap.shuffle, accent) { app.shuffleTap() }
                     for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
                         val big = label == "Pause" || label == "Play"
                         Box(Modifier.size(if (big) 72.dp else 52.dp, if (big) 56.dp else 48.dp).clip(RoundedCornerShape(if (big) 20.dp else 24.dp)).background(if (big) accent else InfoInk.copy(alpha = .12f))

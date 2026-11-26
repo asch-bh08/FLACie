@@ -336,10 +336,10 @@ private fun PlaylistEditor(st: SyncStaging, p: SyncStaging.WorkPlaylist, onChang
                 val t = st.tracks[id]
                 IpodRow({}, height = 58.dp, leading = { Txt("${i + 1}", Modifier.widthIn(min = 24.dp), size = 13f, color = rowDim()) }, trailing = {
                     if (p.editable) Row {
-                        Box(Modifier.size(40.dp).clickable { if (i > 0) { p.ids.add(i - 1, p.ids.removeAt(i)); changed() } }, contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(40.dp).semantics { contentDescription = "Move up" }.clickable { if (i > 0) { p.ids.add(i - 1, p.ids.removeAt(i)); changed() } }, contentAlignment = Alignment.Center) {
                             GlyphIcon(Glyph.DOWN, Modifier.size(20.dp).graphicsLayer { rotationZ = 180f }, if (i > 0) sc.onBg else sc.onBg.copy(alpha = .2f))
                         }
-                        Box(Modifier.size(40.dp).clickable { if (i < p.ids.lastIndex) { p.ids.add(i + 1, p.ids.removeAt(i)); changed() } }, contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(40.dp).semantics { contentDescription = "Move down" }.clickable { if (i < p.ids.lastIndex) { p.ids.add(i + 1, p.ids.removeAt(i)); changed() } }, contentAlignment = Alignment.Center) {
                             GlyphIcon(Glyph.DOWN, Modifier.size(20.dp), if (i < p.ids.lastIndex) sc.onBg else sc.onBg.copy(alpha = .2f))
                         }
                         IconAction(Glyph.CLOSE, "Remove", { p.ids.removeAt(i); changed() }, size = 40.dp)

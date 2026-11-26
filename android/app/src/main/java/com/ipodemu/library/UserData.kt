@@ -74,7 +74,12 @@ class UserData(dir: File) {
     fun isFavorite(t: Track) = storedFavorite(t) != null
     private fun storedFavorite(t: Track) = FavoriteMatch.storedFor(t.path, t.matchKey, favorites, meta)
     /** A song's heart: takes away the favourite it stands for (whichever device's path it is kept under), else adds this one. */
-    fun toggleFavorite(t: Track) { toggleFavorite(storedFavorite(t) ?: t.path) }
+    /** Says what a heart did (set by the app: the same words as FLACie Web, owner, 26 Nov). */
+    var say: ((String) -> Unit)? = null
+    fun toggleFavorite(t: Track) {
+        toggleFavorite(storedFavorite(t) ?: t.path)
+        say?.invoke(if (isFavorite(t)) "Added “${t.title}” to favourites" else "Removed “${t.title}” from favourites")
+    }
     /** Every heart on screen follows a change, including songs matched to another device's favourite by title and artist. */
     private fun refreshFavStates() {
         for ((p, s) in favStates) s.value = FavoriteMatch.storedFor(p, trackKeys[p] ?: "", favorites, meta) != null

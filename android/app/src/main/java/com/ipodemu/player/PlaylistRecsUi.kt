@@ -74,7 +74,7 @@ fun PlaylistRecsSection(playlistId: String, songs: List<Track>, title: String) {
                     Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = !done) {
                         if (PlaylistRecs.add(ud, playlistId, t)) {
                             ticked.add(t.path)
-                            app.ui.say("Added \"${t.title}\" to $title")
+                            app.ui.say("Added “${t.title}” to $title")
                             scope.launch { delay(900); ticked.remove(t.path); picks = picks?.filter { it.path != t.path } }
                         }
                     }.semantics { contentDescription = if (done) "Added ${t.title}" else "Add ${t.title} to this playlist" }, contentAlignment = Alignment.Center) {

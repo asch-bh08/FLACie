@@ -55,10 +55,10 @@ else
                         <div class="jf-btns">
                             @if (c.Playing && c.Do is not null)
                             {
-                                <button aria-label="@(c.Paused ? "Resume" : "Pause")" @onclick='() => Act(c, "toggle")'><Icon Name="@(c.Paused ? "play" : "pause")" Size="18" /></button>
-                                <button aria-label="Stop" @onclick='() => Act(c, "stop")'><Icon Name="stop" Size="18" /></button>
+                                <button aria-label="@(c.Paused ? "Resume" : "Pause")" @onclick='() => Act(c, "toggle")' title="@(c.Paused ? "Resume" : "Pause")"><Icon Name="@(c.Paused ? "play" : "pause")" Size="18" /></button>
+                                <button aria-label="Stop" @onclick='() => Act(c, "stop")' title="Stop"><Icon Name="stop" Size="18" /></button>
                             }
-                            <button aria-label="Details" @onclick="() => infoKey = c.Key"><Icon Name="info" Size="20" /></button>
+                            <button aria-label="Details" @onclick="() => infoKey = c.Key" title="Details"><Icon Name="info" Size="20" /></button>
                         </div>
                         <span class="jf-user">@c.User</span>
                     </div>

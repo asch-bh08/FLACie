@@ -16,7 +16,7 @@
         <div class="ls-hero" aria-hidden="true"><Cover @key="@(Art.KeyFor(t) is { } hk ? CoverOverrides.Map(hk) : null)" ArtKey="@(Art.KeyFor(t))" Class="ls-hero-img" Full="true" /><i class="ls-fade"></i><i class="ls-scrim"></i></div>
     }
     <header class="ls-top">
-        <button class="ls-icon ls-glass" @onclick="Back" aria-label="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
+        <button class="ls-icon ls-glass" @onclick="Back" aria-label="Close Now Playing" title="Close Now Playing"><Icon Name="chevron-down" Size="24" /></button>
         <span class="ls-where">@(t is null ? "" : WhereLine(t))</span>
         <div class="ls-tools">
             @if (t is not null)
@@ -28,7 +28,7 @@
                     <button class="ls-icon ls-glass ls-dj ls-phone-top @(djTop ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djTop ? "true" : "false")" title="@(djTop ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="24" /></button>
                 }
                 <span class="ls-phone-top ls-top-mic"><DjMic Class="ls-icon ls-glass" Size="24" /></span>
-                <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")"><Icon Name="sliders" Size="22" /></button>
+                <button class="ls-icon ls-glass ls-opt" @onclick="() => opts = !opts" aria-label="Options" aria-expanded="@(opts ? "true" : "false")" title="Options"><Icon Name="sliders" Size="22" /></button>
             }
             @* the cover side and the Up next / Lyrics / Info side change places (owner, 12 Nov), remembered; a PC only (a phone shows one at a time) *@
             <button type="button" class="ls-icon ls-tint np-swap" @onclick="SwapSides" aria-label="Swap sides" aria-pressed="@(swapped ? "true" : "false")" title="Swap the cover and the lyrics sides" data-testid="np-swap"><Icon Name="swap" Size="22" /></button>
@@ -68,7 +68,7 @@
                         <DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" Class="np-dl" />
                     </div>
                     @MoreMenu("w", t)
-                    <button class="ls-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
+                    <button class="ls-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="24" /></button>
                 </div>
                 <div class="ls-bar">
                     <div class="ls-times"><span>@Time(Player.Position)</span> <span class="ls-dur">/ @Time(Player.Duration)</span></div>
@@ -81,17 +81,17 @@
                             var djOn = Player.DjOn;
                             <button class="ls-plain ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
                         }
-                        <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="22" /></button>
-                        <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="24" /></button>
+                        <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); Toast.ShuffleSaid(Player.Shuffle); }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")" title="Shuffle @(Player.Shuffle ? "on" : "off")"><Icon Name="shuffle" Size="22" /></button>
+                        <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous" title="Previous"><Icon Name="prev" Size="24" /></button>
                         @* the seek bar is a ring: the song's own loudness as bars round the play button (flacie.npWave draws it and turns a press or drag on it into a
                            seek); the range input inside is for the keyboard and screen readers *@
                         <div class="ls-ring" @ref="ringEl" @onpointerdown="hold.Press" @onpointerup="hold.Release" @onpointercancel="hold.Release">
                             <canvas class="np-wave" @ref="waveEl" aria-hidden="true"></canvas>
                             <input type="range" min="0" max="@Math.Max(1, Player.Duration)" step="1" value="@hold.Value(Player.Position)" aria-label="Seek" aria-valuetext="@Spoken(Player.Position, Player.Duration)" @oninput="hold.Input" @onchange="OnSeek" />
-                            <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
+                            <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")" title="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
                         </div>
-                        <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="24" /></button>
-                        <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
+                        <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next" title="Next"><Icon Name="next" Size="24" /></button>
+                        <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); Toast.RepeatSaid(Player.Repeat); }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })" title="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                         @* talk to the DJ: at the other end of the row from the DJ button *@
                         <DjMic />
                     </div>
@@ -116,7 +116,7 @@
                         <button role="tab" aria-selected="@(tab == "lyrics" ? "true" : "false")" class="@(tab == "lyrics" ? "on" : "")" @onclick='() => Show("lyrics")'>Lyrics</button>
                         <button role="tab" aria-selected="@(tab == "info" ? "true" : "false")" class="@(tab == "info" ? "on" : "")" @onclick='() => Show("info")'>Info</button>
                     </div>
-                    <button class="ls-icon ls-phone" @onclick="() => panelOpen = false" aria-label="Back to the cover"><Icon Name="chevron-down" Size="24" /></button>
+                    <button class="ls-icon ls-phone" @onclick="() => panelOpen = false" aria-label="Back to the cover" title="Back to the cover"><Icon Name="chevron-down" Size="24" /></button>
                 </div>
                 <div class="ls-panel" role="tabpanel">
                     @if (tab == "lyrics")
@@ -236,7 +236,7 @@
                 <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
                 <div class="ls-tiles">
                 <span class="ls-dbtn-wrap ls-dock-mic"><DjMic Class="ls-dbtn" Size="22" /></span>
-                <button class="ls-dbtn ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="Favourite"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
+                <button class="ls-dbtn ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="Favourite"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
                 <div class="ls-tile-eq ls-dbtn-wrap"><EqMenu /></div>
                 <SoundTile />
                 </div>
@@ -398,7 +398,7 @@
                             @for (var i = 1; i <= 5; i++)
                             {
                                 var n = i;
-                                <button type="button" class="star @(n <= stars ? "on" : "")" aria-label="@Ratings.Label(n)" aria-pressed="@(n == stars ? "true" : "false")" @onclick="() => Rate(t, n == stars ? 0 : n)"><Icon Name="@(n <= stars ? "star-fill" : "star")" Size="22" /></button>
+                                <button type="button" class="star @(n <= stars ? "on" : "")" aria-label="@Ratings.Label(n)" aria-pressed="@(n == stars ? "true" : "false")" @onclick="() => Rate(t, n == stars ? 0 : n)" title="@Ratings.Label(n)"><Icon Name="@(n <= stars ? "star-fill" : "star")" Size="22" /></button>
                             }
                         </div>
                     }

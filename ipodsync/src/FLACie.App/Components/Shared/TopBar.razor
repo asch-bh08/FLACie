@@ -7,7 +7,7 @@
 <header class="topbar">
     <span class="top-left">
         @* the ☰: on the Explore pages it slides the menu in; elsewhere on a PC it folds the menu to its icons *@
-        <button class="top-burger @(MenuOpen ? "open" : "")" @onclick="OnMenu" aria-label="Menu" aria-expanded="@(MenuOpen ? "true" : "false")" aria-controls="main-rail"><i></i><i></i><i></i></button>
+        <button class="top-burger @(MenuOpen ? "open" : "")" @onclick="OnMenu" aria-label="Menu" title="Menu" aria-expanded="@(MenuOpen ? "true" : "false")" aria-controls="main-rail"><i></i><i></i><i></i></button>
         <a class="top-brand" href="/" aria-label="FLACie home"><Logo Size="32" Class="top-name-wrap" /></a>
     </span>
     @if (Full) { <h2 class="top-title">Explore</h2> }
@@ -15,7 +15,7 @@
     <form class="top-search" role="search" @onsubmit="Go">
         <Icon Name="search" Size="18" />
         <TextBox Type="search" Placeholder="Search songs, albums, artists, or music to download" Label="Search" Value="@q" ValueChanged="OnText" DelayMs="300" />
-        @if (q.Length > 0) { <button type="button" class="icon-btn" aria-label="Clear search" @onclick="Clear"><Icon Name="x" Size="16" /></button> }
+        @if (q.Length > 0) { <button type="button" class="icon-btn" aria-label="Clear search" @onclick="Clear" title="Clear search"><Icon Name="x" Size="16" /></button> }
         @* speak to search; a request to the DJ ("play my pop playlist") is carried out instead *@
         <DjMic Class="icon-btn" Size="18" OnHeard="Spoken" />
     </form>

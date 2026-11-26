@@ -20,7 +20,8 @@ Info / Add) are liked; the web's small square mono tags on Now Playing are liked
 ## The one design (the spec both sides build to)
 
 **Big by default (owner, 26 Nov: "I LOVE big buttons ... they're too small, but they can be big and fit, be smart").** Every size below is the
-comfortable size; a piece only steps down (never below 48 touch / 44 visible) when the screen measures too small for it, by the same fit
+comfortable size (the owner loves car mode's huge buttons: take their feel, chunky, filled, clear icon and word, easy to hit without looking,
+at app scale, not car scale); a piece only steps down (never below 48 touch / 44 visible) when the screen measures too small for it, by the same fit
 rule on both sides (Now Playing's NowPlayingFit idea, applied to every screen). Sizes after this note's update:
 | Piece | Decision |
 |---|---|

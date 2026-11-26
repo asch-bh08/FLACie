@@ -79,6 +79,8 @@ object BrowseProbe {
                     call { b.sendCustomCommand(androidx.media3.session.SessionCommand(PlaybackService.CMD_SHUFFLE, android.os.Bundle.EMPTY), android.os.Bundle.EMPTY) }
                     if (call { SettableFuture.create<Int>().also { it.set(b.currentTimeline.windowCount) } } > 2) { Handler(ht.looper).post { b.seekToDefaultPosition(2) }; Thread.sleep(1500)
                         Handler(android.os.Looper.getMainLooper()).post { Log.i(TAG, "after tapping queue item 2: '${app.player.current?.title}'") }; Thread.sleep(300) }
+                    // the queue saved before the next start reads it for Continue (a skip's burst holds the save back; the app was force-stopped in between)
+                    Thread.sleep(2500); Handler(android.os.Looper.getMainLooper()).post { app.player.persistNow() }; Thread.sleep(1500)
                 }
                 Log.i(TAG, "probe done")
             } catch (e: Throwable) { Log.e(TAG, "probe failed", e) }

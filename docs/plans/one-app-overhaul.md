@@ -78,6 +78,10 @@ Remove from playlist. Words: Favourites (never Favorites), "…" (one character)
     lower corners); the spare room is used or shared, never a band
   - Lyrics / Info: the plain seek line is liked but too plain: the round thumb becomes a tall rounded-rectangle thumb, the line a little bolder
   - the + (Add to playlist) smaller or tucked, still one tap away; the phone's add-to-playlist page redone on the kit (it is outdated)
+- Owner, 26 Nov: "pretty much every page other than Now Playing, Home and Devices is outdated" (like the phone's add-to-playlist page),
+  and the More menu/page needs redesigning. So every other page is a redesign, not a re-skin. Method for each page: put the web and the
+  phone version side by side (parity page), take the better ideas of each, make them look the same, then fit each to its screen (phone:
+  thumb reach, sheets, big main actions; PC: width, popovers, more visible at once). Now Playing, Home and Devices are the reference look.
 - Every page on every platform is in scope (web PC, web phone, Android, the Windows app's pages, Android Auto keeps its own car rules).
 
 - 1h Every screen size (owner, 26 Nov: "fits every aspect ratio, resolution, screen size"): one size list used by both checks — phones

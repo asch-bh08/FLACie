@@ -2095,3 +2095,57 @@ flacie.graphFull = (box, onlyOpen) => {
   addEventListener("keydown", esc);
 };
 
+// The Edit playlist page's rows, moved by their ≡ handle (as the phone's EditPlaylistScreen). Dragging only shifts the rows on screen; the drop tells
+// the page the new place once, and the page saves it and draws the list again. Up and Down on a focused handle move its row one place.
+flacie.dragRows = (list, page) => {
+  if (!list || list._dragRows) return;
+  list._dragRows = true;
+  const rows = () => [...list.querySelectorAll(":scope > li")];
+  const handles = () => [...list.querySelectorAll(":scope > li .pe-handle")];
+  let drag = null;
+  const clear = () => { for (const r of rows()) { r.style.transform = ""; r.classList.remove("dragging", "shifting"); } };
+  list.addEventListener("pointerdown", (e) => {
+    const h = e.target.closest(".pe-handle");
+    if (!h || e.button > 0) return;
+    const all = rows(), row = h.closest("li"), from = all.indexOf(row);
+    if (from < 0) return;
+    // the places as they were when the drag began: the goal is found against these, so the rows sliding aside never move it
+    const tops = all.map((r) => r.getBoundingClientRect().top), step = all.length > 1 ? tops[1] - tops[0] : row.offsetHeight;
+    drag = { id: e.pointerId, row, all, from, to: from, y0: e.clientY, mid: tops[from] + row.offsetHeight / 2, mids: all.map((r, i) => tops[i] + r.offsetHeight / 2), step };
+    h.setPointerCapture(e.pointerId);
+    row.classList.add("dragging");
+    for (const r of all) if (r !== row) r.classList.add("shifting");
+    e.preventDefault();
+  });
+  list.addEventListener("pointermove", (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dy = e.clientY - drag.y0, c = drag.mid + dy;
+    drag.row.style.transform = `translateY(${dy}px)`;
+    let to = 0;
+    drag.mids.forEach((m, i) => { if (i !== drag.from && m < c) to++; });
+    drag.to = to;
+    drag.all.forEach((r, i) => {
+      if (i === drag.from) return;
+      const shift = drag.from < to && i > drag.from && i <= to ? -drag.step : drag.from > to && i >= to && i < drag.from ? drag.step : 0;
+      r.style.transform = shift ? `translateY(${shift}px)` : "";
+    });
+  });
+  const drop = (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const { from, to } = drag; drag = null;
+    clear();
+    if (from !== to) page.invokeMethodAsync("Moved", from, to, false).catch(() => { });
+  };
+  list.addEventListener("pointerup", drop);
+  list.addEventListener("pointercancel", drop);
+  list.addEventListener("keydown", (e) => {
+    const h = e.target.closest(".pe-handle");
+    if (!h || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    e.preventDefault();
+    const from = handles().indexOf(h), to = from + (e.key === "ArrowUp" ? -1 : 1);
+    if (from < 0 || to < 0 || to >= handles().length) return;
+    page.invokeMethodAsync("Moved", from, to, true).catch(() => { });
+  });
+};
+flacie.focusRow = (list, i) => { list?.querySelectorAll(":scope > li .pe-handle")[i]?.focus(); };
+

@@ -1,0 +1,130 @@
+@page "/playlist/{Id}/edit"
+@attribute [Authorize]
+@inherits UserComponent
+@* A playlist's own page for changing it, as the phone's Edit playlist (android PlayerUi.kt EditPlaylistScreen): on its own page it is plain that you
+   are editing (owner, 26 Nov: "I didn't even know that was edit mode"). Rename, Remove duplicates and Delete live here, not behind a More menu. *@
+@{ var p = Session.Playlists.FirstOrDefault(x => x.Id == Id); }
+<PageTitle>Edit playlist · FLACie</PageTitle>
+@if (p is null)
+{
+    <div class="empty-state"><p class="status">This playlist isn't there any more.<small>It may have been deleted on another device.</small></p><a class="btn" href="/playlists">Your playlists</a></div>
+}
+else
+{
+    <div class="pl-page pe-page" @ref="pageEl">
+        <header class="pe-head">
+            <h1>Edit <i>playlist</i></h1>
+            <a class="btn primary pe-done" href="/playlist/@p.Id">Done</a>
+        </header>
+        <section class="pe-card" aria-label="Playlist">
+            @if (renaming)
+            {
+                <form class="pl-rename" @onsubmit="() => Rename(p)">
+                    <input @bind="newName" @bind:event="oninput" aria-label="Playlist name" maxlength="80" />
+                    <button class="btn primary" type="submit" disabled="@(newName.Trim().Length == 0)">Save</button>
+                    <button class="btn" type="button" @onclick="() => renaming = false">Cancel</button>
+                </form>
+            }
+            else
+            {
+                <div class="pe-name">
+                    <div><h2>@p.Name</h2><small>@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs") · drag ≡ to move a song</small></div>
+                    <button class="btn pe-rename" @onclick="() => { renaming = true; newName = p.Name; }">Rename</button>
+                </div>
+            }
+            <div class="pe-actions">
+                @if (confirm)
+                {
+                    <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
+                    <button class="btn" @onclick="() => confirm = false">Keep it</button>
+                }
+                else
+                {
+                    <button class="btn" disabled="@(p.Entries.Count < 2)" @onclick="() => Dedupe(p)"><Icon Name="check" Size="16" />Remove duplicates</button>
+                    <button class="btn pe-delete" @onclick="() => confirm = true"><Icon Name="x" Size="16" />Delete playlist</button>
+                }
+            </div>
+        </section>
+        @if (p.Entries.Count == 0) { <div class="empty-state"><p class="status">Nothing in this playlist yet.</p></div> }
+        @* every entry of the playlist, also the ones this library hasn't got, so a row's place is the playlist's own and a move or a removal hits the right one *@
+        <ol class="pe-list" @ref="listEl" aria-label="Songs">
+            @for (var i = 0; i < p.Entries.Count; i++)
+            {
+                var at = i; var e = p.Entries[i]; var t = Session.ResolveEntry(e);
+                var title = t?.Title ?? (e.Title.Length > 0 ? e.Title : System.IO.Path.GetFileNameWithoutExtension(e.Path));
+                <li class="pe-row @(t is null ? "gone" : "")">
+                    <Cover ArtKey="@t?.ArtKey" Size="44" />
+                    <span class="pe-text"><span class="track-title">@title</span><span class="track-sub">@(t?.Artist ?? e.Artist)</span></span>
+                    <button class="pe-btn pe-remove" aria-label="@($"Remove {title} from playlist")" title="Remove from playlist" @onclick="() => Remove(p, at)"><Icon Name="x" Size="18" /></button>
+                    <button class="pe-btn pe-handle" aria-label="@($"Move {title}")" title="Drag to move, or press Up or Down" aria-describedby="pe-how"><Icon Name="lines" Size="22" /></button>
+                </li>
+            }
+        </ol>
+        <p id="pe-how" class="sr-only">Drag to move, or press the Up or Down arrow key.</p>
+        <p class="sr-only" role="status" aria-live="polite">@said</p>
+    </div>
+}
+@code {
+    [Parameter] public string Id { get; set; } = "";
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    [Inject] Toasts Toast { get; set; } = default!;
+    ElementReference pageEl, listEl; string? heroFor = "";
+    DotNetObjectReference<PlaylistEdit>? self;
+    bool wired, renaming, confirm; string newName = "", said = "";
+    int focusAt = -1;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        var p = Session?.Playlists.FirstOrDefault(x => x.Id == Id);
+        if (p is null) return;
+        try
+        {
+            // the list's dragging is done in the browser (pointer events need no round trip per move); only the drop comes back here
+            if (!wired) { self ??= DotNetObjectReference.Create(this); await Js.InvokeVoidAsync("flacie.dragRows", listEl, self); wired = true; }
+            // a keyboard move: the handle under the focus now holds another song, so the focus follows the moved one
+            if (focusAt >= 0) { var f = focusAt; focusAt = -1; await Js.InvokeVoidAsync("flacie.focusRow", listEl, f); }
+            // the page takes the first cover's colours, as the playlist does
+            var k = Session!.Resolve(p.Entries).Select(t => t.ArtKey).FirstOrDefault(x => x is not null);
+            var art = k is not null ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(k)!) : null;
+            if (art != heroFor) { heroFor = art; await Js.InvokeVoidAsync("flacie.npAccent", pageEl, art); }
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }   // drawn on the server before the live connection: tried again on the next render
+    }
+
+    /// <summary>A row dropped at another place, by dragging or by the arrow keys ([byKey]).</summary>
+    [JSInvokable]
+    public Task Moved(int from, int to, bool byKey)
+    {
+        if (Session.Playlists.FirstOrDefault(x => x.Id == Id) is not { } p || from == to || from < 0 || to < 0 || from >= p.Entries.Count || to >= p.Entries.Count) return Task.CompletedTask;
+        var e = p.Entries[from];
+        Session.MoveInPlaylist(p.Id, from, to); SaveProfile();
+        if (byKey) focusAt = to;
+        said = $"{Session.ResolveEntry(e)?.Title ?? e.Title} moved to place {to + 1} of {p.Entries.Count}";
+        return InvokeAsync(StateHasChanged);
+    }
+
+    void Rename(FLACie.Core.Playlist p) { var n = newName.Trim(); if (n.Length > 0) { Session.RenamePlaylist(p.Id, n); SaveProfile(); } renaming = false; }
+
+    void Dedupe(FLACie.Core.Playlist p)
+    {
+        var n = Session.RemoveDuplicates(p.Id);
+        if (n > 0) SaveProfile();
+        Toast.Show(n == 0 ? "No duplicates in this playlist" : $"Removed {n} duplicate{(n == 1 ? "" : "s")}");
+    }
+
+    void Remove(FLACie.Core.Playlist p, int at)
+    {
+        if (at < 0 || at >= p.Entries.Count) return;
+        var entry = p.Entries[at];
+        var title = Session.ResolveEntry(entry)?.Title ?? entry.Title;
+        Session.RemoveFromPlaylist(p.Id, at);
+        SaveProfile();
+        // offered back: Undo puts it in the same place
+        Toast.Show($"Removed “{title}” from {p.Name}", "Undo", () => { Session.InsertIntoPlaylist(p.Id, at, entry); SaveProfile(); InvokeAsync(StateHasChanged); Toast.Dismiss(); });
+    }
+
+    void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
+
+    public override void Dispose() { self?.Dispose(); base.Dispose(); }
+}

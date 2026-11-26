@@ -119,11 +119,16 @@ for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', wi
     await page.waitForTimeout(500);
     await live(page, url);
     const found = await scan(page);
-    await page.getByRole('button', { name: 'More for this playlist' }).click();
-    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    // and its Edit page
+    await page.locator('.pl-hero').getByRole('link', { name: 'Edit', exact: true }).click();
+    await page.waitForURL(/\/edit$/);
+    await expect(page.locator('.pe-row')).toHaveCount(1);
+    const foundEdit = await scan(page);
+    await page.getByRole('button', { name: 'Delete playlist' }).click();
     await page.getByRole('button', { name: /^Delete "/ }).click();
     await page.waitForURL(/\/playlists$/);
     expect(found).toEqual([]);
+    expect(foundEdit).toEqual([]);
   });
 }
 

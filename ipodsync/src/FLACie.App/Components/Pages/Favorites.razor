@@ -20,10 +20,10 @@
                 <div class="pl-tools">
                 @if (confirmClear)
                 {
-                    <button class="btn danger" @onclick="Clear">Clear all @Session.Favorites.Count</button>
-                    <button class="btn pl-tool" @onclick="() => confirmClear = false">Keep them</button>
+                    <button class="btn danger pl-slot" @onclick="Clear"><Icon Name="x" Size="19" /><span>Clear all @Session.Favorites.Count</span></button>
+                    <button class="btn pl-tool pl-slot" @onclick="() => confirmClear = false"><Icon Name="check" Size="19" /><span>Keep them</span></button>
                 }
-                else { <button class="btn pl-tool" @onclick="() => confirmClear = true">Clear all</button> }
+                else { <button class="btn pl-tool pl-slot" @onclick="() => confirmClear = true"><Icon Name="x" Size="19" /><span>Clear all</span></button> }
                 </div>
             }
         </div>

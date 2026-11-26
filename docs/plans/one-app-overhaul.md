@@ -21,7 +21,8 @@ Info / Add) are liked; the web's small square mono tags on Now Playing are liked
 
 **Big by default (owner, 26 Nov: "I LOVE big buttons ... they're too small, but they can be big and fit, be smart").** Every size below is the
 comfortable size (the owner loves car mode's huge buttons: take their feel, chunky, filled, clear icon and word, easy to hit without looking,
-at app scale, not car scale); a piece only steps down (never below 48 touch / 44 visible) when the screen measures too small for it, by the same fit
+at app scale, not car scale; car mode can be that big because it leaves features out, the app must keep every feature, so each screen
+shows its 3-5 main actions big and puts the rest one tap away: More, Edit or a sheet, as the playlist page does); a piece only steps down (never below 48 touch / 44 visible) when the screen measures too small for it, by the same fit
 rule on both sides (Now Playing's NowPlayingFit idea, applied to every screen). Sizes after this note's update:
 | Piece | Decision |
 |---|---|

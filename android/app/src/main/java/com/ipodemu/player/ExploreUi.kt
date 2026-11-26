@@ -1,6 +1,8 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -143,7 +145,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
         // one line: the filter box, Filters (with how many are on) and Sort
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             SearchPill(query, { query = it }, when (tab) { "Songs" -> "Search songs"; "Albums" -> "Search albums"; "Artists" -> "Search artists"; else -> "Search genres" }, Modifier.weight(1f), height = 46.dp, trailing = {
-                if (query.isNotEmpty()) Box(Modifier.size(32.dp).clip(RoundedCornerShape(16.dp)).clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
+                if (query.isNotEmpty()) Box(Modifier.size(32.dp).clip(RoundedCornerShape(16.dp)).semantics { contentDescription = "Clear search" }.clickable { query = "" }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.CLOSE, Modifier.size(14.dp), sc.onBgDim) }
             })
             GlossPill(if (activeFilters > 0) "Filters · $activeFilters" else "Filters", { openFilters() }, icon = Glyph.LIST, primary = activeFilters > 0, height = 46.dp)
             IconAction(Glyph.DOWN, "Sort: " + (sorts?.firstOrNull { it.first == sort }?.second ?: ""), {

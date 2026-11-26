@@ -88,7 +88,7 @@
             <div class="banner bad">
                 <Icon Name="warn" Size="16" />
                 <span class="grow"><strong>Something went wrong.</strong> @State.Error</span>
-                <button class="btn icon ghost" @onclick="() => State.Error = null"><Icon Name="close" Size="14" /></button>
+                <button class="btn icon ghost" aria-label="Dismiss" title="Dismiss" @onclick="() => State.Error = null"><Icon Name="close" Size="14" /></button>
             </div>
         }
         @if (State.DeviceReadOnlyReason is { } deviceWhy)

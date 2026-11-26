@@ -1,6 +1,6 @@
 @inherits UserComponent
 <div class="vol">
-    <button class="icon-btn" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" /></button>
+    <button class="icon-btn" @onclick="Player.ToggleMuteAsync" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")" title="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : Player.Volume < 0.5 ? "volume-1" : "volume-2")" /></button>
     @* the sound and the bar follow the pointer in the page itself; the player is told once it is let go (owner, 12 Nov: "glitchy, jumps with the mouse": each
        move went to the server and back, and a redraw in between put the old level back under the pointer). The wheel moves it 5 a notch *@
     <input type="range" min="0" max="100" step="1" value="@((int)Math.Round(Player.Volume * 100))" aria-label="Volume" aria-valuetext="@((int)Math.Round(Player.Volume * 100))%" style="--fill:@((int)Math.Round(Player.Volume * 100))%"

@@ -271,7 +271,7 @@ private fun NpTransport(snap: PlayerSnap) {
         // shrink the row on narrow columns so all five buttons always fit
         val k = (maxWidth / 320.dp).coerceIn(0.62f, 1f)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            GlossButton({ app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes(); bump += 1f }, label = "Shuffle", size = 44.dp * k, primary = snap.shuffle) {
+            GlossButton({ app.shuffleTap(); bump += 1f }, label = "Shuffle", size = 44.dp * k, primary = snap.shuffle) {
                 GlyphIcon(Glyph.SHUFFLE, Modifier.size(22.dp * k), Color.White)
             }
             GlossButton({ app.player.prev() }, label = "Previous", size = 56.dp * k) { GlyphIcon(Glyph.PREV, Modifier.size(26.dp * k), Color.White) }

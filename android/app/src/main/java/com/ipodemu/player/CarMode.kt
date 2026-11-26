@@ -153,7 +153,7 @@ fun CarScreen(onExit: () -> Unit) {
                 // the player bar's other buttons too (owner, 12 Nov: "keep this, or what you can of it, in car mode"): shuffle and repeat at the ends
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CarButton(if (snap.shuffle) "Shuffle on" else "Shuffle off", Modifier.weight(1f), 72.dp, if (snap.shuffle) accent.copy(alpha = .3f) else ink.copy(alpha = .12f), ink, on = snap.shuffle,
-                        onClick = { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() }) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(28.dp), if (snap.shuffle) accent else ink) }
+                        onClick = { app.shuffleTap() }) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(28.dp), if (snap.shuffle) accent else ink) }
                     app.userData.rev
                     val fav = t != null && app.userData.isFavorite(t)
                     CarButton(if (fav) "Remove from favourites" else "Favourite", Modifier.weight(1f), 72.dp, ink.copy(alpha = .12f), ink, onClick = { t?.let { app.userData.toggleFavorite(it) } }) {

@@ -250,7 +250,8 @@ test.describe.serial('download tags', () => {
     await expect(hit).toBeVisible({ timeout: 20_000 });
     await expect(hit.locator('.badge.cloud')).toHaveText('Streaming');
     await expect(hit.locator('.badge.cloud')).toHaveCSS('color', 'rgb(109, 179, 255)');   // blue, a fixed colour (not the accent)
-    // (the "Recently downloaded" line on the Top result card: added 26 Nov but not showing yet; HANDOFF-2026-11-25 G27)
+    // the Top result card says how it came in, as its row used to
+    await expect(hit.locator('.dl-tag')).toHaveText(RECENT, { timeout: 20_000 });
     // no second "Download" is offered for it in the same results
     await expect(page.locator('.track', { has: page.locator('.track-title', { hasText: /^P$/ }) }).getByRole('button', { name: /^Download$/ })).toHaveCount(0);
   });
@@ -326,8 +327,10 @@ test.describe.serial('download tags', () => {
     await expect(page.locator('.tracks .track .track-dl')).toHaveCount(1);
     // the same song in the Explore list, found by name
     await live('/search?q=' + encodeURIComponent('Harbour 11'));
-    // (the song is the search's Top result since the 25 Nov redesign; its card's "Recently downloaded" line is HANDOFF-2026-11-25 G27)
-    await expect(page.locator('.sr-hero.song', { has: page.locator('.sr-hero-title', { hasText: /^Harbour 11$/ }) })).toBeVisible({ timeout: 20_000 });
+    // the song is the search's Top result since the 25 Nov redesign; its card carries the line
+    const top = page.locator('.sr-hero.song', { has: page.locator('.sr-hero-title', { hasText: /^Harbour 11$/ }) });
+    await expect(top).toBeVisible({ timeout: 20_000 });
+    await expect(top.locator('.dl-tag')).toHaveText(/^Recently downloaded · \d+ min ago$/);
     await live('/songs');
     await expect(page.locator('.tracks.virtual .track').first()).toBeVisible({ timeout: 20_000 });
     const songs = page.locator('.tracks.virtual .track', { has: page.locator('.track-title', { hasText: /^Harbour 11$/ }) });

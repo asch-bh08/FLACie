@@ -67,7 +67,7 @@ fun saveQueueAsPlaylist(app: App) {
 fun removeFromQueueWithUndo(app: App, index: Int) {
     val r = app.player.removeAt(index)
     if (r == null) { if (app.player.hasQueue && !app.player.canEditQueue) app.ui.say("A Jam's queue is shared; it cannot be changed from here", warn = true); return }
-    app.ui.say("Removed \"${r.track.title}\" from Up next", "Undo") { app.player.undoRemoval(r) }
+    app.ui.say("Removed “${r.track.title}” from the queue", "Undo") { app.player.undoRemoval(r) }
 }
 
 /**

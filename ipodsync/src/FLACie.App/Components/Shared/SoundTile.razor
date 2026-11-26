@@ -20,7 +20,7 @@
     {
         <div class="ls-volpill-pop" role="dialog" aria-label="Sound options">
             @* on a narrow window (a tablet, a zoomed laptop) the bar has no room for the slider: it is here instead *@
-            <label class="ls-volpill-popbar"><button type="button" class="ls-volpill-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" @onclick:preventDefault="true" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : "volume-2")" Size="20" /></button>
+            <label class="ls-volpill-popbar"><button type="button" class="ls-volpill-mute @(Player.Volume == 0 ? "on" : "")" @onclick="Player.ToggleMuteAsync" @onclick:preventDefault="true" aria-label="@(Player.Volume == 0 ? "Unmute" : "Mute")" title="@(Player.Volume == 0 ? "Unmute" : "Mute")"><Icon Name="@(Player.Volume == 0 ? "volume-0" : "volume-2")" Size="20" /></button>
                 <input class="ls-volpill-bar" type="range" min="0" max="100" step="1" value="@Pct" aria-label="Volume" aria-valuetext="@Pct%" style="--fill:@Pct%"
                        oninput="flacie.volume(this.value / 100); this.style.setProperty('--fill', this.value + '%')" @onchange="OnVolume" />
             </label>

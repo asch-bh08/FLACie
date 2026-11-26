@@ -12,7 +12,7 @@
         <li class="track @(now ? "now" : "") @(picked ? "picked" : "")">
             @if (selecting)
             {
-                <button class="track-pick" aria-pressed="@(picked ? "true" : "false")" aria-label="Select @t.Title" @onclick="() => Pick(idx)"><Icon Name="@(picked ? "check" : "plus")" Size="18" /></button>
+                <button class="track-pick" aria-pressed="@(picked ? "true" : "false")" aria-label="Select @t.Title" @onclick="() => Pick(idx)" title="Select @t.Title"><Icon Name="@(picked ? "check" : "plus")" Size="18" /></button>
             }
             <button class="track-main" data-np="@(now && Player.Playing)" @onclick="e => Main(e, idx)" aria-label="@(selecting ? "Tick " + t.Title : "Play " + t.Title + " by " + t.Artist)">
                 @if (Numbered) { <span class="track-no">@(t.TrackNo > 0 ? t.TrackNo : idx + 1)</span> }
@@ -33,8 +33,8 @@
                 <button class="chip small ver-toggle" aria-expanded="@(openVersions.Contains(t.Path) ? "true" : "false")" @onclick="() => { if (!openVersions.Remove(t.Path)) openVersions.Add(t.Path); }">+@vers.Count @(vers.Count == 1 ? "version" : "versions")</button>
             }
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
-            <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
-            <button class="icon-btn" @onclick="() => { menu = menu == idx ? -1 : idx; sub = string.Empty; }" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")"><Icon Name="more" /></button>
+            <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
+            <button class="icon-btn" @onclick="() => { menu = menu == idx ? -1 : idx; sub = string.Empty; }" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")" title="More for @t.Title"><Icon Name="more" /></button>
             @if (menu == idx)
             {
                 <div class="menu" role="menu">

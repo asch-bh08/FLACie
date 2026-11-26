@@ -540,7 +540,7 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
         // the DJ and the mic are in the top bar (owner, 8 Nov), so these five are always full size
         val k = (maxWidth / 330.dp).coerceIn(.8f, 1f)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes() },
+            IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.shuffleTap() },
                 tint = if (snap.shuffle) p.main.value else InkDim, size = 48.dp * k, iconScale = .48f, dot = snap.shuffle)
             SleevePillButton(Glyph.PREV, "Previous", p, k) { app.player.prev() }
             SleevePlay(snap, p, k)
@@ -1054,8 +1054,8 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     }
                     Spacer(Modifier.height(14.dp))
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        MoreTile("Play next", Glyph.NEXT, p, false, Modifier.weight(1f), close { app.player.addNext(t); app.ui.say("Playing next") })
-                        MoreTile("Add to queue", Glyph.QUEUE, p, false, Modifier.weight(1f), close { app.player.addToQueue(t); app.ui.say("Added to queue") })
+                        MoreTile("Play next", Glyph.NEXT, p, false, Modifier.weight(1f), close { app.player.addNext(t); app.ui.say("“${t.title}” plays next") })
+                        MoreTile("Add to queue", Glyph.QUEUE, p, false, Modifier.weight(1f), close { app.player.addToQueue(t); app.ui.say("Added “${t.title}” to the queue") })
                         MoreTile(if (fav) "Favourite" else "Favourite", if (fav) Glyph.HEART_FILLED else Glyph.HEART, p, fav, Modifier.weight(1f)) { app.userData.toggleFavorite(t) }
                         MoreTile("Add to playlist", Glyph.PLUS, p, false, Modifier.weight(1f), close { nav.sheet = playlistPicker(app, nav, t) })
                     }

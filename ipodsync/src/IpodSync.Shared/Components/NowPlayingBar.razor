@@ -6,7 +6,7 @@
     <div class="queue-pop">
         <div class="head">
             <strong>Up next@(Player.QueueName is { } n ? $" · {n}" : "")</strong>
-            <button class="btn icon ghost" @onclick="() => _showQueue = false"><Icon Name="close" Size="14" /></button>
+            <button class="btn icon ghost" aria-label="Close" title="Close" @onclick="() => _showQueue = false"><Icon Name="close" Size="14" /></button>
         </div>
         <div class="list">
             @foreach (var (t, i) in Player.Queue.Select((t, i) => (t, i)).Skip(Math.Max(0, Player.Index - 1)).Take(60))

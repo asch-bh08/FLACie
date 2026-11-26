@@ -118,6 +118,8 @@ class Library(ctx: Context, val art: ArtCache) {
             return TrackTitles.cleanAll(tracks, jellyfin.knownArtists)
         }
         override fun publish(tracks: List<Track>, complete: Boolean) {
+            // the first pages of a pass never replace a longer list that shows already (the saved one): the screen would shrink and grow again
+            if (!complete && !LibraryOpen.partMayReplace(jellyfinTracks.size, tracks.size)) return
             jellyfinTracks = CoverVetting.vet(tracks); jellyfinConnected = true
             if (complete) applyJellyfinMerge() else rebuild()
             notifyChange()
@@ -128,6 +130,8 @@ class Library(ctx: Context, val art: ArtCache) {
         override fun persist() { AudioFacts.saveJellyfin(jfFactsFile) }
     }
     val jfSync = JellyfinSync(jfApi, jfIndex, jfSink)
+    /** Opens when the saved song list is in (see [SavedListGate]): a sync waits for it, so it knows the list it already has. */
+    private val savedGate = SavedListGate()
 
     private val STATE_VERSION = 4   // 3 (beta 57): songs with no picture on the server get an album lookup key: the saved list is listed once more. 4 (2 Nov): a song's artist is its own, not the album artist
 
@@ -577,7 +581,7 @@ class Library(ctx: Context, val art: ArtCache) {
                         com.ipodemu.Boot.span("library load()") { load() }; com.ipodemu.Boot.span("library showSavedLibrary()") { showSavedLibrary() }
                         com.ipodemu.Boot.span("library loadRemote()") { loadRemote() }; com.ipodemu.Boot.span("library rebuild()") { rebuild() }; loaded = true
                         com.ipodemu.Boot.mark("library loaded: ${tracks.size} songs, ${jellyfinTracks.size} jellyfin")
-                    }, shown = { notifyChange() }, refresh = {})   // Home waits for this before it works its shelves out again from the whole library
+                    }, shown = { notifyChange() }, refresh = {}, gate = savedGate)   // Home waits for this before it works its shelves out again from the whole library
                 }
                 if (source == Source.LOCAL) { mergeJellyfin(); mergePlex(); mergeNas(); checkLidarr(); checkSlskd(); checkFileMover() }
                 runScan()
@@ -649,6 +653,7 @@ class Library(ctx: Context, val art: ArtCache) {
         startJfPoll()
         scope.launch {
             try {
+                savedGate.waitForSaved()
                 // the first pass on this server pages through everything (at Background priority); later ones ask only for what changed since
                 jfSync.sync()
                 lastJfSyncAt = System.currentTimeMillis()

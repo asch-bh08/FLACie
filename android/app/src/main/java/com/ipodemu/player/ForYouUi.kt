@@ -1,6 +1,8 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.border
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -176,7 +178,7 @@ fun QuickPicks(tracks: List<com.ipodemu.library.Track>, nav: PlayerNav, onPlay: 
                                 else if (com.ipodemu.library.HomeShelves.isNew(t)) Txt("New · tap to get it", size = 11f, color = sc.accent, maxLines = 1)
                             }
                             // a song not in the library yet has no menu (nothing to queue, rate or share until it arrives)
-                            if (!com.ipodemu.library.HomeShelves.isNew(t)) Box(Modifier.size(44.dp).clip(CircleShape).clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
+                            if (!com.ipodemu.library.HomeShelves.isNew(t)) Box(Modifier.size(44.dp).clip(CircleShape).semantics { contentDescription = "More for ${t.title}" }.clickable { openTrackSheet(app, nav, t) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), sc.onBgDim) }
                         }
                     }
                 }

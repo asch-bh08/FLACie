@@ -80,7 +80,7 @@ else
                 @foreach (var row in Rows)
                 {
                     <tr class="@(IsCurrent(row) ? "playing" : "")" @ondblclick="() => Play(row)">
-                        <td class="tight"><button class="rowbtn shown" @onclick:stopPropagation="true" @onclick="() => Play(row)"><Icon Name="play" Size="15" /></button></td>
+                        <td class="tight"><button class="rowbtn shown" aria-label="@("Play " + row.Title)" title="@("Play " + row.Title)" @onclick:stopPropagation="true" @onclick="() => Play(row)"><Icon Name="play" Size="15" /></button></td>
                         <td>@row.Title</td>
                         <td>@row.Artist</td>
                         <td>@row.Album</td>

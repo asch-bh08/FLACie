@@ -1,6 +1,8 @@
 package com.ipodemu.player
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -423,7 +425,7 @@ private fun IpodCarousel(model: Model, ci: Int) {
 
 @Composable
 private fun CarouselArrow(left: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Box(modifier.padding(2.dp).size(38.dp).clip(CircleShape).background(Color(0x55000000)).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+    Box(modifier.padding(2.dp).size(38.dp).clip(CircleShape).background(Color(0x55000000)).semantics { contentDescription = if (left) "Previous" else "Next" }.clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         GlyphIcon(Glyph.CHEVRON, Modifier.size(20.dp).graphicsLayer { rotationZ = if (left) 180f else 0f }, Color.White)
     }
 }

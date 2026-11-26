@@ -29,20 +29,20 @@
             <canvas id="viz" class="viz @viz" aria-hidden="true"></canvas>
             <span class="car-viz-name">@VisualName</span>
         </button>
-        <button type="button" class="car-viz-arrow prev" @onclick="PrevVisual" aria-label="Previous graph"><Icon Name="chevron-left" Size="26" /></button>
-        <button type="button" class="car-viz-arrow next" @onclick="NextVisual" aria-label="Next graph"><Icon Name="chevron-right" Size="26" /></button>
+        <button type="button" class="car-viz-arrow prev" @onclick="PrevVisual" aria-label="Previous graph" title="Previous graph"><Icon Name="chevron-left" Size="26" /></button>
+        <button type="button" class="car-viz-arrow next" @onclick="NextVisual" aria-label="Next graph" title="Next graph"><Icon Name="chevron-right" Size="26" /></button>
     </div>
     <div class="car-controls">
-        <button type="button" class="car-btn" @onclick="Player.Prev" aria-label="Previous"><Icon Name="prev" Size="40" /></button>
-        <button type="button" class="car-btn car-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="48" /></button>
-        <button type="button" class="car-btn" @onclick="Player.Next" aria-label="Next"><Icon Name="next" Size="40" /></button>
+        <button type="button" class="car-btn" @onclick="Player.Prev" aria-label="Previous" title="Previous"><Icon Name="prev" Size="40" /></button>
+        <button type="button" class="car-btn car-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")" title="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="48" /></button>
+        <button type="button" class="car-btn" @onclick="Player.Next" aria-label="Next" title="Next"><Icon Name="next" Size="40" /></button>
     </div>
     <div class="car-extras">
-        <button type="button" class="car-btn small @(Player.Shuffle ? "on" : "")" @onclick="Player.ToggleShuffle" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="28" /></button>
+        <button type="button" class="car-btn small @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); Toast.ShuffleSaid(Player.Shuffle); }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")" title="Shuffle @(Player.Shuffle ? "on" : "off")"><Icon Name="shuffle" Size="28" /></button>
         @if (t is not null)
         {
             var fav = Session.IsFavorite(t);
-            <button type="button" class="car-btn small @(fav ? "on" : "")" @onclick="() => { Feedback.Heart(Session, t); SaveProfile(); }" aria-label="@(fav ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(fav ? "heart-fill" : "heart")" Size="30" /></button>
+            <button type="button" class="car-btn small @(fav ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(fav ? "Remove from favourites" : "Add to favourites")" title="@(fav ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(fav ? "heart-fill" : "heart")" Size="30" /></button>
         }
         @if (Player.Dj is not null)
         {
@@ -50,10 +50,11 @@
             <button type="button" class="car-btn small @(dj ? "on" : "")" @onclick="Player.ToggleDjAsync" aria-label="DJ" aria-pressed="@(dj ? "true" : "false")" title="@(dj ? "DJ on for this queue" : "DJ off for this queue")"><Icon Name="dj" Size="32" /></button>
             <span class="car-btn small car-mic"><DjMic Class="car-mic-btn" Size="30" /></span>
         }
-        <button type="button" class="car-btn small @(Player.Repeat > 0 ? "on" : "")" @onclick="Player.CycleRepeat" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="28" /></button>
+        <button type="button" class="car-btn small @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); Toast.RepeatSaid(Player.Repeat); }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })" title="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="28" /></button>
     </div>
 </div>
 @code {
+    [Inject] Toasts Toast { get; set; } = default!;
     /// <summary>The visualisers car mode goes through, a click each: the lively ones, readable at a glance (as CarMode.kt CarVisuals).</summary>
     public static readonly (string Id, string Name)[] Visuals = [("leds", "Visualizer"), ("curve", "Spectrum"), ("wall", "Spectrogram"), ("loud", "Loudness"), ("ring", "Circle"),
         ("scope", "Waveform"), ("orbit", "Orbit"), ("skyline", "Skyline"), ("bars", "Bars"), ("aura", "Aura"), ("stereo", "Stereo")];

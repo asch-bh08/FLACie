@@ -952,7 +952,7 @@ private fun HomeHero(last: Track?, nav: PlayerNav, onShuffleAll: () -> Unit, art
 @Composable
 fun SectionHeader(text: String) {
     // design I: shelf and section titles are serif headings (last word italic); the iPod skins keep their small caps
-    if (LocalStyle.current.modern) { SerifTitle(text, Modifier.padding(start = 20.dp, end = 16.dp, top = 24.dp, bottom = 10.dp), size = 26f); return }
+    if (LocalStyle.current.modern) { Section(text, Modifier.padding(start = 20.dp, end = 16.dp, top = 24.dp, bottom = 10.dp)); return }
     Txt(text.uppercase(), Modifier.padding(start = 20.dp, top = 22.dp, bottom = 8.dp), size = 12f, weight = FontWeight.Bold, color = Palette.faint)
 }
 
@@ -1500,16 +1500,7 @@ fun LoadingRows(text: String = "Loading your library…") {
     }
 }
 
-@Composable
-fun EmptyState(text: String) {
-    val sc = LocalScheme.current
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(Modifier.padding(horizontal = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            GlyphIcon(Glyph.NOTE, Modifier.size(56.dp), sc.onBg.copy(alpha = .3f))
-            Txt(text, size = 16f, color = sc.onBgDim, maxLines = 6, align = TextAlign.Center)
-        }
-    }
-}
+// (EmptyState is the kit's now: Kit.kt)
 
 // ---- detail pages -------------------------------------------------------------------------------------------------
 

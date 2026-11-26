@@ -408,32 +408,18 @@ fun GlossPill(
     text: String, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Glyph? = null, primary: Boolean = false,
     height: Dp = 46.dp,
 ) {
-    val sc = LocalScheme.current
     val style = LocalStyle.current
+    // design I draws the kit's buttons: the main action as MainButton, the rest as SmallButton (the kit sets the sizes, so [height] is for the iPod skins)
+    if (style.modern) {
+        if (primary) MainButton(text, onClick, modifier, icon) else SmallButton(text, onClick, modifier, icon = icon)
+        return
+    }
+    val sc = LocalScheme.current
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val focused by src.collectIsFocusedAsState()
     val shape = RoundedCornerShape(50)
-    val modern = style.modern
-    // one button size everywhere in design I (owner, 25 Nov: "buttons are inconsistent, hard to use"): pills came at 28, 30, 32, 34, 36 and 46 dp with
-    // 15 pt words beside 14 pt chips; now they are drawn as the chips are, 36 dp to see, 48 dp to touch, 14 pt, filled when they are the main action
-    if (modern) {
-        val ink = if (primary) sc.accent.readableInk() else sc.onBg
-        Row(
-            modifier.heightIn(min = 48.dp).clip(shape)
-                .semantics { role = androidx.compose.ui.semantics.Role.Button }
-                .combinedClickableNoRipple(src, true, onClick).padding(vertical = 6.dp)
-                .height(36.dp).pressSpring(pressed, 0.95f).clip(shape)
-                .background(if (primary) sc.accent else Color.Transparent)
-                .border(if (focused) 2.dp else 1.dp, if (focused) sc.onBg else if (primary) Color.Transparent else sc.onBg.copy(alpha = .28f), shape)
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
-        ) {
-            if (icon != null) { GlyphIcon(icon, Modifier.size(16.dp), ink); if (text.isNotEmpty()) Box(Modifier.width(7.dp)) }
-            if (text.isNotEmpty()) Txt(text, size = 14f, weight = FontWeight.SemiBold, color = ink, maxLines = 1)
-        }
-        return
-    }
+    val modern = false
     // design I: a plain pill is outlined on the ground (no grey fill), the chosen or main one is filled
     val brush = if (modern) androidx.compose.ui.graphics.SolidColor(if (primary) sc.accent else Color.Transparent)
     else if (primary) Brush.verticalGradient(listOf(sc.accentLight, sc.accent, sc.accentDark))
@@ -767,6 +753,19 @@ class SheetItem(val label: String, val glyph: Glyph, val selected: Boolean = fal
 
 @Composable
 fun ActionSheet(title: String, subtitle: String?, items: List<SheetItem>, onDismiss: () -> Unit) {
+    // design I has one sheet, the kit's; the iPod skins keep this one
+    if (LocalStyle.current.modern) {
+        // a new menu is a new sheet: keyed, so a closing one's delayed dismiss dies with it instead of closing its successor
+        androidx.compose.runtime.key(items) {
+            var open by remember { androidx.compose.runtime.mutableStateOf(true) }
+            val spec = remember { SheetSpec(title, subtitle, items) }
+            val scope = androidx.compose.runtime.rememberCoroutineScope()
+            // a close slides down first; a row closes at once, as before, so a sheet it opens is not closed after it
+            Sheet(if (open) spec else null, { if (open) { open = false; scope.launch { kotlinx.coroutines.delay(230L); onDismiss() } } }, focusFirst = true,
+                onPick = { onDismiss(); it.onClick() })
+        }
+        return
+    }
     val sc = LocalScheme.current
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { try { first.requestFocus() } catch (_: Exception) {} }

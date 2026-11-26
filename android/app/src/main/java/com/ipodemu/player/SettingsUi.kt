@@ -570,13 +570,7 @@ fun syncedLabel(at: Long): String = if (at <= 0L) "Not synced yet" else {
 
 /** The On/Off of a setting drawn as a switch (the web's), instead of the word. */
 @Composable
-fun SwitchPill(on: Boolean) {
-    val sc = LocalScheme.current
-    val x by androidx.compose.animation.core.animateDpAsState(if (on) 20.dp else 2.dp, androidx.compose.animation.core.tween(160), label = "knob")
-    Box(Modifier.size(width = 44.dp, height = 26.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(13.dp)).background(if (on) sc.accent else Palette.surface3)) {
-        Box(Modifier.padding(start = x, top = 2.dp).size(22.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (on) sc.accent.readableInk() else Palette.dim))
-    }
-}
+fun SwitchPill(on: Boolean) = Switch(on)
 
 /** A DJ level (0-100 %) as a plain drag slider: shown as it moves, saved once when the finger lifts (or on a tap). */
 @Composable

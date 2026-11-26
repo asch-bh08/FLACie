@@ -111,43 +111,14 @@ fun MonoLabel(text: String, modifier: Modifier = Modifier, size: Float = 11f, co
     )
 }
 
-/** An outlined chip; the chosen one is filled with the ink colour (dark text on it), as on the web's filters and moods. */
+/** An outlined chip; the chosen one is filled with the ink (the kit's SmallButton, kept under this name for the screens that use it). */
 @Composable
-fun DesignChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Glyph? = null) {
-    val sc = LocalScheme.current
-    val shape = RoundedCornerShape(50)
-    // the fill fades in as the chip is chosen (and out as another is), the words turn with it
-    val k = chosenAmount(selected, "chip")
-    val fg = androidx.compose.ui.graphics.lerp(sc.onBg, Palette.bg, k)
-    // (no press dip on chips: with one per chip, lists with chip headers scrolled at half the frames on the emulator, 10 Nov)
-    Row(
-        modifier.heightIn(min = 48.dp).clip(shape)   // the visible chip is 36 dp; the touch target is 48 dp
-            .semantics { role = Role.Button; this.selected = selected }
-            .clickable(onClick = onClick).padding(vertical = 6.dp)
-            .height(36.dp).clip(shape)
-            .background(sc.onBg.copy(alpha = sc.onBg.alpha * k)).border(1.dp, sc.onBg.copy(alpha = .28f * (1f - k)), shape)
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (icon != null) { GlyphIcon(icon, Modifier.size(16.dp), fg); Box(Modifier.width(7.dp)) }
-        Txt(text, size = 14f, weight = FontWeight.SemiBold, color = fg)
-    }
-}
+fun DesignChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: Glyph? = null) =
+    SmallButton(text, onClick, modifier, selected = selected, icon = icon)
 
-/**
- * The format chip under a title ("FLAC 16/44.1" style, here the file type): a round pill with a hairline. The words are in the sans like every other
- * chip (owner, 9 Nov: round pills in the sans for every chip, no mono chips), a little spaced so the short capitals still read as a tag.
- */
+/** The format under a title ("FLAC", "HI-RES"): the kit's FormatTag, the square mono one the owner liked on Now Playing (plan decision 2). */
 @Composable
-fun FormatChip(text: String, color: Color = LocalScheme.current.onBgDim) {
-    if (text.isBlank()) return
-    Box(Modifier.border(1.dp, color.copy(alpha = .45f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp)) {
-        BasicText(
-            text, style = TextStyle(color = color, fontSize = 10.5.sp, fontFamily = DesignFonts.sans, fontWeight = FontWeight.SemiBold, letterSpacing = 0.04f.em),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
+fun FormatChip(text: String, color: Color = LocalScheme.current.onBgDim) = FormatTag(text, fg = if (KitTags.formatIsHiRes(text)) null else color)
 
 /** Covers in design I: rounded, with a soft shadow under them. */
 fun Modifier.coverShadow(corner: Dp = 14.dp, elevation: Dp = 10.dp): Modifier =
@@ -170,27 +141,15 @@ fun rememberCoverColours(artKey: String?): SleeveColours {
     return cols
 }
 
-/** The main button: filled with the cover's colour, dark text on it (the colour is lifted to ~66% lightness for that). */
+/** The main button filled with the cover's colour (the kit's MainButton, Primary); [height] is kept for old callers, the kit sets the size. */
 @Composable
-fun AccentPill(text: String, icon: Glyph?, colours: SleeveColours, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp = 48.dp) =
-    DesignPill(text, icon, Color(colours.main), Color(DesignColour.readableOn(colours.main)), onClick, modifier, height)
+fun AccentPill(text: String, icon: Glyph?, colours: SleeveColours, onClick: () -> Unit, modifier: Modifier = Modifier, @Suppress("UNUSED_PARAMETER") height: Dp = 48.dp) =
+    MainButton(text, onClick, modifier, icon, MainKind.PRIMARY, fill = Color(colours.main), ink = Color(DesignColour.readableOn(colours.main)))
 
-/** A pill tinted with the cover's darker tone, light text on it. */
+/** The main button tinted with the cover's darker tone (the kit's MainButton, Secondary). */
 @Composable
-fun TonePill(text: String, icon: Glyph?, colours: SleeveColours, onClick: () -> Unit, modifier: Modifier = Modifier, height: Dp = 48.dp) =
-    DesignPill(text, icon, Color(colours.tone), Color(colours.toneFg), onClick, modifier, height)
-
-@Composable
-private fun DesignPill(text: String, icon: Glyph?, bg: Color, fg: Color, onClick: () -> Unit, modifier: Modifier, height: Dp) {
-    Row(
-        modifier.height(maxOf(height, 44.dp)).clip(RoundedCornerShape(50)).background(bg)
-            .semantics { role = Role.Button }.focusRing(RoundedCornerShape(50)).clickable(onClick = onClick).padding(horizontal = 22.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center,
-    ) {
-        if (icon != null) { GlyphIcon(icon, Modifier.size(18.dp), fg); if (text.isNotEmpty()) Box(Modifier.width(9.dp)) }
-        if (text.isNotEmpty()) Txt(text, size = 15f, weight = FontWeight.SemiBold, color = fg)
-    }
-}
+fun TonePill(text: String, icon: Glyph?, colours: SleeveColours, onClick: () -> Unit, modifier: Modifier = Modifier, @Suppress("UNUSED_PARAMETER") height: Dp = 48.dp) =
+    MainButton(text, onClick, modifier, icon, MainKind.SECONDARY, fill = Color(colours.tone), ink = Color(colours.toneFg))
 
 /** The DM Mono facts line under an album's or an artist's title, as the web writes it (Album.razor): "2020 · 8 songs · 16 min · FLAC / MP3". */
 object DetailFacts {

@@ -39,9 +39,9 @@ import androidx.compose.ui.unit.dp
  * (an outlined round pill), only the ones that say something: Hi-Res, Streaming and the download state.
  */
 
-/** The Devices page's glass: a faint fill and a hairline rim. */
-internal val GlassFill = Color(0x0FFFFFFF)
-internal val GlassRim = Color(0x24FFFFFF)
+/** The Devices page's glass: the kit's faint fill and hairline rim. */
+internal val GlassFill = Kit.glassFill
+internal val GlassRim = Kit.glassRim
 
 /** The first cover's colours, for the page's tinted parts. Rows read it from [LocalPlaylistLook]; null everywhere else keeps the plain rows. */
 class PlaylistLook(val colours: SleeveColours) {
@@ -79,32 +79,16 @@ fun rememberPlaylistLook(art: String?): PlaylistLook {
 /** What a tag says, which picks its ink (the web's .badge.fmt.hires, .badge.cloud). */
 enum class TagKind { PLAIN, HIRES, CLOUD }
 
-/** One tag: the Devices chip, an outlined round pill in the sans. [small] fits it in front of the artist on a narrow row. */
+/** One tag: the kit's StatusTag (the Devices chip). [small] trims it to fit in front of the artist on a narrow row. */
 @Composable
-fun PlTag(text: String, kind: TagKind = TagKind.PLAIN, small: Boolean = false) {
-    val ink = when (kind) { TagKind.HIRES -> Color(0xFFFFC857); TagKind.CLOUD -> Color(0xFF6DB3FF); TagKind.PLAIN -> Color(0xB3FFFFFF) }
-    val shape = RoundedCornerShape(50)
-    Box(Modifier.clip(shape).border(1.dp, ink.copy(alpha = if (kind == TagKind.PLAIN) .35f else .6f), shape)
-        .padding(horizontal = if (small) 7.dp else 10.dp, vertical = if (small) 0.dp else 2.dp)) {
-        Txt(text, size = if (small) 10.5f else 11.5f, weight = FontWeight.SemiBold, color = ink)
-    }
-}
+fun PlTag(text: String, kind: TagKind = TagKind.PLAIN, small: Boolean = false) =
+    StatusTag(text, when (kind) { TagKind.HIRES -> StatusTone.HIRES; TagKind.CLOUD -> StatusTone.CLOUD; TagKind.PLAIN -> StatusTone.PLAIN }, compact = small)
 
-/** A quieter action of the page: Now Playing's bottom-row slot, the icon over its word, so four fit a phone's row with their words whole
- *  (owner, 26 Nov: the cut-off pills looked odd); [on] lights it in the cover's colour (a playlist's own DJ choice, a download kept). */
+/** A quieter action of the page: the kit's Slot, the icon over its word, so four fit a phone's row with their words whole (owner, 26 Nov: the
+ *  cut-off pills looked odd); [on] fills it with the ink as every slot does now. [accent] is kept for old callers. */
 @Composable
-fun ToolSlot(label: String, icon: Glyph, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false, accent: Color = LocalScheme.current.accent) {
-    val sc = LocalScheme.current
-    val shape = RoundedCornerShape(18.dp)
-    Column(
-        modifier.height(58.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
-            .semantics { role = Role.Button }.focusRing(shape).clickable(onClick = onClick).padding(horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-    ) {
-        GlyphIcon(icon, Modifier.size(19.dp), if (on) accent else sc.onBg)
-        Txt(label, size = 11.5f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 1)
-    }
-}
+fun ToolSlot(label: String, icon: Glyph, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false, @Suppress("UNUSED_PARAMETER") accent: Color = LocalScheme.current.accent) =
+    Slot(label, icon, onClick, modifier, on = on)
 
 /** The hero: a glass card with the cover blurred behind it (a Devices card), holding the cover, the title, the facts and the buttons. */
 @Composable

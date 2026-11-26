@@ -553,9 +553,7 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
 private fun SleeveChip(text: String, bg: Color, fg: Color) = SleeveChip(AnnotatedString(text), bg, fg)
 
 @Composable
-private fun SleeveChip(text: AnnotatedString, bg: Color, fg: Color) {
-    SText(AnnotatedString(text.text.uppercase(), text.spanStyles, text.paragraphStyles), Modifier.clip(RoundedCornerShape(5.dp)).background(bg).padding(horizontal = 7.dp, vertical = 4.dp), family = SleeveFonts.mono, size = 10.5f, weight = FontWeight.SemiBold, color = fg, spacing = .06f)
-}
+private fun SleeveChip(text: AnnotatedString, bg: Color, fg: Color) = FormatTag(text, bg = bg, fg = fg)
 
 // ---- the ring: the song's loudness round the play button -----------------------------------------------------------------
 
@@ -855,21 +853,13 @@ private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit,
     // left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream. On a short screen (NowPlayingFit) the slots are
     // 44 dp with the word alone, and at the last step only More is left, its sheet listing Lyrics, Up next and Song info
     val full = actions == NowPlayingFit.Actions.FULL
+    // NowPlayingFit has already shared out the height and gives this row 58 dp, so the slots take the kit's tight step (52) until 1g grows the budget
+    androidx.compose.runtime.CompositionLocalProvider(LocalKitTight provides true) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        // the kit's Slot on Now Playing's darker glass, cream ink over the cover's colours (owner, 26 Nov: "dial them down a bit")
         @Composable
-        fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true) {
-            // the owner likes these rounded rectangles: kept, a little smaller, on a faint glass like the web's row (owner, 26 Nov: "dial them down a bit")
-            val shape = RoundedCornerShape(16.dp)
-            Column(
-                Modifier.weight(1f).height(if (full) 50.dp else 40.dp).clip(shape).background(if (on) Ink else fill ?: Glass).focusRing(shape)
-                    .semantics(mergeDescendants = true) { contentDescription = label; role = if (tab) Role.Tab else Role.Button; if (on) stateDescription = "Selected" }
-                    .clickable(onClick = onClick),
-                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-            ) {
-                if (full) GlyphIcon(glyph, Modifier.size(18.dp), if (on) OnMain else Ink)
-                SText(word, size = if (full) 11f else 12.5f, weight = FontWeight.SemiBold, color = if (on) OnMain else Ink)
-            }
-        }
+        fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true) =
+            com.ipodemu.player.Slot(word, glyph, onClick, Modifier.weight(1f), on = on, description = label, tab = tab, compact = !full, fill = fill ?: Glass, ink = Ink, onInk = OnMain, rim = false)
         if (actions == NowPlayingFit.Actions.MORE_ONLY) Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
         else {
             Slot("Lyrics", "Lyrics", tab == "lyrics", Glyph.LYRICS, { onOpen("lyrics") })
@@ -878,6 +868,7 @@ private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit,
             Slot("Song info", "Info", tab == "info", Glyph.INFO, { onOpen("info") })
             Slot("Add to playlist", "Add", false, Glyph.PLUS, { onAdd?.invoke() }, tab = false)
         }
+    }
     }
 }
 
@@ -1210,78 +1201,11 @@ private fun rememberLyrics(t: Track): LyricsState {
     return state
 }
 
-/**
- * A menu of the player (a SheetSpec) as a design I sheet: drag handle, serif title, the rows under DM Mono group labels, 56 dp rows, the chosen value
- * in the cover's accent with a check. It slides up with a spring and down when closed; the last menu is kept while it slides away.
- */
+/** A menu of the player (a SheetSpec) as the kit's one Sheet, washed in the cover's tone and ground with its accent for the chosen value. */
 @Composable
 private fun DesignSheet(spec: SheetSpec?, p: SleevePalette, onDismiss: () -> Unit) {
-    var last by remember { mutableStateOf<SheetSpec?>(null) }
-    if (spec != null) last = spec
-    val open = spec != null
-    val scrim by animateFloatAsState(if (open) 1f else 0f, tween(if (Tweaks.motion) 220 else 0), label = "designScrim")
-    if (open) BackHandler { onDismiss() }
-    if (scrim > 0f) Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black.copy(alpha = .55f * scrim)) }.then(if (open) Modifier.pointerInput(Unit) { detectTapGestures { onDismiss() } } else Modifier))
-    val drag = remember { androidx.compose.animation.core.Animatable(0f) }
-    val scope = androidx.compose.runtime.rememberCoroutineScope()
-    LaunchedEffect(spec) { if (spec != null) drag.snapTo(0f) }
-    AnimatedVisibility(
-        open, Modifier.fillMaxSize(),
-        enter = if (Tweaks.motion) slideInVertically(androidx.compose.animation.core.spring(.86f, 420f)) { it } else EnterTransition.None,
-        exit = if (Tweaks.motion) slideOutVertically(tween(220)) { it } else ExitTransition.None,
-    ) {
-        val s = last ?: return@AnimatedVisibility
-        val accent = p.main.value
-        BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)), contentAlignment = Alignment.BottomCenter) {
-            val shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-            Column(
-                Modifier.fillMaxWidth().widthIn(max = 640.dp).heightIn(max = maxHeight * .9f)
-                    .graphicsLayer { translationY = drag.value }
-                    .clip(shape).drawBehind { drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = 360.dp.toPx())) }
-                    .border(1.dp, Line, shape)
-                    .pointerInput(Unit) { detectTapGestures { } },
-            ) {
-                Box(
-                    Modifier.fillMaxWidth().height(28.dp).semantics { contentDescription = "Close"; role = Role.Button }.clickable(onClick = onDismiss)
-                        .pointerInput(Unit) {
-                            detectVerticalDragGestures(
-                                onDragEnd = { scope.launch { if (drag.value > 120.dp.toPx()) onDismiss() else drag.animateTo(0f, androidx.compose.animation.core.spring(.8f, 500f)) } },
-                            ) { c, dy -> c.consume(); scope.launch { drag.snapTo((drag.value + dy).coerceAtLeast(0f)) } }
-                        },
-                    contentAlignment = Alignment.Center,
-                ) { Box(Modifier.size(40.dp, 4.dp).clip(CircleShape).background(InkFaint)) }
-                // the title and the subtitle scroll with the rows (a long subtitle was cut at three lines, and on a phone on its side at big text the
-                // fixed header left the rows no room)
-                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).windowInsetsPadding(WindowInsets.navigationBars).padding(bottom = 12.dp)) {
-                    Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 6.dp).semantics(mergeDescendants = true) { heading() }) {
-                        SText(remember(s.title) { serifTitle(s.title) }, family = SleeveFonts.serif, size = 28f, weight = FontWeight.Normal, maxLines = 3)
-                        if (!s.subtitle.isNullOrEmpty()) SText(s.subtitle, size = 14f, color = InkDim, maxLines = 8)
-                    }
-                    if (s.items.isEmpty()) SText("One moment\u2026", Modifier.padding(24.dp), size = 15f, color = InkDim)
-                    var group: String? = null
-                    for (item in s.items) {
-                        if (item.group != null && item.group != group) {
-                            group = item.group
-                            SText(item.group.uppercase(), Modifier.padding(start = 24.dp, top = 14.dp, bottom = 4.dp).semantics { heading() }, family = SleeveFonts.mono, size = 11f, color = InkDim, spacing = .14f)
-                        }
-                        val on = item.selected
-                        Row(
-                            Modifier.fillMaxWidth().heightIn(min = 56.dp)
-                                .semantics(mergeDescendants = true) { role = Role.Button; if (on) stateDescription = "Selected" }
-                                .clickable { onDismiss(); item.onClick() }
-                                .then(if (on) Modifier.background(accent.copy(alpha = .14f)) else Modifier)
-                                .padding(horizontal = 24.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        ) {
-                            GlyphIcon(item.glyph, Modifier.size(24.dp), if (on) accent else Ink)
-                            SText(item.label, Modifier.weight(1f), size = 16f, weight = if (on) FontWeight.SemiBold else FontWeight.Medium, color = if (on) accent else Ink, maxLines = 3)
-                            if (on) GlyphIcon(Glyph.CHECK, Modifier.size(20.dp), accent)
-                        }
-                    }
-                }
-            }
-        }
-    }
+    val colours = remember(p) { SheetColours({ p.tone.value }, { p.ground.value }, { p.main.value }, Ink, InkDim, InkFaint, Line) }
+    Sheet(spec, onDismiss, colours)
 }
 // ---- another device's song: the same player, driving that device ------------------------------------------------------------
 

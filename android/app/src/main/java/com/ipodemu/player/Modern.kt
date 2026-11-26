@@ -75,8 +75,9 @@ private fun hsvColor(h: Float, s: Float, v: Float) = Color(android.graphics.Colo
 /** The web's own palette (app.css :root), so the phone and the browser look like one app: flat near-black, one pink accent (or the one chosen in
  * Settings), raised surfaces with a hairline. Only the full-screen player takes a wash of the cover's colour, like the web's blurred backdrop. */
 object Palette {
-    val bg = Color(0xFF0B0B0E); val surface = Color(0xFF15151A); val surface2 = Color(0xFF1E1E25); val surface3 = Color(0xFF282832)
-    val line = Color(0xFF2A2A33); val ink = Color(0xFFF4F3F7); val dim = Color(0xFFA9A6B3); val faint = Color(0xFF6F6C78); val pink = Color(0xFFFF4D73)
+    // the kit's tokens (Kit.kt) under the old names; the ground is the web's slate now (plan decision 1)
+    val bg = Kit.bg; val surface = Kit.surface; val surface2 = Kit.surface2; val surface3 = Kit.surface3
+    val line = Kit.line; val ink = Kit.ink; val dim = Kit.dim; val faint = Kit.faint; val pink = Kit.pink
 }
 
 fun buildModernScheme(art: ArtColors?): Scheme {

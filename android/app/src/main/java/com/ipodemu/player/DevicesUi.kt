@@ -190,46 +190,28 @@ private fun artOf(app: com.ipodemu.App, m: WhereYouWere.Moment): String? =
     m.itemId?.let { app.library.jellyfinTrack(it)?.artKey ?: "jf$it" } ?: m.artKey
 
 @Composable
-private fun SectionTitle(text: String) = SerifTitle(text, Modifier.padding(top = 10.dp), size = 28f, color = Color.White)
+private fun SectionTitle(text: String) = Section(text, Modifier.padding(top = 10.dp), color = Color.White)
 
 @Composable
 private fun KindBadge(kind: String, size: androidx.compose.ui.unit.Dp = 34.dp) {
-    Box(Modifier.size(size).clip(CircleShape).background(Color(0x14FFFFFF)).border(1.dp, Color(0x24FFFFFF), CircleShape), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size).clip(CircleShape).background(Color(0x14FFFFFF)).border(1.dp, Kit.glassRim, CircleShape), contentAlignment = Alignment.Center) {
         GlyphIcon(if (kind == "Browser" || kind == "Computer") Glyph.IPOD else Glyph.DEVICES, Modifier.size(size * .5f), Color.White)
     }
 }
 
-/** The rounded glass the Now Playing sheet uses: a faint fill and a hairline rim. */
+/** The kit's glass card. */
 @Composable
-private fun Glass(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Column(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color(0x0FFFFFFF)).border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(22.dp)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) { content() }
-}
+private fun Glass(modifier: Modifier = Modifier, content: @Composable () -> Unit) = GlassCard(modifier) { content() }
 
+/** Nothing to show in a section: the kit's empty state, sized to the section rather than the page. */
 @Composable
-private fun Empty(title: String, text: String) {
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).border(1.dp, Color(0x24FFFFFF), RoundedCornerShape(22.dp)).padding(18.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically,
-    ) {
-        GlyphIcon(Glyph.DEVICES, Modifier.size(26.dp), Color(0xB3FFFFFF))
-        Column { Txt(title, size = 14.5f, weight = FontWeight.Bold, color = Color.White, maxLines = 2); Txt(text, size = 13.5f, color = Color(0x99FFFFFF), maxLines = 4) }
-    }
-}
+private fun Empty(title: String, text: String) = EmptyState(title, glyph = Glyph.DEVICES, detail = text, fill = false)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Chips(chips: List<Pair<String, ChipTone>>) {
-    val sc = LocalScheme.current
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for ((text, tone) in chips) {
-            val col = when (tone) { ChipTone.YOU -> sc.accent; ChipTone.ON -> Color(0xFF4EE0A1); else -> Color(0xB3FFFFFF) }
-            val m = Modifier.clip(RoundedCornerShape(50)).border(1.dp, col.copy(alpha = if (tone == ChipTone.PLAIN || tone == ChipTone.MONO || tone == ChipTone.OFF) .35f else .6f), RoundedCornerShape(50))
-                .padding(horizontal = 10.dp, vertical = 3.dp)
-            if (tone == ChipTone.MONO) MonoLabel(text, m, size = 10f, color = col) else Txt(text, m, size = 11.5f, weight = FontWeight.SemiBold, color = col)
-        }
+        for ((text, tone) in chips) StatusTag(text, when (tone) { ChipTone.YOU -> StatusTone.ACCENT; ChipTone.ON -> StatusTone.ON; ChipTone.OFF -> StatusTone.OFF; else -> StatusTone.PLAIN })
     }
 }
 
@@ -241,7 +223,7 @@ private fun DeviceCard(
 ) {
     val sc = LocalScheme.current
     val shape = RoundedCornerShape(22.dp)
-    Box(Modifier.fillMaxWidth().clip(shape).background(Color(0x0FFFFFFF)).border(1.dp, if (live) sc.accent.copy(alpha = .55f) else Color(0x24FFFFFF), shape)) {
+    Box(Modifier.fillMaxWidth().clip(shape).background(Kit.glassFill).border(1.dp, if (live) sc.accent.copy(alpha = .55f) else Kit.glassRim, shape)) {
         // the cover's colours, blurred behind the card (a plain faint fill on phones too old to blur)
         if (song != null) ArtImage(artKey, Modifier.matchParentSize().blur(48.dp).alpha(if (faded) .14f else .3f), thumb = true, corner = 0.dp)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -255,7 +237,7 @@ private fun DeviceCard(
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     SerifTitle(song, size = 22f, color = Color.White, italicWords = -1)
                     if (!artist.isNullOrBlank()) Txt(artist, size = 13.5f, color = Color(0xB3FFFFFF), maxLines = 1)
-                    if (progress != null) Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Color(0x24FFFFFF))) {
+                    if (progress != null) Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Kit.glassRim)) {
                         Box(Modifier.fillMaxWidth(progress).height(3.dp).background(sc.accent))
                     }
                     if (time != null) MonoLabel(time, size = 11f, color = Color(0x99FFFFFF), upper = false)

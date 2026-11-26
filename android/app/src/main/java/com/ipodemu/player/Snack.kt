@@ -26,7 +26,7 @@ class Snack(val text: String, val actionLabel: String? = null, val action: (() -
 fun SnackHost(ui: UiState, modifier: Modifier = Modifier) {
     val s = ui.snack ?: return
     // short and out of the way: a plain note goes in 2.5 s, one with Undo stays 5 s so there's time to reach it; a tap sends it away (owner, 26 Nov)
-    LaunchedEffect(s) { delay(if (s.actionLabel != null) 5_000 else 2_500); if (ui.snack === s) ui.snack = null }
+    LaunchedEffect(s) { delay(Kit.toastMs(s.actionLabel != null)); if (ui.snack === s) ui.snack = null }
     Box(modifier.fillMaxWidth().padding(horizontal = 16.dp), contentAlignment = Alignment.BottomCenter) {
         // slides up with a little spring each time a new message arrives
         androidx.compose.animation.AnimatedVisibility(
@@ -34,12 +34,12 @@ fun SnackHost(ui: UiState, modifier: Modifier = Modifier) {
             enter = androidx.compose.animation.slideInVertically(androidx.compose.animation.core.spring(0.7f, 420f)) { it / 2 } + androidx.compose.animation.fadeIn(),
         ) {
         Row(
-            Modifier.clip(RoundedCornerShape(14.dp)).background(Color(0xF02A2A32)).clickable { if (ui.snack === s) ui.snack = null }.padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            Modifier.clip(RoundedCornerShape(14.dp)).background(Kit.surface3).clickable { if (ui.snack === s) ui.snack = null }.padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Txt(s.text, Modifier.padding(vertical = 10.dp), size = 14f, color = if (s.warn) Color(0xFFFFC857) else Color.White, maxLines = 2)
+            Body(s.text, Modifier.padding(vertical = 10.dp), color = if (s.warn) Kit.amber else Color.White, maxLines = 2)
             if (s.actionLabel != null) {
-                Txt(s.actionLabel, Modifier.clip(RoundedCornerShape(10.dp)).clickable { ui.snack = null; s.action?.invoke() }.padding(horizontal = 12.dp, vertical = 10.dp), size = 14f, weight = FontWeight.ExtraBold, color = LocalScheme.current.accent)
+                Body(s.actionLabel, Modifier.clip(RoundedCornerShape(10.dp)).clickable { ui.snack = null; s.action?.invoke() }.padding(horizontal = 12.dp, vertical = 10.dp), weight = FontWeight.ExtraBold, color = LocalScheme.current.accent)
             }
         }
         }

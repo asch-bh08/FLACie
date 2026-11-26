@@ -1873,16 +1873,19 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
     val isList = kind == "Playlist"
     val listId = playlistId ?: "folder:$title"
     PlaylistHeroCard(look, art) {
-        ArtImage(art, Modifier.entranceRise(since, 0).align(Alignment.CenterHorizontally).fillMaxWidth(.7f).widthIn(max = minOf(cap, 240f).dp).aspectRatio(1f).coverShadow(20.dp, 18.dp), corner = 20.dp)
-        Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (kind.isNotEmpty()) MonoLabel(kind)
-            SerifTitle(title, size = DetailFit.titleSp(title.length > SleeveText.LONG_TITLE, cfg.fontScale), maxLines = 3)
-            if (facts.isNotEmpty()) MonoLabel(facts, Modifier.padding(top = 2.dp), maxLines = 2)
+        // a small cover beside the name, so the first screen shows the songs and not mostly the cover (owner, 26 Nov)
+        Row(Modifier.entranceRise(since, 0), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            ArtImage(art, Modifier.size(if (cfg.screenWidthDp >= 600) 160.dp else 104.dp).coverShadow(12.dp, 14.dp), corner = 14.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (kind.isNotEmpty()) MonoLabel(kind)
+                SerifTitle(title, size = minOf(DetailFit.titleSp(title.length > SleeveText.LONG_TITLE, cfg.fontScale), if (title.length > 18) 24f else 30f), maxLines = 3)
+                if (facts.isNotEmpty()) MonoLabel(facts, maxLines = 2)
+            }
         }
         // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings)
         if (tracks.isNotEmpty()) Row(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            AccentPill("Play", Glyph.PLAY, look.colours, { app.player.play(tracks, 0, false, title, djKey) }, Modifier.weight(1f), height = 52.dp)
-            TonePill("Shuffle", Glyph.SHUFFLE, look.colours, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, Modifier.weight(1f), height = 52.dp)
+            AccentPill("Play", Glyph.PLAY, look.colours, { app.player.play(tracks, 0, false, title, djKey) }, Modifier.weight(1f), height = 48.dp)
+            TonePill("Shuffle", Glyph.SHUFFLE, look.colours, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) }, Modifier.weight(1f), height = 48.dp)
         }
         Row(Modifier.entranceRise(since, 5), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             // an album or a playlist can be kept on the phone as a whole; a playlist then also keeps itself up to date

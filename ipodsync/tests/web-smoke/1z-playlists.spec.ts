@@ -76,6 +76,11 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       // the Devices look (owner, 26 Nov): the songs on a rounded card, the quieter actions as outlined round buttons, and calm tags: no file format
       // or source on every row (only Hi-Res and Streaming show), every tag the same outlined round pill
       const list = page.locator('.pl-main > ol.tracks');
+      // on a phone the songs start on the first screen: a small cover beside the name, not a big cover over it (owner, 26 Nov)
+      if (name === 'phone') {
+        expect((await list.locator('.track').first().boundingBox())!.y).toBeLessThan(size.height * .6);
+        await page.screenshot({ path: `test-results/shots/playlist-page-${name}.png` });
+      }
       expect(await radius(list)).toBeGreaterThanOrEqual(20);
       const share = hero.getByRole('button', { name: 'Share' });
       expect(await share.evaluate((e) => e.closest('.pl-tools') !== null)).toBe(true);

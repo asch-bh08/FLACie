@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -65,18 +66,19 @@ fun PlTag(text: String, kind: TagKind = TagKind.PLAIN, small: Boolean = false) {
     }
 }
 
-/** A quieter action of the page: Now Playing's phone slot, the icon over its word on glass; [on] lights it in the cover's colour (a playlist's own DJ choice, a download kept). */
+/** A quieter action of the page: a short glass pill, icon beside its word, so all of them fit one row and the songs show sooner (owner, 26 Nov: the
+ *  first screen was all cover and buttons); [on] lights it in the cover's colour (a playlist's own DJ choice, a download kept). */
 @Composable
 fun ToolSlot(label: String, icon: Glyph, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false, accent: Color = LocalScheme.current.accent) {
     val sc = LocalScheme.current
-    val shape = RoundedCornerShape(18.dp)
-    Column(
-        modifier.height(56.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier.height(44.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
             .semantics { role = Role.Button }.focusRing(shape).clickable(onClick = onClick).padding(horizontal = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp, Alignment.CenterVertically),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
     ) {
-        GlyphIcon(icon, Modifier.size(18.dp), sc.onBg)
-        Txt(label, size = 11.5f, weight = FontWeight.SemiBold, color = sc.onBg)
+        GlyphIcon(icon, Modifier.size(16.dp), sc.onBg)
+        Txt(label, size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 1)
     }
 }
 
@@ -88,7 +90,7 @@ fun PlaylistHeroCard(look: PlaylistLook, art: String?, content: @Composable Colu
         // the cover's colours behind the card (a plain faint fill on phones too old to blur), and the accent faintly when there is no cover
         if (art != null) ArtImage(art, Modifier.matchParentSize().blur(48.dp).alpha(.4f), thumb = true, corner = 0.dp)
         else Box(Modifier.matchParentSize().background(look.accent.copy(alpha = .14f)))
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) { content() }
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { content() }
     }
 }
 

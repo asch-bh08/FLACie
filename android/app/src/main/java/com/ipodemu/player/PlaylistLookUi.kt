@@ -50,9 +50,6 @@ class PlaylistLook(val colours: SleeveColours) {
 
 val LocalPlaylistLook = compositionLocalOf<PlaylistLook?> { null }
 
-/** A hand-made playlist's Edit mode (owner, 26 Nov: an Edit button, not a Select row; simple move, download and remove on each song): null where the page can't be edited. */
-class PlaylistEdit(val id: String) { var on by androidx.compose.runtime.mutableStateOf(false) }
-val LocalPlaylistEdit = compositionLocalOf<PlaylistEdit?> { null }
 
 /** One song's Edit-mode buttons: download, remove, and the ≡ handle to press and drag it up or down (owner, 26 Nov: as in Spotify). [handle] carries the drag. */
 @Composable

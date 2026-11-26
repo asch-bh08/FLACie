@@ -10,18 +10,39 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CarActionsTest {
-    @Test fun the_mic_is_first_then_heart_shuffle_and_dj() {
-        assertEquals(listOf(CarActions.Id.TALK, CarActions.Id.FAVORITE, CarActions.Id.SHUFFLE, CarActions.Id.DJ), CarActions.order(carDj = true, speedButton = true))
+    // owner, 26 Nov: every button the car has (talk, heart, shuffle, DJ, repeat); the most used first, as the car's bar shows the first few and the rest under "more"
+    @Test fun the_mic_is_first_then_heart_shuffle_dj_and_repeat() {
+        assertEquals(listOf(CarActions.Id.TALK, CarActions.Id.FAVORITE, CarActions.Id.SHUFFLE, CarActions.Id.DJ, CarActions.Id.REPEAT), CarActions.order(car = true, carDj = true, speedButton = true))
     }
 
-    @Test fun never_more_than_four_buttons() {
-        for (dj in listOf(true, false)) for (speed in listOf(true, false)) assertTrue(CarActions.order(dj, speed).size <= CarActions.MAX)
-        assertEquals(4, CarActions.MAX)
+    @Test fun never_more_than_five_buttons() {
+        for (car in listOf(true, false)) for (dj in listOf(true, false)) for (speed in listOf(true, false)) assertTrue(CarActions.order(car, dj, speed).size <= CarActions.MAX)
+        assertEquals(5, CarActions.MAX)
     }
 
-    @Test fun without_the_dj_the_old_buttons_stay_and_speed_only_when_asked() {
-        assertEquals(listOf(CarActions.Id.REPEAT, CarActions.Id.FAVORITE, CarActions.Id.SHUFFLE), CarActions.order(false, false))
-        assertEquals(CarActions.Id.SPEED, CarActions.order(false, true).last())
+    @Test fun in_the_car_without_the_dj_the_heart_and_shuffle_lead() {
+        assertEquals(listOf(CarActions.Id.FAVORITE, CarActions.Id.SHUFFLE, CarActions.Id.REPEAT), CarActions.order(car = true, carDj = false, speedButton = false))
+        assertEquals(CarActions.Id.SPEED, CarActions.order(true, false, true).last())
+    }
+
+    @Test fun without_a_car_the_old_buttons_stay_and_speed_only_when_asked() {
+        assertEquals(listOf(CarActions.Id.REPEAT, CarActions.Id.FAVORITE, CarActions.Id.SHUFFLE), CarActions.order(false, false, false))
+        assertEquals(CarActions.Id.SPEED, CarActions.order(false, false, true).last())
+    }
+
+    // owner, 26 Nov: a button's name says its state, so the car's long-press and the voice assistant read it
+    @Test fun every_button_name_says_its_state() {
+        assertEquals("Shuffle: on", CarActions.shuffleName(true)); assertEquals("Shuffle: off", CarActions.shuffleName(false))
+        assertEquals("Repeat: off", CarActions.repeatName(RepeatCycle.OFF)); assertEquals("Repeat: all", CarActions.repeatName(RepeatCycle.ALL)); assertEquals("Repeat: one", CarActions.repeatName(RepeatCycle.ONE))
+        assertEquals("Favourite: on", CarActions.favouriteName(true)); assertEquals("Favourite: off", CarActions.favouriteName(false))
+        assertEquals("DJ: on", CarActions.djName(true)); assertEquals("DJ: off", CarActions.djName(false))
+    }
+
+    @Test fun every_state_has_its_own_car_icon() {
+        val all = listOf(true, false).flatMap { listOf(CarActions.shuffleIcon(it), CarActions.favouriteIcon(it), CarActions.djIcon(it)) } +
+            listOf(RepeatCycle.OFF, RepeatCycle.ALL, RepeatCycle.ONE).map { CarActions.repeatIcon(it) }
+        assertEquals(all.size, all.toSet().size)
+        for (n in all) assertTrue("$n missing", java.io.File("src/main/res/drawable/$n.xml").exists())
     }
 
     @Test fun skip_previous_and_next_slots_are_reserved() {
@@ -31,7 +52,7 @@ class CarActionsTest {
     }
 
     @Test fun every_car_button_has_a_large_simple_icon() {
-        for (n in listOf("ic_car_mic", "ic_car_mic_on", "ic_car_heart", "ic_car_heart_on", "ic_car_shuffle_on", "ic_car_shuffle_off", "ic_car_dj_on", "ic_car_dj_off")) {
+        for (n in listOf("ic_car_mic", "ic_car_mic_on", "ic_car_heart", "ic_car_heart_on", "ic_car_shuffle_on", "ic_car_shuffle_off", "ic_car_dj_on", "ic_car_dj_off", "ic_car_repeat", "ic_car_repeat_one", "ic_car_repeat_off")) {
             val f = java.io.File("src/main/res/drawable/$n.xml")
             assertTrue("$n missing", f.exists())
             assertTrue("$n should be 48dp", f.readText().contains("android:width=\"48dp\""))

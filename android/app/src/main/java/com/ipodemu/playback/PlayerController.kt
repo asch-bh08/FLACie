@@ -242,7 +242,7 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
     private val observers = java.util.concurrent.CopyOnWriteArrayList<() -> Unit>()
     /** Extra listeners (Compose UI); returns a function that removes the listener. */
     fun observe(fn: () -> Unit): () -> Unit { observers.add(fn); return { observers.remove(fn) } }
-    private fun fire() { onChange?.invoke(); for (o in observers) o() }
+    private fun fire() { nowSong = try { if (hasQueue) exo.currentMediaItem?.localConfiguration?.tag as? Track else null } catch (_: Exception) { null }; onChange?.invoke(); for (o in observers) o() }
     /** Invoked when a new track starts (for recently played). */
     var onTrackStarted: ((Track) -> Unit)? = null
     var queue: List<Track> = emptyList(); private set
@@ -920,6 +920,18 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
             } catch (_: Exception) {}
         }
     }
+    /** The song in the player, kept on every change so the car's Home can read it off the main thread. */
+    @Volatile private var nowSong: Track? = null
+    @Volatile private var savedAt = 0L; @Volatile private var savedSong: Track? = null
+    /** The song Home's Continue in the car carries on from (owner, 26 Nov): the one in the player, else the saved queue's (read again only when the file changes).
+     *  Safe off the main thread. */
+    fun carryOnSong(): Track? = nowSong ?: try {
+        val at = if (queueFile.exists()) queueFile.lastModified() else 0L
+        if (at == 0L) null else {
+            if (at != savedAt) { savedSong = QueueStore.decode(queueFile.readText(Charsets.UTF_8))?.let { it.tracks.getOrNull(it.index) }; savedAt = at }
+            savedSong
+        }
+    } catch (_: Exception) { null }
     /** There is something to carry on with: a queue in the player or one saved last time. */
     fun hasSavedQueue(): Boolean = hasQueue || queueFile.exists()
     /** At start-up: the queue, song and position of last time, paused (nothing plays by itself). Songs whose file is gone are dropped. */

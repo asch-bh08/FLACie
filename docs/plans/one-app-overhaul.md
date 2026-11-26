@@ -63,6 +63,24 @@ Remove from playlist. Words: Favourites (never Favorites), "…" (one character)
 - 1f Menus and sheets (song menu everywhere, confirms, playlist picker), toasts, dialogs
 - 1g Now Playing + mini bar + queue (onto the kit, keeping its look)
 
+- 1h Every screen size (owner, 26 Nov: "fits every aspect ratio, resolution, screen size"): one size list used by both checks — phones
+  360×640, 375×667, 390×844, 412×915, tall 412×1000 (20:9 and 21:9), a Fold's cover and inner screen, landscape phone, tablet 768×1024 and
+  1024×768, laptop 1280×720 / 1366×768 (+125% and 150% zoom), PC 1920×1080, ultrawide 2560×1080, 4K at 200%. Every main screen (not just
+  Now Playing) gets the "everything on screen, nothing overlapping, nothing cut off, no sideways scroll, no big empty band" check: the web
+  extends 1z-np-fits-all / 1z-fit-everywhere to every page; the phone's emulator driver runs each screen at each size with `wm size`/`density`.
+  Spare room is shared out or used (as Now Playing's Up next line), never left as one empty band.
+- 1i Admin only for admins: list every server-wide control (server admin dashboard, download sources and policy, imports, the shared
+  library's fixes, DJ server settings, users, logs, Alexa, the Windows sync of the server) and make sure a normal user never sees or reaches
+  them on any side — hidden in the UI and refused by the server (403), with a test per endpoint and a Playwright/emulator check signed in as
+  a normal user.
+- 1j Anyone can install it, normal users never see the plumbing (owner, 26 Nov): two paths.
+  - Owner / self-hoster: a first-run setup on the web and the phone that walks through connecting their own things (Jellyfin, Plex, a NAS
+    folder, Lidarr, their own FLACie Web address), checks each one and says plainly what works; everything technical lives under Settings →
+    Server (admin only).
+  - Normal user (invited to someone's server): sign in, and that's it — no server addresses, keys, sources or download settings in their way;
+    their Settings is playback, downloads to the phone, the DJ and the account. A test signs in as a fresh normal user on both sides and
+    checks that the first screen is music, not setup.
+
 **Wave 2: clean-up and proof**
 - Delete the old duplicates (second DeviceCard, AlbumCard, headings, empties, text fields, .badge/.tag/.dev-chip, unused button classes).
 - Full test runs (C#, Android unit, Playwright, emulator smoke/dj/car/playlists), the parity page reviewed, release as one beta + web deploy.
@@ -73,7 +91,7 @@ Remove from playlist. Words: Favourites (never Favorites), "…" (one character)
   outside the kit, and on the web on new button classes outside kit.css.
 
 ## Size and pacing
-About 3 waves; wave 1 is 7 parallel parts. Weekly usage is at ~40%: wave 0 + 1 fit this week if run as 2-3 agents at a time; wave 2 next.
+About 3 waves; wave 1 is 10 parallel parts (1h-1j added 26 Nov). Weekly usage is at ~40%: wave 0 + 1 fit this week if run as 2-3 agents at a time; wave 2 next.
 A beta after wave 1 so the owner can test, then the final one after wave 2.
 
 ## Owner decisions this plan assumed (say if any is wrong)

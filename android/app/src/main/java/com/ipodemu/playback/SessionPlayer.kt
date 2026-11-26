@@ -71,7 +71,8 @@ class SessionPlayer(
             val mi = exo.getMediaItemAt(real)
             val t = mi.localConfiguration?.tag as? Track
             // covers as addresses other apps can read; the song's own length (the stream's is not known until it is open)
-            val line = if (real == cur) artistFor(t) else null
+            // in the car, every song of the queue says what it is and where it plays from, not only the playing one (owner, 26 Nov: the queue in the car)
+            val line = if (real == cur) artistFor(t) else if (c.carControllers > 0 && t != null) try { labelOf(t) } catch (_: Exception) { null } else null
             val md = mi.mediaMetadata.buildUpon().also { b -> ArtProvider.uri(t?.artKey)?.let { b.setArtworkUri(it) }; line?.let { b.setArtist(it) } }.build()
             MediaItemData.Builder(real.toString() + "|" + (t?.path ?: mi.mediaId)).setMediaItem(mi.buildUpon().setMediaMetadata(md).build()).setMediaMetadata(md)
                 .setDurationUs(((t?.durationMs ?: 0L).takeIf { it > 0 } ?: 0L) * 1000L).setIsSeekable(true).build()
@@ -87,6 +88,8 @@ class SessionPlayer(
             .setShuffleModeEnabled(prefs.shuffle)
             .setPlaybackParameters(PlaybackParameters(c.speed, 1f))
             .setPlaylist(ImmutableList.copyOf(items))
+            // the queue's heading in the car
+            .setPlaylistMetadata(QUEUE_TITLE)
         if (items.isNotEmpty()) {
             b.setCurrentMediaItemIndex(QueueWindow.positionOf(shown, cur).coerceAtLeast(0))
             b.setContentPositionMs(if (playing) PositionSupplier.getExtrapolating(pos, c.speed) else PositionSupplier.getConstant(pos))
@@ -139,6 +142,7 @@ class SessionPlayer(
     }
 
     companion object {
+        private val QUEUE_TITLE: androidx.media3.common.MediaMetadata = androidx.media3.common.MediaMetadata.Builder().setTitle("Up next").build()
         private val COMMANDS: Player.Commands = Player.Commands.Builder().addAll(
             Player.COMMAND_PLAY_PAUSE, Player.COMMAND_PREPARE, Player.COMMAND_STOP, Player.COMMAND_SEEK_TO_DEFAULT_POSITION, Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM,
             Player.COMMAND_SEEK_TO_PREVIOUS, Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM, Player.COMMAND_SEEK_TO_NEXT, Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM, Player.COMMAND_SEEK_TO_MEDIA_ITEM,

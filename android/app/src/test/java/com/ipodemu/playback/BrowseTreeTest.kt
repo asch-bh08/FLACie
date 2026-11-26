@@ -18,8 +18,9 @@ class BrowseTreeTest {
     private inner class Src(
         val songs: List<Track> = (1..5).map { n -> t(n) }, val favs: List<Track> = emptyList(), val recents: List<Track> = emptyList(),
         val pls: Map<String, List<Track>> = emptyMap(), val picks: List<Track> = emptyList(),
-        val dlPlaylists: List<String> = emptyList(), val dlAlbums: Int = 0,
+        val dlPlaylists: List<String> = emptyList(), val dlAlbums: Int = 0, val resumeSong: Track? = null,
     ) : BrowseSource {
+        override fun resume() = resumeSong
         override fun downloadedPlaylists() = playlists().filter { it.first in dlPlaylists }
         override fun downloadedAlbums() = albums().take(dlAlbums)
         override fun isDownloaded(path: String) = downloaded().any { it.path == path }
@@ -40,15 +41,28 @@ class BrowseTreeTest {
         assertEquals(r.map { it.id }, BrowseTree.children(BrowseTree.ROOT, 0, 50, Src()).map { it.id })
     }
 
-    @Test fun homeStartsWithShuffleThenYourMusicThenRecentSongs() {
-        val src = Src(recents = (1..20).map { t(it) })
+    // owner, 26 Nov: "do a full Android Auto maximum improvement": Home reads Continue, Quick picks, Your playlists, Recently played, then Your music
+    @Test fun homeIsContinueQuickPicksPlaylistsRecentThenYourMusic() {
+        val src = Src(recents = (1..20).map { t(it) }, picks = listOf(t(4)), pls = mapOf("p1" to listOf(t(2))), resumeSong = t(3))
         val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
-        assertEquals("Shuffle all", home[0].title); assertTrue(home[0].playable && !home[0].browsable)
-        assertEquals(listOf("Favourites", "Offline music"), home.filter { it.group == "Your music" }.map { it.title })
+        assertEquals(listOf("Continue", "Quick picks", "Your playlists", "Recently played", "Your music"), home.mapNotNull { it.group }.distinct())
+        val cont = home[0]
+        assertEquals(BrowseTree.RESUME, cont.id); assertEquals("Song 3", cont.title); assertEquals("Continue · Ar", cont.subtitle)
+        assertTrue(cont.playable && !cont.browsable && cont.cover); assertEquals(t(3).artKey, cont.artKey)
+        assertTrue(BrowseTree.isPlayId(BrowseTree.RESUME))
+        // Shuffle all leads the Quick picks
+        val picks = home.filter { it.group == "Quick picks" }
+        assertEquals(listOf("Shuffle all", "Song 4"), picks.map { it.title }); assertTrue(picks[0].playable && !picks[0].browsable)
+        assertEquals(listOf("Offline music", "Favourites"), home.filter { it.group == "Your music" }.map { it.title })
         assertTrue(home.filter { it.group == "Your music" }.all { it.browsable && it.icon != null })
         val recent = home.filter { it.group == "Recently played" }
         assertEquals(BrowseTree.HOME_RECENT, recent.size); assertEquals("Song 1", recent[0].title); assertTrue(recent.all { it.playable })
-        assertTrue(BrowseTree.children(BrowseTree.HOME, 0, 100, Src()).none { it.group == "Recently played" })
+    }
+
+    @Test fun homeWithNothingToCarryOnStartsWithShuffleAll() {
+        val home = BrowseTree.children(BrowseTree.HOME, 0, 100, Src())
+        assertEquals("Shuffle all", home[0].title)
+        assertTrue(home.none { it.group == "Continue" || it.group == "Recently played" })
     }
 
     @Test fun shuffleAllPlaysTheWholeLibraryCapped() {
@@ -104,13 +118,13 @@ class BrowseTreeTest {
         val picks = listOf(t(3), t(1), t(4))
         val src = Src(recents = (1..3).map { t(it) }, picks = picks)
         val home = BrowseTree.children(BrowseTree.HOME, 0, 100, src)
-        val shown = home.filter { it.group == "Quick picks" }
+        val shown = home.filter { it.group == "Quick picks" && it.id != BrowseTree.SHUFFLE }
         assertEquals(listOf("Song 3", "Song 1", "Song 4"), shown.map { it.title }); assertTrue(shown.all { it.playable && it.cover })
         assertTrue(home.indexOf(shown.first()) < home.indexOfFirst { it.group == "Recently played" })
         // playing one queues the picks in the engine's order, starting at the chosen song
         val r = BrowseTree.resolve(shown[1].id, src)!!
         assertEquals(picks.map { it.path }, r.tracks.map { it.path }); assertEquals(1, r.index)
-        assertTrue(BrowseTree.children(BrowseTree.HOME, 0, 100, Src()).none { it.group == "Quick picks" })
+        assertTrue(BrowseTree.children(BrowseTree.HOME, 0, 100, Src()).none { it.group == "Quick picks" && it.id != BrowseTree.SHUFFLE })
     }
 
     @Test fun homeShowsEveryPlaylistBeforeYourMusic() {
@@ -152,6 +166,8 @@ class BrowseTreeTest {
         val kinds = r.map { it.id.substringBefore(':') }
         assertTrue(kinds.indexOf("pl") < kinds.indexOf("s") && kinds.indexOf("ar") < kinds.indexOf("s") && kinds.indexOf("al") < kinds.indexOf("s"))
         assertTrue(r.filter { it.browsable }.all { it.cover })
+        // grouped under headings, as the phone's Search (owner, 26 Nov)
+        assertEquals(listOf("Playlists", "Artists", "Albums", "Songs"), r.map { it.group }.distinct())
     }
 
     @Test fun everyPlayableRowIsAPlayRequestThePlayerTakes() {
@@ -378,5 +394,21 @@ class BrowseTreeTest {
         assertEquals(false, BrowseTree.shuffleFor("all:pl:abc"))
         assertEquals(true, BrowseTree.shuffleFor("shuf:pl:abc"))
         assertEquals(null, BrowseTree.shuffleFor("s:pl:abc/x"))
+    }
+
+    // owner, 26 Nov: nothing heavy when the car opens a list of a 10,000-song library (the large mock)
+    @Test fun aTenThousandSongLibraryBrowsesQuickly() {
+        val songs = (1..10_000).map { t(it, album = "Album ${it / 12}", artist = "Artist ${it / 40}") }
+        val src = Src(songs = songs, recents = songs.take(100), picks = songs.take(20), pls = (1..40).associate { "p$it" to songs.shuffled().take(300) })
+        BrowseTree.children(BrowseTree.ARTISTS, 0, 100, src)   // warm up
+        for (id in listOf(BrowseTree.HOME, BrowseTree.PLAYLISTS, BrowseTree.ALBUMS, BrowseTree.ARTISTS, "ar:Artist 7", "al:" + songs[50].albumKey)) {
+            val start = System.nanoTime()
+            val kids = BrowseTree.children(id, 3, 20, src) + BrowseTree.children(id, 0, 20, src)
+            val ms = (System.nanoTime() - start) / 1_000_000
+            assertTrue("$id took $ms ms", ms < 1500)
+            assertTrue(id, kids.isNotEmpty())
+        }
+        val start = System.nanoTime(); BrowseTree.searchNodes("artist 1", 0, 50, src)
+        assertTrue((System.nanoTime() - start) / 1_000_000 < 1500)
     }
 }

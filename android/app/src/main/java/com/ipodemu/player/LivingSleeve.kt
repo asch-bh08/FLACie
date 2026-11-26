@@ -93,6 +93,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
@@ -387,6 +388,10 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             // only as tall as the cover's square (fill = false): the height a tall phone has spare is no longer split into gaps above and below
             // the cover (owner, 26 Nov: "more wasted space"), it goes to the foot, where Up next names the next song
             var spare by remember { mutableStateOf(0.dp) }
+            // the Up next line's own height while it shows: the room is judged as if it were not there, so showing it never takes away the room
+            // that made it show (that loop flickered the line and moved the buttons under the finger; owner, 26 Nov)
+            var peekH by remember { mutableStateOf(0.dp) }
+            var peekOn by remember { mutableStateOf(false) }
             BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f, fill = false).padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
                 if (!cramped) SideEffect { spare = maxHeight - side }
@@ -403,7 +408,13 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             }
             SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp), nav)
             Spacer(Modifier.height(12.dp))
-            if (!wide && card == null && spare > 72.dp) SleeveUpNextPeek(snap, p) { onOpen("queue") }
+            val room = spare + if (peekOn) peekH else 0.dp
+            val wantPeek = !wide && card == null && room > 56.dp
+            if (wantPeek != peekOn) SideEffect { peekOn = wantPeek }
+            if (peekOn) {
+                val d = LocalDensity.current
+                Box(Modifier.onSizeChanged { peekH = with(d) { it.height.toDp() } }) { SleeveUpNextPeek(snap, p) { onOpen("queue") } }
+            }
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
             if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, actions = fit.actions, onMore = onMore) }
         }
@@ -1392,10 +1403,12 @@ private fun RemotePlayHere(p: SleevePalette, onClick: () -> Unit) {
 @Composable
 private fun SleeveUpNextPeek(snap: PlayerSnap, p: SleevePalette, onOpen: () -> Unit) {
     val app = LocalApp.current
-    val next = remember(snap.index, snap.rev, snap.count) { app.player.queueWindow(snap.index + 1, 1).firstOrNull() } ?: return
-    Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Ink.copy(alpha = .07f))
-        .clickable(onClick = onOpen).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        ArtImage(next.artKey, Modifier.size(40.dp), corner = 8.dp, thumb = true)
+    // the next song in play order (shuffle included), the same as the top of Up next: the queue's stored order was wrong with shuffle on
+    val next = remember(snap.index, snap.rev, snap.count, snap.shuffle, snap.track?.path) { app.player.upNext(1).firstOrNull()?.second } ?: return
+    // slim (about 52 dp) so it fits the room a tall phone has under the controls
+    Row(Modifier.padding(horizontal = 14.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Ink.copy(alpha = .07f))
+        .clickable(onClick = onOpen).padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+        ArtImage(next.artKey, Modifier.size(36.dp), corner = 7.dp, thumb = true)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
             SText("UP NEXT", size = 10.5f, color = Ink.copy(alpha = .6f), maxLines = 1)
             SText("${next.title} · ${next.artist}", size = 14f, color = Ink, maxLines = 1)

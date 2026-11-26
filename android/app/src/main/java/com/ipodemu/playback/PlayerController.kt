@@ -1320,41 +1320,71 @@ class PlayerController(private val ctx: Context, private val prefs: Prefs) {
         if (!carryingOut) askGate.cancel()
         if (interceptor?.play(list, index) == true) return
         if (list.isEmpty()) return
-        queue = list
+        // a big list (a whole library of thousands) starts from a window of songs round the chosen one; the rest follows in the background, in order
+        // (see [QueueSplit]; owner, 26 Nov: the whole list in first took 2-5 s before the song started)
+        val split = QueueSplit.plan(list.size, index, BIG_QUEUE)
+        val first = if (split == null) list else list.subList(split.from, split.to)
+        val firstIndex = if (split == null) index.coerceIn(0, list.lastIndex) else split.chosenInWindow
+        queue = first
         // Next presses still settling belong to the old queue: they would land in the middle of this one (the car's Next then a playlist)
         dropBurst()
         // a new queue: the DJ's "this queue" switch goes back to untouched, and nothing from the old queue is said
         this.contextId = contextId; dj.newQueue(); djVoice?.clear(); refreshDjSettingsSoon(); autoplayPaths.clear(); queueGen++
         if (shuffle != null) { prefs.shuffle = shuffle; applyModes() }
-        // a big list (a whole library of thousands): its queue items are made off the main thread (each looks on the disk for a downloaded copy and a cover);
-        // made here, a 10,000-song library held the screen for over 5 s and Android called the app not responding (emulator smoke, 26 Nov)
         val gen = queueGen
-        fun start(items: List<MediaItem>) {
-            exo.setMediaItems(items, index.coerceIn(0, list.lastIndex), 0L)
-            // on shuffle: the chosen song first, then every other song (the player's own order for new items put the first song anywhere, skipping the
-            // songs before it, and Autoplay's recommendations came after a few Nexts: owner, 6 Nov)
-            // (what is fetched ahead was planned inside setMediaItems on the player's own order: planned again on this one)
-            if (exo.shuffleModeEnabled) { setShuffleOrderQuiet(QueueShuffle.start(list.size, index.coerceIn(0, list.lastIndex))); adaptUpcoming(); schedulePrefetch() }
-            exo.prepare()
-            exo.play()
-            djAsk()
-            // started from a playlist or album: the DJ says so over the first song, "Shuffling Pop" or "Playing Pop" (once per queue start; a shuffle toggled later says nothing)
-            // a song played from Search or Home: with First song on the DJ introduces it (owner, 6 Nov: "didn't announce the first time you clicked play on a song")
-            DjCoordinator.queueLine(context, from, djSettings.firstSong)?.let { djQueueStart(list[index.coerceIn(0, list.lastIndex)], it) }
-            ctx.startService(Intent(ctx, PlaybackService::class.java))
-            handler.postDelayed({ checkQueueLow() }, 1500)
-        }
-        if (list.size <= BIG_QUEUE) { start(list.map(::item)); return }
+        exo.setMediaItems(first.map(::item), firstIndex, 0L)
+        // on shuffle: the chosen song first, then every other song (the player's own order for new items put the first song anywhere, skipping the
+        // songs before it, and Autoplay's recommendations came after a few Nexts: owner, 6 Nov)
+        // (what is fetched ahead was planned inside setMediaItems on the player's own order: planned again on this one)
+        if (exo.shuffleModeEnabled) { setShuffleOrderQuiet(QueueShuffle.start(first.size, firstIndex)); adaptUpcoming(); schedulePrefetch() }
+        exo.prepare()
+        exo.play()
+        djAsk()
+        // started from a playlist or album: the DJ says so over the first song, "Shuffling Pop" or "Playing Pop" (once per queue start; a shuffle toggled later says nothing)
+        // a song played from Search or Home: with First song on the DJ introduces it (owner, 6 Nov: "didn't announce the first time you clicked play on a song")
+        DjCoordinator.queueLine(context, from, djSettings.firstSong)?.let { djQueueStart(first[firstIndex], it) }
+        ctx.startService(Intent(ctx, PlaybackService::class.java))
+        handler.postDelayed({ checkQueueLow() }, 1500)
+        if (split != null) addTheRest(list, split, gen)
+    }
+
+    /**
+     * The songs round the window of a big queue, made off the main thread and put into the player a few hundred at a time (the player never waits on all of
+     * them), the earlier songs in front of the window and the later ones behind it, so queue indices come out as the list's own. Dropped if another queue started.
+     */
+    private fun addTheRest(list: List<Track>, split: QueueSplit.Plan, gen: Int) {
         itemExec.execute {
             val t0 = android.os.SystemClock.elapsedRealtime()
             val items = try { list.map(::item) } catch (e: Exception) { Diag.add("error", "queue items: ${e.message ?: e.javaClass.simpleName}"); null }
             Diag.add("play", "${list.size} queue items made in ${android.os.SystemClock.elapsedRealtime() - t0} ms")
-            handler.post { if (gen == queueGen) start(items ?: list.map(::item)) }
+            if (items == null) return@execute
+            val winSize = split.to - split.from
+            var behindDone = 0; var aheadDone = 0
+            fun step() {
+                if (gen != queueGen) return
+                val chunk = REST_CHUNK
+                if (behindDone < split.from) {
+                    val n = minOf(chunk, split.from - behindDone)
+                    exo.addMediaItems(behindDone, items.subList(behindDone, behindDone + n)); behindDone += n
+                } else if (split.to + aheadDone < list.size) {
+                    val n = minOf(chunk, list.size - split.to - aheadDone)
+                    exo.addMediaItems(behindDone + winSize + aheadDone, items.subList(split.to + aheadDone, split.to + aheadDone + n)); aheadDone += n
+                }
+                val finished = behindDone >= split.from && split.to + aheadDone >= list.size
+                if (finished) {
+                    // on shuffle: the song playing now first, then every other (the order made for the window held only the window)
+                    if (exo.shuffleModeEnabled) setShuffleOrderQuiet(QueueShuffle.start(exo.mediaItemCount, exo.currentMediaItemIndex))
+                    queueChanged(); adaptUpcoming(); schedulePrefetch(); persistNow()
+                    Diag.add("play", "${list.size} songs in the player")
+                } else { queue = queueTracks(); queueRev++; handler.post(::step) }
+            }
+            handler.post(::step)
         }
     }
 
     /** Lists longer than this have their queue items made on [itemExec] (see [play]). */
     private val BIG_QUEUE = 400
+    private val REST_CHUNK = 500
     private val itemExec = java.util.concurrent.Executors.newSingleThreadExecutor { r -> Thread(r, "queue-items").also { it.isDaemon = true } }
 
     /** Shuffle Songs: random start, shuffle mode forced on. */

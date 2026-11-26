@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -64,6 +65,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -194,7 +196,13 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
     // the phone's panes, as in the old player: Lyrics, the cover, Info, Up next side by side; swipe sideways between them, or use the row at the bottom
     var pane by rememberSaveable { mutableStateOf("art") }
     val toggle: (String) -> Unit = { id -> pane = if (pane == id) "art" else id }
-    BoxWithConstraints(Modifier.fillMaxSize().drawBehind { drawRect(palette.ground.value) }) {
+    // the player is laid out from under the status bar down, so the strip above it showed the app's own colour (grey on the owner's phone,
+    // 26 Nov): the stage's top colour is carried up through it, so the screen reads as one from the very top
+    val statusPx = with(LocalDensity.current) { WindowInsets.statusBars.getTop(this).toFloat() }
+    BoxWithConstraints(Modifier.fillMaxSize().drawBehind {
+        drawRect(palette.ground.value)
+        drawRect(palette.tone.value, topLeft = androidx.compose.ui.geometry.Offset(0f, -statusPx - 1f), size = androidx.compose.ui.geometry.Size(size.width, statusPx + 2f))
+    }) {
         // how the player fits this screen with nothing to scroll (owner, 10 Nov: his dad had to scroll down to the controls and the graphs): the cover
         // shrinks first, then the band of bars round it, then the secondary things go behind More (NowPlayingFit, unit tested)
         val nav0 = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -328,8 +336,6 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
         drawRect(Brush.verticalGradient(listOf(p.tone.value, p.ground.value), endY = size.height * .7f))
     }) {
         val h = maxHeight
-        // the web phone's hero: the cover itself, blurred and dimmed, behind the top of the player
-        if (!wide) SleeveHero(t.artKey, p, h)
         // nothing scrolls: a short phone shrinks the cover, then the frame's band, then puts the secondary things behind More (NowPlayingFit), and a phone
         // on its side puts the cover beside the controls. Only a split-screen sliver that no plan fits still scrolls, as a last resort
         val cramped = !fit.fits
@@ -378,8 +384,12 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             SleeveTopBar(snap, nav, t, p, onOptions)
             // the cover in its frame of bars takes whatever height is left, as a square: on a short screen the plan has already made room by
             // compacting the band and putting the secondary things away, so the time, the title and the controls below are always on screen
-            BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
+            // only as tall as the cover's square (fill = false): the height a tall phone has spare is no longer split into gaps above and below
+            // the cover (owner, 26 Nov: "more wasted space"), it goes to the foot, where Up next names the next song
+            var spare by remember { mutableStateOf(0.dp) }
+            BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f, fill = false).padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                if (!cramped) SideEffect { spare = maxHeight - side }
                 if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
                 // Lyrics and Info take all the room above the controls, not just the cover's square: on an S22 the graph and the lyrics were below the fold (owner, 1 Nov)
                 else SleeveCard(card, snap, t, p, Modifier.width(minOf(maxWidth - 16.dp, 560.dp)).fillMaxHeight()) { onOpen(card) }
@@ -393,27 +403,10 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             }
             SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp), nav)
             Spacer(Modifier.height(12.dp))
+            if (!wide && card == null && spare > 72.dp) SleeveUpNextPeek(snap, p) { onOpen("queue") }
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
             if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, actions = fit.actions, onMore = onMore) }
         }
-    }
-}
-
-/**
- * The web phone's hero (living-sleeve.css .ls-hero): the cover across the top ~62% of the screen, blurred and at half brightness, fading into the
- * ground, so the frame's bars read on any cover. Blur needs Android 12; an older phone keeps the plain tone-to-ground wash rather than a sharp picture.
- */
-@Composable
-private fun SleeveHero(artKey: String?, p: SleevePalette, screenH: Dp) {
-    if (android.os.Build.VERSION.SDK_INT < 31 || artKey == null) return
-    Box(Modifier.fillMaxWidth().height((screenH * .616f).coerceIn(340.dp, 560.dp)).clipToBounds()) {
-        ArtImage(artKey, Modifier.fillMaxSize().graphicsLayer { scaleX = 1.15f; scaleY = 1.15f }.blur(26.dp), thumb = true, corner = 0.dp)
-        // half brightness, the fade into the ground from 42% down, and the shade at the top for the buttons, as the web draws them
-        Box(Modifier.fillMaxSize().drawBehind {
-            drawRect(Color(0x80000000))
-            drawRect(Brush.verticalGradient(0f to Color.Transparent, .42f to Color.Transparent, .92f to p.ground.value, 1f to p.ground.value))
-            drawRect(Brush.verticalGradient(listOf(Color(0x66000000), Color.Transparent), endY = 110.dp.toPx()))
-        })
     }
 }
 
@@ -1307,7 +1300,6 @@ fun RemoteSleeveBody(s: com.ipodemu.library.JellyfinConnect.Session, onClose: ()
         // the same plan as this phone's player: on a short screen the frame's band compacts first; only a sliver no plan fits scrolls
         val fit = remember(maxWidth, maxHeight, fontScale, top0, nav0) { NowPlayingFit.plan(maxWidth.value, maxHeight.value, fontScale, top0.value, nav0.value) }
         val wide = fit.layout == NowPlayingFit.Layout.WIDE
-        if (!wide) SleeveHero(art, p, h)
         val cramped = !fit.fits
         Column(
             Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
@@ -1315,8 +1307,12 @@ fun RemoteSleeveBody(s: com.ipodemu.library.JellyfinConnect.Session, onClose: ()
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             RemoteTopBar(s.device, onClose, onDevices)
-            BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f).padding(top = 4.dp), contentAlignment = Alignment.Center) {
+            // only as tall as the cover's square (fill = false): the height a tall phone has spare is no longer split into gaps above and below
+            // the cover (owner, 26 Nov: "more wasted space"), it goes to the foot, where Up next names the next song
+            var spare by remember { mutableStateOf(0.dp) }
+            BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f, fill = false).padding(top = 4.dp), contentAlignment = Alignment.Center) {
                 val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                if (!cramped) SideEffect { spare = maxHeight - side }
                 CoverFrame(art, !s.paused, null, p, side, pos, dur, scrub, fit.compactBand, shared = false,
                     onSeek = { seek(it) }, onToggle = { c.command(latest, "PlayPause") }, onSkip = { d -> seek(pos.longValue + d) })
             }
@@ -1386,5 +1382,22 @@ private fun RemotePlayHere(p: SleevePalette, onClick: () -> Unit) {
         GlyphIcon(Glyph.PLAY, Modifier.size(20.dp), fg)
         Spacer(Modifier.width(9.dp))
         SText("Play here", size = 15f, weight = FontWeight.SemiBold, color = fg)
+    }
+}
+
+
+/** The next song, in the room a tall phone has under the controls: a tap opens Up next. Nothing when the queue ends here. */
+@Composable
+private fun SleeveUpNextPeek(snap: PlayerSnap, p: SleevePalette, onOpen: () -> Unit) {
+    val app = LocalApp.current
+    val next = remember(snap.index, snap.rev, snap.count) { app.player.queueWindow(snap.index + 1, 1).firstOrNull() } ?: return
+    Row(Modifier.padding(horizontal = 14.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Ink.copy(alpha = .07f))
+        .clickable(onClick = onOpen).padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ArtImage(next.artKey, Modifier.size(40.dp), corner = 8.dp, thumb = true)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            SText("UP NEXT", size = 10.5f, color = Ink.copy(alpha = .6f), maxLines = 1)
+            SText("${next.title} · ${next.artist}", size = 14f, color = Ink, maxLines = 1)
+        }
+        GlyphIcon(Glyph.QUEUE, Modifier.size(20.dp), Ink.copy(alpha = .7f))
     }
 }

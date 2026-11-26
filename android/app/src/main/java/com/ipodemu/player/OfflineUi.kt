@@ -144,7 +144,8 @@ private fun MarkIcon(mark: DownloadMark, size: Dp) {
     // a finished song is the full accent with the word "Offline" (an arrow alone meant nothing to the owner's dad; 1 Nov); one on its way is the same shape, quieter, so a list does not flicker
     Row(Modifier.semantics(mergeDescendants = true) { contentDescription = if (done) "Available offline" else "Getting it for offline" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         GlyphIcon(Glyph.DOWNLOADED, Modifier.size(size), if (done) sc.accent else sc.onBgDim.copy(alpha = .7f))
-        if (done) Txt("Offline", size = 11f, weight = FontWeight.SemiBold, color = sc.accent, maxLines = 1)
+        // on a playlist's page the arrow alone: its Download button already says the list is on the phone, and the word on every row cut the titles short (owner, 26 Nov)
+        if (done && LocalPlaylistLook.current == null) Txt("Offline", size = 11f, weight = FontWeight.SemiBold, color = sc.accent, maxLines = 1)
     }
 }
 

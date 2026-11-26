@@ -90,20 +90,19 @@ fun PlTag(text: String, kind: TagKind = TagKind.PLAIN, small: Boolean = false) {
     }
 }
 
-/** A quieter action of the page: a short glass pill, icon beside its word, so all of them fit one row and the songs show sooner (owner, 26 Nov: the
- *  first screen was all cover and buttons); [on] lights it in the cover's colour (a playlist's own DJ choice, a download kept). */
+/** A quieter action of the page: Now Playing's bottom-row slot, the icon over its word, so four fit a phone's row with their words whole
+ *  (owner, 26 Nov: the cut-off pills looked odd); [on] lights it in the cover's colour (a playlist's own DJ choice, a download kept). */
 @Composable
 fun ToolSlot(label: String, icon: Glyph, onClick: () -> Unit, modifier: Modifier = Modifier, on: Boolean = false, accent: Color = LocalScheme.current.accent) {
     val sc = LocalScheme.current
-    val shape = RoundedCornerShape(22.dp)
-    Row(
-        modifier.height(44.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier.height(58.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
             .semantics { role = Role.Button }.focusRing(shape).clickable(onClick = onClick).padding(horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
     ) {
-        GlyphIcon(icon, Modifier.size(15.dp), sc.onBg)
-        // a long word ("Download") a little smaller, so four of them fit a phone's row whole
-        Txt(label, size = if (label.length > 6) 11f else 12f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 1)
+        GlyphIcon(icon, Modifier.size(19.dp), if (on) accent else sc.onBg)
+        Txt(label, size = 11.5f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 1)
     }
 }
 

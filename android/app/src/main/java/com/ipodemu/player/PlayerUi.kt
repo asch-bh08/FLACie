@@ -1905,7 +1905,8 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
             if (isList && tracks.isNotEmpty()) ToolSlot("Share", Glyph.SHARE, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
             // its own page, so it is plain you are editing (owner, 26 Nov: "I didn't even know that was edit mode")
             if (kind == "Playlist" && playlistId != null && tracks.isNotEmpty()) ToolSlot("Edit", Glyph.LIST, { nav.push(Screen.EditPlaylist(playlistId)) }, Modifier.weight(1f))
-            if (playlistId != null) ToolSlot("More", Glyph.MORE, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = false) }, Modifier.weight(1f))
+            // no More: Rename, Remove duplicates and Delete are on the Edit page (owner, 26 Nov)
+            if (playlistId != null && !(kind == "Playlist" && tracks.isNotEmpty())) ToolSlot("More", Glyph.MORE, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = false) }, Modifier.weight(1f))
             // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
             if (kind == "Your favourites" && tracks.isNotEmpty()) ToolSlot("Clear all", Glyph.CLOSE, {
                 nav.sheet = SheetSpec("Clear all favourites?", "${tracks.size} songs. Every device you're signed in on follows.", listOf(
@@ -1917,7 +1918,8 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
                 ))
             }, Modifier.weight(1f))
         }
-        if (isList && tracks.isNotEmpty()) KeepNewSongsSwitch(tracks, listId)
+        // "Download new songs added" is on the Edit page, with the playlist's other settings
+        if (isList && tracks.isNotEmpty() && playlistId == null) KeepNewSongsSwitch(tracks, listId)
     }
 }
 
@@ -3209,6 +3211,22 @@ private fun EditPlaylistScreen(id: String, nav: PlayerNav, snap: PlayerSnap) {
                         Txt("${tracks.size} songs · hold ≡ and drag to move a song", size = 13f, color = sc.onBgDim)
                     }
                     Txt("Rename", size = 14f, weight = FontWeight.SemiBold, color = sc.accent)
+                }
+            }
+            // the playlist's own settings and actions, which used to hide behind More on its page
+            item(key = "opts") {
+                Column(Modifier.padding(start = 4.dp, end = 8.dp, bottom = 10.dp)) {
+                    if (tracks.isNotEmpty()) KeepNewSongsSwitch(tracks, id)
+                    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DesignChip("Remove duplicates", false, {
+                            val n = ud.removeDuplicates(id) { p -> lib.resolve(p, ud.meta[p])?.matchKey ?: p }
+                            app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
+                        }, icon = Glyph.CHECK)
+                        DesignChip("Delete playlist", false, {
+                            nav.sheet = SheetSpec("Delete \"${pl.name}\"?", "${tracks.size} songs. This can't be undone here.", listOf(
+                                SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(id); nav.pop(); nav.pop() }, SheetItem("Keep it", Glyph.CHECK) { }))
+                        }, icon = Glyph.CLOSE)
+                    }
                 }
             }
             itemsIndexed(order, key = { _, kt -> kt.first }) { _, kt ->

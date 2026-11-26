@@ -19,6 +19,10 @@ Info / Add) are liked; the web's small square mono tags on Now Playing are liked
 
 ## The one design (the spec both sides build to)
 
+**One button shape (owner, 26 Nov: "why did you make half the buttons rounded rectangles but not the others"):** every button on both
+sides is the same rounded rectangle (radius 16-18): main buttons, small buttons, slots, icon buttons, play / previous / next, the dock's
+right side. No circles or full pills left for buttons (tags stay pills; covers keep their own corners).
+
 **Big by default (owner, 26 Nov: "I LOVE big buttons ... they're too small, but they can be big and fit, be smart").** Every size below is the
 comfortable size (the owner loves car mode's huge buttons: take their feel, chunky, filled, clear icon and word, easy to hit without looking,
 at app scale, not car scale; car mode can be that big because it leaves features out, the app must keep every feature, so each screen
@@ -67,7 +71,14 @@ Remove from playlist. Words: Favourites (never Favorites), "…" (one character)
 - 1d Settings + Account + Offline/Downloads
 - 1e Devices + Jam + Car
 - 1f Menus and sheets (song menu everywhere, confirms, playlist picker), toasts, dialogs
-- 1g Now Playing + mini bar + queue (onto the kit, keeping its look)
+- 1g Now Playing + mini bar + queue (onto the kit, keeping its look), rearranged (owner, 26 Nov), every feature kept:
+  - no Up next slot: swiping and the Up next line under the controls already go there
+  - Shuffle and Repeat out of the transport row (beside the time or in the slot row), so previous / play / next get the room and grow
+  - no wasted space: above the title, left and right of the time, under the frame/cover (e.g. the time's two numbers at the frame's
+    lower corners); the spare room is used or shared, never a band
+  - Lyrics / Info: the plain seek line is liked but too plain: the round thumb becomes a tall rounded-rectangle thumb, the line a little bolder
+  - the + (Add to playlist) smaller or tucked, still one tap away; the phone's add-to-playlist page redone on the kit (it is outdated)
+- Every page on every platform is in scope (web PC, web phone, Android, the Windows app's pages, Android Auto keeps its own car rules).
 
 - 1h Every screen size (owner, 26 Nov: "fits every aspect ratio, resolution, screen size"): one size list used by both checks — phones
   360×640, 375×667, 390×844, 412×915, tall 412×1000 (20:9 and 21:9), a Fold's cover and inner screen, landscape phone, tablet 768×1024 and

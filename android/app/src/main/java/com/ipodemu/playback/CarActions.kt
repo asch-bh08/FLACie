@@ -9,15 +9,29 @@ import com.ipodemu.library.LyricLine
 object CarActions {
     enum class Id { TALK, FAVORITE, SHUFFLE, DJ, REPEAT, SPEED }
 
-    /** The car shows this many custom buttons at most. */
-    const val MAX = 4
+    /** At most this many custom buttons: the car shows the first few on its bar and the rest under its "more" button. */
+    const val MAX = 5
 
     /**
-     * The custom buttons in order. With the DJ in the car: the mic first (so it sits next to the playback controls), then the heart, shuffle and DJ on/off.
-     * Without it (no car, or no FLACie Web): repeat, heart, shuffle and, for long items, speed. Never more than [MAX].
+     * The custom buttons in order, the most used first (owner, 26 Nov: "Android Auto maximum improvement"). In the car with the DJ: the mic (next to the playback
+     * controls), the heart, shuffle, DJ on/off and repeat. In the car without the DJ (no FLACie Web): the heart, shuffle, repeat and, for long items, speed.
+     * Without a car (the notification): repeat, heart, shuffle and speed for long items.
      */
-    fun order(carDj: Boolean, speedButton: Boolean): List<Id> =
-        (if (carDj) listOf(Id.TALK, Id.FAVORITE, Id.SHUFFLE, Id.DJ) else listOfNotNull(Id.REPEAT, Id.FAVORITE, Id.SHUFFLE, if (speedButton) Id.SPEED else null)).take(MAX)
+    fun order(car: Boolean, carDj: Boolean, speedButton: Boolean): List<Id> = when {
+        car && carDj -> listOf(Id.TALK, Id.FAVORITE, Id.SHUFFLE, Id.DJ, Id.REPEAT)
+        car -> listOfNotNull(Id.FAVORITE, Id.SHUFFLE, Id.REPEAT, if (speedButton) Id.SPEED else null)
+        else -> listOfNotNull(Id.REPEAT, Id.FAVORITE, Id.SHUFFLE, if (speedButton) Id.SPEED else null)
+    }.take(MAX)
+
+    // the names say the state (the car reads them out and shows them on a long press), the icons change with it
+    fun shuffleName(on: Boolean) = if (on) "Shuffle: on" else "Shuffle: off"
+    fun repeatName(setting: Int) = "Repeat: " + when (setting) { RepeatCycle.ALL -> "all"; RepeatCycle.ONE -> "one"; else -> "off" }
+    fun favouriteName(on: Boolean) = if (on) "Favourite: on" else "Favourite: off"
+    fun djName(on: Boolean) = if (on) "DJ: on" else "DJ: off"
+    fun shuffleIcon(on: Boolean) = if (on) "ic_car_shuffle_on" else "ic_car_shuffle_off"
+    fun repeatIcon(setting: Int) = when (setting) { RepeatCycle.ALL -> "ic_car_repeat"; RepeatCycle.ONE -> "ic_car_repeat_one"; else -> "ic_car_repeat_off" }
+    fun favouriteIcon(on: Boolean) = if (on) "ic_car_heart_on" else "ic_car_heart"
+    fun djIcon(on: Boolean) = if (on) "ic_car_dj_on" else "ic_car_dj_off"
 
     /** Android Auto's "always reserve space" extras: with them the skip previous and next slots stay where they are even when a song can't skip. */
     val SLOT_RESERVATION_KEYS = listOf(

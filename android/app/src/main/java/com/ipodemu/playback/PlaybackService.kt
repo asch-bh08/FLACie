@@ -152,12 +152,12 @@ class PlaybackService : MediaLibraryService() {
             // a button that can't do its job says so on the car's screen instead of doing nothing (owner, 25 Nov: "sometimes they don't even work")
             val ok = try {
                 when (customCommand.customAction) {
-                    CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it); true } ?: false.also { app.player.carNote("Nothing playing to favourite") }
+                    CMD_FAVORITE -> app.player.current?.let { app.userData.toggleFavorite(it); app.player.carNote(CarActions.favouriteName(isFavorite(app))); true } ?: false.also { app.player.carNote("Nothing playing to favourite") }
                     CMD_SPEED -> { app.player.setSpeed(SpeedPolicy.cycle(app.player.speed)); true }
-                    CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes(); app.player.carNote(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off"); true }
-                    CMD_REPEAT -> { app.prefs.repeat = RepeatCycle.next(app.prefs.repeat); app.player.applyModes(); app.player.carNote(RepeatCycle.label(app.prefs.repeat)); true }
+                    CMD_SHUFFLE -> { app.prefs.shuffle = !app.prefs.shuffle; app.player.applyModes(); app.player.carNote(CarActions.shuffleName(app.prefs.shuffle)); true }
+                    CMD_REPEAT -> { app.prefs.repeat = RepeatCycle.next(app.prefs.repeat); app.player.applyModes(); app.player.carNote(CarActions.repeatName(app.prefs.repeat)); true }
                     CMD_DJ -> if (!app.player.djAvailable) false.also { app.player.carNote("The DJ needs FLACie Web: sign in on the phone") }
-                        else { val on = app.player.flipDj(); app.player.carNote(if (on) "DJ on" else "DJ off"); true }
+                        else { val on = app.player.flipDj(); app.player.carNote(CarActions.djName(on)); true }
                     CMD_TALK -> { carMic.press(); true }
                     else -> false
                 }
@@ -188,6 +188,7 @@ class PlaybackService : MediaLibraryService() {
             async {
                 val src = AppBrowseSource(App.of(this@PlaybackService))
                 val node = BrowseTree.root().firstOrNull { it.id == mediaId }
+                    ?: (if (mediaId == BrowseTree.RESUME) BrowseTree.children(BrowseTree.HOME, 0, 1, src).firstOrNull { it.id == mediaId } else null)
                     ?: BrowseTree.resolve(mediaId, src)?.let { r -> r.tracks.getOrNull(r.index) }?.let { t -> BrowseNode(mediaId, t.title, BrowseTree.songLine(t, src).ifEmpty { null }, false, true, t.artKey, t.path, offline = src.isDownloaded(t.path)) }
                 if (node == null) LibraryResult.ofError(LibraryResult.RESULT_ERROR_BAD_VALUE) else LibraryResult.ofItem(nodeItem(node), null)
             }
@@ -291,25 +292,31 @@ class PlaybackService : MediaLibraryService() {
         val app = App.of(this)
         val fav = isFavorite(app)
         val speed = app.player.speed
-        val carDj = app.player.carControllers > 0 && app.player.djAvailable
+        val car = app.player.carControllers > 0
+        val carDj = car && app.player.djAvailable
         // only for audiobooks, podcasts and long items (or to get back to 1x): a stray tap on it in a pocket left songs at 1.75x (owner, 1 Nov)
         val speedButton = app.player.current?.let { SpeedPolicy.speedButton(it.genre, it.durationMs, speed) } == true
         fun button(name: String, icon: Int, cmd: SessionCommand) = CommandButton.Builder().setDisplayName(name).setIconResId(icon).setSessionCommand(cmd).build()
-        // in the car: the mic first (it sits next to the playback controls), then the heart, shuffle and the DJ's switch, large simple icons, four at most ([CarActions])
-        val buttons = CarActions.order(carDj, speedButton).map { id ->
+        // by R, not by looking the name up, so the shrinker keeps every one
+        fun drawable(name: String) = when (name) {
+            "ic_car_heart_on" -> R.drawable.ic_car_heart_on; "ic_car_heart" -> R.drawable.ic_car_heart
+            "ic_car_shuffle_on" -> R.drawable.ic_car_shuffle_on; "ic_car_shuffle_off" -> R.drawable.ic_car_shuffle_off
+            "ic_car_repeat" -> R.drawable.ic_car_repeat; "ic_car_repeat_one" -> R.drawable.ic_car_repeat_one; "ic_car_repeat_off" -> R.drawable.ic_car_repeat_off
+            "ic_car_dj_on" -> R.drawable.ic_car_dj_on; else -> R.drawable.ic_car_dj_off
+        }
+        // in the car: large simple icons that change with the state, and names that say it ("Shuffle: on"), the most used first ([CarActions]; owner, 26 Nov)
+        val buttons = CarActions.order(car, carDj, speedButton).map { id ->
             when (id) {
                 CarActions.Id.TALK -> carMic.let { m ->
                     button(when { m.state == CarDjMic.State.LISTENING -> "Listening… tap to stop"; m.state == CarDjMic.State.THINKING -> "Working… tap to cancel"; m.conversing -> "Talking with the DJ"; else -> "Talk to the DJ" },
                         if (m.conversing) R.drawable.ic_car_mic_on else R.drawable.ic_car_mic, talkCommand)
                 }
-                CarActions.Id.FAVORITE -> button(if (fav) "Remove from favourites" else "Favourite",
-                    if (carDj) (if (fav) R.drawable.ic_car_heart_on else R.drawable.ic_car_heart) else (if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav), favCommand)
-                CarActions.Id.SHUFFLE -> button(if (app.prefs.shuffle) "Shuffle on" else "Shuffle off",
-                    if (carDj) (if (app.prefs.shuffle) R.drawable.ic_car_shuffle_on else R.drawable.ic_car_shuffle_off) else (if (app.prefs.shuffle) R.drawable.ic_car_shuffle else R.drawable.ic_shuffle_off), shuffleCommand)
-                CarActions.Id.DJ -> app.player.djOn.let { on -> button(if (on) "DJ on" else "DJ off", if (on) R.drawable.ic_car_dj_on else R.drawable.ic_car_dj_off, djCommand) }
+                CarActions.Id.FAVORITE -> button(CarActions.favouriteName(fav), if (car) drawable(CarActions.favouriteIcon(fav)) else (if (fav) R.drawable.ic_fav_on else R.drawable.ic_fav), favCommand)
+                CarActions.Id.SHUFFLE -> app.prefs.shuffle.let { on -> button(CarActions.shuffleName(on), if (car) drawable(CarActions.shuffleIcon(on)) else (if (on) R.drawable.ic_car_shuffle else R.drawable.ic_shuffle_off), shuffleCommand) }
+                CarActions.Id.DJ -> app.player.djOn.let { on -> button(CarActions.djName(on), drawable(CarActions.djIcon(on)), djCommand) }
                 // repeat: dimmed when off, a 1 for repeat one
-                CarActions.Id.REPEAT -> button(RepeatCycle.label(app.prefs.repeat),
-                    when (app.prefs.repeat) { RepeatCycle.ALL -> R.drawable.ic_repeat; RepeatCycle.ONE -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }, repeatCommand)
+                CarActions.Id.REPEAT -> app.prefs.repeat.let { r -> button(CarActions.repeatName(r), if (car) drawable(CarActions.repeatIcon(r))
+                    else when (r) { RepeatCycle.ALL -> R.drawable.ic_repeat; RepeatCycle.ONE -> R.drawable.ic_repeat_one; else -> R.drawable.ic_repeat_off }, repeatCommand) }
                 CarActions.Id.SPEED -> button("Speed " + SpeedPolicy.label(speed), R.drawable.ic_speed, speedCommand)
             }
         }

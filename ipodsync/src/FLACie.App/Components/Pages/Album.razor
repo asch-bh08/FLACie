@@ -5,7 +5,7 @@
 @{ var g = Lib.Albums.FirstOrDefault(a => string.Equals(a.Tracks[0].AlbumKey, Uri.UnescapeDataString(Key), StringComparison.OrdinalIgnoreCase)); }
 @if (g is null)
 {
-    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <div class="empty-state"><p class="status">This album isn't in your library.</p><a class="btn" href="/albums">All albums</a></div> }
+    @if (Session.Loading) { <Skeleton Label="Loading…" /> } else { <EmptyState Glyph="albums" Line="This album isn't in your library."><a class="btn" href="/albums">All albums</a></EmptyState> }
 }
 else
 {

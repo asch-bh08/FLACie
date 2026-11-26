@@ -20,10 +20,10 @@
                 <div class="pl-tools">
                 @if (confirmClear)
                 {
-                    <button class="btn danger pl-slot" @onclick="Clear"><Icon Name="x" Size="19" /><span>Clear all @Session.Favorites.Count</span></button>
-                    <button class="btn pl-tool pl-slot" @onclick="() => confirmClear = false"><Icon Name="check" Size="19" /><span>Keep them</span></button>
+                    <Slot Class="btn danger pl-slot" OnClick="Clear" Icon="x" Label="@($"Clear all {Session.Favorites.Count}")" />
+                    <Slot Class="btn pl-tool pl-slot" OnClick="() => confirmClear = false" Icon="check" Label="Keep them" />
                 }
-                else { <button class="btn pl-tool pl-slot" @onclick="() => confirmClear = true"><Icon Name="x" Size="19" /><span>Clear all</span></button> }
+                else { <Slot Class="btn pl-tool pl-slot" OnClick="() => confirmClear = true" Icon="x" Label="Clear all" /> }
                 </div>
             }
         </div>
@@ -32,7 +32,7 @@
 <div class="pl-main">
 @if (tracks.Count == 0)
 {
-    <div class="empty-state"><p class="status">No favourites yet.<small>Tap the heart beside any song and it waits for you here.</small></p><a class="btn" href="/songs">Browse songs</a></div>
+    <EmptyState Glyph="heart" Line="No favourites yet." Sub="Tap the heart beside any song and it waits for you here."><a class="btn" href="/songs">Browse songs</a></EmptyState>
 }
 <TrackList Tracks="tracks" PlayContext="Favourites" />
 </div>

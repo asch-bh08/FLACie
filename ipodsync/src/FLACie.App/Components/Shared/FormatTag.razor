@@ -1,0 +1,11 @@
+@* The kit's format tag (kit.css .k-fmt; the phone's FormatTag): mono caps, small radius, filled; Hi-Res in amber. Only where the format matters. *@
+<span class="k-fmt @(HiRes ? "hires" : "") @Class" @attributes="Extra">@Text@if (Detail is not null) { <span class="k-fmt-dim">@Detail</span> }</span>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    /// <summary>The quieter second half, e.g. "24/96" after "FLAC".</summary>
+    [Parameter] public string? Detail { get; set; }
+    [Parameter] public bool HiRes { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Extra { get; set; }
+}

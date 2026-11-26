@@ -12,7 +12,7 @@
 <MusicTabs Active="Songs" />
 <ExploreBar Tab="Songs" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Songs.Count > 0) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
+@if (list.Count == 0 && Lib.Songs.Count > 0) { <EmptyState Glyph="search" Line="Nothing matches these filters." Sub="Try fewer, or start again with everything."><button class="btn" @onclick="ClearFilters">Clear filters</button></EmptyState> }
 <div class="tracks virtual">
     <Virtualize Items="rows" Context="row" ItemSize="60">
         <div class="track @(Player.Current?.Path == row.T.Path ? "now" : "")">

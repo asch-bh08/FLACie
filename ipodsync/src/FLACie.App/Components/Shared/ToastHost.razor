@@ -2,10 +2,11 @@
 @inject Toasts Toast
 @if (Toast.Current is { } t)
 {
-    <div class="toast @(t.Warn ? "warn" : "")" role="status" aria-live="polite">
+    @* a tap anywhere on it dismisses it, as on the phone; the buttons stop that tap, so Undo's own follow-up toast is not dismissed with it *@
+    <div class="toast k-toast @(t.Warn ? "warn" : "")" role="status" aria-live="polite" @onclick="Toast.Dismiss">
         <span>@t.Text</span>
-        @if (t.ActionLabel is not null) { <button @onclick="() => { var a = t.Action; Toast.Dismiss(); a?.Invoke(); }">@t.ActionLabel</button> }
-        <button class="x" aria-label="Dismiss" @onclick="Toast.Dismiss" title="Dismiss"><Icon Name="x" Size="16" /></button>
+        @if (t.ActionLabel is not null) { <button @onclick:stopPropagation="true" @onclick="() => { var a = t.Action; Toast.Dismiss(); a?.Invoke(); }">@t.ActionLabel</button> }
+        <button class="x" aria-label="Dismiss" @onclick:stopPropagation="true" @onclick="Toast.Dismiss" title="Dismiss"><Icon Name="x" Size="16" /></button>
     </div>
 }
 @code {

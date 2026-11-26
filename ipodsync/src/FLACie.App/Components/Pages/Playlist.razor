@@ -4,7 +4,7 @@
 @{ var p = Session.Playlists.FirstOrDefault(x => x.Id == Id); }
 @if (p is null)
 {
-    <div class="empty-state"><p class="status">This playlist isn't there any more.<small>It may have been deleted on another device.</small></p><a class="btn" href="/playlists">Your playlists</a></div>
+    <EmptyState Glyph="playlists" Line="This playlist isn't there any more." Sub="It may have been deleted on another device."><a class="btn" href="/playlists">Your playlists</a></EmptyState>
 }
 else
 {
@@ -44,23 +44,21 @@ else
                    Rename, Remove duplicates and Delete are on the Edit page, where a second click on the playlist can't land on them *@
                 <div class="pl-tools">
                 @* a button like the others, not an underlined link (owner, 25 Nov); the web downloads per import, not per playlist *@
-                @if (imp is { } im2) { <a class="btn pl-tool pl-slot pl-downloads" href="/imports/@im2.JobId/downloads" data-testid="pl-downloads" title="This playlist's downloads: what came in, what is still to come"><Icon Name="download" Size="19" /><span>Downloads</span></a> }
+                @if (imp is { } im2) { <Slot Class="btn pl-tool pl-slot pl-downloads" Href="@($"/imports/{im2.JobId}/downloads")" data-testid="pl-downloads" Title="This playlist's downloads: what came in, what is still to come" Icon="download" Label="Downloads" /> }
                 @* the DJ on this playlist, remembered for it (and on the phone): Auto follows Settings → DJ; On or Off wins over that whenever this playlist plays *@
                 @if (Player.Dj is { } dj)
                 {
                     var djChoice = DjSwitches.OfPlaylist(dj.Settings(Session), DjSwitches.KeyOf(p));
-                    <button class="btn pl-tool pl-slot pl-dj @(djChoice is null ? "" : "set")" @onclick="() => CycleDj(p)" title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change.">
-                        <Icon Name="dj" Size="19" /><span>DJ: @DjSwitches.Label(djChoice)</span>
-                    </button>
+                    <Slot Class="@($"btn pl-tool pl-slot pl-dj {(djChoice is null ? "" : "set")}")" OnClick="() => CycleDj(p)" Title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change." Icon="dj" Label="@($"DJ: {DjSwitches.Label(djChoice)}")" />
                 }
-                <button class="btn pl-tool pl-slot" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="19" /><span>Share</span></button>
-                <a class="btn pl-tool pl-slot pl-edit" href="/playlist/@p.Id/edit"><Icon Name="lines" Size="19" /><span>Edit</span></a>
+                <Slot Class="btn pl-tool pl-slot" Disabled="@(tracks.Count == 0)" OnClick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)' Icon="share" Label="Share" />
+                <Slot Class="btn pl-tool pl-slot pl-edit" Href="@($"/playlist/{p.Id}/edit")" Icon="lines" Label="Edit" />
                 </div>
             </div>
         </div>
     </header>
     <div class="pl-main">
-    @if (tracks.Count == 0 && waiting is not { Count: > 0 }) { <div class="empty-state"><p class="status">Nothing in this playlist yet.<small>Use the ⋯ menu on any song and pick “Add to playlist”.</small></p><a class="btn" href="/songs">Find songs to add</a></div> }
+    @if (tracks.Count == 0 && waiting is not { Count: > 0 }) { <EmptyState Glyph="playlists" Line="Nothing in this playlist yet." Sub="Use the ⋯ menu on any song and pick “Add to playlist”."><a class="btn" href="/songs">Find songs to add</a></EmptyState> }
     <TrackList Tracks="tracks" Waiting="waiting" OnRetry="Retry" PlayContext="@p.Name" PlayContextId="@DjSwitches.KeyOf(p)" OnRemove="i => Remove(p, tracks, i)" OnMove="(a, b) => Move(p, tracks, a, b)" />
     @{ var missing = imp is not null || Session.Loading || Lib.Songs.Count == 0 ? [] : p.Entries.Where(e => Session.ResolveEntry(e) is null && e.Title.Length > 0).ToList(); }
     @if (missing.Count > 0)

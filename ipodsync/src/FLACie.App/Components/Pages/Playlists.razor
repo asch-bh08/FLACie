@@ -24,7 +24,7 @@
 </div>
 @if (Session.Playlists.Count == 0)
 {
-    <p class="status">No playlists yet. Name one in the first tile, choose several songs and add them to a new one, or save what is playing from Up next.</p>
+    <EmptyState Glyph="playlists" Line="No playlists yet." Sub="Name one in the first tile, choose several songs and add them to a new one, or save what is playing from Up next." />
 }
 @code {
     string name = "";

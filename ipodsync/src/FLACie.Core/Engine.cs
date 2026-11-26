@@ -21,13 +21,18 @@ public sealed record EngineOptions(int Take = 10, bool Explicit = true, double N
 /// hours, never the artist that just played, never another version of a song already in the session, and no remix, live take or other recording unless
 /// the session is mostly those (owner, 25 Nov: "don't add the same song just remixed into the same queue unless it's a full remix queue"). Only when that
 /// leaves nothing do the rails give way, the four-hour rule first, the artist rule second. The picks are half songs the person knows and half new ones,
-/// taken in turn, and spread: no artist twice in a row and at most two by one artist in any ten (owner, 25 Nov: Heads Will Roll, then a run of Yeah Yeah Yeahs).
+/// taken in turn, and spread: songs never heard by one artist at most two in any ten and never back to back (owner, 25 Nov: Heads Will Roll, then a run
+/// of Yeah Yeah Yeahs); songs the person loves, or by an artist they play a lot, that fit may come more often (owner, 26 Nov: "I don't mind them all being
+/// from the same artist as long as the song is good"), but never more than three in a row or four in any ten.
 /// </summary>
 public static class Engine
 {
     const double Gate = 0.6;
-    /// <summary>At most this many songs by one artist in any <see cref="Window"/> picks in a row.</summary>
-    public const int PerWindow = 2, Window = 10;
+    /// <summary>At most this many songs by one artist in any <see cref="Window"/> picks in a row: <see cref="PerWindow"/> for songs not yet known,
+    /// <see cref="EarnedPerWindow"/> for songs the person loves or plays a lot that fit; and never more than <see cref="EarnedRun"/> back to back.</summary>
+    public const int PerWindow = 2, EarnedPerWindow = 4, EarnedRun = 3, Window = 10;
+    const double EarnedFit = 0.7;
+    static bool IsEarned(WhyParts w) => w.Liked || (w.ArtistPlayed && w.Fit >= EarnedFit);
     static readonly Regex ExplicitTag = new(@"[(\[]\s*explicit\s*[)\]]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     // Why is worked out only for the songs picked: building it for every song in a big library took most of the time
@@ -148,25 +153,26 @@ public static class Engine
         var sorted = cands.OrderByDescending(c => c.Score).ToList();
         var wantNew = (int)Math.Round(o.Take * o.NewShare);
         var used = new HashSet<Cand>(); var per = new Dictionary<string, int>();
-        List<Cand> Take(bool fresh, int n, int cap)
+        List<Cand> Take(bool fresh, int n, int cap, int capEarned)
         {
             var got = new List<Cand>();
             foreach (var c in sorted)
             {
                 if (got.Count >= n) break;
-                if (c.Fresh != fresh || used.Contains(c) || per.GetValueOrDefault(c.Artist) >= cap) continue;
+                if (c.Fresh != fresh || used.Contains(c) || per.GetValueOrDefault(c.Artist) >= (IsEarned(c.Why) ? capEarned : cap)) continue;
                 used.Add(c); per[c.Artist] = per.GetValueOrDefault(c.Artist) + 1; got.Add(c);
             }
             return got;
         }
         var flood = sorted.Select(c => c.Artist).Distinct().Count() <= 2;
-        var most = flood ? int.MaxValue : PerWindow * (int)Math.Ceiling(o.Take / (double)Window);
-        var known = Take(false, o.Take - wantNew, 1); var fresh = Take(true, wantNew, 1);
+        var windows = (int)Math.Ceiling(o.Take / (double)Window);
+        var most = flood ? int.MaxValue : PerWindow * windows; var mostEarned = flood ? int.MaxValue : EarnedPerWindow * windows;
+        var known = Take(false, o.Take - wantNew, 1, 1); var fresh = Take(true, wantNew, 1, 1);
         // short of one kind: more of the other, then the same artist again (up to the spread's limit)
-        foreach (var cap in new[] { 1, Math.Min(most, PerWindow), most })
+        foreach (var (cap, capEarned) in new[] { (1, 1), (Math.Min(most, PerWindow), Math.Min(mostEarned, EarnedPerWindow)), (most, mostEarned) })
         {
-            if (known.Count + fresh.Count < o.Take) fresh.AddRange(Take(true, o.Take - known.Count - fresh.Count, cap));
-            if (known.Count + fresh.Count < o.Take) known.AddRange(Take(false, o.Take - known.Count - fresh.Count, cap));
+            if (known.Count + fresh.Count < o.Take) fresh.AddRange(Take(true, o.Take - known.Count - fresh.Count, cap, capEarned));
+            if (known.Count + fresh.Count < o.Take) known.AddRange(Take(false, o.Take - known.Count - fresh.Count, cap, capEarned));
         }
         var order = new List<Cand>();
         for (var i = 0; i < Math.Max(known.Count, fresh.Count); i++)
@@ -175,8 +181,9 @@ public static class Engine
         return Spread(order, prevArtist, flood).Select(c => new Pick(c.Track, c.New, c.Score, Why(seed, c.Why.Artist, c.Why.Fit, c.Why.Love, c.Why.Liked, c.Why.ArtistPlayed, c.Why.Together))).ToList();
     }
 
-    /// <summary>The picks in their order, each next one the first that is not by the artist just before it and whose artist has fewer than
-    /// <see cref="PerWindow"/> songs in the last <see cref="Window"/>. Songs that never fit are left out, unless [flood] (one or two artists is all there is).</summary>
+    /// <summary>The picks in their order, each next one the first that fits: not by the artist just before it (unless both are earned songs and fewer than
+    /// <see cref="EarnedRun"/> in a row), and its artist has fewer than <see cref="PerWindow"/> songs (<see cref="EarnedPerWindow"/> if it is an earned one) in
+    /// the last <see cref="Window"/>. Songs that never fit are left out, unless [flood] (one or two artists is all there is).</summary>
     static List<Cand> Spread(List<Cand> order, string prevArtist, bool flood)
     {
         var res = new List<Cand>(); var left = order.ToList();
@@ -184,7 +191,10 @@ public static class Engine
         {
             var before = res.Count > 0 ? res[^1].Artist : prevArtist;
             var recent = res.Skip(Math.Max(0, res.Count - (Window - 1))).ToList();
-            var i = left.FindIndex(c => c.Artist != before && recent.Count(r => r.Artist == c.Artist) < PerWindow);
+            var run = 0; for (var k = res.Count - 1; k >= 0 && res[k].Artist == before; k--) run++;
+            var i = left.FindIndex(c => (c.Artist != before || (res.Count > 0 && IsEarned(c.Why) && IsEarned(res[^1].Why) && run < EarnedRun))
+                && recent.Count(r => r.Artist == c.Artist) < (IsEarned(c.Why) ? EarnedPerWindow : PerWindow)
+                && (!IsEarned(c.Why) || recent.Count(r => r.Artist == c.Artist && !IsEarned(r.Why)) < PerWindow));
             if (i < 0 && flood) i = left.FindIndex(c => c.Artist != before) is var j && j >= 0 ? j : 0;
             if (i < 0) break;
             res.Add(left[i]); left.RemoveAt(i);

@@ -25,12 +25,12 @@ public class AutoplaySpreadTests
     }
 
     [Fact]
-    public void Songs_they_love_by_that_artist_are_not_counted()
+    public void Songs_they_love_by_that_artist_are_not_counted_as_unknown_ones()
     {
         var songs = new List<(string Artist, bool Loved)> { ("X", true), ("Y", false), ("X", true), ("Z", false), ("X", false), ("W", false), ("X", false), ("X", false) };
         var next = AutoplaySpread.Spread(songs, s => s.Artist, "X", s => s.Loved);
         Assert.Equal(2, next.Count(s => s.Artist == "X" && s.Loved));
-        Assert.Equal(2, next.Count(s => s.Artist == "X" && !s.Loved));
+        Assert.Equal(2, next.Count(s => s.Artist == "X" && !s.Loved));   // unknown ones stay at two
     }
 
     [Fact]
@@ -40,7 +40,31 @@ public class AutoplaySpreadTests
         var refill = S("Yeah Yeah Yeahs", "Yeah Yeah Yeahs", "MGMT", "Yeah Yeah Yeahs");
         Assert.Empty(AutoplaySpread.Spread(refill, a => a, "Yeah Yeah Yeahs", already: 2).Where(a => a == "Yeah Yeah Yeahs"));
         var loved = Enumerable.Repeat(("Yeah Yeah Yeahs", true), 8).Append(("MGMT", false)).ToList();
-        Assert.Equal(2, AutoplaySpread.Spread(loved, s => s.Item1, "Yeah Yeah Yeahs", s => s.Item2).Count(s => s.Item1 == "Yeah Yeah Yeahs"));
+        // owner, 26 Nov: loved ones may come more often, but never 10-20 of one artist: at most 4 (the most in any 10)
+        Assert.Equal(4, AutoplaySpread.Spread(loved, s => s.Item1, "Yeah Yeah Yeahs", s => s.Item2).Count(s => s.Item1 == "Yeah Yeah Yeahs"));
+    }
+
+    [Fact]
+    public void Loved_songs_by_one_artist_may_run_three_in_a_row_but_unknown_ones_never_twice()
+    {
+        // owner, 26 Nov: "I don't mind them all being from the same artist as long as the song is good and I like it"
+        var loved = Enumerable.Repeat(("X", true), 6).Concat([("Y", false), ("Z", false)]).ToList();
+        var next = AutoplaySpread.Spread(loved, s => s.Item1, "Q", s => s.Item2);
+        var run = 0; var worst = 0; string? prev = null;
+        foreach (var s in next) { run = s.Item1 == prev ? run + 1 : 1; prev = s.Item1; worst = Math.Max(worst, run); }
+        Assert.Equal(3, worst);
+        for (var i = 0; i < next.Count; i++) Assert.True(next.Skip(i).Take(10).Count(s => s.Item1 == "X") <= 4);
+        // not loved: never back to back, whichever artist
+        var plain = AutoplaySpread.Spread(S("A", "A", "A", "B", "C"), a => a, "Q");
+        for (var i = 1; i < 3; i++) Assert.NotEqual(plain[i - 1], plain[i]);
+    }
+
+    [Fact]
+    public void No_artist_more_than_four_times_in_any_ten()
+    {
+        var songs = Enumerable.Range(0, 12).Select(i => i % 2 == 0 ? ("X", true) : ("Y" + i, false)).ToList();
+        var next = AutoplaySpread.Spread(songs, s => s.Item1, "Q", s => s.Item2);
+        for (var i = 0; i < next.Count; i++) Assert.True(next.Skip(i).Take(10).Count(s => s.Item1 == "X") <= 4);
     }
 
     [Fact]

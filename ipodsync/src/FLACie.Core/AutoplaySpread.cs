@@ -8,35 +8,46 @@ namespace FLACie.Core;
 public static class AutoplaySpread
 {
     public const int MaxSeed = 2;
+    /// <summary>Songs the person loves may come more often when they fit (owner, 26 Nov: "I don't mind them all being from the same artist as long as
+    /// the song is good and I like it and it matches the vibe"), but never a flood: at most [MaxRun] by one artist in a row and [MaxWindow] in any [Window].</summary>
+    public const int MaxRun = 3, MaxWindow = 4, Window = 10, MaxLoved = 4;
 
     /// <summary>[already]: the seed artist's songs Autoplay has queued or played so far in this run. The cap is for the whole run, not each refill (owner,
-    /// 25 Nov: Heads Will Roll, then 10-20 Yeah Yeah Yeahs songs). Loved songs have a cap of their own ([maxLoved]) so a loved artist cannot take over either.</summary>
+    /// 25 Nov: Heads Will Roll, then 10-20 Yeah Yeah Yeahs songs). Songs by the seed artist that the person loves have their own, higher cap ([maxLoved]);
+    /// songs they do not know stay at [maxSeed]. A loved song may follow its own artist (up to [MaxRun] in a row); an unknown one never does.</summary>
     public static List<T> Spread<T>(IReadOnlyList<T> songs, Func<T, string> artistOf, string seedArtist, Func<T, bool>? loved = null, int maxSeed = MaxSeed,
-        int already = 0, int maxLoved = MaxSeed)
+        int already = 0, int maxLoved = MaxLoved)
     {
         var seed = Matching.PrimaryArtist(seedArtist);
         string A(T t) => Matching.PrimaryArtist(artistOf(t));
+        bool L(T t) => loved?.Invoke(t) ?? false;
         var kept = new List<T>(); var seedCount = already; var lovedCount = 0;
         foreach (var t in songs)
         {
             if (A(t) == seed)
             {
-                if (loved?.Invoke(t) ?? false) { if (lovedCount >= maxLoved) continue; lovedCount++; }
+                if (L(t)) { if (lovedCount >= maxLoved) continue; lovedCount++; }
                 else { if (seedCount >= maxSeed) continue; seedCount++; }
             }
             kept.Add(t);
         }
-        // no artist twice in a row: a song that would follow its own artist waits for the next one that does not
+        // no artist twice in a row (a loved song may make a run of up to MaxRun): a song that would break that waits for the next one that does not
+        int Run(List<T> o) { var n = 0; for (var i = o.Count - 1; i >= 0 && A(o[i]) == A(o[^1]); i--) n++; return n; }
+        bool Fits(List<T> o, T t) => o.Count == 0 || A(o[^1]) != A(t) || (L(t) && L(o[^1]) && Run(o) < MaxRun);
         var output = new List<T>(); var waiting = new List<T>();
         foreach (var t in kept)
         {
-            if (output.Count > 0 && A(output[^1]) == A(t)) { waiting.Add(t); continue; }
+            if (!Fits(output, t)) { waiting.Add(t); continue; }
             output.Add(t);
             for (var i = 0; i < waiting.Count; i++)
-                if (A(output[^1]) != A(waiting[i])) { output.Add(waiting[i]); waiting.RemoveAt(i); i = -1; }
+                if (Fits(output, waiting[i])) { output.Add(waiting[i]); waiting.RemoveAt(i); i = -1; }
         }
         output.AddRange(waiting);   // nothing else could go between: they come last
-        return output;
+        // hard rule: no artist more than MaxWindow times in any Window songs in a row
+        var final = new List<T>();
+        foreach (var t in output)
+            if (final.Skip(Math.Max(0, final.Count - (Window - 1))).Count(x => A(x) == A(t)) < MaxWindow) final.Add(t);
+        return final;
     }
 
     /// <summary>One version of each song, and none of a song already heard or queued ([heard] holds their <see cref="Matching.SongKey"/>s): Autoplay played

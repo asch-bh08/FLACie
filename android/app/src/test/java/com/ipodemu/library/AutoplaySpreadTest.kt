@@ -24,14 +24,26 @@ class AutoplaySpreadTest {
         val songs = listOf("X" to true, "Y" to false, "X" to true, "Z" to false, "X" to false, "W" to false, "X" to false, "X" to false)
         val next = AutoplaySpread.spread(songs, { it.first }, "X", { it.second })
         assertEquals(2, next.count { it.first == "X" && it.second })
-        assertEquals(2, next.count { it.first == "X" && !it.second })
+        assertEquals(2, next.count { it.first == "X" && !it.second })   // unknown ones stay at two
     }
 
     @Test fun theCapHoldsAcrossRefillsAndForLovedSongs() {
         val refill = listOf("Yeah Yeah Yeahs", "Yeah Yeah Yeahs", "MGMT", "Yeah Yeah Yeahs")
         assertEquals(0, AutoplaySpread.spread(refill, { it }, "Yeah Yeah Yeahs", already = 2).count { it == "Yeah Yeah Yeahs" })
         val loved = List(8) { "Yeah Yeah Yeahs" to true } + ("MGMT" to false)
-        assertEquals(2, AutoplaySpread.spread(loved, { it.first }, "Yeah Yeah Yeahs", { it.second }).count { it.first == "Yeah Yeah Yeahs" })
+        // owner, 26 Nov: loved ones may come more often, never more than 4 in any 10
+        assertEquals(4, AutoplaySpread.spread(loved, { it.first }, "Yeah Yeah Yeahs", { it.second }).count { it.first == "Yeah Yeah Yeahs" })
+    }
+
+    @Test fun lovedSongsMayRunThreeInARowUnknownNeverTwice() {
+        val loved = List(6) { "X" to true } + listOf("Y" to false, "Z" to false)
+        val next = AutoplaySpread.spread(loved, { it.first }, "Q", { it.second })
+        var run = 0; var worst = 0; var prev: String? = null
+        for (s in next) { run = if (s.first == prev) run + 1 else 1; prev = s.first; worst = maxOf(worst, run) }
+        assertEquals(3, worst)
+        for (i in next.indices) assertEquals(true, next.drop(i).take(10).count { it.first == "X" } <= 4)
+        val plain = AutoplaySpread.spread(listOf("A", "A", "A", "B", "C"), { it }, "Q")
+        for (i in 1 until 3) assertNotEquals(plain[i - 1], plain[i])
     }
 
     @Test fun autoplayKeepsToWhatWasChosen() {

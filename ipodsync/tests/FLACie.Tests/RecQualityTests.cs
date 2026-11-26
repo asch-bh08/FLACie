@@ -106,7 +106,7 @@ public class RecQualityTests(ITestOutputHelper output)
     [Fact]
     public void An_autoplay_run_of_twenty_after_one_song_is_not_one_artists_catalogue()
     {
-        var worst = 0; var worstWindow = 0; var fewest = int.MaxValue;
+        var worst = 0; var worstWindow = 0; var worstRun = 0; var fewest = int.MaxValue;
         foreach (var seed in Seeds)
         {
             var hwr = F["Heads Will Roll"];
@@ -122,12 +122,14 @@ public class RecQualityTests(ITestOutputHelper output)
             fewest = Math.Min(fewest, run.Count);
             worst = Math.Max(worst, run.Count(t => A(t) == "yeah yeah yeahs"));
             for (var i = 0; i < queue.Count; i++) worstWindow = Math.Max(worstWindow, queue.Skip(i).Take(10).GroupBy(A).Max(g => g.Count()));
+            for (var i = 0; i < queue.Count; i++) { var r = 1; while (i + r < queue.Count && A(queue[i + r]) == A(queue[i])) r++; worstRun = Math.Max(worstRun, r); }
             if (seed == Seeds[0]) output.WriteLine("autoplay run: " + string.Join(" | ", run.Select(t => $"{t.Title} ({t.Artist})")));
         }
         output.WriteLine($"autoplay run of 20 after Heads Will Roll: songs the engine supplied (fewest) {fewest}, Yeah Yeah Yeahs songs (most) {worst}, most by one artist in any 10 in a row {worstWindow}");
         Assert.Equal(20, fewest);
         Assert.True(worst <= 3, $"{worst} Yeah Yeah Yeahs songs in 20");
-        Assert.True(worstWindow <= 2, $"{worstWindow} by one artist in ten");
+        Assert.True(worstWindow <= 4, $"{worstWindow} by one artist in ten");   // owner, 26 Nov: loved ones may come more often, never more than 4 in 10
+        Assert.True(worstRun <= 3, $"{worstRun} by one artist in a row");
     }
 
     /// <summary>Replayed listening: how often the song the person really played next is among the ten picks (the person's own habits are a signal).</summary>

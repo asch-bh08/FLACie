@@ -672,7 +672,10 @@ window.flacie = (() => {
       vizRo = new ResizeObserver(([e]) => { vizBox = [e.contentRect.width, e.contentRect.height]; }); vizRo.observe(cv);
       vizIo = new IntersectionObserver(([e]) => { vizSeen = e.isIntersecting; }); vizIo.observe(cv);
     }
-    if (!vizBox) vizBox = [cv.clientWidth, cv.clientHeight];
+    // (and read off the page ten times a second as well: going full screen did not always report a resize, so the big graph was drawn at the small one's size
+    // and looked blurry, 26 Nov)
+    const nowMs = performance.now();
+    if (!vizBox || nowMs - (vizBoxAt || 0) > 100) { const r = cv.getBoundingClientRect(); vizBox = [r.width, r.height]; vizBoxAt = nowMs; }
     if (!vizSeen || !vizBox[0] || !vizBox[1]) return;
     // sharp (one canvas pixel per screen pixel) up to about 4 million pixels; past that (a full-screen graph at 2x on a big screen was 8 million pixels a
     // frame and ran at 10-20 frames a second: owner, 25 Nov, "the waveform graph is very laggy") it is drawn at 4 million and scaled up by the browser
@@ -689,7 +692,7 @@ window.flacie = (() => {
     vizF.g = vizCtx; vizF.w = w; vizF.h = h; vizF.dpr = dpr; vizF.ts = ts; vizF.playing = !audio.paused; vizF.c = vizCol;
     views[vizStyle](vizF);
   };
-  let vizCv = null, vizBox = null, vizSeen = true, vizRo = null, vizIo = null, vizCol = null, vizColAt = 0, vizCtx = null;
+  let vizCv = null, vizBox = null, vizSeen = true, vizRo = null, vizIo = null, vizCol = null, vizColAt = 0, vizCtx = null, vizBoxAt = 0;
   const vizF = {};
   // a device lying turned (the Desk look tilts it a few degrees): its angle, from the CSS rotate of it and what holds it; and the zoom it is drawn at (the page's fit)
   const tiltOf = el => { let a = 0; for (let n = el; n && n.nodeType === 1; n = n.parentElement) { const m = /^(-?[\d.]+)deg$/.exec(getComputedStyle(n).rotate || ""); if (m) a += +m[1]; } return a; };

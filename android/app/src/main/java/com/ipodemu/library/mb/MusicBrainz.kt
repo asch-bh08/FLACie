@@ -217,15 +217,25 @@ class MbOverlay(private val file: File) {
 
 /** Covers a person chose to replace a cover with (one picture file per art key); the original cover and the song files are never touched. */
 class CoverPins(private val dir: File) {
-    private fun name(key: String) = MessageDigest.getInstance("SHA-1").digest(key.toByteArray()).joinToString("") { "%02x".format(it) }.take(24)
-    fun file(key: String): File? = File(dir, name(key) + ".img").takeIf { it.exists() && it.length() > 0 }
+    // the pinned names are read from the folder once and kept up to date here: asked for every song of a queue being built, a hash and a disk look per song
+    // made playing a 10,000-song library not respond on the main thread (emulator smoke, 26 Nov). With no pins at all (the usual case) nothing is worked out
+    @Volatile private var names: MutableSet<String>? = null
+    private fun pinned(): MutableSet<String> = names ?: synchronized(this) { names ?: (dir.list()?.filter { it.endsWith(".img") }?.map { it.removeSuffix(".img") }?.toMutableSet() ?: mutableSetOf()).also { names = it } }
+    private fun name(key: String): String { val d = MessageDigest.getInstance("SHA-1").digest(key.toByteArray()); val sb = StringBuilder(40); for (b in d) { val v = b.toInt() and 0xff; sb.append(HEX[v shr 4]).append(HEX[v and 15]) }; return sb.substring(0, 24) }
+    fun file(key: String): File? {
+        val set = pinned(); if (set.isEmpty()) return null
+        val n = name(key); if (n !in set) return null
+        return File(dir, "$n.img").takeIf { it.exists() && it.length() > 0 }
+    }
     fun has(key: String) = file(key) != null
     /** Keeps [bytes] (checked to be a picture) as the cover for [key]; false when they are not a picture. */
     fun set(key: String, bytes: ByteArray): Boolean {
         if (CaaClient.sniff(bytes) == null || bytes.size > CaaClient.MAX_BYTES) return false
         dir.mkdirs(); val f = File(dir, name(key) + ".img"); val tmp = File(f.path + ".tmp"); tmp.writeBytes(bytes)
         if (!tmp.renameTo(f)) { f.delete(); if (!tmp.renameTo(f)) return false }
+        synchronized(this) { pinned().add(name(key)) }
         return true
     }
-    fun clear(key: String) { File(dir, name(key) + ".img").delete() }
+    fun clear(key: String) { val n = name(key); File(dir, "$n.img").delete(); synchronized(this) { pinned().remove(n) } }
+    private companion object { val HEX = "0123456789abcdef".toCharArray() }
 }

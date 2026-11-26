@@ -129,9 +129,12 @@ test.describe('signed in', () => {
     await page.waitForTimeout(2000);
     await expect(async () => {
       await page.locator('input[type="search"]').first().fill('Velvet');
-      await expect(page.locator('.track-title', { hasText: /^Velvet 1$/ })).toBeVisible({ timeout: 3000 });
+      await expect(page.locator('section[aria-label="Top result"]', { hasText: 'Velvet 1' })).toBeVisible({ timeout: 3000 });   // the search's Top result (25 Nov redesign)
     }).toPass({ timeout: 30_000 });
-    await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Velvet 1$/ }) }).locator('button.track-main').click();
+    await page.locator('section[aria-label="Top result"]', { hasText: 'Velvet 1' }).getByRole('button', { name: /^Play/ }).first().click();
+    // the Top result's Play opens the full-screen player (as the hero always did): closed, so the search box can be reached
+    const close = page.getByRole('button', { name: 'Close Now Playing' });
+    if (await close.isVisible({ timeout: 4000 }).catch(() => false)) await close.click();
     const play = page.locator('.bar .play');
     await expect(page.locator('.player')).toBeVisible();
     await expect.poll(async () => (await page.locator('.player .seek span').first().innerText()), { timeout: 15_000 }).not.toBe('0:00');
@@ -146,6 +149,7 @@ test.describe('signed in', () => {
     await expect(play).toHaveAttribute('aria-label', 'Pause');
     // typing a space into the search box does not toggle playback
     const box = page.locator('input[type="search"]').first();
+    if (await close.isVisible().catch(() => false)) { await close.click(); await expect(close).toBeHidden(); }
     await box.click(); await page.keyboard.press('Space'); await page.keyboard.press('n');
     await expect(play).toHaveAttribute('aria-label', 'Pause');
     const before = await page.locator('.bar-text b').innerText();

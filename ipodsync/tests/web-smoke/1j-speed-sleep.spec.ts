@@ -29,7 +29,7 @@ const rate = (page: Page) => page.evaluate(() => (window as any).flacie.rate() a
 const pill = (page: Page, label: string) => page.locator('#speed-sleep button.chip-ico[aria-label^="' + label + ':"]');
 const says = (page: Page, label: string, value: string | RegExp) => expect(pill(page, label)).toHaveAttribute('aria-label', typeof value === 'string' ? label + ': ' + value : new RegExp('^' + label + ': ' + value.source));
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-async function open(page: Page, label: string) { await pill(page, label).click(); await expect(page.locator('#speed-sleep .chip-pop')).toBeVisible(); }
+async function open(page: Page, label: string) { await pill(page, label).click(); await expect(page.locator('#speed-sleep .chip-pop:not(.m-ghost)')).toBeVisible(); }
 /** Opens a pill's menu and picks the entry that starts with [option]. */
 async function pick(page: Page, label: string, option: string) {
   await open(page, label);
@@ -148,6 +148,6 @@ test.describe.serial('speed and sleep', () => {
     await playLab(page);
     await open(page, 'Speed');
     await page.locator('.ls-top').click({ position: { x: 5, y: 5 } });
-    await expect(page.locator('#speed-sleep .chip-pop')).toHaveCount(0);
+    await expect(page.locator('#speed-sleep .chip-pop:not(.m-ghost)')).toHaveCount(0);
   });
 });

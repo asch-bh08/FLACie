@@ -91,5 +91,6 @@ test('a song starting restyles the play buttons, not the whole page', async ({ p
   console.log(`elements on the page: ${all}; restyled: ${restyled.join(', ')}`);
   expect(restyled.length).toBeGreaterThan(0);
   // before, every element was restyled each time (:has() rules and a rule ending in ".ic" made the browser look at the whole page)
-  for (const n of restyled) expect(n).toBeLessThan(all / 10);
+  // (a tenth of the page, or 60 elements on a small page: the play buttons and their icons are about 40)
+  for (const n of restyled) expect(n).toBeLessThan(Math.max(all / 10, 60));
 });

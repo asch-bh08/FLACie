@@ -134,10 +134,10 @@ test('an Apple Lossless song plays: the server decodes it to WAV (browsers canno
   await page.waitForTimeout(2000);
   await expect(async () => {   // typing before the live connection is up is lost: type again until the list narrows
     await page.locator('input[type="search"]').first().fill('Velvet');
-    await expect(page.locator('.track-title', { hasText: /^Velvet 1$/ })).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('section[aria-label="Top result"]', { hasText: 'Velvet 1' })).toBeVisible({ timeout: 3000 });   // the search's Top result (25 Nov redesign)
   }).toPass({ timeout: 30_000 });
   const streamed = page.waitForResponse((r) => r.url().includes('/stream?p=') && r.url().includes('s1'), { timeout: 20_000 });
-  await page.locator('.track', { has: page.locator('.track-title', { hasText: /^Velvet 1$/ }) }).locator('button.track-main').click();   // song 1 of the mock library
+  await page.locator('section[aria-label="Top result"]', { hasText: 'Velvet 1' }).getByRole('button', { name: /^Play/ }).first().click();   // song 1 of the mock library
   const res = await streamed;
   expect(res.headers()['content-type']).toBe('audio/wav');
   expect([200, 206]).toContain(res.status());
@@ -160,7 +160,8 @@ test('Quick picks learn from what Jellyfin says was played: songs of that artist
     const shelf = page.locator('[aria-label="Quick picks"]');
     await expect(shelf.locator('.pick').first()).toBeVisible({ timeout: 2500 });
     await expect(shelf.locator('.pick[aria-label$=" by Aurora Vale"]')).not.toHaveCount(0, { timeout: 2500 });
-    expect(await shelf.locator('.pick[aria-label$=" by Aurora Vale"]').count()).toBeGreaterThanOrEqual(3);   // the artist whose songs Jellyfin counted
+    // (one or two, not three or more: picks never flood one artist since 25 Nov, owner: "the next 10-20 songs are by Yeah Yeah Yeahs")
+    expect(await shelf.locator('.pick[aria-label$=" by Aurora Vale"]').count()).toBeGreaterThanOrEqual(1);   // the artist whose songs Jellyfin counted
   }).toPass({ timeout: 40_000 });
   expect(problems).toEqual([]);
 });

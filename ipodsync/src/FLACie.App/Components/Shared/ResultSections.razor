@@ -242,6 +242,8 @@ var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
                         @if (facts is { Depth: > 0, Rate: > 0 }) { <span class="badge plain">@facts.Depth-bit / @((facts.Rate / 1000.0).ToString("0.#")) kHz</span> }
                         <span class="badge @hs.Source.ToString().ToLowerInvariant()">@SourceLabel.Short(hs.Source)</span>
                     </span>
+                    @* how it came in ("Downloaded 5 min ago"), as on its song row: the Top result is the only place it shows now *@
+                    <DownloadTag Session="Session" Artist="@hs.Artist" Title="@hs.Title" Track="hs" />
                     <span class="sr-hero-actions" @onclick:stopPropagation>
                         <button class="btn sr-go" aria-label="@(On([hs]) ? "Pause" : "Play") @hs.Title" @onclick='() => PlayOnly([hs], context)'><Icon Name="@(On([hs]) ? "pause" : "play")" Size="18" />@(On([hs]) ? "Pause" : "Play")</button>
                         @if (vers.Count > 0) { <button class="btn sr-vers" aria-expanded="@(heroVersions ? "true" : "false")" @onclick="() => heroVersions = !heroVersions">+@vers.Count @(vers.Count == 1 ? "version" : "versions")</button> }

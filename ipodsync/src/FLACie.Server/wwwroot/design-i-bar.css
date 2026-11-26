@@ -145,6 +145,6 @@ body.np-open .dl-activity { display: none; }
 /* the gaps between the bar's buttons open the player like the rest of the bar (owner, 25 Nov: "doesn't work on the right side"): the button groups let
    clicks through to the bar, and only their buttons, links, sliders and menus take them */
 .player .bar .buttons, .player .bar .seek, .player .bar .bar-right { pointer-events: none; }
-.player .bar :is(.buttons, .seek, .bar-right) :is(button, a, input, select, label, [role=menu], [role=menuitem], [role=dialog], .bar-menu) { pointer-events: auto; }
+.player .bar :is(.buttons, .seek, .bar-right) > * { pointer-events: auto; }   /* (direct children only: a deep rule made a song start restyle the whole bar) */
 /* a closing player lets clicks through to the bar under it at once (owner, 25 Nov: a click there right after closing was lost: "it needs 2 clicks") */
 .np.closing { pointer-events: none; }

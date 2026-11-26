@@ -51,7 +51,9 @@ test.describe('downloads allowed (FLACIE_DOWNLOADS=on)', () => {
     const open = page.locator('#opensources');
     await expect(open).toBeVisible({ timeout: 15_000 });
     await expect(open.locator('.src-row')).toHaveCount(3);                     // Internet Archive, Audius, Jamendo
-    await expect(page.locator('body')).not.toContainText(/YouTube|yt-dlp/);
+    // (YouTube is offered as a source of playlists found by name, not of downloads: only yt-dlp, the download tool, must not appear)
+    await expect(open).not.toContainText(/YouTube|yt-dlp/);
+    await expect(page.locator('body')).not.toContainText(/yt-dlp/);
   });
 
   test('Settings still offers Fetch ahead', async ({ page }) => {

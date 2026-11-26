@@ -38,10 +38,10 @@ class WhereReporter(private val app: App, scope: CoroutineScope) {
             if (!WhereYouWere.shouldSend(lastKey, lastPaused, lastAt, key, paused, now)) return@withContext null
             lastKey = key; lastPaused = paused; lastAt = now
             // the queue as ids (a window around the song, as the server keeps at most 200)
-            val q = p.queueTracks()
-            val idx = p.queueIndex.coerceIn(0, (q.size - 1).coerceAtLeast(0))
+            // only the window that is sent (the whole queue, 10,000 songs for a shuffled library, made the app not respond: emulator smoke, 26 Nov)
+            val idx = p.queueIndex.coerceAtLeast(0)
             val from = (idx - 20).coerceAtLeast(0)
-            val window = q.drop(from).take(200)
+            val window = p.queueWindow(from, 200)
             WhereYouWere.report(app.prefs.deviceId, android.os.Build.MODEL, t, app.library.jellyfinIdOf(t), p.positionMs, paused,
                 window.map { app.library.jellyfinIdOf(it) ?: it.path }, idx - from, p.contextName)
         } ?: return

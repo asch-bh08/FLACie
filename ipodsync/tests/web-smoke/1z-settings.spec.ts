@@ -38,7 +38,8 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
         expect(await h1.evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Instrument Serif');
         await expect(h1.locator('i')).toHaveCount(1);
         // Account's title is the signed-in name, not a fixed word.
-        if (path !== '/account') expect((await h1.innerText()).replace(/\s+/g, ' ').trim().toLowerCase()).toBe(name.toLowerCase());
+        // (Devices reads "Your devices", as "Your library" does: the 25 Nov redo)
+        if (path !== '/account') expect((await h1.innerText()).replace(/\s+/g, ' ').trim().toLowerCase().replace(/^your /, '')).toBe(name.toLowerCase());
         expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(w);
       });
     }

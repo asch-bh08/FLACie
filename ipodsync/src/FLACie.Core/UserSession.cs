@@ -739,6 +739,28 @@ public sealed class UserSession
         Changed?.Invoke();
     }
 
+    /// <summary>Takes out every later copy of a song (the same file, or the same title and artist); the first stays in its place. Returns how many went.</summary>
+    public int RemoveDuplicates(string id)
+    {
+        var n = 0;
+        lock (listLock)
+        {
+            if (FindPlaylist(id) is not { } o || o["tracks"] is not JsonArray tr) return 0;
+            var paths = new HashSet<string>(); var keys = new HashSet<string>();
+            for (var i = 0; i < tr.Count; i++)
+            {
+                if (tr[i] is not JsonObject x) continue;
+                var p = S(x, "p"); var k = Matching.MatchKey(S(x, "t"), S(x, "a"));
+                // an entry with no title is known only by its file
+                var seen = (p.Length > 0 && !paths.Add(p)) | (S(x, "t").Length > 0 && !keys.Add(k));
+                if (seen) { tr.RemoveAt(i--); n++; }
+            }
+            if (n > 0) o["m"] = Now();
+        }
+        if (n > 0) Changed?.Invoke();
+        return n;
+    }
+
     public void DeletePlaylist(string id)
     {
         if (FindPlaylist(id) is not { } o) return;

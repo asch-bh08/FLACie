@@ -88,16 +88,24 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       const shownTags = await list.locator('.track .pills .badge, .track .track-src, .track .track-tag').evaluateAll((els) =>
         els.filter((e) => getComputedStyle(e).display !== 'none').map((e) => ({ cls: e.className, r: parseFloat(getComputedStyle(e).borderRadius), border: getComputedStyle(e).borderStyle })));
       for (const t of shownTags) { expect(t.cls).toMatch(/hires|cloud/); expect(t.r).toBeGreaterThanOrEqual(10); expect(t.border).toBe('solid'); }
-      // Rename and Delete are behind More, never where a second click on the playlist lands (owner, 1 Nov)
+      // the quieter actions are equal rounded slots, the icon over its word (the phone's ToolSlot); no More: Rename, Remove duplicates and Delete are
+      // on the Edit page, never where a second click on the playlist lands (owner, 1 Nov and 26 Nov)
+      await expect(hero.getByRole('button', { name: 'More for this playlist' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0);
-      await page.getByRole('button', { name: 'More for this playlist' }).click();
-      await expect(page.getByRole('menuitem', { name: 'Rename' })).toBeVisible();
-      await expect(page.getByRole('menuitem', { name: 'Delete' })).toBeVisible();
+      const slots = hero.locator('.pl-tools > .pl-slot');
+      expect(await slots.count()).toBeGreaterThanOrEqual(2);
+      const boxes = await slots.evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(), ic = e.querySelector('svg')!.getBoundingClientRect(), w = e.querySelector('span')!.getBoundingClientRect();
+        return { top: Math.round(r.top), h: r.height, iconAbove: ic.bottom <= w.top + 1, r: parseFloat(getComputedStyle(e).borderRadius) }; }));
+      for (const b of boxes) { expect(b.top).toBe(boxes[0].top); expect(b.iconAbove).toBe(true); expect(b.r).toBeGreaterThanOrEqual(14); expect(b.r).toBeLessThan(b.h / 2); }
+      const edit = hero.getByRole('link', { name: 'Edit', exact: true });
+      await expect(edit).toBeVisible();
       expect(await noSideScroll(page)).toBe(true);
       await page.screenshot({ path: `test-results/shots/playlists-one-${name}.png` });
 
-      // clean up so a rerun starts clean
-      await page.getByRole('menuitem', { name: 'Delete' }).click();
+      // clean up so a rerun starts clean: Delete is on the Edit page and asks first
+      await edit.click();
+      await page.waitForURL(/\/edit$/);
+      await page.getByRole('button', { name: 'Delete playlist' }).click();
       await page.getByRole('button', { name: /^Delete "/ }).click();
       await page.waitForURL(/\/playlists$/);
 

@@ -106,6 +106,47 @@
   .pl-page .track-tag { display: inline-flex; vertical-align: 1px; margin-right: 7px; padding: 0 7px; font-size: 10.5px; }
 }
 
+/* ---- the quieter actions as the phone's ToolSlot (owner, 26 Nov): equal rounded rectangles on the glass, the icon over its word, on every screen ---- */
+.pl-hero .pl-tools .btn.pl-slot { flex-direction: column; gap: 4px; width: 84px; height: 58px; min-height: 58px; padding: 0 4px; border-radius: 18px;
+  border-color: var(--pl-rim); background: var(--pl-glass); font-size: 11.5px; }
+.pl-hero .pl-tools .btn.pl-slot span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; line-height: 1.1; }
+.pl-hero .pl-tools .btn.pl-slot.set { border-color: color-mix(in srgb, var(--np-accent) 70%, transparent); background: color-mix(in srgb, var(--np-accent) 18%, transparent); }
+.pl-hero .pl-tools .btn.pl-slot.danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+@media (max-width: 760px) { .pl-hero .pl-tools .btn.pl-slot { width: auto; flex: 1 1 0; } }
+
+/* ==== Edit playlist (its own page, as the phone's EditPlaylistScreen): the name with Rename, the playlist's actions, and every song with Remove and a ≡
+   handle to drag it to another place. The same glass cards as the playlist page. ==== */
+.pe-page { max-width: 880px; }
+.pe-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 18px; }
+.pe-head h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: clamp(34px, 4.6vw, 52px); line-height: 1; }
+.pe-head h1 i { font-style: italic; }
+.pe-done { min-height: 44px; padding: 0 22px; border-radius: 999px; font-weight: 700; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); }
+.pe-card, .pe-list { border: 1px solid var(--pl-rim); border-radius: 22px; background: var(--pl-glass); }
+.pe-card { padding: 16px 18px; margin: 0 0 18px; }
+.pe-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.pe-name > div { min-width: 0; }
+.pe-name h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 28px; line-height: 1.1; overflow-wrap: anywhere; }
+.pe-name small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.pe-card .pl-rename input { font-size: 22px; }
+.pe-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.pe-card .btn { min-height: 44px; border-radius: 14px; gap: 7px; border: 1px solid var(--i-line); background: transparent; font-weight: 600; }
+.pe-card .btn.primary { background: var(--np-accent); color: var(--np-accent-fg, #1a120c); border-color: transparent; }
+.pe-card .pe-delete, .pe-card .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.pe-list { list-style: none; margin: 0; padding: 6px; }
+.pe-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 6px 2px 6px 8px; border-radius: 16px; }
+.pe-row .cover { flex: none; border-radius: 8px; }
+.pe-row.shifting { transition: transform .15s ease; }
+.pe-row.dragging { z-index: 2; background: color-mix(in srgb, var(--ink) 10%, var(--surface-2, transparent)); box-shadow: 0 12px 30px #00000059; }
+.pe-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.pe-row.gone .pe-text { opacity: .6; }
+.pe-btn { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink); cursor: pointer; }
+.pe-btn:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
+/* the handle takes the finger itself, so a drag on a phone moves the song and does not scroll the page */
+.pe-handle { width: 44px; height: 48px; border-radius: 12px; color: var(--dim); cursor: grab; touch-action: none; }
+.pe-row.dragging .pe-handle { cursor: grabbing; }
+@media (prefers-reduced-motion: reduce) { .pe-row.shifting { transition: none; } }
+@media (max-width: 760px) { .pe-card { padding: 14px; } .pe-name h2 { font-size: 24px; } .pe-list { padding: 4px; margin: 0 -4px; } }
+
 /* the light theme: the same pills in darker inks that read on paper */
 :root[data-theme="light"] .pl-page .track .pills .badge.fmt.hires, :root[data-theme="light"] .pl-page .track-tag.hires { border-color: #b08a2a88; color: #6d4c00; }
 :root[data-theme="light"] .pl-page .track .pills .badge.cloud, :root[data-theme="light"] .pl-page .track-tag.cloud { border-color: #1c4c8c66; color: #1c4c8c; }

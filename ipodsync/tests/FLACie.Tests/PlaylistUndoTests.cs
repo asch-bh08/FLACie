@@ -31,3 +31,44 @@ public class PlaylistUndoTests
         Assert.Equal(["One", "Two"], s.Playlists[0].Entries.Select(e => e.Title));
     }
 }
+
+/// <summary>The Edit page's Remove duplicates: the first copy of each song stays where it was.</summary>
+public class PlaylistDuplicatesTests
+{
+    // ReplacePlaylistTracks drops copies itself, so the list is put together an entry at a time, as an import or another device can leave it
+    static FLACie.Core.Playlist Make(UserSession s, params (string Title, string Path)[] songs)
+    {
+        var p = s.CreatePlaylist("Mix");
+        foreach (var (t, path) in songs) s.InsertIntoPlaylist(p.Id, 99, new PlaylistEntry(path.Length > 0 ? path : "/m/" + t + ".flac", t, "Artist"));
+        return p;
+    }
+
+    [Fact]
+    public void Later_copies_go_and_the_first_keeps_its_place()
+    {
+        var s = new UserSession("local", null, null);
+        var p = Make(s, ("One", ""), ("Two", ""), ("One", ""), ("Three", ""), ("Two", ""));
+        Assert.Equal(2, s.RemoveDuplicates(p.Id));
+        Assert.Equal(["One", "Two", "Three"], s.Playlists[0].Entries.Select(e => e.Title));
+    }
+
+    [Fact]
+    public void Two_files_of_the_same_song_count_as_one()
+    {
+        var s = new UserSession("local", null, null);
+        var p = Make(s, ("One", ""), ("one", "/m/other/One.flac"));
+        Assert.Equal(1, s.RemoveDuplicates(p.Id));
+        Assert.Single(s.Playlists[0].Entries);
+    }
+
+    [Fact]
+    public void None_to_remove_changes_nothing()
+    {
+        var s = new UserSession("local", null, null);
+        var p = Make(s, ("One", ""), ("Two", ""));
+        var changed = 0; s.Changed += () => changed++;
+        Assert.Equal(0, s.RemoveDuplicates(p.Id));
+        Assert.Equal(0, changed);
+        Assert.Equal(0, s.RemoveDuplicates("nope"));
+    }
+}

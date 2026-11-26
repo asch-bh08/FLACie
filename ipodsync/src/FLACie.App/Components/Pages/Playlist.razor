@@ -35,52 +35,26 @@ else
         @if (tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null) is { } washKey) { <div class="pl-wash" aria-hidden="true"><Cover ArtKey="@washKey" /></div> }
         <div class="pl-hero-text">
             <p class="eyebrow">Playlist</p>
-            @if (renaming)
-            {
-                <form class="pl-rename" @onsubmit="() => Rename(p)">
-                    <input @bind="newName" @bind:event="oninput" aria-label="Playlist name" maxlength="80" />
-                    <button class="btn primary" type="submit" disabled="@(newName.Trim().Length == 0)">Save</button>
-                    <button class="btn" type="button" @onclick="() => renaming = false">Cancel</button>
-                </form>
-            }
-            else { var (head, last) = SplitTitle(p.Name); <h1>@head<i>@last</i></h1> }
+            @{ var (head, last) = SplitTitle(p.Name); }<h1>@head<i>@last</i></h1>
             <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")@(waiting is { Count: > 0 } ? $" · {waiting.Count} still to come" : "")</p>
             <div class="chips">
                 <button class="btn primary pl-play" @onclick="() => Player.PlayInOrder(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
-                @* the quieter actions in one row of equal glass buttons, as Now Playing's row under the controls (on a phone: the icon over its word) *@
+                @* the quieter actions: one row of equal rounded slots, the icon over its word, as the phone's ToolSlot (owner, 26 Nov). No More here:
+                   Rename, Remove duplicates and Delete are on the Edit page, where a second click on the playlist can't land on them *@
                 <div class="pl-tools">
-                @* a button like the others, not an underlined link (owner, 25 Nov) *@
-                @if (imp is { } im2) { <a class="btn pl-tool pl-downloads" href="/imports/@im2.JobId/downloads" data-testid="pl-downloads" title="This playlist's downloads: what came in, what is still to come"><Icon Name="download" Size="16" />Downloads</a> }
-                @if (confirm)
+                @* a button like the others, not an underlined link (owner, 25 Nov); the web downloads per import, not per playlist *@
+                @if (imp is { } im2) { <a class="btn pl-tool pl-slot pl-downloads" href="/imports/@im2.JobId/downloads" data-testid="pl-downloads" title="This playlist's downloads: what came in, what is still to come"><Icon Name="download" Size="19" /><span>Downloads</span></a> }
+                @* the DJ on this playlist, remembered for it (and on the phone): Auto follows Settings → DJ; On or Off wins over that whenever this playlist plays *@
+                @if (Player.Dj is { } dj)
                 {
-                    <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
-                    <button class="btn pl-tool" @onclick="() => confirm = false">Keep it</button>
+                    var djChoice = DjSwitches.OfPlaylist(dj.Settings(Session), DjSwitches.KeyOf(p));
+                    <button class="btn pl-tool pl-slot pl-dj @(djChoice is null ? "" : "set")" @onclick="() => CycleDj(p)" title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change.">
+                        <Icon Name="dj" Size="19" /><span>DJ: @DjSwitches.Label(djChoice)</span>
+                    </button>
                 }
-                else
-                {
-                    @* the DJ on this playlist, remembered for it (and on the phone): Auto follows Settings → DJ; On or Off wins over that whenever this playlist plays *@
-                    @if (Player.Dj is { } dj)
-                    {
-                        var djChoice = DjSwitches.OfPlaylist(dj.Settings(Session), DjSwitches.KeyOf(p));
-                        <button class="btn pl-tool pl-dj @(djChoice is null ? "" : "set")" @onclick="() => CycleDj(p)" title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change.">
-                            <Icon Name="dj" Size="16" />DJ: @DjSwitches.Label(djChoice)
-                        </button>
-                    }
-                    <button class="btn pl-tool" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="16" />Share</button>
-                    @* Rename and Delete behind More, as on the phone: Rename sat where a second click on the playlist landed and renamed it by accident (owner, 1 Nov) *@
-                    <span class="pl-more">
-                        <button class="btn pl-tool" aria-haspopup="menu" aria-expanded="@(plMore ? "true" : "false")" aria-label="More for this playlist" @onclick="() => plMore = !plMore"><Icon Name="more" Size="16" />More</button>
-                        @if (plMore)
-                        {
-                            <button class="scrim" aria-label="Close" @onclick="() => plMore = false"></button>
-                            <div class="dl-menu" role="menu">
-                                <button role="menuitem" @onclick="() => { plMore = false; renaming = true; newName = p.Name; }">Rename</button>
-                                <button role="menuitem" @onclick="() => { plMore = false; confirm = true; }">Delete</button>
-                            </div>
-                        }
-                    </span>
-                }
+                <button class="btn pl-tool pl-slot" disabled="@(tracks.Count == 0)" @onclick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)'><Icon Name="share" Size="19" /><span>Share</span></button>
+                <a class="btn pl-tool pl-slot pl-edit" href="/playlist/@p.Id/edit"><Icon Name="lines" Size="19" /><span>Edit</span></a>
                 </div>
             </div>
         </div>
@@ -112,7 +86,6 @@ else
 }
 @code {
     [Parameter] public string Id { get; set; } = "";
-    bool confirm;
     ElementReference heroEl; string? heroFor = "";
     [Inject] IJSRuntime Js { get; set; } = default!;
     [Inject] Sharing Sharing { get; set; } = default!;
@@ -129,9 +102,6 @@ else
         var art = k is not null ? "/art/" + Uri.EscapeDataString(CoverOverrides.Map(k)!) : null;
         if (art != heroFor) { heroFor = art; try { await Js.InvokeVoidAsync("flacie.npAccent", heroEl, art); } catch (Exception) { } }
     }
-    bool renaming; string newName = "";
-    bool plMore;
-    void Rename(FLACie.Core.Playlist p) { var n = newName.Trim(); if (n.Length > 0) { Session.RenamePlaylist(p.Id, n); SaveProfile(); } renaming = false; }
     // the list shows only songs this library has; the playlist's own order also holds the ones it doesn't, so the move is made on the real entries
     void Move(FLACie.Core.Playlist p, IReadOnlyList<Track> tracks, int from, int to)
     {
@@ -152,7 +122,6 @@ else
         if (entries.Count > 1 && !Downloads.MayBulk(Session)) return;
         foreach (var e in entries) if (asked.Add(Key(e))) _ = Downloads.FetchSongAsync(Session, "Playlist", e.Artist, e.Title, "", null, 0);
     }
-    void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
     // the playlist's DJ chip: Auto, On, Off, Auto again; saved with the DJ settings on the server, so the phone shows the same
     async Task CycleDj(FLACie.Core.Playlist p)
     {

@@ -234,6 +234,9 @@ fun DownloadsScreen(nav: PlayerNav) {
                         }
                     }
                 }
+                // on the Downloads screen itself too: the owner looked for it here, not in the gear's settings
+                item { var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(app.prefs.offlineAutoFavorites) }
+                    Card { OfflineRow("Download favourites automatically", toggle = on) { app.prefs.offlineAutoFavorites = !on; on = !on; app.offlineSyncSoon() } } }
                 if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Open an album or a playlist and tap Download, or use a song's menu and choose Download.", size = 14f, color = sc.onBgDim, maxLines = 4) } }
                 else item {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -367,13 +367,13 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
                 // with no row of actions, More sits beside the time
                 if (fit.actions == NowPlayingFit.Actions.MORE_ONLY) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { time() }
-                    Box(Modifier.width(110.dp)) { SleeveActions(false, card, onOpen, null, fit.actions, onMore) }
+                    Box(Modifier.width(110.dp)) { SleeveActions(false, card, onOpen, null, fit.actions, onMore = onMore) }
                 } else time()
                 Spacer(Modifier.height(8.dp))
                 SleeveControls(snap, p, Modifier.padding(horizontal = 8.dp), nav)
                 Spacer(Modifier.weight(1f))
                 if (fit.actions != NowPlayingFit.Actions.MORE_ONLY) Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
-                    SleeveActions(false, card, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore)
+                    SleeveActions(false, card, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore)
                 } else Spacer(Modifier.height(maxDp(nav0, 8.dp)))
             }
         } else Column(
@@ -540,7 +540,7 @@ private fun SleeveChip(text: String, bg: Color, fg: Color) = SleeveChip(Annotate
 
 @Composable
 private fun SleeveChip(text: AnnotatedString, bg: Color, fg: Color) {
-    SText(text.toUpperCase(), Modifier.clip(RoundedCornerShape(5.dp)).background(bg).padding(horizontal = 7.dp, vertical = 4.dp), family = SleeveFonts.mono, size = 10.5f, weight = FontWeight.SemiBold, color = fg, spacing = .06f)
+    SText(AnnotatedString(text.text.uppercase(), text.spanStyles, text.paragraphStyles), Modifier.clip(RoundedCornerShape(5.dp)).background(bg).padding(horizontal = 7.dp, vertical = 4.dp), family = SleeveFonts.mono, size = 10.5f, weight = FontWeight.SemiBold, color = fg, spacing = .06f)
 }
 
 // ---- the ring: the song's loudness round the play button -----------------------------------------------------------------

@@ -88,6 +88,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -403,6 +406,8 @@ fun TrackRow(
     t: Track, nav: PlayerNav, snap: PlayerSnap, onPlay: () -> Unit, modifier: Modifier = Modifier,
     showArt: Boolean = true, index: Int? = null, sheetExtra: List<SheetItem> = emptyList(), sheetExtraFor: ((Track) -> List<SheetItem>)? = null,
     picked: Boolean? = null, onPick: (() -> Unit)? = null, kind: String? = null,
+    /** false: no length and no menu button (a playlist's Edit mode puts its own buttons there) */
+    showMenu: Boolean = true,
 ) {
     val app = LocalApp.current
     val sc = LocalScheme.current
@@ -465,9 +470,9 @@ fun TrackRow(
                     if (!narrow) SourceBadge(t.source)
                 }
                 // times are DM Mono in design I, so the columns of digits line up
-                if (t.durationMs > 0 && showTime) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
+                if (t.durationMs > 0 && showTime && showMenu) { val d = remember(t.durationMs) { fmtTime(t.durationMs) }; if (LocalStyle.current.modern) MonoLabel(d, size = 12.5f, color = rowDim(), upper = false) else Txt(d, size = 13f, color = rowDim()) }
                 val moreLabel = remember(t.title) { "More options for ${t.title}" }
-                Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
+                if (showMenu) Box(Modifier.size(44.dp).clip(RoundedCornerShape(50)).semantics { contentDescription = moreLabel }.clickable { openTrackSheet(app, nav, t, sheetExtra + (sheetExtraFor?.invoke(t) ?: emptyList())) }, contentAlignment = Alignment.Center) {
                     GlyphIcon(Glyph.MORE, Modifier.size(22.dp), rowDim())
                 }
             }
@@ -1090,6 +1095,14 @@ fun SongList(
     }
     // choosing several songs: Select in a song's sheet starts it; a tap then ticks a row; the bar at the bottom acts on them all (as on the web)
     var chosen by remember(tracks) { mutableStateOf<Set<Int>?>(null) }
+    // a playlist in Edit mode: the playlist's id (rows get move, download and remove buttons)
+    val editing = LocalPlaylistEdit.current?.takeIf { it.on }?.id
+    // Edit mode: a copy of the order that follows the finger on a song's ≡ handle, saved to the playlist when the song is let go (owner, 26 Nov)
+    var order by remember(tracks, editing) { mutableStateOf(tracks.withIndex().map { (k, t) -> "${t.path}#$k" to t }) }
+    var dragKey by remember { mutableStateOf<String?>(null) }
+    var dragDy by remember { mutableStateOf(0f) }
+    var dragFrom by remember { mutableStateOf(-1) }
+    var rowH by remember { mutableStateOf(0f) }
     androidx.activity.compose.BackHandler(enabled = chosen != null) { chosen = null }
     // the first rows rise in one after another as the list opens (the web's j-row), and just appear when scrolled to later
     val entrance = rememberEntrance()
@@ -1106,7 +1119,8 @@ fun SongList(
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         if (header != null) item(contentType = "header") { header() }
         // a plain button to start choosing (the song's menu has Select too), so ticking songs to download or queue is easy to find
-        if (chosen == null && tracks.size > 1) item(contentType = "select") {
+        // not on a playlist's page: its Edit button and each song's menu cover it, and the row cost a line of songs (owner, 26 Nov)
+        if (chosen == null && tracks.size > 1 && look == null) item(contentType = "select") {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) { DesignChip("Select", false, { chosen = emptySet() }, icon = Glyph.CHECK) }
         }
         if (sections > 0) {
@@ -1119,6 +1133,38 @@ fun SongList(
             if (inPlace > 0) item {
                 Row(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { GlossPill("Download all $inPlace", { missingBefore.values.flatten().forEach { (t, a) -> app.library.requestDownload(a, t, "", 0) } }, icon = Glyph.DOWNLOADED, height = 34.dp) }
             }
+            if (editing != null) {
+                val id = editing
+                fun drop() {
+                    val k = dragKey ?: return
+                    val to = order.indexOfFirst { it.first == k }; val from = dragFrom
+                    dragKey = null; dragDy = 0f
+                    if (from >= 0 && to >= 0 && from != to) {
+                        val a = playlistIndexOf(app, id, tracks[from]); val b = playlistIndexOf(app, id, tracks[to])
+                        if (a >= 0 && b >= 0) app.userData.move(id, a, b)
+                    }
+                }
+                itemsIndexed(order, key = { _, kt -> kt.first }, contentType = { _, _ -> "edit" }) { i, kt ->
+                    val (k, t) = kt
+                    val dragging = k == dragKey
+                    Column(Modifier.playlistCardRow(i, order.size).zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer { translationY = if (dragging) dragDy else 0f; shadowElevation = if (dragging) 12f else 0f }
+                        .onSizeChanged { rowH = it.height.toFloat() }) {
+                        PlaylistEditRow(id, t, nav, snap, showArt, handle = Modifier.pointerInput(k) {
+                            detectDragGestures(
+                                onDragStart = { dragKey = k; dragDy = 0f; dragFrom = order.indexOfFirst { it.first == k } },
+                                onDragEnd = { drop() }, onDragCancel = { drop() },
+                            ) { change, amount ->
+                                change.consume(); dragDy += amount.y
+                                val cur = order.indexOfFirst { it.first == k }
+                                // past half a row: the song takes its neighbour's place and the offset carries on from there
+                                if (rowH > 0f && dragDy > rowH / 2 && cur in 0 until order.lastIndex) { order = order.toMutableList().apply { add(cur + 1, removeAt(cur)) }; dragDy -= rowH }
+                                else if (rowH > 0f && dragDy < -rowH / 2 && cur > 0) { order = order.toMutableList().apply { add(cur - 1, removeAt(cur)) }; dragDy += rowH }
+                            }
+                        })
+                    }
+                }
+            } else
             // a playlist's songs sit on one card, as on the web (PlaylistLookUi.kt)
             itemsIndexed(tracks, key = { i, t -> "$i${t.path}" }, contentType = { _, _ -> "song" }) { i, t ->
                 Column(if (look != null) Modifier.playlistCardRow(i, tracks.size) else Modifier) { missingBefore[i]?.forEach { (mt, ma) -> missingRow(mt, ma) }; row(i, t) }
@@ -1582,7 +1628,9 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
     // a playlist and Favourites in the web's playlist look (PlaylistLookUi.kt): covers on the rows (the songs come from many albums), a card, calm tags
     val listLook = LocalStyle.current.modern && (d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER || d.kind == DetailKind.FAVORITES)
     val look = if (listLook) rememberPlaylistLook(art) else null
-    androidx.compose.runtime.CompositionLocalProvider(LocalPlaylistLook provides look) {
+    val edit = remember(userId) { userId?.takeIf { d.kind == DetailKind.USER }?.let { PlaylistEdit(it) } }
+    androidx.activity.compose.BackHandler(enabled = edit?.on == true) { edit?.on = false }
+    androidx.compose.runtime.CompositionLocalProvider(LocalPlaylistLook provides look, LocalPlaylistEdit provides edit) {
     Column(Modifier.fillMaxSize()) {
         val heroPage = LocalStyle.current.modern && (d.kind == DetailKind.ALBUM || d.kind == DetailKind.ARTIST || d.kind == DetailKind.USER || d.kind == DetailKind.FOLDER || listLook)
         TopBar(if (heroPage) "" else title.ifEmpty { "Playlist" }, nav, showBack = true)
@@ -1611,7 +1659,8 @@ private fun DetailScreen(d: Screen.Detail, nav: PlayerNav, snap: PlayerSnap) {
                 }
             } else {
                 SongList(tracks, nav, snap, showArt = listLook, numbered = !listLook, sheetExtraFor = userId?.let { id -> { t: Track -> playlistSongItems(app, id, t) } }, missing = missing, missingBefore = missingBefore, footer = recs, header = {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // the card sits right under the top bar (owner, 26 Nov: wasted space above it)
+                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = if (look != null) 0.dp else 16.dp, bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         DetailHeader(art, title, subtitle, info, tracks, nav, userId, kindLabel, djKey, since = entrance)
                     }
                 })
@@ -1892,6 +1941,7 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
             if (isList && tracks.isNotEmpty()) KeepOfflineChip(tracks, nav, listId, title, slot = Modifier.weight(1f))
             if (playlistId != null && djKey != null && app.player.djAvailable) PlaylistDjChip(djKey, slot = Modifier.weight(1f), accent = look.accent)
             if (isList && tracks.isNotEmpty()) ToolSlot("Share", Glyph.SHARE, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
+            LocalPlaylistEdit.current?.let { e -> if (tracks.size > 0) ToolSlot(if (e.on) "Done" else "Edit", if (e.on) Glyph.CHECK else Glyph.LIST, { e.on = !e.on }, Modifier.weight(1f), on = e.on, accent = look.accent) }
             if (playlistId != null) ToolSlot("More", Glyph.MORE, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = false) }, Modifier.weight(1f))
             // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
             if (kind == "Your favourites" && tracks.isNotEmpty()) ToolSlot("Clear all", Glyph.CLOSE, {
@@ -3156,3 +3206,26 @@ private fun repeatArtists(app: com.ipodemu.App, lib: com.ipodemu.library.Library
 internal fun missingPlaces(tracks: List<Track>, missing: List<com.ipodemu.library.WebCatalog.Song>): Map<Int, List<Pair<String, String>>> =
     missing.groupBy { c -> tracks.indexOfFirst { it.discNo > c.discNo || (it.discNo == c.discNo && it.trackNo > c.trackNo) }.let { if (it < 0) tracks.size else it } }
         .mapValues { (_, l) -> l.map { it.title to it.artist } }
+
+
+/** Where [t] sits in the saved playlist (it can hold songs this library hasn't got, so the page's index isn't the playlist's); -1 if it isn't there. */
+private fun playlistIndexOf(app: App, id: String, t: Track): Int {
+    val ud = app.userData; val lib = app.library
+    return ud.playlists.firstOrNull { it.id == id }?.paths?.indexOfFirst { it == t.path || lib.resolve(it, ud.meta[it])?.path == t.path } ?: -1
+}
+
+/** A song in a playlist's Edit mode: the row as usual, its menu swapped for download, remove and the ≡ handle (owner, 26 Nov: "don't make it complicated"). */
+@Composable
+private fun PlaylistEditRow(id: String, t: Track, nav: PlayerNav, snap: PlayerSnap, showArt: Boolean, handle: Modifier) {
+    val app = LocalApp.current
+    val ud = app.userData
+    val done = app.offline.peek(t.path)?.state == com.ipodemu.library.offline.OfflineState.DONE
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.weight(1f)) { TrackRow(t, nav, snap, showArt = showArt, showMenu = false, onPlay = { }) }
+        PlaylistEditButtons(downloaded = done, handle = handle,
+            onDownload = { app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) },
+            onRemove = { val a = playlistIndexOf(app, id, t); val name = ud.playlists.firstOrNull { it.id == id }?.name ?: "the playlist"
+                if (a >= 0 && ud.removeLater(id, a) != null) app.ui.say("Removed “${t.title}” from $name", "Undo") { ud.cancelRemoval() } })
+        Spacer(Modifier.width(4.dp))
+    }
+}

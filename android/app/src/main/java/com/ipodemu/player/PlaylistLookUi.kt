@@ -23,6 +23,10 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -45,6 +49,29 @@ class PlaylistLook(val colours: SleeveColours) {
 }
 
 val LocalPlaylistLook = compositionLocalOf<PlaylistLook?> { null }
+
+/** A hand-made playlist's Edit mode (owner, 26 Nov: an Edit button, not a Select row; simple move, download and remove on each song): null where the page can't be edited. */
+class PlaylistEdit(val id: String) { var on by androidx.compose.runtime.mutableStateOf(false) }
+val LocalPlaylistEdit = compositionLocalOf<PlaylistEdit?> { null }
+
+/** One song's Edit-mode buttons: download, remove, and the ≡ handle to press and drag it up or down (owner, 26 Nov: as in Spotify). [handle] carries the drag. */
+@Composable
+fun PlaylistEditButtons(downloaded: Boolean, handle: Modifier, onDownload: () -> Unit, onRemove: () -> Unit) {
+    val sc = LocalScheme.current
+    @Composable fun b(icon: Glyph, desc: String, enabled: Boolean, tint: Color = sc.onBg, onClick: () -> Unit) {
+        Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).semantics { role = Role.Button; contentDescription = desc }
+            .clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
+            GlyphIcon(icon, Modifier.size(18.dp), tint)
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        b(Glyph.DOWNLOADED, if (downloaded) "On this phone" else "Download", !downloaded, tint = if (downloaded) Color(0xFF6BD58A) else sc.onBg, onClick = onDownload)
+        b(Glyph.CLOSE, "Remove from playlist", true, onClick = onRemove)
+        Box(handle.size(width = 44.dp, height = 48.dp).semantics { contentDescription = "Hold and drag to move" }, contentAlignment = Alignment.Center) {
+            GlyphIcon(Glyph.LIST, Modifier.size(22.dp), sc.onBgDim)
+        }
+    }
+}
 
 @Composable
 fun rememberPlaylistLook(art: String?): PlaylistLook {
@@ -74,11 +101,12 @@ fun ToolSlot(label: String, icon: Glyph, onClick: () -> Unit, modifier: Modifier
     val shape = RoundedCornerShape(22.dp)
     Row(
         modifier.height(44.dp).clip(shape).background(if (on) accent.copy(alpha = .18f) else GlassFill).border(1.dp, if (on) accent.copy(alpha = .7f) else GlassRim, shape)
-            .semantics { role = Role.Button }.focusRing(shape).clickable(onClick = onClick).padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp, Alignment.CenterHorizontally),
+            .semantics { role = Role.Button }.focusRing(shape).clickable(onClick = onClick).padding(horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
     ) {
-        GlyphIcon(icon, Modifier.size(16.dp), sc.onBg)
-        Txt(label, size = 12.5f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 1)
+        GlyphIcon(icon, Modifier.size(15.dp), sc.onBg)
+        // a long word ("Download") a little smaller, so four of them fit a phone's row whole
+        Txt(label, size = if (label.length > 6) 11f else 12f, weight = FontWeight.SemiBold, color = sc.onBg, maxLines = 1)
     }
 }
 

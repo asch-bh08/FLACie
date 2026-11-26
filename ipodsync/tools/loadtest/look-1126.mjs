@@ -58,6 +58,16 @@ await tab('Library'); { const u = dump(); const n = u.find((x) => /playlists/i.t
 { const u = dump(); console.log('playlists screen:', u.map(label).filter(Boolean).slice(0, 40).join(' | '));
   const n = u.find((x) => x.cy > 400 && /Late Night Drive/.test(label(x))); console.log('playlist node:', n && label(n)); if (n) { tapNode(n); await sleep(3000); } }
 shot(S('5-playlist'));
+// Edit mode: the ≡ handle drags a song to a new place (owner, 26 Nov)
+{ const u = dump(); const e = u.find((x) => label(x) === 'Edit'); console.log('edit button:', !!e); if (e) { tapNode(e); await sleep(1500); } }
+shot(S('5e-edit'));
+{ const u = dump(); const songs = () => (dump() || []).filter((x) => /^Song \d+$/.test(label(x))).sort((a, b) => a.cy - b.cy).map(label);
+  const before = songs(); const hs = u.filter((x) => label(x) === 'Hold and drag to move').sort((a, b) => a.cy - b.cy);
+  console.log('handles:', hs.length, 'before:', before.slice(0, 4).join(','));
+  if (hs.length > 2) { sh(`input swipe ${hs[0].cx} ${hs[0].cy} ${hs[0].cx} ${hs[2].cy + 20} 1500`); await sleep(1500); }
+  const after = songs(); console.log('after:', after.slice(0, 4).join(','), 'moved:', before[0] !== after[0] && after[2] === before[0]); }
+shot(S('5f-dragged'));
+{ const u = dump(); const d = u.find((x) => label(x) === 'Done'); if (d) { tapNode(d); await sleep(1500); } }
 sh('input swipe 540 1700 540 800 300'); await sleep(1200); shot(S('5b-playlist-lower'));
 key('KEYCODE_BACK'); await sleep(1500);
 { const u = dump(); const n = u.find((x) => /^Favourites/.test(label(x))); if (n) { tapNode(n); await sleep(2500); } shot(S('5c-favourites')); }

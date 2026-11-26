@@ -81,7 +81,7 @@
                             var djOn = Player.DjOn;
                             <button class="ls-plain ls-dj @(djOn ? "on" : "")" @onclick="Player.ToggleDjAsync" @oncontextmenu="GoDjSettings" @oncontextmenu:preventDefault="true" aria-label="DJ" aria-pressed="@(djOn ? "true" : "false")" title="@(djOn ? "DJ on for this queue" : "DJ off for this queue"). Hold, or right-click, for Settings → DJ."><Icon Name="dj" Size="22" /></button>
                         }
-                        <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); Toast.ShuffleSaid(Player.Shuffle); }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")" title="Shuffle @(Player.Shuffle ? "on" : "off")"><Icon Name="shuffle" Size="22" /></button>
+                        <button class="ls-plain @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")" title="Shuffle @(Player.Shuffle ? "on" : "off")"><Icon Name="shuffle" Size="22" /></button>
                         <button class="ls-pillbtn" @onclick="Player.Prev" aria-label="Previous" title="Previous"><Icon Name="prev" Size="24" /></button>
                         @* the seek bar is a ring: the song's own loudness as bars round the play button (flacie.npWave draws it and turns a press or drag on it into a
                            seek); the range input inside is for the keyboard and screen readers *@
@@ -91,7 +91,7 @@
                             <button class="ls-play" @onclick="Player.Toggle" aria-label="@(Player.Playing ? "Pause" : "Play")" title="@(Player.Playing ? "Pause" : "Play")"><Icon Name="@(Player.Playing ? "pause" : "play")" Size="34" /></button>
                         </div>
                         <button class="ls-pillbtn" @onclick="Player.Next" aria-label="Next" title="Next"><Icon Name="next" Size="24" /></button>
-                        <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); Toast.RepeatSaid(Player.Repeat); }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })" title="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
+                        <button class="ls-plain @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })" title="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })"><Icon Name="@(Player.Repeat == 2 ? "repeat-one" : "repeat")" Size="22" /></button>
                         @* talk to the DJ: at the other end of the row from the DJ button *@
                         <DjMic />
                     </div>

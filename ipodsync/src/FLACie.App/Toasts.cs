@@ -40,16 +40,11 @@ public sealed class Toasts
         }
     }
 
-    /// <summary>A heart: hearts the song or takes it back, and says which (the phone says the same words; owner, 26 Nov: buttons that give no sign).</summary>
+    /// <summary>A heart: hearts the song or takes it back, and says which (kept when Shuffle and Repeat went quiet; owner, 26 Nov).</summary>
     public void Hearted(UserSession s, Track t, Action save)
     {
         Feedback.Heart(s, t); save();
         Show(s.IsFavorite(t) ? $"Added “{t.Title}” to favourites" : $"Removed “{t.Title}” from favourites");
     }
 
-    /// <summary>After Shuffle was pressed: says what it is now.</summary>
-    public void ShuffleSaid(bool on) => Show(on ? "Shuffle on" : "Shuffle off");
-
-    /// <summary>After Repeat was pressed ([mode]: 0 off, 1 all, 2 one): says what it is now, in the phone's words.</summary>
-    public void RepeatSaid(int mode) => Show(mode switch { 1 => "Repeat all: the queue starts again from the first song", 2 => "Repeat one: this song again", _ => "Repeat off" });
 }

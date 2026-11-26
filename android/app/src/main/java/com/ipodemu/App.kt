@@ -14,8 +14,8 @@ class App : Application() {
     lateinit var library: Library; private set
     lateinit var player: PlayerController; private set
     lateinit var ui: UiState; private set
-    /** Every Shuffle button: flips it and says what it is now (the same words as FLACie Web; owner, 26 Nov: buttons that give no sign). */
-    fun shuffleTap() { prefs.shuffle = !prefs.shuffle; player.applyModes(); ui.say(if (prefs.shuffle) "Shuffle on" else "Shuffle off") }
+    /** Every Shuffle button: flips it. No message: the lit icon says it, as in other players (owner, 26 Nov). */
+    fun shuffleTap() { prefs.shuffle = !prefs.shuffle; player.applyModes() }
     /** Home's shelves as the last run left them (see HomeSnapshot): what the first frame draws before the library has loaded. */
     @Volatile var homeSnapshot: com.ipodemu.library.HomeSnapshot.Data? = null; private set
     lateinit var userData: com.ipodemu.library.UserData; private set

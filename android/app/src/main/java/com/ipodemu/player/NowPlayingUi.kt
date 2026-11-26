@@ -415,6 +415,6 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
  *  (the owner heard Autoplay's picks after a playlist in the car and asked for a repeat all, 30 Oct). */
 internal fun repeatTap(app: com.ipodemu.App) {
     val r = RepeatCycle.next(app.prefs.repeat)
+    // no pop-up any more: the icon (lit, with a 1 for repeat one) says it, as in other players (owner, 26 Nov)
     app.prefs.repeat = r; app.player.applyModes()
-    android.widget.Toast.makeText(app, RepeatCycle.note(r, app.prefs.autoplay), android.widget.Toast.LENGTH_SHORT).show()
 }

@@ -22,7 +22,8 @@ const pictureOnlyWithoutTitle = (page: Page) => page.evaluate(() =>
     return text === '' && el.querySelector('svg, img, .icon, i') && !el.getAttribute('title');
   }).map((el) => (el.getAttribute('aria-label') || el.className || el.tagName)));
 
-test('picture-only buttons have a tooltip; heart, Shuffle and Repeat say what they did', async ({ page }) => {
+// Shuffle and Repeat change their icon and say nothing more (owner, 26 Nov: those messages got annoying); the heart still says what it did
+test('picture-only buttons have a tooltip; Shuffle and Repeat show it on the button with no message, the heart says what it did', async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page);
   await page.goto('/artist/Hires%20Lab');
@@ -37,19 +38,21 @@ test('picture-only buttons have a tooltip; heart, Shuffle and Repeat say what th
 
   const toast = page.locator('.toast');
   const shuffle = page.locator('.bar [data-pip="shuffle"]');
-  await expect(shuffle).toHaveAttribute('title', /^Shuffle (on|off)$/);
   const was = (await shuffle.getAttribute('aria-pressed')) === 'true';
   await shuffle.click();
-  await expect(toast).toHaveText(was ? /Shuffle off/ : /Shuffle on/);
+  await expect(shuffle).toHaveAttribute('aria-pressed', was ? 'false' : 'true');
 
   const repeat = page.locator('.bar [data-pip="repeat"]');
-  await expect(repeat).toHaveAttribute('title', /^Repeat (all|one|off)$/);
+  const before = await repeat.getAttribute('aria-label');
   await repeat.click();
-  await expect(toast).toContainText(/^Repeat (all: the queue starts again from the first song|one: this song again|off)/);
+  await expect(repeat).not.toHaveAttribute('aria-label', before!);
+  await page.waitForTimeout(600);
+  await expect(toast).toHaveCount(0);
 
   const heart = page.locator('.bar [data-pip="heart"]');
   const hearted = (await heart.getAttribute('aria-label')) === 'Remove from favourites';
   await heart.click();
+  await expect(heart).toHaveAttribute('aria-label', hearted ? 'Add to favourites' : 'Remove from favourites');
   await expect(toast).toContainText(hearted ? /^Removed .+ from favourites$/ : /^Added .+ to favourites$/);
   await heart.click();   // leave it as it was
 });

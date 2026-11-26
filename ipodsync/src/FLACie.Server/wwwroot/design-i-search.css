@@ -62,3 +62,19 @@
 
 /* ---- an empty search page: the recent searches as the app's chips ---- */
 .recent-searches .rs-head h2.section { margin: 18px 0 10px; }
+
+/* ---- Top result and Playlists side by side (owner, 26 Nov: "playlists with an equal hierarchy to the top result ... make it 50/50"; "on smaller aspect
+   ratios or phone make the top result first") ----
+   Wide (900 px and up, SearchLayout.SideBySideMinWidth): two equal halves. Narrower, and on the phone: one column, the Top result first and full width,
+   then the Playlists under it. */
+.sr-top-pair { display: block; }
+@media (min-width: 900px) {
+  .sr-top-pair.both { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+  .sr-top-pair.both > * { min-width: 0; }
+  .sr-top-pair.both .sr-hero.sr-best { gap: 20px; padding: 20px; }
+  .sr-top-pair.both .sr-hero.sr-best .sr-art { width: clamp(128px, 12vw, 176px); }
+  .sr-top-pair.both .sr-best .sr-hero-title { font-size: clamp(30px, 3.2vw, 46px); }
+  /* the playlists wrap into rows of cards, as much weight as the Top result beside them */
+  .sr-top-pair.both .sr-pair-lists .row-scroll { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); grid-auto-flow: row; grid-auto-columns: auto; overflow: visible; gap: 16px; }
+  .sr-top-pair.both .sr-pair-lists > .sr-section:first-child > h2.section { margin-top: 10px; }
+}

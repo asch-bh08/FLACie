@@ -6,6 +6,9 @@ import path from 'node:path';
 // playlists and quite small; there's wasted space and it's not clear what I have; and if Heads Will Roll downloads are irrelevant keep them irrelevant
 // because we have the song". So: the song the library has is the Top result, first and big, marked "In your library"; then Songs, Artists, Albums,
 // Playlists; the catalog ("More music to download") comes last, and its copies of the song we have are folded under "Other copies to download".
+// owner, 26 Nov: "playlists with an equal hierarchy to the top result ... 50/50; on smaller aspect ratios or phone make the top result first; that could
+// be a playlist if I search for 2026". So at 1440 px the Top result and Playlists sit side by side, half each; at 390 px the Top result comes first, full
+// width; and a playlist named like the search ("2026") is the Top result, with its cover, name, song count and Play.
 // The mock library has Yeah Yeah Yeahs, It's Blitz! (Heads Will Roll). A stand-in catalog runs inside this spec (Deezer's address, redirected by
 // FLACIE_CATALOG_REDIRECT to FM_PORT, as in 1i-download-tags.spec.ts).
 
@@ -84,7 +87,13 @@ test.describe.serial('the song asked for is the Top result', () => {
     expect(order[0]).toBe('Top result');
     expect(order.indexOf('Playlists')).toBeGreaterThan(order.indexOf('Songs'));
     expect(order[order.length - 1]).toBe('More music to download');
-    await expect(page.getByRole('region', { name: 'Playlists' }).locator('.card', { hasText: list })).toBeVisible();
+    const lists = page.getByRole('region', { name: 'Playlists' });
+    await expect(lists.locator('.card', { hasText: list })).toBeVisible();
+    // owner, 26 Nov: Top result and Playlists side by side, equal halves, level at the top
+    const tb = (await top.boundingBox())!, lb = (await lists.boundingBox())!;
+    expect(Math.abs(tb.width - lb.width)).toBeLessThanOrEqual(4);
+    expect(lb.x).toBeGreaterThan(tb.x + tb.width - 2);
+    expect(Math.abs(tb.y - lb.y)).toBeLessThan(40);
     // big: the cover is at least 160 px and the title is the serif heading
     const cover = (await top.locator('.sr-art').first().boundingBox())!;
     expect(cover.width).toBeGreaterThanOrEqual(160);
@@ -115,6 +124,11 @@ test.describe.serial('the song asked for is the Top result', () => {
     const order = await regions(page);
     expect(order[0]).toBe('Top result');
     expect(order[order.length - 1]).toBe('More music to download');
+    // owner, 26 Nov: narrow, the Top result is first and full width, the playlists stacked under it
+    const tb = (await top.boundingBox())!, vw = page.viewportSize()!.width;
+    expect(tb.width).toBeGreaterThan(vw - 60);
+    const lb = await page.getByRole('region', { name: 'Playlists' }).boundingBox();
+    if (lb) expect(lb.y).toBeGreaterThanOrEqual(tb.y + tb.height - 2);
     // the top card starts within the first screen, with its title readable
     const t = (await top.locator('.sr-hero-title').boundingBox())!;
     expect(t.y).toBeLessThan(500);
@@ -125,5 +139,40 @@ test.describe.serial('the song asked for is the Top result', () => {
     await expect.poll(() => regions(page)).toEqual(['More music to download']);
     await kinds.getByRole('radio', { name: 'All' }).click();
     await expect(top).toBeVisible();
+  });
+
+  // owner, 26 Nov: "that could be a playlist if I search for 2026"
+  test('"2026": a playlist named so is the Top result with its cover, name, song count and Play, side by side with Playlists on a wide screen', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await signIn(page);
+    await page.goto('/playlists');
+    await page.waitForTimeout(1500);
+    await page.getByRole('textbox', { name: 'New playlist name' }).fill('2026');
+    await page.getByRole('button', { name: 'Create' }).click();
+    await expect(page).toHaveURL(/\/playlist\//, { timeout: 15_000 });
+    await page.goto('/search?q=' + encodeURIComponent('heads will roll'));
+    const song = page.getByRole('region', { name: 'Top result' });
+    await expect(song.locator('.sr-hero-title')).toHaveText('Heads Will Roll', { timeout: 45_000 });
+    await song.getByRole('button', { name: 'More for Heads Will Roll' }).click();
+    await page.getByRole('menuitem', { name: 'Add to playlist' }).click();
+    await page.getByRole('menuitem', { name: 'Add to 2026' }).click();
+    await expect(page.locator('.toast')).toContainText('Added');
+    await page.goto('/search?q=2026');
+    const top = page.getByRole('region', { name: 'Top result' });
+    await expect(top.locator('.sr-hero-title')).toHaveText('2026', { timeout: 20_000 });
+    await expect(top).toContainText('Playlist');
+    await expect(top).toContainText('1 song');
+    await expect(top.locator('.sr-art').first()).toBeVisible();
+    await expect(top.getByRole('button', { name: /^(Play|Pause) 2026$/ })).toBeVisible();
+    const lists = page.getByRole('region', { name: 'Playlists' });
+    await expect(lists.locator('.card', { hasText: '2026' })).toBeVisible();
+    const tb = (await top.boundingBox())!, lb = (await lists.boundingBox())!;
+    expect(Math.abs(tb.width - lb.width)).toBeLessThanOrEqual(4);
+    // narrow: the same Top result, first
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(400);
+    expect((await regions(page))[0]).toBe('Top result');
+    expect(await noSideScroll(page)).toBe(true);
   });
 });

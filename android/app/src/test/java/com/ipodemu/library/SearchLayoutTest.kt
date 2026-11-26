@@ -57,4 +57,19 @@ class SearchLayoutTest {
         assertEquals(listOf("Heads Will Roll (Remix)"), shown)
         assertTrue(folded.isEmpty())
     }
+
+    @Test fun theTopResultIsTheBestMatchOfAnyKindAndAPlaylistCanBeIt() {
+        // owner, 26 Nov: "that could be a playlist if I search for 2026"
+        assertEquals(SearchLayout.TopKind.PLAYLIST, SearchLayout.pickTop(artist = false, album = false, playlist = true, song = true, songExact = false))
+        assertEquals(SearchLayout.TopKind.SONG, SearchLayout.pickTop(false, false, true, true, songExact = true))
+        assertEquals(SearchLayout.TopKind.ARTIST, SearchLayout.pickTop(true, true, true, true, false))
+        assertEquals(SearchLayout.TopKind.ALBUM, SearchLayout.pickTop(false, true, true, true, false))
+        assertEquals(SearchLayout.TopKind.SONG, SearchLayout.pickTop(false, false, false, true, false))
+        assertEquals(SearchLayout.TopKind.NONE, SearchLayout.pickTop(false, false, false, false, false))
+    }
+
+    @Test fun aPlaylistAsTheTopResultComesFirstAndFullWidthOnThePhone() {
+        val order = SearchLayout.order(top = true, songs = false, artists = false, albums = false, playlists = true, made = false, download = true)
+        assertEquals(listOf(TOP, PLAYLISTS, DOWNLOAD), order)
+    }
 }

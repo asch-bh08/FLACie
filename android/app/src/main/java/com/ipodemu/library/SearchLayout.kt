@@ -37,6 +37,21 @@ object SearchLayout {
         return out
     }
 
+    /** What the Top result is: the best match of any kind (owner, 26 Nov: "that could be a playlist if I search for 2026"). The web's SearchLayout.PickTop. */
+    enum class TopKind { NONE, ARTIST, ALBUM, PLAYLIST, SONG }
+
+    /** [songExact]: the best song is named exactly what was typed, so it wins over everything. Otherwise an artist named like the search, an album, a
+     *  playlist named so, then the best song. The phone is always narrow: the Top result comes first and full width, then the rest (the web puts the
+     *  Playlists beside it from 900 px up, 50/50). */
+    fun pickTop(artist: Boolean, album: Boolean, playlist: Boolean, song: Boolean, songExact: Boolean): TopKind = when {
+        songExact && song -> TopKind.SONG
+        artist -> TopKind.ARTIST
+        album -> TopKind.ALBUM
+        playlist -> TopKind.PLAYLIST
+        song -> TopKind.SONG
+        else -> TopKind.NONE
+    }
+
     /** The song whatever the version and whoever sings it: "Heads Will Roll", "Heads Will Roll (A-Trak Remix)" and "Heads Will Roll - Live" are one. */
     fun titleCore(title: String): String = songKey(title, "").substringBefore('|')
 

@@ -2114,7 +2114,11 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         // asked for first and big, then the library's Songs, Artists, Albums and Playlists, and the catalog last as "More music to download", with its
         // copies of a song the library has folded under one line ("keep them irrelevant because we have the song")
         val artistMode = artistTop != null && artistPage != null && only == "" && picks == null
-        val showTop = topSong != null && only == "" && picks == null && !artistMode
+        // owner, 26 Nov: the Top result is the best match of any kind; a playlist named like the search ("2026") can be it (first, full width, as on the web)
+        val topList = remember(q, ownLists) { ownLists.firstOrNull { com.ipodemu.library.SearchRank.words(it.list.name) == com.ipodemu.library.SearchRank.words(q) && com.ipodemu.library.SearchRank.words(q).isNotEmpty() } }
+        val topKind = com.ipodemu.library.SearchLayout.pickTop(artistMode, false, topList != null, topSong != null,
+            topSong != null && com.ipodemu.library.SearchRank.words(topSong.title) == com.ipodemu.library.SearchRank.words(q))
+        val showTop = (topSong != null || topList != null) && only == "" && picks == null && !artistMode
         val asked = remember(q, topSong) { com.ipodemu.library.SearchLayout.askedSong(q, topSong?.title) }
         val shownWeb = if (webSongsExpanded || only == "songs" || only == "downloadable" || picks != null) w.songs else w.songs.take(8)
         val (webRows, webCopies) = remember(shownWeb, asked) { com.ipodemu.library.SearchLayout.foldCopies(shownWeb, { it.title }, asked) }
@@ -2147,7 +2151,14 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
             }
             if (artistMode && artistTop != null && artistPage != null) ArtistResults(artistTop, artistPage, made, similarArtists, nav, snap, featuring) { searchFocus.clearFocus() }
             for (sec in order) when (sec) {
-                com.ipodemu.library.SearchLayout.Section.TOP -> if (topSong != null) {
+                com.ipodemu.library.SearchLayout.Section.TOP -> if (topKind == com.ipodemu.library.SearchLayout.TopKind.PLAYLIST && topList != null) {
+                    item(key = "toplist${topList.list.id}") {
+                        val pl = topList.list
+                        PlaylistResultCard(pl.name, pl.paths.size, remember(pl.id, libRev) { pl.paths.firstNotNullOfOrNull { byPath[it]?.artKey } },
+                            onOpen = { searchFocus.clearFocus(); nav.push(Screen.Detail(DetailKind.USER, pl.id)) },
+                            onPlay = { searchFocus.clearFocus(); val l = pl.paths.mapNotNull { byPath[it] }; if (l.isNotEmpty()) app.player.play(l, 0, null, from = "search") })
+                    }
+                } else if (topSong != null) {
                     item(key = "top${topSong.path}") {
                         BestResultCard(topSong,
                             onPlay = { searchFocus.clearFocus(); if (snap.track?.path == topSong.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(topSong), 0, null, from = "search") } },
@@ -2514,6 +2525,33 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
             Txt(title, size = 15f, color = if (hi) Color.White else sc.onBg, maxLines = 1)
             Txt(subtitle, size = 12f, color = if (failed && !hi) Color(0xFFFF9C9C) else if (hi) Color(0xDDFFFFFF) else sc.onBgDim, maxLines = 1)
             if (tagged && owned != null) DownloadTagLine(owned, hi = hi, size = 11f)
+        }
+    }
+}
+
+/** The Top result when it is a playlist (owner, 26 Nov): the cover, the name, the song count and Play, in the same card as a song's. */
+@Composable
+private fun PlaylistResultCard(name: String, songs: Int, artKey: String?, onOpen: () -> Unit, onPlay: () -> Unit) {
+    val sc = LocalScheme.current
+    val cols = rememberCoverColours(artKey)
+    val shape = RoundedCornerShape(24.dp)
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(shape)
+            .background(androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color(cols.main).copy(alpha = .30f), Color(cols.ground).copy(alpha = .55f))))
+            .border(1.dp, sc.onBg.copy(alpha = .09f), shape)
+            .clickable(onClick = onOpen).padding(16.dp)
+            .semantics { contentDescription = "Top result: playlist $name, $songs ${if (songs == 1) "song" else "songs"}" },
+    ) {
+        Row(verticalAlignment = Alignment.Top) {
+            ArtImage(artKey, Modifier.size(116.dp).coverShadow(14.dp), corner = 14.dp)
+            Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                MonoLabel("Playlist · Yours", size = 10.5f, color = sc.onBg.copy(alpha = .8f), maxLines = 2)
+                SerifTitle(name, size = 30f, maxLines = 3)
+                Txt("$songs ${if (songs == 1) "song" else "songs"}", size = 14f, color = sc.onBgDim, maxLines = 1)
+            }
+        }
+        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            AccentPill("Play", Glyph.PLAY, cols, onPlay, Modifier.semantics { contentDescription = "Play $name" })
         }
     }
 }

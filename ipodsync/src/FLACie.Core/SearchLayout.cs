@@ -32,4 +32,23 @@ public static class SearchLayout
         foreach (var s in catalog) (TitleCore(titleOf(s)) == core ? folded : shown).Add(s);
         return (shown, folded);
     }
+
+    /// <summary>What the Top result is: the best match of any kind (owner, 26 Nov: "that could be a playlist if I search for 2026").</summary>
+    public enum TopKind { None, Artist, Album, Playlist, Song }
+
+    /// <summary>Picks the Top result. [songExact]: the best song is named exactly what was typed, so it wins over everything. Otherwise an artist named like
+    /// the search, then an album, then a playlist named so, then the best song.</summary>
+    public static TopKind PickTop(bool artist, bool album, bool playlist, bool song, bool songExact)
+    {
+        if (songExact && song) return TopKind.Song;
+        if (artist) return TopKind.Artist;
+        if (album) return TopKind.Album;
+        if (playlist) return TopKind.Playlist;
+        return song ? TopKind.Song : TopKind.None;
+    }
+
+    /// <summary>The width from which the Top result and the Playlists sit side by side, half each, with equal weight (owner, 26 Nov: "50/50 ... on smaller
+    /// aspect ratios or phone make the top result first"). Narrower than this, and on the phone, the Top result comes first, full width, then the rest.</summary>
+    public const int SideBySideMinWidth = 900;
+    public static bool SideBySide(int width) => width >= SideBySideMinWidth;
 }

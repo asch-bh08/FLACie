@@ -33,16 +33,22 @@
     var albums = SortedAlbums(albumsAll.Where(g => g.Tracks.Any(X.Allows)).ToList());
     var artists = artistsAll.Where(g => g.Tracks.Any(X.Allows)).ToList();
     var plays = FindPlaylists(words);
+    // a playlist named like the search is an answer on its own (owner, 26 Nov: "2026"): nothing in the library is no reason to show "Nothing matches"
+    if (fuzzy && songsAll.Count + albumsAll.Count + artistsAll.Count == 0 && plays.Any(p => Same(p.Name, q))) fuzzy = false;
     var genres = FindGenres(words);
     // the top result (only for a search): an artist named like it (with or without "The"), else an album named so, else the best song (accents and punctuation do not count)
     var best = songsAll.Where(X.Allows).FirstOrDefault();
     var songIsExact = ranked && best is not null && Same(best.Title, q);
     // F6: "prodigy" means The Prodigy (played, 171 songs) over Prodigy (15)
     var topArtist = ranked ? FLACie.Core.SearchRankTop.Artist(artists, q, Session.PlayStats) : null;
-    var heroArtist = topArtist is not null && !songIsExact;
     var topAlbum = ranked && !fuzzy ? albums.FirstOrDefault(g => Same(g.Name, q)) : null;
-    var heroAlbum = !heroArtist && topAlbum is not null && !songIsExact;
-    var heroSong = ranked && !heroArtist && !heroAlbum ? best : null;
+    // owner, 26 Nov: the Top result is the best match of any kind; a playlist named like the search ("2026") can be it
+    var topPlaylist = ranked ? plays.FirstOrDefault(p => Same(p.Name, q)) : null;
+    var topKind = FLACie.Core.SearchLayout.PickTop(topArtist is not null, topAlbum is not null, topPlaylist is not null, best is not null, songIsExact);
+    var heroArtist = topKind == FLACie.Core.SearchLayout.TopKind.Artist;
+    var heroAlbum = topKind == FLACie.Core.SearchLayout.TopKind.Album;
+    var heroPlaylist = topKind == FLACie.Core.SearchLayout.TopKind.Playlist;
+    var heroSong = ranked && topKind == FLACie.Core.SearchLayout.TopKind.Song ? best : null;
     heroArtKey = heroSong is not null && only == "" ? Art.KeyFor(heroSong) : null;
     var shown = showAll || only == "songs" ? songs.Count : Math.Min(songs.Count, SongRows);
     // F6.2: a search for an artist is laid out like their page: the Top result with their top 5 songs beside it, then Playlists, Popular, Albums, Singles & EPs
@@ -194,10 +200,14 @@ else
 @* owner, 25 Nov ("heads will roll": the first result was a playlist, the song small under it): the Top result comes first, then the library's Songs,
    Artists, Albums and Playlists (yours, then the ready-made ones); the page puts the catalog last. With no Top result (a genre, "2010s") the
    ready-made playlists are the answer and stay first, like Spotify's (owner, 2 Nov). *@
-var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
+var hasHero = only == "" && (heroArtist || heroAlbum || heroPlaylist || heroSong is not null);
+// owner, 26 Nov: on a wide screen the Top result and the Playlists sit side by side, half each, equal weight; narrow screens and the phone stack them,
+// the Top result first and full width (the css decides by width)
+var pairPlaylists = hasHero && (plays.Count > 0 || Made.Count > 0) && Shows("playlists");
 @if (Made.Count > 0 && only == "" && !hasHero) { @MadeRow }
 @if (hasHero)
 {
+    <div class="sr-top-pair @(pairPlaylists ? "both" : "")">
     <section aria-label="Top result" class="sr-section sr-best-section">
         <h2 class="section">Top <i>result</i></h2>
         @if (heroArtist && topArtist is not null)
@@ -210,6 +220,20 @@ var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
                     <span class="pills"><span class="badge plain">@Count(topArtist) @(Count(topArtist) == 1 ? "song" : "songs")</span><span class="sr-have">In your library</span></span>
                 </div>
                 <button class="sr-play" aria-label="@(On(topArtist.Tracks) ? "Pause" : "Play") @topArtist.Name" @onclick="() => PlayOnly(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)" @onclick:stopPropagation><Icon Name="@(On(topArtist.Tracks) ? "pause" : "play")" Size="22" /></button>
+            </div>
+        }
+        else if (heroPlaylist && topPlaylist is not null)
+        {
+            var pl = topPlaylist; var pArt = Session.Resolve(pl.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+            var pTracks = Session.Resolve(pl.Entries).Where(X.Allows).ToList();
+            <div class="sr-hero" @onclick="() => PlayFull(pTracks, pl.Name)">
+                <a class="sr-art" href="/playlist/@pl.Id" aria-label="Open playlist @pl.Name" @onclick="Noop" @onclick:stopPropagation><Cover ArtKey="@(pArt)" Size="188" Class="square" /></a>
+                <div class="sr-hero-text">
+                    <a class="sr-hero-title" href="/playlist/@pl.Id" @onclick="Noop" @onclick:stopPropagation>@pl.Name</a>
+                    <span class="sr-hero-sub">Playlist · Yours</span>
+                    <span class="pills"><span class="badge plain">@pl.Entries.Count @(pl.Entries.Count == 1 ? "song" : "songs")</span></span>
+                </div>
+                <button class="sr-play" aria-label="@(On(pTracks) ? "Pause" : "Play") @pl.Name" @onclick="() => PlayOnly(pTracks, pl.Name)" @onclick:stopPropagation><Icon Name="@(On(pTracks) ? "pause" : "play")" Size="22" /></button>
             </div>
         }
         else if (heroAlbum && topAlbum is not null)
@@ -274,6 +298,26 @@ var hasHero = only == "" && (heroArtist || heroAlbum || heroSong is not null);
             @if (heroVersions && vers.Count > 0) { <div class="sr-hero-versions"><TrackList Tracks="vers" PlayContext="@context" Single="true" ThumbSize="40" KindTag="Version" /></div> }
         }
     </section>
+    @if (pairPlaylists)
+    {
+        <div class="sr-pair-lists">
+            @if (plays.Count > 0)
+            {
+                <section aria-label="Playlists" class="sr-section">
+                    <h2 class="section"><i>Playlists</i></h2>
+                    <div class="row-scroll">
+                        @foreach (var p in plays)
+                        {
+                            var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                            <a class="card" href="/playlist/@p.Id"><Cover ArtKey="@(art)" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@PlaylistSub(p)</span></a>
+                        }
+                    </div>
+                </section>
+            }
+            @if (Made.Count > 0) { @MadeRow }
+        </div>
+    }
+    </div>
 }
 @* the songs under the Top result, without it again (owner, 25 Nov: "wasted space") *@
 var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t => t.Path != heroSong.Path).ToList() : songs; var listShown = Math.Min(shown, listSongs.Count);
@@ -306,7 +350,7 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
     </section>
 }
 @if (!ranked) { @ArtistsRow(artists) }
-@if (plays.Count > 0 && Shows("playlists") && !(only == "playlists" && listsKind))
+@if (plays.Count > 0 && Shows("playlists") && !(only == "playlists" && listsKind) && !pairPlaylists)
 {
     <section aria-label="Playlists" class="sr-section">
         <h2 class="section"><i>Playlists</i></h2>
@@ -319,7 +363,7 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
         </div>
     </section>
 }
-@if (Made.Count > 0 && hasHero) { @MadeRow }
+@if (Made.Count > 0 && hasHero && !pairPlaylists) { @MadeRow }
 @if (genres.Count > 0 && only == "")
 {
     <section aria-label="Genres" class="sr-section">

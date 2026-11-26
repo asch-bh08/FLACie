@@ -34,4 +34,25 @@ public class SearchLayoutTests
         Assert.Equal(Catalog, shown);
         Assert.Empty(folded);
     }
+
+    [Fact]
+    public void The_top_result_is_the_best_match_of_any_kind_and_a_playlist_can_be_it()
+    {
+        // owner, 26 Nov: "that could be a playlist if I search for 2026"
+        Assert.Equal(SearchLayout.TopKind.Playlist, SearchLayout.PickTop(artist: false, album: false, playlist: true, song: true, songExact: false));
+        Assert.Equal(SearchLayout.TopKind.Song, SearchLayout.PickTop(false, false, true, true, songExact: true));
+        Assert.Equal(SearchLayout.TopKind.Artist, SearchLayout.PickTop(true, true, true, true, false));
+        Assert.Equal(SearchLayout.TopKind.Album, SearchLayout.PickTop(false, true, true, true, false));
+        Assert.Equal(SearchLayout.TopKind.Song, SearchLayout.PickTop(false, false, false, true, false));
+        Assert.Equal(SearchLayout.TopKind.None, SearchLayout.PickTop(false, false, false, false, false));
+    }
+
+    [Fact]
+    public void Wide_screens_put_the_top_result_and_playlists_side_by_side_narrow_ones_stack()
+    {
+        Assert.True(SearchLayout.SideBySide(1440));
+        Assert.True(SearchLayout.SideBySide(900));
+        Assert.False(SearchLayout.SideBySide(899));
+        Assert.False(SearchLayout.SideBySide(390));
+    }
 }

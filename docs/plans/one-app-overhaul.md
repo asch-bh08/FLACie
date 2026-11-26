@@ -18,18 +18,22 @@ Info / Add) are liked; the web's small square mono tags on Now Playing are liked
 - Screens only on the web: admin, charts, import. Only on the phone: offline settings, legal, catalog song/album pages, setup screens, remote.
 
 ## The one design (the spec both sides build to)
+
+**Big by default (owner, 26 Nov: "I LOVE big buttons ... they're too small, but they can be big and fit, be smart").** Every size below is the
+comfortable size; a piece only steps down (never below 48 touch / 44 visible) when the screen measures too small for it, by the same fit
+rule on both sides (Now Playing's NowPlayingFit idea, applied to every screen). Sizes after this note's update:
 | Piece | Decision |
 |---|---|
 | Colours | One token set (web names): bg, surface 1-3, line, ink, dim, faint, accent (follows the cover), glass fill #0FFFFFFF, glass rim #24FFFFFF. Phone bg moves to the web's slate. |
-| Text | Five named styles only: Title (serif 30, italic last word), Section (serif 24), Body (sans 15), Small (sans 13 dim), Label (mono 11 caps, .12em). Phone `Txt(size=…)` calls are replaced by these. |
-| Main button | Pill, 48 tall (phone touch and web), sans 15/600: Primary = cover colour fill, Secondary = tone fill (Play / Shuffle). |
-| Small button | Pill, 36 visible / 48 touch, sans 14/600, outlined line; selected = ink fill (filters, tabs, settings choices). |
-| Slot | The liked rounded rectangle: 52 tall, radius 16, glass fill, icon 18 over word 11.5/600; on = ink fill. Used for every row of quiet actions (Now Playing, playlist, album, artist, Devices card). Phone and web the same. |
-| Icon button | Round 44 (48 touch), glass; on = accent icon. |
+| Text | Five named styles only: Title (serif 30, italic last word), Section (serif 24), Body (sans 16), Small (sans 14 dim), Label (mono 11 caps, .12em). Phone `Txt(size=…)` calls are replaced by these. |
+| Main button | Pill, 56 tall (52 when tight) (phone touch and web), sans 15/600: Primary = cover colour fill, Secondary = tone fill (Play / Shuffle). |
+| Small button | Pill, 44 visible / 48 touch (40 when tight), sans 15/600, outlined line; selected = ink fill (filters, tabs, settings choices). |
+| Slot | The liked rounded rectangle: 60 tall (52 when tight), radius 18, glass fill, icon 22 over word 12.5/600; on = ink fill. Used for every row of quiet actions (Now Playing, playlist, album, artist, Devices card). Phone and web the same. |
+| Icon button | Round 52 (48 when tight), glass; on = accent icon. |
 | Status tag | Outlined pill, sans 11.5/600 (the Devices tag): This device, Playing, Offline, Streaming, Recently downloaded. |
 | Format tag | The Now Playing tag the owner liked: mono caps 10.5, radius 5, filled: HI-RES (amber), FLAC 16/44.1, MP3 320, source (JELLYFIN). Only where the format matters (Now Playing, song info, search hero, Hi-Res rows). |
 | Card | Glass, radius 22, rim; one component each side. |
-| List row | 64 tall, cover 44 r8, title Body 600, second line Small, right: time (Label) + ⋯; one row component each side (song, album, playlist, device variants). |
+| List row | 72 tall (64 when tight), cover 52 r10, title Body 600, second line Small, right: time (Label) + ⋯; one row component each side (song, album, playlist, device variants). |
 | Menu | Same items, order and words everywhere (table below). Phone: one sheet (DesignSheet; ActionSheet only for the iPod theme). Web: popover on a PC, bottom sheet on a phone-width window (best for touch). |
 | Confirm | Phone sheet / web inline swap, same words: "Delete “name”?" → "Delete" / "Keep it". |
 | Toast | Both: bottom, surface-3, 2.5 s (5 s with Undo), tap or x to dismiss, warn = amber text. |

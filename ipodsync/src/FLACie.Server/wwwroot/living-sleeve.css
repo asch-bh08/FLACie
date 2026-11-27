@@ -810,19 +810,21 @@ body.np-open .dj-bar { display: none; }
 /* ==== 1g, Now Playing rearranged (owner, 26 Nov), as on Android (LivingSleeve.kt). One button shape: shuffle and repeat are the kit's rounded square of
    glass (on: the cover's tone, its colour and a dot), on a phone and in the PC's transport. Phone upright: shuffle and repeat either side of the time,
    so previous / play / next have their row alone and are big (car mode's feel, play the biggest; a step down on a short phone); the slots are
-   Lyrics · More · Info · Add (no Up next slot: swiping and the Up next line go there); the frame takes the height the rest leaves, centred, so the
-   spare room is above and below it rather than one band. The sizes beat the older DJ/mic squeezes further up, hence !important. ==== */
+   Lyrics · More · Info · Add (no Up next slot: swiping and the Up next line go there); the frame takes the height the rest leaves with the time
+   right under it; a tall phone's spare room goes into the gaps between the parts (they grow with the height), not one band. The sizes beat the older DJ/mic squeezes further up, hence !important. ==== */
 .ls .ls-shuf, .ls .ls-rep { width: 48px !important; height: 48px; border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink-2); }
 .ls .ls-shuf.on, .ls .ls-rep.on { background: var(--tone); color: var(--np-accent); }
 .ls-peek { display: none; }
 @media (max-width: 760px) and (orientation: portrait) {
   .ls .ls-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto;
-    column-gap: 14px; row-gap: clamp(8px, 1.4dvh, 16px); align-content: stretch; }
+    --np-gap: clamp(8px, calc((100dvh - 760px) / 8 + 10px), 28px); column-gap: 14px; row-gap: var(--np-gap); align-content: stretch; }
   .ls .ls-transport { display: contents; }
-  .ls .ls-art { grid-area: 1 / 1 / 2 / -1; place-items: center; margin: 0; }
+  .ls .ls-art { grid-area: 1 / 1 / 2 / -1; place-items: end center; margin: 0; }
   .ls .ls-frame { width: min(100cqw, 100cqh); }
-  .ls .ls-cover { width: calc(min(100cqw, 100cqh) - 2 * var(--frame)); align-self: center; margin-bottom: 0; }
-  .ls .ls-times { grid-area: 2 / 2; align-self: center; margin: 0; }
+  .ls .ls-cover { width: calc(min(100cqw, 100cqh) - 2 * var(--frame)); align-self: end; margin-bottom: var(--frame); }
+  /* the time's row sits right under the frame whatever the gap */
+  .ls .ls-times, .ls .ls-shuf, .ls .ls-rep { margin-top: calc(2px - var(--np-gap)) !important; }
+  .ls .ls-times { grid-area: 2 / 2; align-self: center; margin-bottom: 0; }
   .ls .ls-shuf { grid-area: 2 / 1; justify-self: start; align-self: center; }
   .ls .ls-rep { grid-area: 2 / 3; justify-self: end; align-self: center; }
   .ls .ls-title { grid-area: 3 / 1 / 4 / -1; }

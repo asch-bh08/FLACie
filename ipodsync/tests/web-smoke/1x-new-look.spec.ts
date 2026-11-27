@@ -54,7 +54,9 @@ test.describe('phone (390 x 844)', () => {
     const frame = (await page.locator('.ls-frame').boundingBox())!, cover = (await page.locator('.ls-cover').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
     expect(frame.width).toBeGreaterThan(250); expect(Math.abs(frame.width - frame.height)).toBeLessThan(1);
     expect(frame.x).toBeLessThan(cover.x); expect(frame.x + frame.width).toBeGreaterThan(cover.x + cover.width);
-    expect(time.y - (frame.y + frame.height)).toBeLessThan(10);
+    // (the time shares its row with shuffle and repeat since 26 Nov: the row starts right under the frame)
+    const shuf = (await page.locator('.ls-shuf').boundingBox())!;
+    expect(Math.min(time.y, shuf.y) - (frame.y + frame.height)).toBeLessThan(10);
     expect(await page.locator('.ls-play').evaluate((e) => getComputedStyle(e).borderRadius)).not.toBe('50%');
     const wave = page.locator('.ls-frame canvas');
     await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
@@ -71,23 +73,26 @@ test.describe('phone (390 x 844)', () => {
     await expect.poll(async () => Math.abs(Number(await input.inputValue()) - max / 4), { timeout: 5_000 }).toBeLessThanOrEqual(1);
   });
 
-  test('previous and next are tinted pills, shuffle and repeat are plain', async ({ page }) => {
-    const bg = (n: string) => page.locator('.ls-transport').getByRole('button', { name: n }).evaluate((e) => getComputedStyle(e).backgroundColor);
-    expect(await bg('Previous')).not.toBe('rgba(0, 0, 0, 0)');
-    expect(await bg('Next')).not.toBe('rgba(0, 0, 0, 0)');
-    expect(await bg('Shuffle off')).toBe('rgba(0, 0, 0, 0)');
-    expect(await bg('Repeat off')).toBe('rgba(0, 0, 0, 0)');
+  test('previous and next are tinted, shuffle and repeat are glass, all the one rounded rectangle, and shuffle and repeat flank the time', async ({ page }) => {
+    const css = (n: string) => page.locator('.ls-transport').getByRole('button', { name: n }).evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.borderTopLeftRadius]; });
+    for (const n of ['Previous', 'Next', 'Shuffle off', 'Repeat off']) {
+      const [bg, r] = await css(n);
+      expect(bg, n).not.toBe('rgba(0, 0, 0, 0)'); expect(['16px', '18px'], n).toContain(r);
+    }
+    const mid = async (s: string) => { const b = (await page.locator(s).boundingBox())!; return b.y + b.height / 2; };
+    expect(Math.abs((await mid('.ls-shuf')) - (await mid('.ls-times')))).toBeLessThan(6);
+    expect(Math.abs((await mid('.ls-rep')) - (await mid('.ls-times')))).toBeLessThan(6);
   });
 
   test('no main control is in the bottom 100px and there are no lyrics on the main screen', async ({ page }) => {
-    for (const sel of ['.ls-transport', '.ls-actions', '.ls-times']) {
+    for (const sel of ['.ls-prev', '.ls-ring', '.ls-next', '.ls-actions', '.ls-times']) {
       const b = (await page.locator(sel).boundingBox())!;
       expect(b.y + b.height, sel).toBeLessThanOrEqual(844 - 90);
     }
     await expect(page.locator('.ls-lyrics')).toHaveCount(0);
-    // the time is easy to read and sits right under the ring
+    // the time is easy to read and sits above the transport (shuffle and repeat beside it, previous / play / next below)
     const ring = (await page.locator('.ls-ring').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
-    expect(time.y - (ring.y + ring.height)).toBeLessThan(8);
+    expect(time.y + time.height).toBeLessThanOrEqual(ring.y);
     expect(parseFloat(await page.locator('.ls-times').evaluate((e) => getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(14);
     // Info is one tap away on a phone too
     await page.locator('.ls-actions').getByRole('button', { name: 'Info', exact: true }).click();

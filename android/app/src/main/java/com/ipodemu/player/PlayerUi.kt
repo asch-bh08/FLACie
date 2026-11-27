@@ -812,15 +812,12 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     for ((label, glyph, go) in listOf<Triple<String, Glyph, () -> Unit>>(
                         Triple("Favourites", Glyph.HEART) { nav.push(Screen.Detail(DetailKind.FAVORITES)) },
                         Triple("Recent", Glyph.CLOCK) { nav.push(Screen.Detail(DetailKind.RECENT)) },
-                        Triple("Offline", Glyph.DOWNLOADED) { nav.push(Screen.Downloads) },
+                        Triple("Downloads", Glyph.DOWNLOADED) { nav.push(Screen.Downloads) },
                         // car mode one tap from Home (owner, 12 Nov: "easy on/off")
                         Triple("Car", Glyph.CAR) { app.ui.carOpen = true },
                     )) {
-                        Column(
-                            Modifier.weight(1f).height(64.dp).clip(RoundedCornerShape(18.dp)).background(LocalScheme.current.onBg.copy(alpha = .07f))
-                                .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable(onClick = go),
-                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-                        ) { GlyphIcon(glyph, Modifier.size(20.dp), LocalScheme.current.onBg); Txt(label, Modifier.padding(top = 4.dp), size = 12.5f, weight = FontWeight.SemiBold, maxLines = 1) }
+                        // the kit's slot (ONE APP 1a): the same rounded rectangle, icon over word, as Now Playing and the playlist page
+                        Slot(label, glyph, go, Modifier.weight(1f))
                     }
                 }
             } else item {

@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 27 Nov Cloud: 1a Home + Library + Favourites (branch cloud/1a-home)
+- Web: new /library page (LibraryHome.razor) = the phone's Library tab on the kit: k-title, Favourites/Playlists tiles, Your playlists + "All N" k-btn-sm, Browse tiles (Artists/Albums/Songs/Genres); Home's "Play all" chips -> k-btn-sm. Parity tool's library screen now shoots /library (was /explore).
+- Phone: Library tab onto the kit (Title/Section, SmallButton for "All N" and the source chips, LibTiles = kit card glass/rim r22, row height, Body/Small); Home's four shortcuts = kit Slot; "Offline" -> "Downloads" (the screen it opens).
+- Tests: C# 2366 pass; android testDebugUnitTest + assembleDebug green (phone side unit-tested only, no emulator here); Playwright 1-pages + 1w-kit + new 1w-library 38 pass (1-pages ignores newer Chromium's "unload is not allowed" notice).
+- Left: Favourites untouched (both sides use the playlist hero, which Local owns); web Library has no Recent/New songs tiles (no web pages for them); the rail/tab bar still lists Favourites/Playlists (part 10 switches to Library); parity flags an empty band under Library on 1920+ (short page; 1h).
+
 ## 12 Nov ~16:45: b136 RELEASED + DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b136 ; frank runs b136 (rollback flacie-web:rollback-b136pre; b135pre, b134a kept).
 - Owner: hero covers changed too fast -> 15 s each, 3 s fade (web hero-cycle 75s, phone Crossfade 15 s); Home menu frosted with its line, search bar line back ("no section line is weird"); covers inset -6% so drift never shows an edge.

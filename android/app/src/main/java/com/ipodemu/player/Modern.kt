@@ -222,7 +222,7 @@ fun LibraryHome(nav: PlayerNav) {
             // design I: the serif heading, as on the web; a tab's root has no back button
             item {
                 Row(Modifier.fillMaxWidth().padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SerifTitle("Your library", Modifier.weight(1f).padding(start = 20.dp, top = 20.dp, bottom = 12.dp), size = 34f)
+                    Title("Your library", Modifier.weight(1f).padding(start = 20.dp, top = 20.dp, bottom = 12.dp))
                     AccountAction()
                 }
             }
@@ -232,8 +232,8 @@ fun LibraryHome(nav: PlayerNav) {
                 LibTiles(listOf(
                     LibTile("Favourites", Glyph.HEART_FILLED, "${ud.favorites.size} songs") { nav.push(Screen.Detail(DetailKind.FAVORITES)) },
                     LibTile("Recent", Glyph.CLOCK, "${ud.recents.size} played") { nav.push(Screen.Detail(DetailKind.RECENT)) },
-                    // the songs kept for listening without signal, apart from the new music fetched into the library
-                    LibTile("Offline", Glyph.DOWNLOADED, "${app.offline.doneCount} on this phone") { nav.push(Screen.Downloads) },
+                    // the songs kept for listening without signal, apart from the new music fetched into the library ("Downloads", as the screen it opens)
+                    LibTile("Downloads", Glyph.DOWNLOADED, "${app.offline.doneCount} on this phone") { nav.push(Screen.Downloads) },
                     LibTile("New songs", Glyph.PLUS, "${ud.downloads.size} recently added") { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) },
                 ))
             }
@@ -241,8 +241,8 @@ fun LibraryHome(nav: PlayerNav) {
             val nLists = lists.size + shownFolderPlaylists(app).size
             item(key = "pl-head") {
                 Row(Modifier.fillMaxWidth().clickable { nav.push(Screen.Lib(LibKind.PLAYLISTS)) }.padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    SerifTitle("Your playlists", Modifier.weight(1f), size = 24f)
-                    DesignChip(if (nLists > 0) "All $nLists" else "New playlist", false, { nav.push(Screen.Lib(LibKind.PLAYLISTS)) })
+                    Section("Your playlists", Modifier.weight(1f))
+                    SmallButton(if (nLists > 0) "All $nLists" else "New playlist", { nav.push(Screen.Lib(LibKind.PLAYLISTS)) })
                 }
             }
             if (lists.isNotEmpty()) item(key = "pl-row") {
@@ -255,7 +255,7 @@ fun LibraryHome(nav: PlayerNav) {
                     }
                 }
             }
-            item(key = "browse-head") { SerifTitle("Browse", Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp), size = 24f) }
+            item(key = "browse-head") { Section("Browse", Modifier.padding(start = 20.dp, top = 18.dp, bottom = 8.dp)) }
             item(key = "browse") {
                 LibTiles(listOf(
                     LibTile("Artists", Glyph.ARTIST, "${lib.artists().size}") { nav.push(Screen.Lib(LibKind.ARTISTS)) },
@@ -274,7 +274,7 @@ fun LibraryHome(nav: PlayerNav) {
             if (sources.isNotEmpty()) item(key = "sources") {
                 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
                 androidx.compose.foundation.layout.FlowRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((label, g, kind) in sources) DesignChip(label, false, { nav.push(Screen.Lib(kind)) }, icon = g)
+                    for ((label, g, kind) in sources) SmallButton(label, { nav.push(Screen.Lib(kind)) }, icon = g)
                 }
             }
         }
@@ -283,23 +283,24 @@ fun LibraryHome(nav: PlayerNav) {
 
 private class LibTile(val title: String, val glyph: Glyph, val sub: String, val onClick: () -> Unit)
 
-/** Tiles two to a row (the Library tab): a glyph in the accent, the name in bold, a short line under it; one tap opens it. */
+/** Tiles two to a row (the Library tab, and the web's /library): a kit card with a glyph in the accent, the name in Body, a Small line under it; one tap opens it. */
 @Composable
 private fun LibTiles(tiles: List<LibTile>) {
     val sc = LocalScheme.current
-    val shape = RoundedCornerShape(18.dp)
+    val shape = RoundedCornerShape(Kit.rCard)
+    val rowH = kitSizes().row
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (row in tiles.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             for (t in row) Row(
-                Modifier.weight(1f).height(72.dp).clip(shape).background(Palette.surface).border(1.dp, Palette.line, shape)
+                Modifier.weight(1f).height(rowH).clip(shape).background(Kit.glassFill).border(1.dp, Kit.glassRim, shape)
                     .semantics { contentDescription = t.title; stateDescription = t.sub; role = androidx.compose.ui.semantics.Role.Button }.clickable(onClick = t.onClick)
                     .padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(sc.accent.copy(alpha = .16f)), contentAlignment = Alignment.Center) { GlyphIcon(t.glyph, Modifier.size(20.dp), sc.accent) }
+                Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(sc.accent.copy(alpha = .16f)), contentAlignment = Alignment.Center) { GlyphIcon(t.glyph, Modifier.size(22.dp), sc.accent) }
                 Column(Modifier.padding(start = 12.dp)) {
-                    Txt(t.title, size = 15.5f, weight = FontWeight.SemiBold, maxLines = 1)
-                    Txt(t.sub, size = 12.5f, color = sc.onBgDim, maxLines = 1)
+                    Body(t.title, weight = FontWeight.SemiBold)
+                    Small(t.sub)
                 }
             }
             if (row.size == 1) Box(Modifier.weight(1f))

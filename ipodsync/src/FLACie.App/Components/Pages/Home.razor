@@ -83,7 +83,7 @@ else
             @if (qp is not null)
             {
                 <div class="home-feature" role="region" aria-label="Quick picks">
-                    <div class="shelf-head"><div><h2>Quick <i>picks</i></h2><small>@qp.Subtitle</small></div><button class="chip small" data-np @onclick="() => PlayFull(qp.Tracks, 0, qp.Title)"><Icon Name="play" Size="16" />Play all</button></div>
+                    <div class="shelf-head"><div><h2>Quick <i>picks</i></h2><small>@qp.Subtitle</small></div><button class="k-btn-sm" data-np @onclick="() => PlayFull(qp.Tracks, 0, qp.Title)"><Icon Name="play" Size="16" />Play all</button></div>
                     <ul class="home-picklist">
                         @for (var i = 0; i < qp.Tracks.Count && i < 12; i++)
                         {
@@ -134,7 +134,7 @@ else
 @if (mood is not null)
 {
     <section class="shelf" aria-label="@mood">
-        <div class="shelf-head"><div><h2>@Serif(mood)</h2><small>New picks each day</small></div><button class="chip small" data-np @onclick="() => PlayFull(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
+        <div class="shelf-head"><div><h2>@Serif(mood)</h2><small>New picks each day</small></div><button class="k-btn-sm" data-np @onclick="() => PlayFull(moodTracks, 0, mood)"><Icon Name="play" Size="16" />Play all</button></div>
         <ul class="pick-grid">
             @for (var i = 0; i < moodTracks.Count; i++)
             {
@@ -177,7 +177,7 @@ else
     <div class="shelf-head">
         <div><h2>@Serif(sh.Title)</h2>@if (sh.Subtitle.Length > 0) { <small>@sh.Subtitle</small> }</div>
         <span class="shelf-nav">
-            @if (sh.Tracks.Count > 0) { <button class="chip small" data-np @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
+            @if (sh.Tracks.Count > 0) { <button class="k-btn-sm" data-np @onclick="() => PlayFull(sh.Tracks, 0, sh.Title)"><Icon Name="play" Size="16" />Play all</button> }
             @if (sh.Id != "quick-picks") { <Arrows /> }
         </span>
     </div>

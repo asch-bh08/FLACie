@@ -1,0 +1,48 @@
+@page "/library"
+@attribute [Authorize]
+@inherits UserComponent
+<PageTitle>Library · FLACie</PageTitle>
+@* ONE APP 1a: the phone's Library tab on the web, the same pieces in the same order: your things as tiles, your playlists as covers,
+   then the library itself as tiles. Built from the kit (kit.css) so both sides read as one app. *@
+@{ var playlists = Session.Playlists; }
+<div class="lib-home">
+<header class="lib-head"><h1 class="k-title">Your <i>library</i></h1></header>
+
+<div class="lib-tiles" aria-label="Yours">
+    <a class="lib-tile k-card" href="/favorites"><span class="lib-glyph"><Icon Name="heart" Size="22" /></span><span class="lib-tile-text"><b>Favourites</b><small>@Count(Session.Favorites.Count, "song")</small></span></a>
+    <a class="lib-tile k-card" href="/playlists"><span class="lib-glyph"><Icon Name="playlists" Size="22" /></span><span class="lib-tile-text"><b>Playlists</b><small>@Count(playlists.Count, "playlist")</small></span></a>
+</div>
+
+<section class="lib-section">
+    <div class="lib-section-head">
+        <h2 class="k-section">Your <i>playlists</i></h2>
+        <a class="k-btn-sm" href="/playlists">@(playlists.Count > 0 ? "All " + playlists.Count : "New playlist")</a>
+    </div>
+    @if (playlists.Count > 0)
+    {
+        <div class="lib-covers">
+            @foreach (var p in playlists.Take(12))
+            {
+                var art = Session.Resolve(p.Entries.Take(8)).Select(t => t.ArtKey).FirstOrDefault(k => k is not null);
+                <a class="card lib-cover" href="/playlist/@p.Id"><Cover ArtKey="@art" Class="square" /><span class="card-title">@p.Name</span><span class="card-sub">@Count(p.Entries.Count, "song")</span></a>
+            }
+        </div>
+    }
+</section>
+
+<section class="lib-section">
+    <h2 class="k-section">Browse</h2>
+    <div class="lib-tiles" aria-label="Browse">
+        <a class="lib-tile k-card" href="/artists"><span class="lib-glyph"><Icon Name="artists" Size="22" /></span><span class="lib-tile-text"><b>Artists</b><small>@Lib.Artists.Count</small></span></a>
+        <a class="lib-tile k-card" href="/albums"><span class="lib-glyph"><Icon Name="albums" Size="22" /></span><span class="lib-tile-text"><b>Albums</b><small>@Lib.Albums.Count</small></span></a>
+        <a class="lib-tile k-card" href="/songs"><span class="lib-glyph"><Icon Name="songs" Size="22" /></span><span class="lib-tile-text"><b>Songs</b><small>@Lib.Songs.Count</small></span></a>
+        <a class="lib-tile k-card" href="/genres"><span class="lib-glyph"><Icon Name="star" Size="22" /></span><span class="lib-tile-text"><b>Genres</b><small>@Genres</small></span></a>
+    </div>
+</section>
+</div>
+@code {
+    static string Count(int n, string one) => $"{n} {one}{(n == 1 ? "" : "s")}";
+    // counted once per library, not on every render
+    Library? countedFor; int genres;
+    int Genres { get { if (!ReferenceEquals(countedFor, Lib)) { countedFor = Lib; genres = Lib.Songs.Select(t => t.Genre).Where(g => g.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).Count(); } return genres; } }
+}

@@ -4,7 +4,8 @@ import { test, expect, Page } from '@playwright/test';
 // and raise no page error or Blazor error banner.
 
 // Expected with a fake Jellyfin that has no audio files and no live connection
-const IGNORED_CONSOLE = [/WebSocket/i, /\/socket/, /Failed to load resource/, /status of (401|404)/, /ERR_/, /favicon/];
+// newer Chromium (a cloud session's /opt/pw-browsers) logs a policy notice for Blazor's unload listener on every page
+const IGNORED_CONSOLE = [/WebSocket/i, /\/socket/, /Failed to load resource/, /status of (401|404)/, /ERR_/, /favicon/, /unload is not allowed/];
 
 function watch(page: Page) {
   const problems: string[] = [];
@@ -41,6 +42,7 @@ const pages: [string, RegExp][] = [
   ['/genres', /Rock|Jazz|Electronic/],
   ['/charts', /Charts|Top|Trending|Hot/i],
   ['/favorites', /Favou?rites|Liked|nothing/i],
+  ['/library', /Your library/],
   ['/playlists', /Playlists?/i],
   ['/search?q=aurora', /Aurora Vale/],
   ['/devices', /Devices?|This browser/i],

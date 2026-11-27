@@ -1,0 +1,24 @@
+@* The kit's slot (kit.css .k-slot; the phone's Slot): the liked rounded rectangle, an icon over its word; On fills it with ink. A link when Href is set.
+   Class carries a page's own classes (e.g. "btn pl-tool pl-slot") so its styles and tests keep working. *@
+@if (Href is not null)
+{
+    <a class="k-slot @(On ? "on" : "") @Class" href="@Href" title="@Title" @attributes="Extra"><Icon Name="@Icon" Size="22" /><span>@Label</span></a>
+}
+else
+{
+    <button type="button" class="k-slot @(On ? "on" : "") @Class" disabled="@Disabled" title="@Title" aria-pressed="@(Toggle ? On.ToString().ToLowerInvariant() : null)" @onclick="OnClick" @attributes="Extra"><Icon Name="@Icon" Size="22" /><span>@Label</span></button>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Icon { get; set; } = "";
+    [Parameter, EditorRequired] public string Label { get; set; } = "";
+    [Parameter] public bool On { get; set; }
+    /// <summary>A two-state slot (Lyrics, Up next): says its state to a screen reader.</summary>
+    [Parameter] public bool Toggle { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? Href { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Extra { get; set; }
+}

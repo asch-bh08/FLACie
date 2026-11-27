@@ -7,8 +7,8 @@
 <MusicTabs Active="Genres" />
 <ExploreBar Tab="Genres" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Songs.Count > 0) { @if (X.Filtering) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
-    else { <div class="empty-state"><p class="status">None of your songs have a genre tag yet.<small>Songs show up here once their files say what genre they are.</small></p><a class="btn" href="/songs">Browse songs</a></div> } }
+@if (list.Count == 0 && Lib.Songs.Count > 0) { @if (X.Filtering) { <EmptyState Glyph="search" Line="Nothing matches these filters." Sub="Try fewer, or start again with everything."><button class="btn" @onclick="ClearFilters">Clear filters</button></EmptyState> }
+    else { <EmptyState Glyph="songs" Line="None of your songs have a genre tag yet." Sub="Songs show up here once their files say what genre they are."><a class="btn" href="/songs">Browse songs</a></EmptyState> } }
 <div class="grid">
     @foreach (var g in list)
     {

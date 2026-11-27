@@ -7,7 +7,7 @@
 <MusicTabs Active="Artists" />
 <ExploreBar Tab="Artists" Changed="Refresh" />
 <LibraryStatus />
-@if (list.Count == 0 && Lib.Artists.Count > 0) { <div class="empty-state"><p class="status">Nothing matches these filters.<small>Try fewer, or start again with everything.</small></p><button class="btn" @onclick="ClearFilters">Clear filters</button></div> }
+@if (list.Count == 0 && Lib.Artists.Count > 0) { <EmptyState Glyph="search" Line="Nothing matches these filters." Sub="Try fewer, or start again with everything."><button class="btn" @onclick="ClearFilters">Clear filters</button></EmptyState> }
 <ArtistGrid Artists="list" />
 @code {
     List<Group> list = [];

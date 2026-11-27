@@ -1,0 +1,145 @@
+/* ==== The kit (ONE APP, docs/plans/one-app-overhaul.md "The one design"): the same pieces and numbers as the phone's ui/Kit.kt. Loaded last, so on equal
+   specificity these win; the second half maps the older duplicate classes onto the kit so pages unify without new markup (wave 2 deletes the old rules).
+   Big by default (owner, 26 Nov: "I LOVE big buttons"); a piece steps down to its tight size only on a short or very narrow screen, never below 44 visible. ==== */
+
+/* ---------------------------------------------------------------- tokens */
+:root {
+  --k-glass: #ffffff0f; --k-rim: #ffffff24; --k-line: var(--i-line, #f4efe659);
+  --k-cover: var(--np-accent, var(--accent)); --k-cover-fg: var(--np-accent-fg, var(--accent-fg, #1a120c));
+  --k-tone: var(--tone, var(--surface-3)); --k-tone-fg: var(--tonefg, var(--ink));
+  --k-on-fg: var(--bg);                       /* text on an ink-filled ("on") piece */
+  --k-amber: #ffc857; --k-amber-fg: #2a1d00; --k-ok: #4ee0a1; --k-cloud: #6db3ff;
+  --k-serif: var(--serif, 'Instrument Serif', Georgia, serif); --k-sans: var(--sans, 'Archivo', system-ui, sans-serif); --k-mono: var(--mono, 'DM Mono', ui-monospace, monospace);
+  --k-r-btn: 16px; --k-r-slot: 18px; --k-r-card: 22px;   /* one button shape (owner, 26 Nov): every button a rounded rectangle, no circles or full pills; tags stay pills */
+  --k-r-fmt: 5px; --k-r-cover: 10px;
+  --k-btn: 56px; --k-btn-sm: 44px; --k-slot: 60px; --k-icon: 52px; --k-row: 72px; --k-row-cover: 52px; --k-touch: 48px;
+  --k-body: 16px; --k-small: 14px;
+}
+/* tight: a short window (a landscape phone, a small laptop at zoom) or a very narrow phone; the same steps the phone takes */
+@media (max-height: 700px), (max-width: 360px) {
+  :root { --k-btn: 52px; --k-btn-sm: 40px; --k-slot: 52px; --k-icon: 48px; --k-row: 64px; }
+}
+/* paper: glass and rim as ink washes; the pieces drawn on Now Playing and the player bar stay dark there (design-i-light.css) */
+:root[data-theme="light"] { --k-glass: #1a17140d; --k-rim: #1a171426; --k-amber: #6d4c00; --k-ok: #17603b; --k-cloud: #1c4c8c; }
+:root[data-theme="light"] .ls, :root[data-theme="light"] .player { --k-glass: #ffffff0f; --k-rim: #ffffff24; --k-amber: #ffc857; --k-ok: #4ee0a1; --k-cloud: #6db3ff; }
+.ls { --k-on-fg: var(--ground, var(--bg)); }
+
+/* ---------------------------------------------------------------- text: five styles only */
+.k-title { margin: 0; font-family: var(--k-serif); font-weight: 400; font-size: 30px; line-height: 1.05; letter-spacing: 0; }
+.k-title i, .k-section i { font-style: italic; }
+.k-section { margin: 0; font-family: var(--k-serif); font-weight: 400; font-size: 24px; line-height: 1.1; }
+.k-body { font-family: var(--k-sans); font-size: var(--k-body); line-height: 1.45; color: var(--ink); }
+.k-small { font-family: var(--k-sans); font-size: var(--k-small); line-height: 1.4; color: var(--dim); }
+.k-label { font-family: var(--k-mono); font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+
+/* ---------------------------------------------------------------- main button: pill, cover colour or tone */
+.k-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex-shrink: 1; min-width: 0; height: var(--k-btn); min-height: 44px; padding: 0 26px;
+  border: 0; border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink); font: 600 15px/1 var(--k-sans); text-decoration: none; white-space: nowrap; cursor: pointer;
+  transition: background-color .15s, filter .15s, transform .12s ease; }
+.k-btn.primary { background: var(--k-cover); color: var(--k-cover-fg); }
+.k-btn.tone { background: var(--k-tone); color: var(--k-tone-fg); }
+.k-btn:hover:not(:disabled) { filter: brightness(1.08); }
+
+/* ---------------------------------------------------------------- small button, and the old chips and outlined buttons drawn as it
+   (44 visible, 48 to the finger: ::before widens the hit area without moving anything) */
+.k-btn-sm, .dv-btn, .pl-tool, .mood, .x-chip, .chipbtn, .dv-pill {
+  position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 7px; box-sizing: border-box; height: var(--k-btn-sm); min-height: var(--k-btn-sm);
+  padding: 0 18px; border: 1px solid var(--k-line); border-radius: var(--k-r-btn); background: transparent; color: var(--ink);
+  font: 600 15px/1 var(--k-sans); letter-spacing: 0; text-transform: none; text-decoration: none; white-space: nowrap; cursor: pointer; }
+.k-btn-sm::before, .dv-btn::before, .pl-tool::before, .mood::before, .x-chip::before, .chipbtn::before, .dv-pill::before {
+  content: ""; position: absolute; left: 0; right: 0; top: 50%; height: max(100%, var(--k-touch)); transform: translateY(-50%); }
+.k-btn-sm:hover:not(:disabled), .dv-btn:hover, .pl-tool:hover:not(:disabled), .mood:hover, .x-chip:hover, .chipbtn:hover, .dv-pill:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.k-btn-sm.on, .mood.on, .dv-pill.on, .chip-menu.on > .chipbtn, .chip-menu.open > .chipbtn { background: var(--ink); border-color: var(--ink); color: var(--k-on-fg); }
+.chip-menu.on > .chipbtn .ic { color: inherit; }
+.dv-btn.primary, .k-btn-sm.primary { background: var(--k-cover); border-color: var(--k-cover); color: var(--k-cover-fg); }
+.dv-btn.ghost { border-color: transparent; color: var(--dim); }
+.x-chip > svg { opacity: .7; }
+
+/* ---------------------------------------------------------------- slot: the liked rounded rectangle, icon over word */
+.k-slot, .ls-slot, .ls-actions .np-more.p .ls-more-btn, .pl-hero .pl-tools .btn.pl-slot {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; box-sizing: border-box; min-width: 0;
+  height: var(--k-slot); min-height: var(--k-slot); padding: 0 8px; border: 1px solid transparent; border-radius: var(--k-r-slot); background: var(--k-glass); color: var(--ink);
+  font: 600 12.5px/1.1 var(--k-sans); letter-spacing: 0; text-decoration: none; cursor: pointer; }
+.k-slot svg, .ls-slot svg, .ls-actions .np-more.p .ls-more-btn svg, .pl-hero .pl-tools .btn.pl-slot svg { width: 22px; height: 22px; flex: none; }
+.k-slot > span, .ls-slot > span, .pl-hero .pl-tools .btn.pl-slot span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-slot.on, .ls-slot.on, .pl-hero .pl-tools .btn.pl-slot.set { background: var(--ink); border-color: var(--ink); color: var(--k-on-fg); }
+.k-slot.danger, .pl-hero .pl-tools .btn.pl-slot.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+/* a row of slots shares the width out and shrinks rather than overflowing */
+.k-slots { display: flex; gap: 8px; } .k-slots > .k-slot { flex: 1 1 0; }
+
+/* ---------------------------------------------------------------- icon button */
+.k-icon { display: inline-grid; place-items: center; flex: none; width: var(--k-icon); height: var(--k-icon); padding: 0; border: 1px solid var(--k-rim); border-radius: var(--k-r-btn);
+  background: var(--k-glass); color: var(--ink); cursor: pointer; }
+.k-icon.on { color: var(--k-cover); }
+
+/* ---------------------------------------------------------------- status tag (outlined pill) and the old tags drawn as it */
+.k-tag, .dv-chip, .badge, .tag, .dev-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid var(--k-line); border-radius: 999px; background: none; box-shadow: none;
+  color: var(--dim); font: normal 600 11.5px/1.3 var(--k-sans); letter-spacing: .02em; text-transform: none; white-space: nowrap; }
+.k-tag.you, .dv-chip.you, .dev-chip.you, .tag.live, .k-tag.accent { border-color: color-mix(in srgb, var(--accent) 70%, transparent); color: var(--accent-text, var(--accent)); background: none; }
+.k-tag.on, .dv-chip.on, .dev-chip.on, .k-tag.ok { border-color: color-mix(in srgb, var(--k-ok) 55%, transparent); color: var(--k-ok); background: none; }
+.k-tag.cloud, .badge.cloud, .badge.nas { border-color: color-mix(in srgb, var(--k-cloud) 55%, transparent); color: var(--k-cloud); background: none; }
+.k-tag.hires { border-color: color-mix(in srgb, var(--k-amber) 55%, transparent); color: var(--k-amber); }
+.k-tag.bad, .badge.failed { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+.k-tag.off, .dv-chip.off { border-style: dashed; }
+.ls-info .tag.live { color: var(--ink); }
+
+/* ---------------------------------------------------------------- format tag: mono caps, small radius, filled */
+.k-fmt, .badge.fmt, .badge.ls-chip, .ls-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 7px; border: 0; border-radius: var(--k-r-fmt); background: var(--k-tone); color: var(--k-tone-fg); box-shadow: none;
+  font: normal 500 10.5px/1.3 var(--k-mono); letter-spacing: .06em; text-transform: uppercase; white-space: nowrap; }
+.k-fmt.hires, .badge.fmt.hires, .ls-chip.hires { background: #ffc857; color: var(--k-amber-fg); }
+.k-fmt-dim { opacity: .8; font-variant-numeric: tabular-nums; }
+.badge.cloud.ls-chip, .ls-chip.cloud { background: #12233bcc; color: #6db3ff; }
+.ls-chip.ls-from { background: #0000003d; color: var(--ink); }
+
+/* ---------------------------------------------------------------- card and list row */
+.k-card { border: 1px solid var(--k-rim); border-radius: var(--k-r-card); background: var(--k-glass); }
+.k-row { display: flex; align-items: center; gap: 12px; min-height: var(--k-row); padding: 0 8px; border-radius: 16px; color: var(--ink); }
+.k-row-cover { flex: none; width: var(--k-row-cover); height: var(--k-row-cover); border-radius: var(--k-r-cover); overflow: hidden; object-fit: cover; }
+.k-row-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.k-row-text > b { font: 600 var(--k-body)/1.25 var(--k-sans); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-row-text > small { font: var(--k-small)/1.3 var(--k-sans); color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.k-row-time { flex: none; font: 500 11px/1 var(--k-mono); letter-spacing: .12em; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- empty state: centred glyph, one line, optional main button */
+.k-empty, .empty-state { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 52ch; margin: 0 auto; padding: 40px 16px 24px; text-align: center; }
+.k-empty-glyph { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--k-glass); border: 1px solid var(--k-rim); color: var(--dim); }
+.k-empty-glyph svg { width: 28px; height: 28px; }
+.k-empty .status, .empty-state .status { margin: 0; padding: 0; font: var(--k-body)/1.5 var(--k-sans); color: var(--ink); }
+.k-empty .status small, .empty-state .status small { display: block; margin-top: 4px; font-size: var(--k-small); color: var(--dim); }
+/* the button is the main button in its secondary tone (the cover colour stays for a page's one big action, Play) */
+.empty-state > .btn, .k-empty > .btn { display: inline-flex; align-items: center; justify-content: center; height: var(--k-btn); min-height: 44px; padding: 0 26px; border: 0;
+  border-radius: var(--k-r-btn); background: var(--k-tone); color: var(--k-tone-fg); font: 600 15px/1 var(--k-sans); text-decoration: none; }
+
+/* ---------------------------------------------------------------- toast: bottom, surface-3, warn = amber words */
+.k-toast, .toast { border-radius: 14px; background: var(--surface-3); border: 1px solid var(--line); color: var(--ink); font: 15px/1.35 var(--k-sans); cursor: pointer; }
+.k-toast.warn, .toast.warn { border-color: var(--line); color: var(--k-amber); }
+.toast.warn button.x { color: var(--dim); }
+
+/* ---------------------------------------------------------------- switch: 44 x 26, white knob 22, accent track */
+.k-switch, .switch, .sp .switch { flex: none; position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-3); }
+.k-switch::after, .switch::after, .sp .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; }
+.sp .switch { background: #ffffff26; }
+:root[data-theme="light"] .sp .switch { background: #1a171438; }
+.k-switch.on, .switch-row input:checked ~ .switch, .sp .switch-row input:checked ~ .switch { background: var(--accent); }
+.k-switch.on::after, .switch-row input:checked ~ .switch::after, .sp .switch-row input:checked ~ .switch::after, .ls .switch-row input:checked ~ .switch::after { transform: translateX(18px); background: #fff; }
+
+/* ---------------------------------------------------------------- one button shape for the rest (owner, 26 Nov: "why did you make half the buttons rounded
+   rectangles but not the others"): Now Playing's transport, top bar and dock (both sides, the volume pill and its buttons), the player bar and every
+   round icon button take the kit's corner. Sizes stay as they are; only the corners change. The seek ring round Play is not a button and stays round. */
+.icon-btn, .player .icon-btn, .player .bar-controls .buttons .icon-btn:nth-child(2), .player .bar-controls .buttons .icon-btn:nth-child(4),
+.ls-icon, .ls-plain, .ls-pillbtn, .ls-heart, .ls-dock .ls-heart, .ls-title .ls-more-btn, .ls-actions .ls-more-btn, .ls-play, .ls .dj-mic, .ls-tile,
+.ls-volpill-mute, .ls-volpill-more { border-radius: var(--k-r-btn); }
+.btn, .chip, .play, .pill-btn, .shuffle-all, .sp .btn, .login .btn, .pl-newbar .btn, .pl-hero .pl-play, .pl-hero .pl-shuffle, .pe-done,
+.ls-seg, .ls-seg button, .q-save, .np.ls .q-save { border-radius: var(--k-r-btn); }
+html.buffering .play::after { border-radius: calc(var(--k-r-btn) + 3px); }
+.ls-play { border-radius: var(--k-r-slot); }
+.dj-mic.listening::after { border-radius: calc(var(--k-r-btn) + 3px); }
+@media (min-width: 761px) {
+  .ls-dbtn, .ls-dbtn-wrap > button, .ls-dbtn-wrap .icon-btn, .ls-dock .np-more.d .ls-more-btn, .ls-dock .ls-tile-eq .chipbtn { border-radius: var(--k-r-btn) !important; }
+  .ls-tiles .ls-volpill { border-radius: var(--k-r-btn); }
+}
+@media (min-width: 761px) and (max-width: 1100px) { .ls-volpill-more { border-radius: var(--k-r-btn); } }
+
+@media (prefers-reduced-motion: reduce) { .k-btn, .k-switch::after, .switch::after { transition: none; } }

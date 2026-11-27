@@ -1,0 +1,9 @@
+@* The kit's status tag (kit.css .k-tag; the phone's StatusTag): an outlined pill. Tone: you, on / ok, cloud, hires, bad, off. *@
+<span class="k-tag @Tone @Class" @attributes="Extra">@ChildContent</span>
+
+@code {
+    [Parameter] public string? Tone { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter(CaptureUnmatchedValues = true)] public Dictionary<string, object>? Extra { get; set; }
+}

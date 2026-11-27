@@ -12,12 +12,13 @@ public sealed class Toasts
     long next;
     CancellationTokenSource? timer;
 
-    public void Show(string text, string? actionLabel = null, Action? action = null, bool warn = false, int seconds = 5)
+    /// <summary>The phone's timing: 2.5 s, or 5 s with an action (time to reach Undo). <paramref name="seconds"/> only for a message that needs longer.</summary>
+    public void Show(string text, string? actionLabel = null, Action? action = null, bool warn = false, double? seconds = null)
     {
         var t = new Toast(++next, text, actionLabel, action, warn);
         Current = t; Changed?.Invoke();
         timer?.Cancel(); var cts = timer = new CancellationTokenSource();
-        _ = Task.Delay(TimeSpan.FromSeconds(seconds), cts.Token).ContinueWith(_ => { if (!cts.IsCancellationRequested && Current?.Id == t.Id) Dismiss(); }, TaskScheduler.Default);
+        _ = Task.Delay(TimeSpan.FromSeconds(seconds ?? (actionLabel is null ? 2.5 : 5)), cts.Token).ContinueWith(_ => { if (!cts.IsCancellationRequested && Current?.Id == t.Id) Dismiss(); }, TaskScheduler.Default);
     }
 
     public void Dismiss() { timer?.Cancel(); Current = null; Changed?.Invoke(); }

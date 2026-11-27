@@ -1,0 +1,16 @@
+@* The kit's empty state (kit.css .k-empty; the phone's EmptyState): a centred glyph, one line (and an optional second, smaller one), an optional button.
+   Keeps the older .empty-state and p.status classes so the pages' tests and styles still find it. *@
+<div class="empty-state k-empty @Class">
+    <span class="k-empty-glyph" aria-hidden="true"><Icon Name="@Glyph" Size="28" /></span>
+    <p class="status">@Line@if (Sub is not null) { <small>@Sub</small> }</p>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Line { get; set; } = "";
+    [Parameter] public string? Sub { get; set; }
+    [Parameter] public string Glyph { get; set; } = "songs";
+    [Parameter] public string? Class { get; set; }
+    /// <summary>The optional button (an a.btn or button.btn: kit.css draws it as the main button).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

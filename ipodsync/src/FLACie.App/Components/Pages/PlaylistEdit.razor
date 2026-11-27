@@ -7,7 +7,7 @@
 <PageTitle>Edit playlist · FLACie</PageTitle>
 @if (p is null)
 {
-    <div class="empty-state"><p class="status">This playlist isn't there any more.<small>It may have been deleted on another device.</small></p><a class="btn" href="/playlists">Your playlists</a></div>
+    <EmptyState Glyph="playlists" Line="This playlist isn't there any more." Sub="It may have been deleted on another device."><a class="btn" href="/playlists">Your playlists</a></EmptyState>
 }
 else
 {
@@ -45,7 +45,7 @@ else
                 }
             </div>
         </section>
-        @if (p.Entries.Count == 0) { <div class="empty-state"><p class="status">Nothing in this playlist yet.</p></div> }
+        @if (p.Entries.Count == 0) { <EmptyState Glyph="playlists" Line="Nothing in this playlist yet." /> }
         @* every entry of the playlist, also the ones this library hasn't got, so a row's place is the playlist's own and a move or a removal hits the right one *@
         <ol class="pe-list" @ref="listEl" aria-label="Songs">
             @for (var i = 0; i < p.Entries.Count; i++)

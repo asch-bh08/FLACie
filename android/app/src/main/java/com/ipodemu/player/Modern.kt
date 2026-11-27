@@ -122,13 +122,13 @@ private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDes
 // ---- navigation ----------------------------------------------------------------------------------------------------
 
 /**
- * The bottom navigation: four roomy places, Home, Search, Library and Devices. Library holds Favourites, Playlists, Jam and the rest of the
+ * The bottom navigation: the web's five places, Home, Search, Library, Devices and Settings (ONE APP part 10; the web's phone-width bar is the same). Library holds Favourites, Playlists, Jam and the rest of the
  * collection (six tabs were too cramped to hit); Devices opens its panel over whatever is on screen. Explore and Settings are on Search (its chips)
  * and on Home's top bar, so nothing went away.
  */
 enum class Tab(val label: String, val glyph: Glyph, val root: Screen?) {
     HOME("Home", Glyph.NOTE, Screen.Home), SEARCH("Search", Glyph.SEARCH, Screen.Search),
-    LIBRARY("Library", Glyph.LIST, Screen.Sources), SETTINGS("Settings", Glyph.GEAR, Screen.Settings), DEVICES("Devices", Glyph.DEVICES, null),
+    LIBRARY("Library", Glyph.LIST, Screen.Sources), DEVICES("Devices", Glyph.DEVICES, null), SETTINGS("Settings", Glyph.GEAR, Screen.Settings),
 }
 
 fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root != null && it.root == stack.first() } ?: Tab.HOME
@@ -139,14 +139,15 @@ fun PlayerNav.selectTab(t: Tab) {
     stack.clear(); stack.add(root)
 }
 
-/** The tabs this person sees: Settings always; Devices only while another of the account's devices is playing (it is in the player's More menu
- * the rest of the time), and never for a guest. */
+/** The tabs this person sees: the web's five, in its order (ONE APP part 10): Home, Search, Library, Devices, Settings; a guest has no Devices. */
 @Composable
 private fun shownTabs(): List<Tab> {
     val app = LocalApp.current
-    val elsewhere by remember { androidx.compose.runtime.derivedStateOf { app.connect.remoteNow() != null } }
-    return Tab.entries.filter { it != Tab.DEVICES || (!app.ui.guest && elsewhere) }
+    return tabsFor(app.ui.guest)
 }
+
+/** Pure, unit-tested: the five tabs, Devices left out for a guest. */
+fun tabsFor(guest: Boolean): List<Tab> = Tab.entries.filter { it != Tab.DEVICES || !guest }
 
 /** A tab's press: a page tab switches page; Devices opens its panel. */
 @Composable

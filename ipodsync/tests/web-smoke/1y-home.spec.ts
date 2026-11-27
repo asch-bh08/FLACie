@@ -18,9 +18,9 @@ async function signIn(page: Page) {
 test.describe('the menu', () => {
   test.beforeEach(async ({ page }) => { await page.setViewportSize({ width: 1440, height: 900 }); await signIn(page); });
 
-  test('is short: Home, Search, Favourites, Playlists, Devices, Jam, Headphone test and (for an administrator) Dashboard', async ({ page }) => {
+  test('is short: the five tabs (Home, Search, Library, Devices, Settings), then Jam, Car mode, Headphone test and (for an administrator) Server admin', async ({ page }) => {
     const links = (await page.locator('#main-rail a').allInnerTexts()).map((t) => t.trim());
-    expect(links).toEqual(['Home', 'Search', 'Favourites', 'Playlists', 'Devices', 'Jam', 'Settings', 'Car mode', 'Headphone test', 'Server admin']);
+    expect(links).toEqual(['Home', 'Search', 'Library', 'Devices', 'Settings', 'Jam', 'Car mode', 'Headphone test', 'Server admin']);   // ONE APP part 10
   });
 
   test('the logo reads "FLACie" with no gap before the "ie"', async ({ page }) => {
@@ -84,7 +84,7 @@ test.describe('the frame on a PC', () => {
     const wide = (await rail.boundingBox())!.width;
     await page.locator('.top-burger').click();
     await expect.poll(async () => (await rail.boundingBox())!.width).toBeLessThan(100);
-    await expect(rail.getByRole('link', { name: 'Playlists' })).toBeVisible();   // still there, as an icon with its name for screen readers
+    await expect(rail.getByRole('link', { name: 'Library' })).toBeVisible();   // still there, as an icon with its name for screen readers
     await page.reload(); await page.waitForTimeout(2000);
     await expect.poll(async () => (await rail.boundingBox())!.width).toBeLessThan(100);
     await page.locator('.top-burger').click();

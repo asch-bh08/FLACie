@@ -8,25 +8,19 @@
     <nav class="rail" aria-label="Main" id="main-rail">
         @* design I: a short menu. Search holds what Explore was (browse when nothing is typed), Import is on Playlists, Downloads is in the Dashboard (administrators) *@
         @* on a phone the bottom bar is these four, wide and worded; the groups below go into the account menu (owner, overhaul 9 Nov: fewer icons, with words) *@
+        @* ONE APP part 10: the same five places as the phone's tabs, first on a PC and the whole bottom bar on a phone-width window: Home, Search,
+           Library (Favourites and Playlists are in it), Devices (server only) and Settings; the extras follow on a PC *@
         <div class="rail-group rail-main">
             <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
             <a href="/search" class="@(InSearch ? "active" : "")"><Icon Name="search" />Search</a>
-            <NavLink href="/favorites"><Icon Name="heart" />Favourites</NavLink>
-            <NavLink href="/playlists" Match="NavLinkMatch.All"><Icon Name="playlists" />Playlists</NavLink>
+            <a href="/library" class="@(InLibrary ? "active" : "")"><Icon Name="playlists" />Library</a>
+            @if (AppHost.Server) { <NavLink href="/devices" class="rail-tab"><Icon Name="devices" />Devices</NavLink> }
+            <NavLink href="/settings"><Icon Name="settings" />Settings</NavLink>
         </div>
-        @* Connect and Jams need the server; the phone app leaves them out *@
-        @if (AppHost.Server)
-        {
-        <div class="rail-group rail-extra">
-            <p class="rail-label">Together</p>
-            <NavLink href="/devices"><Icon Name="devices" />Devices</NavLink>
-            <NavLink href="/jam"><Icon Name="jam" />Jam</NavLink>
-        </div>
-        }
         <div class="rail-group rail-extra">
             <p class="rail-label">More</p>
-            @* Settings on every page (owner, 12 Nov), not only behind the account picture *@
-            <NavLink href="/settings"><Icon Name="settings" />Settings</NavLink>
+            @* Connect and Jams need the server; the phone app leaves them out *@
+            @if (AppHost.Server) { <NavLink href="/jam"><Icon Name="jam" />Jam</NavLink> }
             <NavLink href="/car"><Icon Name="car" />Car mode</NavLink>
             <NavLink href="/headphones"><Icon Name="headphones" />Headphone test</NavLink>
             @if (AppHost.Server) { <AdminLink /> }
@@ -43,6 +37,8 @@
     bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/explore", "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
     // Search is lit on the search page and everywhere you browse the music from it
     bool InSearch => InMusic || ("/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]).StartsWith("/search", StringComparison.OrdinalIgnoreCase);
+    // Library is lit on its page and on the things it holds: Favourites, Playlists and a playlist
+    bool InLibrary { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/library", "/favorites", "/playlists", "/playlist/", "/made/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
     // on a PC the ☰ folds the side menu down to its icons (and back), on every page; the choice is kept in this browser
     bool collapsed;
     async Task Burger()

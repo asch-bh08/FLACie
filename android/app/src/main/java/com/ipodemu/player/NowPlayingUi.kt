@@ -395,7 +395,7 @@ private fun ModernMiniPlayer(snap: PlayerSnap, nav: PlayerNav, t: com.ipodemu.li
             // the DJ for this queue and the mic to talk to it, together before play (the web's bar has them together beside the heart). On a narrow
             // phone only the DJ (or neither), so the title keeps its room: the mic is on Now Playing
             snap.dj?.let { on ->
-                if (fit.dj) IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f, dot = on)
+                if (fit.dj) IconAction(Glyph.DJ, djLabel(on), { djTap(app) }, tint = if (on) main else sc.onBg, size = 40.dp, iconScale = .5f)
                 if (fit.mic) DjMicButton(40.dp, tint = sc.onBg, glass = Color.Transparent)
             }
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {

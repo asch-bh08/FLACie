@@ -78,8 +78,8 @@
 .ls-transport { display: flex; align-items: center; justify-content: space-between; margin: 0 -12px; }
 .ls-plain { display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 22px; background: none; color: var(--ink-2); cursor: pointer; }
 .ls-plain:hover { color: var(--ink); } .ls-plain.on { color: var(--np-accent); }
-/* on: a dot under it as well as the colour, as on the phone (owner, 12 Nov: "shuffle buttons differ") */
-.ls-plain { position: relative; } .ls-plain.on::after { content: ""; position: absolute; left: 50%; bottom: 3px; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: currentColor; }
+/* on: the button lit (a cover-tinted fill and the cover's colour), no dot under it (owner, 27 Nov: "the little dot looks weird"); as on the phone */
+.ls-plain { position: relative; }
 .ls-pillbtn { display: grid; place-items: center; width: 58px; height: 52px; border: 0; border-radius: 26px; background: var(--tone); color: var(--tonefg); cursor: pointer; transition: transform .12s; }
 .ls-pillbtn svg, .ls-play svg { fill: currentColor; }
 .ls-pillbtn:active, .ls-play:active { transform: scale(.95); }
@@ -808,12 +808,12 @@ body.np-open .dj-bar { display: none; }
 }
 
 /* ==== 1g, Now Playing rearranged (owner, 26 Nov), as on Android (LivingSleeve.kt). One button shape: shuffle and repeat are the kit's rounded square of
-   glass (on: the cover's tone, its colour and a dot), on a phone and in the PC's transport. Phone upright: shuffle and repeat either side of the time,
+   glass (on: lit with the cover's colour, no dot), on a phone and in the PC's transport. Phone upright: shuffle and repeat either side of the time,
    so previous / play / next have their row alone and are big (car mode's feel, play the biggest; a step down on a short phone); the slots are
    Lyrics · More · Info · Add (no Up next slot: swiping and the Up next line go there); the frame takes the height the rest leaves with the time
    right under it; a tall phone's spare room goes into the gaps between the parts (they grow with the height), not one band. The sizes beat the older DJ/mic squeezes further up, hence !important. ==== */
 .ls .ls-shuf, .ls .ls-rep { width: 48px !important; height: 48px; border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink-2); }
-.ls .ls-shuf.on, .ls .ls-rep.on { background: var(--tone); color: var(--np-accent); }
+.ls .ls-shuf.on, .ls .ls-rep.on { background: color-mix(in srgb, var(--np-accent) 22%, transparent); color: var(--np-accent); }
 .ls-peek { display: none; }
 @media (max-width: 760px) and (orientation: portrait) {
   .ls .ls-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto;
@@ -860,11 +860,46 @@ body.np-open .dj-bar { display: none; }
   .ls .ls-play { width: 88px !important; height: 60px !important; margin: -30px 0 0 -44px !important; }
   .ls .ls-play svg { width: 32px; height: 32px; }
 }
-/* PC: every dock button the same rounded rectangle of glass, 52 tall, as the left side's worded ones (right side square, words only where they fit) */
+/* ==== The even dock (owner, 27 Nov: "make it even"). PC from 1200 wide: every dock button is the same slot, the icon over its word (More, Add, Share,
+   Devices, DJ | Mic, Favourite, EQ, Volume), the same gap between all of them; the volume is two slots wide with its slider, so the right side
+   (3 slots + volume) is exactly as wide as the left (5 slots) and the two balance round the centred transport. The transport is the same height
+   family: shuffle and repeat are slot-tall squares, previous / play / next slot-tall rounded rectangles. On: lit (a cover-tinted fill, the cover's
+   colour), no dot. The slot width steps with the window so the groups never reach the transport; the height is the kit's slot (52 when short). ==== */
+.ls-volpill-word { display: none; }
 @media (min-width: 1200px) {
-  .ls .ls-shuf, .ls .ls-rep { width: 52px !important; height: 52px; }
-  .ls-dock .ls-tiles .ls-dbtn, .ls-dock .ls-tiles .ls-dbtn-wrap > button, .ls-dock .ls-tiles .ls-dbtn-wrap .icon-btn, .ls-dock .ls-tile-eq .chipbtn {
-    width: 52px !important; min-width: 52px !important; height: 52px !important; border-radius: var(--k-r-btn) !important; background: var(--k-glass) !important; color: var(--ink) !important; }
-  .ls-dock .ls-tiles .ls-dbtn.on, .ls-dock .ls-tiles .ls-dbtn-wrap .on, .ls-dock .ls-tile-eq .chip-menu.on > .chipbtn { color: var(--np-accent) !important; }
-  .ls-tiles .ls-volpill { height: 52px; border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink); }
+  .ls-dock { --dk-w: 58px; --dk-h: var(--k-slot); --dk-gap: 8px; }
+  .ls-dock .ls-dock-l, .ls-dock .ls-dock-r .ls-tiles { gap: var(--dk-gap) !important; }
+  .ls-dock .ls-dock-l .ls-dbtn, .ls-dock .ls-dock-l .ls-dbtn-wrap > button, .ls-dock .ls-dock-l .ls-dbtn-wrap .icon-btn, .ls-dock .ls-dock-l .np-more.d .ls-more-btn,
+  .ls-dock .ls-tiles .ls-dbtn, .ls-dock .ls-tiles .ls-dbtn-wrap > button, .ls-dock .ls-tiles .ls-dbtn-wrap .icon-btn, .ls-dock .ls-tiles .ls-tile-eq .chipbtn {
+    display: flex !important; flex-direction: column; align-items: center; justify-content: center; gap: 5px; box-sizing: border-box;
+    width: var(--dk-w) !important; min-width: var(--dk-w) !important; max-width: var(--dk-w); height: var(--dk-h) !important; min-height: 0; padding: 0 3px !important; margin: 0;
+    border: 0; border-radius: var(--k-r-slot) !important; background: var(--k-glass) !important; color: var(--ink) !important;
+    font: 600 11.5px/1 var(--k-sans); letter-spacing: 0; text-transform: none; }
+  .ls-dock .ls-dock-l .ls-dbtn span, .ls-dock .ls-dock-l .np-more.d .ls-more-btn span, .ls-dock .ls-dock-l .ls-dbtn-wrap .icon-btn span,
+  .ls-dock .ls-tiles .ls-dbtn span, .ls-dock .ls-tiles .ls-tile-eq .chipbtn span {
+    display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.1; }
+  .ls-dock .ls-dock-l .ls-dbtn svg, .ls-dock .ls-dock-l .ls-more-btn svg, .ls-dock .ls-dock-l .ls-dbtn-wrap svg, .ls-dock .ls-tiles .ls-dbtn svg, .ls-dock .ls-tiles .ls-tile-eq .chipbtn svg {
+    flex: none; width: 22px; height: 22px; }
+  .ls-dock .ls-dock-l .ls-dbtn.on, .ls-dock .ls-dock-l .ls-dbtn-wrap .icon-btn.on, .ls-dock .ls-tiles .ls-dbtn.on, .ls-dock .ls-tiles .ls-tile-eq .chip-menu.on > .chipbtn {
+    background: color-mix(in srgb, var(--np-accent) 22%, transparent) !important; color: var(--np-accent) !important; }
+  /* the Devices button's "music elsewhere" mark stays, in the slot's corner */
+  .ls-dock .devpick .dot { top: 6px; right: 6px; }
+  /* the volume: two slots and a gap wide; mute, the slider and Sound options on top, its word under them */
+  .ls-dock .ls-tiles .ls-volpill { display: grid !important; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr) auto; align-items: center;
+    column-gap: 0; box-sizing: border-box; width: calc(2 * var(--dk-w) + var(--dk-gap)); height: var(--dk-h); padding: 2px 2px 7px; border-radius: var(--k-r-slot);
+    background: var(--k-glass); color: var(--ink); }
+  .ls-dock .ls-volpill > .ls-volpill-mute, .ls-dock .ls-volpill > .ls-volpill-more { display: grid; width: 34px !important; height: 34px !important; border-radius: 12px !important; }
+  .ls-dock .ls-volpill > .ls-volpill-bar { display: block; grid-column: 2; width: auto !important; min-width: 0; height: 24px; }
+  .ls-dock .ls-volpill > .ls-volpill-num, .ls-dock .ls-volpill-more .ls-volpill-label { display: none !important; }
+  .ls-dock .ls-volpill-word { display: block; grid-column: 1 / -1; grid-row: 2; text-align: center; font: 600 11.5px/1 var(--k-sans); }
+  /* the transport: one height with the slots */
+  .ls .ls-transport .ls-shuf, .ls .ls-transport .ls-rep { width: var(--k-slot) !important; height: var(--k-slot) !important; border-radius: var(--k-r-slot) !important; }
+  .ls .ls-transport .ls-pillbtn { width: calc(var(--k-slot) + 10px) !important; height: var(--k-slot) !important; border-radius: var(--k-r-slot) !important; }
+  .ls .ls-transport .ls-ring { width: calc(var(--k-slot) + 26px) !important; height: var(--k-slot) !important; border-radius: var(--k-r-slot); }
+  .ls .ls-transport .ls-play { width: calc(var(--k-slot) + 26px) !important; height: var(--k-slot) !important; margin: calc(var(--k-slot) / -2) 0 0 calc((var(--k-slot) + 26px) / -2) !important; border-radius: var(--k-r-slot) !important; }
+  .ls .ls-transport.has-dj, .ls .ls-transport { gap: 12px !important; }
 }
+@media (min-width: 1280px) { .ls-dock { --dk-w: 60px; } }
+@media (min-width: 1366px) { .ls-dock { --dk-w: 64px; } }
+@media (min-width: 1440px) { .ls-dock { --dk-w: 68px; --dk-gap: 10px; } }
+@media (min-width: 1700px) { .ls-dock { --dk-w: 72px; } }

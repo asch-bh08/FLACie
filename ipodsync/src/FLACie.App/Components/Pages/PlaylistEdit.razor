@@ -12,11 +12,12 @@
 else
 {
     <div class="pl-page pe-page" @ref="pageEl">
+        @* the top bar stays at the top while the list scrolls, so Done is always one tap away (owner, 27 Nov) *@
         <header class="pe-head">
-            <h1>Edit <i>playlist</i></h1>
-            <a class="btn primary pe-done" href="/playlist/@p.Id">Done</a>
+            <h1 class="k-title">Edit <i>playlist</i></h1>
+            <a class="k-btn primary pe-done" href="/playlist/@p.Id"><Icon Name="check" Size="18" />Done</a>
         </header>
-        <section class="pe-card" aria-label="Playlist">
+        <section class="k-card pe-card" aria-label="Playlist">
             @if (renaming)
             {
                 <form class="pl-rename" @onsubmit="() => Rename(p)">
@@ -28,34 +29,37 @@ else
             else
             {
                 <div class="pe-name">
-                    <div><h2>@p.Name</h2><small>@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs") · drag ≡ to move a song</small></div>
-                    <button class="btn pe-rename" @onclick="() => { renaming = true; newName = p.Name; }">Rename</button>
+                    <div><h2 class="k-section">@p.Name</h2><small class="k-label">@p.Entries.Count @(p.Entries.Count == 1 ? "song" : "songs")@(Length(p) is { Length: > 0 } len ? " · " + len : "") · drag ≡ to move a song</small></div>
+                    <button class="k-btn-sm pe-rename" @onclick="() => { renaming = true; newName = p.Name; }"><Icon Name="pencil" Size="18" />Rename</button>
                 </div>
             }
             <div class="pe-actions">
                 @if (confirm)
                 {
                     <span class="pe-ask" role="alert">Delete “@p.Name”?</span>
-                    <button class="btn danger" @onclick="Delete">Delete</button>
-                    <button class="btn" @onclick="() => confirm = false">Keep it</button>
+                    <button class="k-btn-sm danger" @onclick="Delete">Delete</button>
+                    <button class="k-btn-sm" @onclick="() => confirm = false">Keep it</button>
                 }
                 else
                 {
-                    <button class="btn" disabled="@(p.Entries.Count < 2)" @onclick="() => Dedupe(p)"><Icon Name="check" Size="16" />Remove duplicates</button>
-                    <button class="btn pe-delete" @onclick="() => confirm = true"><Icon Name="x" Size="16" />Delete playlist</button>
+                    <button class="k-btn-sm" disabled="@(p.Entries.Count < 2)" @onclick="() => Dedupe(p)"><Icon Name="check" Size="18" />Remove duplicates</button>
+                    <button class="k-btn-sm pe-delete" @onclick="() => confirm = true"><Icon Name="x" Size="18" />Delete playlist</button>
                 }
             </div>
         </section>
         @if (p.Entries.Count == 0) { <EmptyState Glyph="playlists" Line="Nothing in this playlist yet." /> }
         @* every entry of the playlist, also the ones this library hasn't got, so a row's place is the playlist's own and a move or a removal hits the right one *@
-        <ol class="pe-list" @ref="listEl" aria-label="Songs">
+        @* rows as the kit's song row (k-row): a 52 cover, the title, artist · album under it and the time, as on the playlist page; ✕ and ≡ are 48 *@
+        <ol class="k-card pe-list" @ref="listEl" aria-label="Songs">
             @for (var i = 0; i < p.Entries.Count; i++)
             {
                 var at = i; var e = p.Entries[i]; var t = Session.ResolveEntry(e);
                 var title = t?.Title ?? (e.Title.Length > 0 ? e.Title : System.IO.Path.GetFileNameWithoutExtension(e.Path));
-                <li class="pe-row @(t is null ? "gone" : "")">
-                    <Cover ArtKey="@t?.ArtKey" Size="44" />
-                    <span class="pe-text"><span class="track-title">@title</span><span class="track-sub">@(t?.Artist ?? e.Artist)</span></span>
+                var sub = string.Join(" · ", new[] { t?.Artist ?? e.Artist, t?.Album ?? "" }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                <li class="k-row pe-row @(t is null ? "gone" : "")">
+                    <Cover ArtKey="@t?.ArtKey" Size="52" Class="k-row-cover" />
+                    <span class="k-row-text pe-text"><b class="track-title">@title</b><small class="track-sub">@sub</small></span>
+                    @if (t is { DurationMs: > 0 } tt) { <span class="k-row-time">@Time(tt.DurationMs)</span> }
                     <button class="pe-btn pe-remove" aria-label="@($"Remove {title} from playlist")" title="Remove from playlist" @onclick="() => Remove(p, at)"><Icon Name="x" Size="18" /></button>
                     <button class="pe-btn pe-handle" aria-label="@($"Move {title}")" title="Drag to move, or press Up or Down" aria-describedby="pe-how"><Icon Name="lines" Size="22" /></button>
                 </li>
@@ -126,6 +130,10 @@ else
     }
 
     void Delete() { Session.DeletePlaylist(Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
+
+    static string Time(long ms) { var s = ms / 1000; return $"{s / 60}:{s % 60:00}"; }
+    // the playlist's length, as the playlist page says it
+    string Length(FLACie.Core.Playlist p) { var m = (int)(Session.Resolve(p.Entries).Sum(t => t.DurationMs) / 60000); return m <= 0 ? "" : m >= 60 ? $"{m / 60} h {m % 60} min" : $"{m} min"; }
 
     public override void Dispose() { self?.Dispose(); base.Dispose(); }
 }

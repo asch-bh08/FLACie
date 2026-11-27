@@ -922,7 +922,7 @@ private class Gfx(
 }
 
 
-/** A round plain button of the full-screen graph's bar (shuffle, repeat, favourite, the DJ): the cover's colour and a dot when on, as in the player bar. */
+/** A round plain button of the full-screen graph's bar (shuffle, repeat, favourite, the DJ): lit with the cover's colour when on (no dot), as in the player bar. */
 @Composable
 private fun FgPlain(g: Glyph, label: String, on: Boolean, accent: Color, onClick: () -> Unit) {
     Box(

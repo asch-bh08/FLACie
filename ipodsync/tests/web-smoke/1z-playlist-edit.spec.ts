@@ -43,9 +43,10 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       await expect(page.locator('.toast')).toContainText('Added');
     }
 
-    // the playlist page has Edit and no More
+    // the playlist page has Edit (a pencil); a phone has no More beside it, a PC has one (owner, 27 Nov; 1z-playlists.spec.ts tries it)
     await live(page, listUrl);
-    await expect(page.locator('.pl-hero').getByRole('button', { name: 'More for this playlist' })).toHaveCount(0);
+    const more = page.locator('.pl-hero').getByRole('button', { name: 'More for this playlist' });
+    if (name === 'phone') await expect(more).toBeHidden(); else await expect(more).toBeVisible();
     await page.locator('.pl-hero').getByRole('link', { name: 'Edit', exact: true }).click();
     await page.waitForURL(/\/edit$/);
     await expect(page.getByRole('heading', { name: 'Edit playlist' })).toBeVisible();
@@ -54,6 +55,15 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     await page.waitForTimeout(800);   // the drag is wired once the live connection has drawn the page
     expect(await noSideScroll(page)).toBe(true);
     await page.screenshot({ path: `test-results/shots/playlist-edit-${name}.png` });
+    // the kit's look (owner, 27 Nov): the top bar with Done sticks, rows as the kit's song row (a 52 cover, artist · album), ✕ and ≡ at least 48
+    expect(await page.locator('.pe-head').evaluate((e) => getComputedStyle(e).position)).toBe('sticky');
+    await expect(page.locator('.pe-list .track-sub').first()).toContainText('Lab Album');
+    const cover = (await page.locator('.pe-row .cover').first().boundingBox())!;
+    expect(Math.round(cover.width)).toBeGreaterThanOrEqual(52);
+    for (const sel of ['.pe-remove', '.pe-handle']) {
+      const b = (await page.locator(sel).first().boundingBox())!;
+      expect(Math.min(b.width, b.height), sel).toBeGreaterThanOrEqual(48);
+    }
 
     // the keyboard: Down on Lab 1's handle moves it one place, and the focus stays with Lab 1
     await page.getByRole('button', { name: 'Move Lab 1', exact: true }).focus();

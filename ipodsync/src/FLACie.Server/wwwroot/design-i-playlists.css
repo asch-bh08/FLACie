@@ -117,35 +117,51 @@
 /* ==== Edit playlist (its own page, as the phone's EditPlaylistScreen): the name with Rename, the playlist's actions, and every song with Remove and a ≡
    handle to drag it to another place. The same glass cards as the playlist page. ==== */
 .pe-page { max-width: 880px; }
-.pe-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 18px; }
-.pe-head h1 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: clamp(34px, 4.6vw, 52px); line-height: 1; }
-.pe-head h1 i { font-style: italic; }
-.pe-done { min-height: 44px; padding: 0 22px; border-radius: 999px; font-weight: 700; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); }
-.pe-card, .pe-list { border: 1px solid var(--pl-rim); border-radius: 22px; background: var(--pl-glass); }
-.pe-card { padding: 16px 18px; margin: 0 0 18px; }
+/* the top bar sticks under the app's own one, so Done is always on screen however long the list (owner, 27 Nov) */
+.pe-head { position: sticky; top: var(--top, 0px); z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin: 0 -12px 16px; padding: 10px 12px; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.pe-head h1 { font-size: clamp(30px, 4.2vw, 44px); }
+.pe-done { flex: none; gap: 8px; padding: 0 24px; }
+.pe-card { padding: 18px 20px; margin: 0 0 16px; }
 .pe-name { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .pe-name > div { min-width: 0; }
-.pe-name h2 { margin: 0; font-family: var(--serif); font-weight: 400; font-size: 28px; line-height: 1.1; overflow-wrap: anywhere; }
-.pe-name small { display: block; margin-top: 4px; font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.pe-name h2 { overflow-wrap: anywhere; }
+.pe-name small { display: block; margin-top: 6px; }
 .pe-card .pl-rename input { font-size: 22px; }
-.pe-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.pe-card .btn { min-height: 44px; border-radius: 14px; gap: 7px; border: 1px solid var(--i-line); background: transparent; font-weight: 600; }
+.pe-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.pe-card .btn { min-height: 44px; border-radius: var(--k-r-btn); gap: 7px; border: 1px solid var(--i-line); background: transparent; font-weight: 600; }
 .pe-card .btn.primary { background: var(--np-accent); color: var(--np-accent-fg, #1a120c); border-color: transparent; }
-.pe-card .pe-delete, .pe-card .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.pe-card .pe-delete, .pe-card .danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+.pe-ask { align-self: center; font-weight: 600; }
 .pe-list { list-style: none; margin: 0; padding: 6px; }
-.pe-row { position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 6px 2px 6px 8px; border-radius: 16px; }
-.pe-row .cover { flex: none; border-radius: 8px; }
-.pe-row.shifting { transition: transform .15s ease; }
-.pe-row.dragging { z-index: 2; background: color-mix(in srgb, var(--ink) 10%, var(--surface-2, transparent)); box-shadow: 0 12px 30px #00000059; }
-.pe-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.pe-row.gone .pe-text { opacity: .6; }
-.pe-btn { flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--ink); cursor: pointer; }
+/* a row as the kit's song row: 72 tall, a 52 cover, title over artist · album, the time, then ✕ and ≡ at 48 */
+.pe-row { position: relative; gap: 12px; padding: 0 4px 0 10px; background: transparent; touch-action: pan-y; }
+.pe-row + .pe-row { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 6%, transparent); }
+.pe-row .k-row-cover { width: var(--k-row-cover) !important; height: var(--k-row-cover) !important; }
+.pe-row .track-title { font-weight: 600; }
+.pe-row.gone .pe-text, .pe-row.gone .k-row-cover { opacity: .55; }
+.pe-row.shifting { transition: transform .16s ease; }
+/* dragging: the row lifts off the list (bigger, a deep shadow, the card's colour), the others slide aside under it */
+.pe-row.dragging { z-index: 3; background: color-mix(in srgb, var(--np-accent) 14%, var(--surface-2, #1b1f22)); box-shadow: 0 16px 36px #0000008c, 0 0 0 1px color-mix(in srgb, var(--np-accent) 45%, transparent);
+  scale: 1.02; cursor: grabbing; }
+.pe-list:has(.dragging) { user-select: none; }
+.pe-list:has(.dragging) .pe-row:not(.dragging) { opacity: .85; }
+.pe-btn { flex: none; display: grid; place-items: center; width: var(--k-touch); height: var(--k-touch); padding: 0; border: 0; border-radius: var(--k-r-btn); background: none; color: var(--ink); cursor: pointer; }
 .pe-btn:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-/* the handle takes the finger itself, so a drag on a phone moves the song and does not scroll the page */
-.pe-handle { width: 44px; height: 48px; border-radius: 12px; color: var(--dim); cursor: grab; touch-action: none; }
-.pe-row.dragging .pe-handle { cursor: grabbing; }
-@media (prefers-reduced-motion: reduce) { .pe-row.shifting { transition: none; } }
-@media (max-width: 760px) { .pe-card { padding: 14px; } .pe-name h2 { font-size: 24px; } .pe-list { padding: 4px; margin: 0 -4px; } }
+.pe-remove { color: var(--dim); }
+.pe-remove:hover { color: var(--danger); }
+/* the handle reads as one: grip lines on a glass square, the grab cursor */
+.pe-handle { background: var(--k-glass); color: var(--ink); cursor: grab; touch-action: none; }
+.pe-handle:hover { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+.pe-row.dragging .pe-handle { cursor: grabbing; background: var(--np-accent); color: var(--np-accent-fg, #1a120c); }
+@media (prefers-reduced-motion: reduce) { .pe-row.shifting { transition: none; } .pe-row.dragging { scale: none; } }
+@media (max-width: 760px) {
+  .pe-head { margin: 0 -16px 12px; padding: 8px 16px; }
+  .pe-card { padding: 14px; }
+  .pe-list { padding: 4px; margin: 0 -4px; }
+  .pe-row { gap: 10px; padding: 0 0 0 6px; }
+  .pe-row .k-row-time { display: none; }
+}
 
 /* the light theme: the same pills in darker inks that read on paper */
 :root[data-theme="light"] .pl-page .track .pills .badge.fmt.hires, :root[data-theme="light"] .pl-page .track-tag.hires { border-color: #b08a2a88; color: #6d4c00; }
@@ -154,3 +170,13 @@
 :root[data-theme="light"] .pl-page .dl-tag.bad { border-color: #9b1c1666; color: #9b1c16; }
 :root[data-theme="light"] .pl-hero .pl-cover { box-shadow: 0 18px 40px #1a171440; }
 :root[data-theme="light"] .pl-wash { opacity: .28; }
+
+/* ---- a PC's More slot after Edit (owner, 27 Nov: there's room): Rename, Remove duplicates, Delete playlist (Delete asks first). It opens upwards,
+   inside the hero card (which clips). A phone keeps its four slots; there these are on the Edit page only ---- */
+.pl-more-slot { position: relative; display: inline-flex; }
+.pl-hero .pl-menu { top: auto; bottom: calc(100% + 8px); right: 0; min-width: 250px; z-index: 30; padding: 6px; border-radius: 16px; }
+.pl-hero .pl-menu [role=menuitem] { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px; border-radius: 12px; color: var(--ink); font: 600 15px/1.2 var(--sans); }
+.pl-hero .pl-menu [role=menuitem].danger { color: var(--danger); }
+.pl-hero .pl-menu [role=menuitem]:disabled { opacity: .45; cursor: default; }
+.pl-hero .pl-menu .pl-ask { margin: 6px 12px 8px; font: 600 15px/1.3 var(--sans); overflow-wrap: anywhere; }
+@media (max-width: 760px) { .pl-hero .pl-tools > .pl-more-slot { display: none; } }

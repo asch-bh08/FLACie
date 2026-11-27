@@ -102,4 +102,27 @@ test.describe('on a PC', () => {
     await expect(page.locator('.player .seek input')).toBeVisible();
     await expect(page.locator('.player input[aria-label="Volume"]')).toBeVisible();
   });
+
+  test('the revamp (owner, 27 Nov): play in the middle, the right-hand buttons one size at one gap, shuffle and repeat lit when on with no dot', async ({ page }) => {
+    const play = (await page.locator('.player .play').boundingBox())!;
+    expect(Math.abs(play.x + play.width / 2 - 720)).toBeLessThanOrEqual(12);
+    const right = await page.locator('.player .bar-right').evaluate((el) => [...el.querySelectorAll('button')].filter((b) => (b as HTMLElement).offsetParent && !b.closest('.menu, .devpop'))
+      .map((b) => { const r = b.getBoundingClientRect(); return { n: b.getAttribute('aria-label'), w: Math.round(r.width), h: Math.round(r.height), x: r.left, right: r.right, r: getComputedStyle(b).borderTopLeftRadius }; })
+      .sort((a, b) => a.x - b.x));
+    expect(right.length).toBeGreaterThanOrEqual(7);
+    for (const b of right) { expect(b.w, b.n!).toBe(44); expect(b.h, b.n!).toBe(44); expect(b.r, b.n!).toBe('16px'); }
+    const shuf = page.locator('.player .buttons [data-pip="shuffle"]');
+    const look = () => shuf.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, after: getComputedStyle(e, '::after').content, w: e.getBoundingClientRect().width, h: e.getBoundingClientRect().height }));
+    if (/ on$/.test((await shuf.getAttribute('aria-label'))!)) { await shuf.click(); await expect(shuf).toHaveAttribute('aria-pressed', 'false'); }
+    await page.mouse.move(0, 0);   // (no hover tint in either picture)
+    const off = await look();
+    await shuf.click();
+    await page.mouse.move(0, 0);
+    await expect(shuf).toHaveAttribute('aria-pressed', 'true');
+    const on = await look();
+    expect(on.bg).not.toBe(off.bg); expect(on.bg).not.toBe('rgba(0, 0, 0, 0)');
+    expect(on.after === 'none' || on.after === 'normal').toBe(true);
+    expect(Math.round(on.w)).toBe(Math.round(on.h));   // a square
+    await shuf.click();
+  });
 });

@@ -55,17 +55,19 @@ val LocalPlaylistLook = compositionLocalOf<PlaylistLook?> { null }
 @Composable
 fun PlaylistEditButtons(downloaded: Boolean, handle: Modifier, onDownload: () -> Unit, onRemove: () -> Unit) {
     val sc = LocalScheme.current
+    // 48 dp targets in the kit's rounded square, as the web's Edit page (owner, 27 Nov: bigger ✕ and ≡)
     @Composable fun b(icon: Glyph, desc: String, enabled: Boolean, tint: Color = sc.onBg, onClick: () -> Unit) {
-        Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).semantics { role = Role.Button; contentDescription = desc }
+        Box(Modifier.size(Kit.touch).clip(RoundedCornerShape(Kit.rButtonSmall)).semantics { role = Role.Button; contentDescription = desc }
             .clickable(enabled = enabled, onClick = onClick), contentAlignment = Alignment.Center) {
-            GlyphIcon(icon, Modifier.size(18.dp), tint)
+            GlyphIcon(icon, Modifier.size(20.dp), tint)
         }
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         b(Glyph.DOWNLOADED, if (downloaded) "On this phone" else "Download", !downloaded, tint = if (downloaded) Color(0xFF6BD58A) else sc.onBg, onClick = onDownload)
         b(Glyph.CLOSE, "Remove from playlist", true, onClick = onRemove)
-        Box(handle.size(width = 44.dp, height = 48.dp).semantics { contentDescription = "Hold and drag to move" }, contentAlignment = Alignment.Center) {
-            GlyphIcon(Glyph.LIST, Modifier.size(22.dp), sc.onBgDim)
+        // the handle reads as one: grip lines on a glass square
+        Box(handle.size(Kit.touch).clip(RoundedCornerShape(Kit.rButtonSmall)).background(Kit.glassFill).semantics { contentDescription = "Hold and drag to move" }, contentAlignment = Alignment.Center) {
+            GlyphIcon(Glyph.LIST, Modifier.size(22.dp), sc.onBg)
         }
     }
 }

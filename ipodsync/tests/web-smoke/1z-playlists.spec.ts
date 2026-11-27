@@ -88,9 +88,26 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       const shownTags = await list.locator('.track .pills .badge, .track .track-src, .track .track-tag').evaluateAll((els) =>
         els.filter((e) => getComputedStyle(e).display !== 'none').map((e) => ({ cls: e.className, r: parseFloat(getComputedStyle(e).borderRadius), border: getComputedStyle(e).borderStyle })));
       for (const t of shownTags) { expect(t.cls).toMatch(/hires|cloud/); expect(t.r).toBeGreaterThanOrEqual(10); expect(t.border).toBe('solid'); }
-      // the quieter actions are equal rounded slots, the icon over its word (the phone's ToolSlot); no More: Rename, Remove duplicates and Delete are
-      // on the Edit page, never where a second click on the playlist lands (owner, 1 Nov and 26 Nov)
-      await expect(hero.getByRole('button', { name: 'More for this playlist' })).toHaveCount(0);
+      // the quieter actions are equal rounded slots, the icon over its word (the phone's ToolSlot). Rename, Remove duplicates and Delete are on the Edit
+      // page; a PC also has them in a More slot after Edit (owner, 27 Nov: there's room), a phone keeps Download / DJ / Share / Edit
+      const more = hero.getByRole('button', { name: 'More for this playlist' });
+      if (name === 'phone') await expect(more).toBeHidden();
+      else {
+        await expect(more).toBeVisible();
+        await more.click();
+        const menu = page.getByRole('menu', { name: 'More for this playlist' });
+        for (const item of ['Rename', 'Remove duplicates', 'Delete playlist']) await expect(menu.getByRole('menuitem', { name: item })).toBeVisible();
+        // the menu is whole on screen and inside the hero card (which clips)
+        const mb = (await menu.boundingBox())!, hb = (await hero.boundingBox())!;
+        expect(mb.y).toBeGreaterThanOrEqual(hb.y); expect(mb.y + mb.height).toBeLessThanOrEqual(hb.y + hb.height);
+        // Delete asks first; Keep it goes back
+        await menu.getByRole('menuitem', { name: 'Delete playlist' }).click();
+        await expect(menu.getByRole('alert')).toContainText('Delete “');
+        await menu.getByRole('menuitem', { name: 'Keep it' }).click();
+        await expect(menu.getByRole('menuitem', { name: 'Rename' })).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(menu).toHaveCount(0);
+      }
       await expect(page.getByRole('button', { name: 'Rename' })).toHaveCount(0);
       const slots = hero.locator('.pl-tools > .pl-slot');
       expect(await slots.count()).toBeGreaterThanOrEqual(2);

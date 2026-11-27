@@ -9,12 +9,12 @@
 <PageTitle>Devices · FLACie</PageTitle>
 <div class="sp sp-devices dv">
 <header class="page-head">
-    <h1>Your <i>devices</i></h1>
+    <h1 class="k-title">Your <i>devices</i></h1>
     <p class="dv-lede">Everything signed in to this account. Move the music between them, or go back to where any of them was today.</p>
 </header>
 
 <section class="dv-sec" aria-labelledby="dv-here">
-    <h2 id="dv-here" class="dv-h">This <i>@SelfWord</i></h2>
+    <h2 id="dv-here" class="dv-h k-section">This <i>@SelfWord</i></h2>
     @{ var c = Player.Current; }
     <article class="dv-card self @(c is not null && Player.Playing ? "live" : "")" data-device="self">
         @if (c is not null) { <div class="dv-wash" aria-hidden="true"><Cover ArtKey="@c.ArtKey" /></div> }
@@ -43,7 +43,7 @@
 </section>
 
 <section class="dv-sec" aria-labelledby="dv-others">
-    <h2 id="dv-others" class="dv-h">Other <i>devices</i></h2>
+    <h2 id="dv-others" class="dv-h k-section">Other <i>devices</i></h2>
     @if (Live is not { } live)
     {
         <div class="dv-empty"><Icon Name="devices" Size="28" /><p><b>Connect needs a Jellyfin sign-in.</b> Sign out and sign in with Jellyfin to control your other FLACie players from here.</p></div>
@@ -129,7 +129,7 @@
 </section>
 
 <section class="dv-sec" aria-labelledby="dv-where">
-    <h2 id="dv-where" class="dv-h">Where you <i>were</i></h2>
+    <h2 id="dv-where" class="dv-h k-section">Where you <i>were</i></h2>
     <p class="dv-note">The last 24 hours on each device, newest first. Pick a moment to carry on from there, here.</p>
     @if (devices.Count == 0)
     {

@@ -57,3 +57,14 @@ h2.section { font-family: var(--serif); font-weight: 400; font-size: clamp(26px,
 .lib-covers { display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding-bottom: 4px; }
 .lib-covers::-webkit-scrollbar { display: none; }
 .lib-cover { min-width: 0; }
+
+/* ONE APP 1h: on a big screen the Library page grows with the window (bigger tiles and covers) rather than leaving the lower part empty */
+@media (min-width: 1600px) and (min-height: 900px) {
+  .lib-home { gap: 30px; }
+  .lib-tile { min-height: clamp(72px, 10vh, 132px); }
+  .lib-glyph { width: 52px; height: 52px; border-radius: 16px; }
+  .lib-covers { grid-auto-columns: clamp(148px, 13vw, 280px); }
+}
+/* ONE APP 1h: a short Library never leaves one empty band at the bottom: the page is at least the window's height and the spare room is shared
+   out between its sections (a tall phone, a tablet, a PC) */
+.lib-home { min-height: calc(100dvh - var(--top, 64px) - var(--tabs, 0px) - 40px); justify-content: space-between; }

@@ -78,7 +78,7 @@
         {
             if (n == 0 && only != k) continue;
             var kind = k;
-            <button class="chip @(only == kind ? "on" : "")" role="radio" aria-checked="@(only == kind ? "true" : "false")" @onclick="() => PickKind(kind)">@label</button>
+            <button class="k-btn-sm @(only == kind ? "on" : "")" role="radio" aria-checked="@(only == kind ? "true" : "false")" @onclick="() => PickKind(kind)">@label</button>
         }
         @ExtraKinds
     </div>
@@ -88,7 +88,7 @@
 {
     @* every playlist that matches (Spotify's, Deezer's, SoundCloud's, ours, and the person's own), narrowed by the Filters panel's genre and decade *@
     <section class="sr-section" aria-label="All playlists" data-testid="all-playlists">
-        <h2 class="section"><i>Playlists</i>@(X.Genre.Length > 0 ? " · " + X.Genre : "")@(X.Decade.Length > 0 ? " · " + X.Decade : "")</h2>
+        <h2 class="section k-section"><i>Playlists</i>@(X.Genre.Length > 0 ? " · " + X.Genre : "")@(X.Decade.Length > 0 ? " · " + X.Decade : "")</h2>
         @if (AllLists.Count + plays.Count == 0) { <p class="status">No playlists for this yet.</p> }
         <div class="grid">
             @foreach (var m in AllLists) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
@@ -105,7 +105,7 @@
     var ta = topArtist;
     <section aria-label="Top result" class="sr-section sr-top">
         <div class="sr-top-main">
-            <h2 class="section">Top <i>result</i></h2>
+            <h2 class="section k-section">Top <i>result</i></h2>
             <div class="sr-hero artist" data-np @onclick="() => PlayFull(ta.Tracks.Where(X.Allows).ToList(), ta.Name)">
                 <a class="sr-art" href="/artist/@Uri.EscapeDataString(ta.Name)" aria-label="Open artist @ta.Name" @onclick="Noop" @onclick:stopPropagation><Cover ArtKey="@(ta.ArtKey)" Size="188" Class="square round" /></a>
                 <div class="sr-hero-text">
@@ -117,7 +117,7 @@
             </div>
         </div>
         <div class="sr-top-songs" aria-label="Top songs">
-            <h2 class="section"><i>Songs</i></h2>
+            <h2 class="section k-section"><i>Songs</i></h2>
             <TrackList Tracks="artistPage.Top.ToList()" PlayContext="@ta.Name" Single="true" ThumbSize="40" KindTag="Song" />
         </div>
     </section>
@@ -130,7 +130,7 @@
             @if (artistPage.Albums.Count > 0)
             {
                 <section aria-label="Albums" class="sr-section">
-                    <h2 class="section"><i>Albums</i></h2>
+                    <h2 class="section k-section"><i>Albums</i></h2>
                     <div class="row-scroll sr-albums @(artistPage.Albums.Count > 4 ? "two-rows" : "")">
                         @foreach (var g in artistPage.Albums)
                         {
@@ -143,7 +143,7 @@
             @if (pairLists > 0)
             {
                 <section aria-label="Playlists" class="sr-section">
-                    <h2 class="section"><i>Playlists</i></h2>
+                    <h2 class="section k-section"><i>Playlists</i></h2>
                     @* F26.1: up to 15 real lists: two rows of cards on a wide screen, one row to scroll on a phone *@
                     <div class="row-scroll sr-lists @(pairLists > 4 ? "two-rows" : "")">
                         @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
@@ -161,7 +161,7 @@
     @if (artistPage.Popular.Count > 0)
     {
         <section aria-label="Popular" class="sr-section">
-            <h2 class="section"><i>Popular</i></h2>
+            <h2 class="section k-section"><i>Popular</i></h2>
             <div class="row-scroll sr-albums">
                 @foreach (var t in artistPage.Popular)
                 {
@@ -175,7 +175,7 @@
     {
         if (rows.Count == 0) continue;
         <section aria-label="@label" class="sr-section">
-            <h2 class="section"><i>@label</i></h2>
+            <h2 class="section k-section"><i>@label</i></h2>
             <div class="row-scroll sr-albums">
                 @foreach (var g in rows)
                 {
@@ -188,9 +188,9 @@
     @if (artists.Where(a => a != ta).ToList() is { Count: > 0 } similar)
     {
         <section aria-label="Other artists" class="sr-section sr-similar">
-            <h2 class="section">Other artists with similar names</h2>
+            <h2 class="section k-section">Other artists with similar names</h2>
             <div class="chips">
-                @foreach (var a in similar) { <a class="chip artist-chip" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Size="28" Class="square round" />@a.Name</a> }
+                @foreach (var a in similar) { <a class="k-btn-sm artist-chip" href="/artist/@Uri.EscapeDataString(a.Name)"><Cover ArtKey="@(a.ArtKey)" Size="28" Class="square round" />@a.Name</a> }
             </div>
         </section>
     }
@@ -209,7 +209,7 @@ var pairPlaylists = hasHero && (plays.Count > 0 || Made.Count > 0) && Shows("pla
 {
     <div class="sr-top-pair @(pairPlaylists ? "both" : "")">
     <section aria-label="Top result" class="sr-section sr-best-section">
-        <h2 class="section">Top <i>result</i></h2>
+        <h2 class="section k-section">Top <i>result</i></h2>
         @if (heroArtist && topArtist is not null)
         {
             <div class="sr-hero artist" data-np @onclick="() => PlayFull(topArtist.Tracks.Where(X.Allows).ToList(), topArtist.Name)">
@@ -291,7 +291,7 @@ var pairPlaylists = hasHero && (plays.Count > 0 || Made.Count > 0) && Shows("pla
             @if (plays.Count > 0)
             {
                 <section aria-label="Playlists" class="sr-section">
-                    <h2 class="section"><i>Playlists</i></h2>
+                    <h2 class="section k-section"><i>Playlists</i></h2>
                     <div class="row-scroll">
                         @foreach (var p in plays)
                         {
@@ -311,14 +311,14 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
 @if (listSongs.Count > 0 && Shows("songs"))
 {
     <section aria-label="Songs" class="sr-section">
-        <h2 class="section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
+        <h2 class="section k-section">@((MarkupString)(ranked ? "<i>Songs</i>" : "Recently added <i>songs</i>"))</h2>
         <TrackList Tracks="listSongs.Take(listShown).ToList()" PlayContext="@context" Single="true" ThumbSize="48" KindTag="@(ranked ? "Song" : null)" ShowVersions="ranked" />
         @if (listSongs.Count > listShown)
         {
-            @if (!string.IsNullOrEmpty(SeeAllHref)) { <a class="btn ghost sr-more" href="@SeeAllHref">See all @listSongs.Count @(listSongs.Count == 1 ? "song" : "songs")</a> }
-            else { <button class="btn ghost sr-more" @onclick="() => showAll = true">Show all @listSongs.Count songs</button> }
+            @if (!string.IsNullOrEmpty(SeeAllHref)) { <a class="k-btn-sm sr-more" href="@SeeAllHref">See all @listSongs.Count @(listSongs.Count == 1 ? "song" : "songs")</a> }
+            else { <button class="k-btn-sm sr-more" @onclick="() => showAll = true">Show all @listSongs.Count songs</button> }
         }
-        else if (showAll && listSongs.Count > SongRows) { <button class="btn ghost sr-more" @onclick="() => showAll = false">Show fewer songs</button> }
+        else if (showAll && listSongs.Count > SongRows) { <button class="k-btn-sm sr-more" @onclick="() => showAll = false">Show fewer songs</button> }
     </section>
 }
 @* a search: Artists before Albums (as the chips read); the browse view keeps the newest albums first *@
@@ -326,7 +326,7 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
 @if (albums.Count > 0 && Shows("albums"))
 {
     <section aria-label="Albums" class="sr-section">
-        <h2 class="section">@((MarkupString)(ranked ? "<i>Albums</i>" : "Recently added <i>albums</i>"))</h2>
+        <h2 class="section k-section">@((MarkupString)(ranked ? "<i>Albums</i>" : "Recently added <i>albums</i>"))</h2>
         <div class="row-scroll sr-albums">
             @foreach (var g in albums)
             {
@@ -340,7 +340,7 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
 @if (plays.Count > 0 && Shows("playlists") && !(only == "playlists" && listsKind) && !pairPlaylists)
 {
     <section aria-label="Playlists" class="sr-section">
-        <h2 class="section"><i>Playlists</i></h2>
+        <h2 class="section k-section"><i>Playlists</i></h2>
         <div class="row-scroll">
             @foreach (var p in plays)
             {
@@ -354,9 +354,9 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
 @if (genres.Count > 0 && only == "")
 {
     <section aria-label="Genres" class="sr-section">
-        <h2 class="section"><i>Genres</i></h2>
+        <h2 class="section k-section"><i>Genres</i></h2>
         <div class="sr-genres">
-            @foreach (var gn in genres) { <a class="chip" href="/genre/@Uri.EscapeDataString(gn)">@gn</a> }
+            @foreach (var gn in genres) { <a class="k-btn-sm" href="/genre/@Uri.EscapeDataString(gn)">@gn</a> }
         </div>
     </section>
 }
@@ -424,7 +424,7 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
 
     /// <summary>The ready-made playlists for what was typed (Best of, Radio, decades, genres; Spotify's and Deezer's on a server that reads them).</summary>
     RenderFragment MadeRow => @<section class="made-row sr-section" aria-label="Playlists for you">
-        <h2 class="section">Playlists <i>for you</i></h2>
+        <h2 class="section k-section">Playlists <i>for you</i></h2>
         <div class="row-scroll">
             @foreach (var m in Made) { <a class="card" href="/made/@Uri.EscapeDataString(m.Id)"><Cover ArtKey="@m.ArtKey" Class="square" /><span class="card-title">@m.Name</span><span class="card-sub"><span class="kind-tag">Playlist</span>@m.Subtitle</span></a> }
         </div>
@@ -433,7 +433,7 @@ var listSongs = only == "" && heroSong is not null && hasHero ? songs.Where(t =>
     RenderFragment ArtistsRow(IReadOnlyList<Group> artists) => @<text>@if (artists.Count > 0 && Shows("artists"))
     {
         <section aria-label="Artists" class="sr-section">
-            <h2 class="section"><i>Artists</i></h2>
+            <h2 class="section k-section"><i>Artists</i></h2>
             <div class="row-scroll">
                 @foreach (var a in artists)
                 {

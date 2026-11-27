@@ -19,7 +19,7 @@ test('recent searches come back as chips, and Clear empties them', async ({ page
   await page.goto('/search?q=Lab');
   await page.waitForTimeout(4000);
   await page.goto('/search');
-  const chip = page.locator('.recent-searches .chip', { hasText: 'Lab' });
+  const chip = page.locator('.recent-searches .k-btn-sm', { hasText: 'Lab' });
   await expect(chip).toBeVisible({ timeout: 20_000 });
   await chip.click();
   await expect(page).toHaveURL(/\/search\?q=Lab/);

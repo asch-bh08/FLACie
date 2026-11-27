@@ -2093,8 +2093,9 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
         if (shortNoTitle) Spacer(Modifier.height(4.dp))
         else if (!imeUp) TopBar("Search your music", nav, showBack = true)
         else Spacer(Modifier.windowInsetsTopHeight(androidx.compose.foundation.layout.WindowInsets.statusBars))
-        SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(50), background = Color(0x26FFFFFF), borderColor = sc.cardBorder,
-            height = 46.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
+        // the kit search field (ONE APP 1b): a rounded pill, r24, 48 tall, surface fill, the mic inside; the web's field is the same
+        SearchPill(query, { query = it }, "Songs, albums, artists", Modifier.padding(16.dp), shape = RoundedCornerShape(24.dp), background = Kit.surface2, borderColor = Kit.glassRim,
+            height = 48.dp, textSize = 16f, onSubmit = { searchFocus.clearFocus() }, trailing = {
                 if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear search", { query = "" }, tint = sc.onBgDim, size = 44.dp, iconScale = 0.45f)
                 // speak to search; a request to the DJ ("play my pop playlist") is carried out instead
                 else DjMicButton(size = 38.dp, tint = sc.onBg, glass = Color.Transparent, onSearch = { query = it }, touch = 46.dp)
@@ -2363,11 +2364,11 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                         Column(Modifier.fillMaxWidth().padding(top = 18.dp)) {
                             Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .12f)))
                             SectionHeader("More music to download")
-                            MonoLabel(if (webLoading) "Searching…" else "Not in your library yet", Modifier.padding(start = 20.dp, end = 16.dp, bottom = 6.dp), size = 10.5f, maxLines = 2)
+                            Label(if (webLoading) "Searching…" else "Not in your library yet", Modifier.padding(start = 20.dp, end = 16.dp, bottom = 6.dp), maxLines = 2)
                         }
                     }
                     if (w.albums.isNotEmpty() && only != "songs") {
-                        item { MonoLabel("Albums and EPs", Modifier.padding(start = 20.dp, top = 6.dp, bottom = 8.dp), size = 10.5f) }
+                        item { Label("Albums and EPs", Modifier.padding(start = 20.dp, top = 6.dp, bottom = 8.dp)) }
                         item(key = "walbums") {
                             // the row keeps its scroll offset by item key; it snaps back to the start whenever the first album changes (so no card is clipped)
                             androidx.compose.foundation.lazy.LazyRow(state = albumRowState, contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2643,8 +2644,8 @@ private fun PlaylistResultCard(name: String, songs: Int, artKey: String?, onOpen
         Row(verticalAlignment = Alignment.Top) {
             ArtImage(artKey, Modifier.size(116.dp).coverShadow(14.dp), corner = 14.dp)
             Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                MonoLabel("Playlist · Yours", size = 10.5f, color = sc.onBg.copy(alpha = .8f), maxLines = 2)
-                SerifTitle(name, size = 30f, maxLines = 3)
+                Label("Playlist · Yours", color = sc.onBg.copy(alpha = .8f), maxLines = 2)
+                Title(name, maxLines = 3)
                 Txt("$songs ${if (songs == 1) "song" else "songs"}", size = 14f, color = sc.onBgDim, maxLines = 1)
             }
         }
@@ -2687,9 +2688,9 @@ private fun BestResultCard(t: Track, onPlay: () -> Unit, onMore: () -> Unit) {
             Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(Color(0xFF7CE0A0)))
-                    MonoLabel(if (kept) "Song · Downloaded" else "Song · In your library", size = 10.5f, color = sc.onBg.copy(alpha = .8f), maxLines = 2)
+                    Label(if (kept) "Song · Downloaded" else "Song · In your library", color = sc.onBg.copy(alpha = .8f), maxLines = 2)
                 }
-                SerifTitle(t.title, size = 30f, maxLines = 3)
+                Title(t.title, maxLines = 3)
                 Txt(listOf(t.artist, t.album).filter { it.isNotEmpty() }.joinToString(" · "), size = 14f, color = sc.onBgDim, maxLines = 2)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     if (hiRes) HiResBadge(compact = true) else FormatChip(fmt)

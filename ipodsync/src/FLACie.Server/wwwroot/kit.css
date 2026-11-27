@@ -28,6 +28,8 @@
 .k-title { margin: 0; font-family: var(--k-serif); font-weight: 400; font-size: 30px; line-height: 1.05; letter-spacing: 0; }
 .k-title i, .k-section i { font-style: italic; }
 .k-section { margin: 0; font-family: var(--k-serif); font-weight: 400; font-size: 24px; line-height: 1.1; }
+/* a page's older h2.section that has taken the kit class keeps its spacing but takes the kit size (ONE APP 1b) */
+h2.section.k-section { font-size: 24px; line-height: 1.1; }
 .k-body { font-family: var(--k-sans); font-size: var(--k-body); line-height: 1.45; color: var(--ink); }
 .k-small { font-family: var(--k-sans); font-size: var(--k-small); line-height: 1.4; color: var(--dim); }
 .k-label { font-family: var(--k-mono); font-size: 11px; font-weight: 500; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
@@ -111,6 +113,12 @@
 /* the button is the main button in its secondary tone (the cover colour stays for a page's one big action, Play) */
 .empty-state > .btn, .k-empty > .btn { display: inline-flex; align-items: center; justify-content: center; height: var(--k-btn); min-height: 44px; padding: 0 26px; border: 0;
   border-radius: var(--k-r-btn); background: var(--k-tone); color: var(--k-tone-fg); font: 600 15px/1 var(--k-sans); text-decoration: none; }
+
+/* ---------------------------------------------------------------- search field: a pill r24, 48 tall (44 when tight), surface fill, the mic inside;
+   the phone's SearchPill takes the same numbers (ONE APP 1b) */
+.k-search, .top-search { box-sizing: border-box; height: 48px; border-radius: 24px; background: var(--surface-2); border: 1px solid var(--k-rim); box-shadow: none; }
+.k-search:focus-within, .top-search:focus-within { background: var(--surface-2); border-color: color-mix(in srgb, var(--ink) 40%, transparent); }
+@media (max-height: 700px), (max-width: 360px) { .k-search, .top-search { height: 44px; } }
 
 /* ---------------------------------------------------------------- toast: bottom, surface-3, warn = amber words */
 .k-toast, .toast { border-radius: 14px; background: var(--surface-3); border: 1px solid var(--line); color: var(--ink); font: 15px/1.35 var(--k-sans); cursor: pointer; }

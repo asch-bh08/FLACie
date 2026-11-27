@@ -110,7 +110,8 @@ class NowPlayingFitTest {
         val p = NowPlayingFit.plan(320f, 568f, 2f)
         assertEquals(Actions.MORE_ONLY, p.actions)
         assertTrue(p.fits)
-        assertEquals(44f, p.actionsHeight, 0f)
+        // no row at all: More is beside the heart
+        assertEquals(0f, p.actionsHeight, 0f)
     }
 
     @Test fun aSplitScreenSliverGetsTheMostCompactPlan() {
@@ -139,20 +140,77 @@ class NowPlayingFitTest {
 
     // ---- the web phone's sizes (living-sleeve.css), and the remote that uses the same player ----
 
-    @Test fun theControlsAreTheWebPhonesSizesWhereTheyFit() {
-        // a 375 dp phone: the row has 375 - 28 dp
-        assertEquals(1f, NowPlayingFit.controlsScale(347f), 0f)
-        assertEquals(60f, NowPlayingFit.controlsHeight(375f), .01f)
-        assertTrue(NowPlayingFit.CONTROLS_W <= 347f)
+    @Test fun theTransportIsBigAndWholeOnEveryPhone() {
+        // shuffle and repeat are beside the time, so previous / play / next have the row: big, play the biggest, at full size from 360 dp up
+        assertTrue(NowPlayingFit.PLAY_W > NowPlayingFit.PILL_W && NowPlayingFit.PLAY_H > NowPlayingFit.PILL_H)
+        assertTrue(NowPlayingFit.PLAY_W_TIGHT > NowPlayingFit.PILL_W_TIGHT && NowPlayingFit.PLAY_H_TIGHT > NowPlayingFit.PILL_H_TIGHT)
+        for (w in listOf(360f, 375f, 390f, 412f)) {
+            assertEquals("$w", 1f, NowPlayingFit.controlsScale(w - 28f), 0f)
+            assertEquals("$w", NowPlayingFit.PLAY_H, NowPlayingFit.controlsHeight(w), .01f)
+        }
+        // never under a 48 dp target, tight or not
+        assertTrue(NowPlayingFit.PILL_H_TIGHT >= 48f && NowPlayingFit.ROUND >= 48f)
     }
 
-    @Test fun aVeryNarrowScreenShrinksOnlyThePillsAndPlay() {
-        // 300 dp: the pills and play give way, shuffle and repeat keep 48 dp, and the five still fit side by side
+    @Test fun aVeryNarrowScreenShrinksThePillsAndPlayAndTheyStillFit() {
         val room = 300f - 28f
         val k = NowPlayingFit.controlsScale(room)
         assertTrue(k < 1f && k >= .8f)
-        assertTrue(2 * NowPlayingFit.ROUND + k * (2 * NowPlayingFit.PILL_W + NowPlayingFit.PLAY_W) <= room + .01f)
+        assertTrue(k * NowPlayingFit.transportW(true) <= room + .01f)
         assertTrue("play keeps a 48 dp target", NowPlayingFit.PLAY_H * k >= 48f)
+    }
+
+    // ---- the owner's size list (26 Nov): big by default, nothing scrolls, and the spare room is shared out, not left as one band ----
+
+    private fun spare(p: NowPlayingFit.Plan) = p.height - p.fixed - p.side
+
+    @Test fun theSizeListFitsWithBigControls() {
+        for ((w, h) in listOf(360f to 640f, 390f to 844f, 412f to 915f, 412f to 1000f)) {
+            val p = NowPlayingFit.plan(w, h, 1f)
+            val at = "${w.toInt()}x${h.toInt()}: $p"
+            assertEquals(at, Layout.STACKED, p.layout)
+            assertTrue(at, p.fits)
+            assertTrue(at, p.bigControls)
+            assertEquals(at, Actions.FULL, p.actions)
+            assertTrue(at, p.cover >= NowPlayingFit.COMPACT_COVER)
+        }
+        // the tall phones keep everything (tip, chips, full band) and a cover of at least MIN_COVER
+        for ((w, h) in listOf(390f to 844f, 412f to 915f, 412f to 1000f)) {
+            val p = NowPlayingFit.plan(w, h, 1f)
+            assertTrue("$p", p.tip && p.chips && !p.compactBand && p.cover >= NowPlayingFit.MIN_COVER)
+        }
+    }
+
+    @Test fun theSizeListFitsAtBigText() {
+        for ((w, h) in listOf(360f to 640f, 390f to 844f, 412f to 915f, 412f to 1000f)) for (fs in scales) {
+            val p = NowPlayingFit.plan(w, h, fs)
+            assertTrue("${w.toInt()}x${h.toInt()} at $fs: $p", p.fits && p.cover >= 120f)
+        }
+    }
+
+    @Test fun aTallPhoneSharesItsSpareRoomRatherThanLeavingABand() {
+        // 390 x 844 and 412 x 915: the frame takes all the height there is, nothing is left over
+        for ((w, h) in listOf(390f to 844f, 412f to 915f)) {
+            val p = NowPlayingFit.plan(w, h, 1f)
+            assertTrue("$p", spare(p) < 1f)
+        }
+        // 412 x 1000 (21:9): the frame is as wide as the screen allows; what is left over is about the Up next line's height, which takes it
+        // (or, without a next song, Column SpaceBetween spreads it between the parts), never one empty band
+        val p = NowPlayingFit.plan(412f, 1000f, 1f)
+        assertEquals("$p", 412f - 16f, p.side, .01f)
+        assertTrue("$p", spare(p) in 0f..64f)
+    }
+
+    @Test fun lessRoomNeverMakesTheControlsBigAgain() {
+        for (fs in scales) {
+            var prev = NowPlayingFit.plan(360f, 1000f, fs)
+            var h = 992f
+            while (h >= 560f) {
+                val p = NowPlayingFit.plan(360f, h, fs)
+                assertTrue("$h at $fs", prev.bigControls || !p.bigControls)
+                prev = p; h -= 8f
+            }
+        }
     }
 
     @Test fun theTitleIsTheWebsSize() {

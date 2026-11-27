@@ -237,10 +237,13 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                     SText("Swipe sideways for Lyrics, Info and Up next, or tap the buttons below", Modifier.weight(1f), size = 12.5f, color = Ink, maxLines = 2)
                     SText("OK", Modifier.padding(start = 10.dp), size = 13f, weight = FontWeight.Bold, color = Ink)
                 }
-                // Lyrics, Up next, Info and More: secondary actions, so they take the bottom strip (above the gesture bar) instead of leaving it empty;
-                // on its side the phone has them at the foot of the controls' column instead
-                if (fit.layout != NowPlayingFit.Layout.SIDE) Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
-                    SleeveActions(false, pane, toggle, addToPlaylist, fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
+                // Lyrics, More, Info and Add: secondary actions, so they take the bottom strip (above the gesture bar) instead of leaving it empty;
+                // on its side the phone has them at the foot of the controls' column instead; with room for none of them More is beside the heart
+                if (fit.layout != NowPlayingFit.Layout.SIDE) {
+                    if (fit.actions == NowPlayingFit.Actions.MORE_ONLY) Spacer(Modifier.height(maxDp(nav0 + 10.dp, 18.dp)))
+                    else Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
+                        SleeveActions(false, pane, toggle, addToPlaylist, fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
+                    }
                 }
             }
         }
@@ -248,7 +251,7 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
         DjCaptionCard(snap.djCaption, Modifier.align(Alignment.TopCenter).windowInsetsPadding(WindowInsets.safeDrawing).padding(top = 72.dp, start = 24.dp, end = 24.dp))
         // when the row under the controls is just More, its sheet lists Lyrics, Up next and Song info too
         PlayerMoreSheet(moreMode != null, moreMode == "playback", t, nav, palette, onDismiss = { moreMode = null }, onOpen = { id -> if (wide) tab = id else pane = id },
-            panes = !wide && fit.actions == NowPlayingFit.Actions.MORE_ONLY)
+            panes = !wide && fit.actions == NowPlayingFit.Actions.MORE_ONLY, upNext = !wide)
         // every menu the player opens (rating, speed, sleep timer, sound, playlists, MusicBrainz, a queue row) in the same design I sheet
         DesignSheet(nav.sheet, palette) { nav.sheet = null }
     }
@@ -362,17 +365,13 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             Column(Modifier.weight(.55f).fillMaxHeight().padding(end = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 SleeveTopBar(snap, nav, t, p, onOptions)
                 Spacer(Modifier.weight(1f))
-                if (card == null) SleeveTitle(nav, t, p, Modifier.padding(horizontal = 12.dp), fit)
+                if (card == null) SleeveTitle(nav, t, p, Modifier.padding(horizontal = 12.dp), fit, onMore.takeIf { fit.actions == NowPlayingFit.Actions.MORE_ONLY })
                 Spacer(Modifier.height(8.dp))
-                val time: @Composable () -> Unit = { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier.padding(horizontal = 12.dp)) }
-                // with no row of actions, More sits beside the time
-                if (fit.actions == NowPlayingFit.Actions.MORE_ONLY) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { time() }
-                    Box(Modifier.width(110.dp)) { SleeveActions(false, card, onOpen, null, fit.actions, onMore = onMore) }
-                } else time()
+                SleeveTimeRow(snap, p, Modifier.padding(horizontal = 12.dp)) { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier) }
                 Spacer(Modifier.height(8.dp))
-                SleeveControls(snap, p, Modifier.padding(horizontal = 8.dp), nav)
+                SleeveControls(snap, p, Modifier.padding(horizontal = 8.dp), fit.bigControls)
                 Spacer(Modifier.weight(1f))
+                // with no room for the row, More is beside the heart (the time's sides are shuffle and repeat now)
                 if (fit.actions != NowPlayingFit.Actions.MORE_ONLY) Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
                     SleeveActions(false, card, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore)
                 } else Spacer(Modifier.height(maxDp(nav0, 8.dp)))
@@ -402,14 +401,15 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
                 // Lyrics and Info take all the room above the controls, not just the cover's square: on an S22 the graph and the lyrics were below the fold (owner, 1 Nov)
                 else SleeveCard(card, snap, t, p, Modifier.width(minOf(maxWidth - 16.dp, 560.dp)).fillMaxHeight()) { onOpen(card) }
             }
-            if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier.padding(horizontal = 22.dp))
+            // shuffle and repeat either side of the time: the room beside it is used and previous / play / next get their row (owner, 26 Nov)
+            SleeveTimeRow(snap, p, Modifier.padding(horizontal = 22.dp)) { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier) }
             Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
             // the card's header names the song, so the big title steps aside for it
             if (card == null) {
-                SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp), fit)
+                SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp), fit, onMore.takeIf { !wide && fit.actions == NowPlayingFit.Actions.MORE_ONLY })
                 Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
             }
-            SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp), nav)
+            SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp), fit.bigControls)
             Spacer(Modifier.height(12.dp))
             val room = spare + if (peekOn) peekH else 0.dp
             val wantPeek = !wide && card == null && room > 56.dp
@@ -419,16 +419,17 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
                 Box(Modifier.onSizeChanged { peekH = with(d) { it.height.toDp() } }) { SleeveUpNextPeek(snap, p) { onOpen("queue") } }
             }
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
-            if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, actions = fit.actions, onMore = onMore) }
+            if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore) }
         }
     }
 }
 
-/** A round dark-glass icon button, for the top bar over the cover. */
+/** A dark-glass icon button for the top bar over the cover: the kit's one button shape (owner, 26 Nov: no circles). */
 @Composable
-private fun GlassButton(label: String, onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun GlassButton(label: String, onClick: () -> Unit, size: Dp = 44.dp, content: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(Kit.rButtonSmall)
     Box(
-        Modifier.size(44.dp).clip(CircleShape).background(Glass).focusRing(CircleShape)
+        Modifier.size(size).clip(shape).background(Glass).focusRing(shape)
             .semantics { contentDescription = label; role = Role.Button }.clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -472,7 +473,7 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
     val big = if (narrow) 44.dp else 52.dp
     val gap = if (narrow) 4.dp else 8.dp
     Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = if (narrow) 10.dp else 14.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlassButton("Close Now Playing", { nav.nowPlaying = false }) { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), Color.White) }
+        GlassButton("Close Now Playing", { nav.nowPlaying = false }, big) { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), Color.White) }
         Spacer(Modifier.width(gap + 2.dp))
         val fallback = app.player.contextName ?: com.ipodemu.library.SourceLabel.line(t.source)
         // the pill takes what it needs from the space left (up to all of it), and the buttons stay against the right edge
@@ -495,19 +496,19 @@ private fun SleeveTopBar(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePa
             DjMicButton(big, tint = Color.White, glass = Glass, lit = p.main.value)
             Spacer(Modifier.width(gap))
         }
-        GlassButton("Options", onOptions) { SlidersIcon(Color.White) }
+        GlassButton("Options", onOptions, big) { SlidersIcon(Color.White) }
         // Options opens the design I sheet with just its playback group (rating, speed, sleep timer, sound)
         Spacer(Modifier.width(gap + 2.dp))
         // Settings always up here, as on the web's player (owner, 25 Nov: "there's still no settings in Now Playing on mobile": it was only in More);
         // on a phone it takes Retro's place (Retro is in More), with room (a tablet, an open Fold) both are here
-        GlassButton("Settings", { nav.nowPlaying = false; nav.push(Screen.Settings) }) { GlyphIcon(Glyph.GEAR, Modifier.size(22.dp), Color.White) }
-        if (this@BoxWithConstraints.maxWidth >= 600.dp) { Spacer(Modifier.width(gap + 2.dp)); GlassButton("Retro", { openRetro(ctx) }) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) } }
+        GlassButton("Settings", { nav.nowPlaying = false; nav.push(Screen.Settings) }, big) { GlyphIcon(Glyph.GEAR, Modifier.size(22.dp), Color.White) }
+        if (this@BoxWithConstraints.maxWidth >= 600.dp) { Spacer(Modifier.width(gap + 2.dp)); GlassButton("Retro", { openRetro(ctx) }, big) { GlyphIcon(Glyph.CASSETTE, Modifier.size(22.dp), Color.White) } }
     }
     }
 }
 
 @Composable
-private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Modifier, fit: NowPlayingFit.Plan) {
+private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Modifier, fit: NowPlayingFit.Plan, onMore: (() -> Unit)? = null) {
     val app = LocalApp.current
     val fav by app.userData.favState(t)
     val ai = rememberAudioInfo(app, t)
@@ -539,11 +540,14 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
             }
             if (fit.chips) DownloadTagLine(t, size = 13f, showNew = false)
         }
+        val heartShape = RoundedCornerShape(Kit.rButtonSmall)
         Box(
-            Modifier.size(48.dp).clip(CircleShape).drawBehind { drawRect(p.tone.value) }.focusRing(CircleShape)
+            Modifier.size(Kit.sizes(false).icon).clip(heartShape).drawBehind { drawRect(p.tone.value) }.focusRing(heartShape)
                 .semantics { contentDescription = if (fav) "Unfavorite" else "Favorite"; role = Role.Button }.clickable { app.userData.toggleFavorite(t) },
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(24.dp), if (fav) p.main.value else p.toneFg.value) }
+        // the shortest screens have no row of slots: More sits here, beside the heart, at no extra height
+        if (onMore != null) GlassButton("More options", onMore, Kit.sizes(false).icon) { GlyphIcon(Glyph.MORE, Modifier.size(24.dp), Color.White) }
     }
 }
 
@@ -574,25 +578,46 @@ private fun rememberWaveShape(t: Track): State<IntArray?> {
 }
 
 @Composable
-private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, nav: PlayerNav) {
+private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, big: Boolean) {
     val app = LocalApp.current
-    // shuffle, previous | play | next, repeat. Play is a plain rounded square in the cover's colour
+    // previous | play | next, alone in their row so they can be big (owner, 26 Nov: car mode's feel); shuffle and repeat are beside the time.
+    // NowPlayingFit says big or a step down; only a very narrow screen shrinks them further, gaps too, so the three always fit
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
-        // the DJ and the mic are in the top bar (owner, 8 Nov). The web phone's sizes with its 14 dp gaps, centred; only a very narrow screen shrinks the
-        // pills and play a little, and shuffle and repeat always keep 48 dp (NowPlayingFit.controlsScale)
-        val k = NowPlayingFit.controlsScale(maxWidth.value)
-        val round = NowPlayingFit.ROUND.dp
-        val roomy = maxWidth.value >= NowPlayingFit.CONTROLS_W + 4 * 14f
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = if (roomy) Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally) else Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            IconAction(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.shuffleTap() },
-                tint = if (snap.shuffle) p.main.value else InkDim, size = round, iconScale = .46f, dot = snap.shuffle)
-            SleevePillButton(Glyph.PREV, "Previous", p, k) { app.player.prev() }
-            SleevePlay(snap.playing, p, k, focus = true) { app.player.toggle() }
-            SleevePillButton(Glyph.NEXT, "Next", p, k) { app.player.next() }
-            // off, all (the queue starts again at its end, Autoplay adds nothing), one; a short note says which, as the glyph alone did not
-            IconAction(if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, RepeatCycle.label(snap.repeat),
-                { repeatTap(app) }, tint = if (snap.repeat != RepeatCycle.OFF) p.main.value else InkDim, size = round, iconScale = .46f, dot = snap.repeat != RepeatCycle.OFF)
+        val k = NowPlayingFit.controlsScale(maxWidth.value, big)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(NowPlayingFit.GAP.dp * k, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+            SleevePillButton(Glyph.PREV, "Previous", p, k, big) { app.player.prev() }
+            SleevePlay(snap.playing, p, k, big, focus = true) { app.player.toggle() }
+            SleevePillButton(Glyph.NEXT, "Next", p, k, big) { app.player.next() }
         }
+    }
+}
+
+/**
+ * The time (or, while a card covers the frame, the seek line) with shuffle at its left and repeat at its right: the room beside the time is
+ * used rather than left empty (owner, 26 Nov).
+ */
+@Composable
+private fun SleeveTimeRow(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, middle: @Composable () -> Unit) {
+    val app = LocalApp.current
+    Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        SleeveToggle(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", snap.shuffle, p) { app.shuffleTap() }
+        Box(Modifier.weight(1f).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) { middle() }
+        // off, all (the queue starts again at its end, Autoplay adds nothing), one; a short note says which, as the glyph alone did not
+        SleeveToggle(if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, RepeatCycle.label(snap.repeat), snap.repeat != RepeatCycle.OFF, p) { repeatTap(app) }
+    }
+}
+
+/** Shuffle or repeat: a 48 dp rounded square of glass; on, it takes the cover's tone, the icon its colour and a dot under it (more than colour). */
+@Composable
+private fun SleeveToggle(g: Glyph, label: String, on: Boolean, p: SleevePalette, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(Kit.rButtonSmall)
+    Box(
+        Modifier.size(NowPlayingFit.ROUND.dp).clip(shape).drawBehind { drawRect(if (on) p.tone.value else Glass) }.focusRing(shape)
+            .semantics { contentDescription = label; role = Role.Button }.clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        GlyphIcon(g, Modifier.size(22.dp), if (on) p.main.value else InkDim)
+        if (on) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).clip(CircleShape).drawBehind { drawRect(p.main.value) })
     }
 }
 
@@ -600,25 +625,29 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun DjPlainButton(on: Boolean, onClick: () -> Unit, onLong: () -> Unit, accent: Color, size: Dp, glass: Boolean = false) {
+    val shape = RoundedCornerShape(Kit.rButtonSmall)
     Box(
-        Modifier.size(size).clip(CircleShape).background(if (glass) Glass else Color.Transparent).focusRing(CircleShape)
+        Modifier.size(size).clip(shape).background(if (glass) Glass else Color.Transparent).focusRing(shape)
             .semantics { contentDescription = djLabel(on); role = Role.Button; stateDescription = if (on) "On" else "Off" }
             .combinedClickable(onClick = onClick, onLongClick = onLong),
         contentAlignment = Alignment.Center,
     ) { GlyphIcon(Glyph.DJ, Modifier.size(size * .48f), if (on) accent else if (glass) Color.White else InkDim) }
 }
 
-/** Previous and next: a tinted pill in the cover's tone. */
+/** Previous and next: the kit's rounded rectangle in the cover's tone, big unless the screen is tight ([big]); [k] shrinks it on a very narrow one. */
 @Composable
-private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, k: Float = 1f, onClick: () -> Unit) {
+private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, k: Float = 1f, big: Boolean = true, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
+    val shape = RoundedCornerShape(Kit.rButton)
+    val w = if (big) NowPlayingFit.PILL_W else NowPlayingFit.PILL_W_TIGHT
+    val h = if (big) NowPlayingFit.PILL_H else NowPlayingFit.PILL_H_TIGHT
     Box(
-        Modifier.size(NowPlayingFit.PILL_W.dp * k, NowPlayingFit.PILL_H.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
-            .clip(RoundedCornerShape(26.dp)).drawBehind { drawRect(p.tone.value) }.focusRing(RoundedCornerShape(26.dp))
+        Modifier.size(w.dp * k, h.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+            .clip(shape).drawBehind { drawRect(p.tone.value) }.focusRing(shape)
             .semantics { contentDescription = label; role = Role.Button }.clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) { GlyphIcon(g, Modifier.size(24.dp), p.toneFg.value) }
+    ) { GlyphIcon(g, Modifier.size(if (big) 28.dp else 24.dp), p.toneFg.value) }
 }
 
 /**
@@ -751,16 +780,18 @@ private fun CoverFrame(
  * [focus] hands it the focus when the player opens, for a keyboard or remote; [onClick] plays or pauses this phone, or the device being controlled.
  */
 @Composable
-private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, focus: Boolean = false, label: String? = null, onClick: () -> Unit) {
+private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, big: Boolean = true, focus: Boolean = false, label: String? = null, onClick: () -> Unit) {
     val playFocus = remember { FocusRequester() }
     if (focus) LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
     val src = remember { MutableInteractionSource() }
     val focused by src.collectIsFocusedAsState()
     val keys = androidx.compose.ui.platform.LocalInputModeManager.current.inputMode == androidx.compose.ui.input.InputMode.Keyboard
     val pressed by src.collectIsPressedAsState()
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(Kit.rButton)
+    val w = if (big) NowPlayingFit.PLAY_W else NowPlayingFit.PLAY_W_TIGHT
+    val h = if (big) NowPlayingFit.PLAY_H else NowPlayingFit.PLAY_H_TIGHT
     Box(
-        Modifier.size(NowPlayingFit.PLAY_W.dp * k, NowPlayingFit.PLAY_H.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        Modifier.size(w.dp * k, h.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(shape).drawBehind { drawRect(p.main.value) }
             // the ring only for a keyboard or remote: the player hands focus to play when it opens, and a finger should not see that
             .then(if (focused && keys) Modifier.border(3.dp, Ink, shape) else Modifier)
@@ -773,7 +804,7 @@ private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, focus:
             if (Tweaks.motion) (androidx.compose.animation.fadeIn(tween(140)) + androidx.compose.animation.scaleIn(tween(160), initialScale = .6f)) togetherWith
                 (androidx.compose.animation.fadeOut(tween(90)) + androidx.compose.animation.scaleOut(tween(120), targetScale = .6f))
             else EnterTransition.None togetherWith ExitTransition.None
-        }) { playing -> GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(30.dp), Color(DesignColour.readableOn(p.main.value.toArgb()))) }
+        }) { playing -> GlyphIcon(if (playing) Glyph.PAUSE else Glyph.PLAY, Modifier.size(if (big) 36.dp else 30.dp), Color(DesignColour.readableOn(p.main.value.toArgb()))) }
     }
 }
 /** "1:36 / 4:12" under the ring; while the ring is being dragged the first time is where the finger is. */
@@ -831,10 +862,13 @@ private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette,
                     ) { ch, _ -> drag = (ch.position.x / size.width).coerceIn(0f, 1f) }
                 }
                 .drawBehind {
-                    val y = size.height / 2; val h = 4.dp.toPx()
-                    drawRoundRect(Line, Offset(0f, y - h / 2), androidx.compose.ui.geometry.Size(size.width, h), androidx.compose.ui.geometry.CornerRadius(h))
-                    drawRoundRect(p.main.value, Offset(0f, y - h / 2), androidx.compose.ui.geometry.Size(size.width * frac, h), androidx.compose.ui.geometry.CornerRadius(h))
-                    drawCircle(Ink, 7.dp.toPx(), Offset(size.width * frac, y))
+                    // a little bolder than a hairline, and a tall rounded-rectangle thumb, the kit's button shape (owner, 26 Nov: "too plain")
+                    val y = size.height / 2; val h = 6.dp.toPx()
+                    drawRoundRect(Line, Offset(0f, y - h / 2), androidx.compose.ui.geometry.Size(size.width, h), androidx.compose.ui.geometry.CornerRadius(h / 2))
+                    drawRoundRect(p.main.value, Offset(0f, y - h / 2), androidx.compose.ui.geometry.Size(size.width * frac, h), androidx.compose.ui.geometry.CornerRadius(h / 2))
+                    val tw = 8.dp.toPx(); val th = 24.dp.toPx()
+                    val tx = (size.width * frac - tw / 2).coerceIn(0f, size.width - tw)
+                    drawRoundRect(Ink, Offset(tx, y - th / 2), androidx.compose.ui.geometry.Size(tw, th), androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()))
                 },
         )
         Row(Modifier.fillMaxWidth()) {
@@ -849,24 +883,23 @@ private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette,
 
 @Composable
 private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, fill: Color? = null, onMore: () -> Unit) {
-    // five equal slots, More in the middle: Lyrics, Up next | More | Info, Add. Each is an icon over its word (icons alone, or words beside two bare icons,
-    // left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream. On a short screen (NowPlayingFit) the slots are
-    // 44 dp with the word alone, and at the last step only More is left, its sheet listing Lyrics, Up next and Song info
+    // Lyrics · More · Info · Add (owner, 26 Nov: no Up next slot, swiping and the Up next line under the controls go there; Add a little narrower).
+    // Each is an icon over its word (icons alone left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream.
+    // On a short screen (NowPlayingFit) the slots are 40 dp with the word alone, and at the last step only More is left, its sheet listing the panes
     val full = actions == NowPlayingFit.Actions.FULL
-    // NowPlayingFit has already shared out the height and gives this row 58 dp, so the slots take the kit's tight step (52) until 1g grows the budget
-    androidx.compose.runtime.CompositionLocalProvider(LocalKitTight provides true) {
+    // NowPlayingFit gives a full row the kit's big slot (SLOT_H), so the slots are big by default
+    androidx.compose.runtime.CompositionLocalProvider(LocalKitTight provides !full) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         // the kit's Slot on Now Playing's darker glass, cream ink over the cover's colours (owner, 26 Nov: "dial them down a bit")
         @Composable
-        fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true) =
-            com.ipodemu.player.Slot(word, glyph, onClick, Modifier.weight(1f), on = on, description = label, tab = tab, compact = !full, fill = fill ?: Glass, ink = Ink, onInk = OnMain, rim = false)
+        fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true, weight: Float = 1f) =
+            com.ipodemu.player.Slot(word, glyph, onClick, Modifier.weight(weight), on = on, description = label, tab = tab, compact = !full, fill = fill ?: Glass, ink = Ink, onInk = OnMain, rim = false)
         if (actions == NowPlayingFit.Actions.MORE_ONLY) Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
         else {
             Slot("Lyrics", "Lyrics", tab == "lyrics", Glyph.LYRICS, { onOpen("lyrics") })
-            Slot("Up next", "Up next", tab == "queue", Glyph.QUEUE, { onOpen("queue") })
             Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
             Slot("Song info", "Info", tab == "info", Glyph.INFO, { onOpen("info") })
-            Slot("Add to playlist", "Add", false, Glyph.PLUS, { onAdd?.invoke() }, tab = false)
+            if (onAdd != null) Slot("Add to playlist", "Add", false, Glyph.PLUS, onAdd, tab = false, weight = .75f)
         }
     }
     }
@@ -904,7 +937,7 @@ internal fun shareSongs(ctx: android.content.Context, kind: String, name: String
 /** An outlined button (Lyrics, Up next, More): solid cream with dark text while its panel is open. */
 @Composable
 private fun SleeveOutline(label: String, on: Boolean, glyph: Glyph? = null, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(Kit.rButtonSmall)
     Box(
         Modifier.height(48.dp).then(if (glyph != null) Modifier.width(48.dp) else Modifier).clip(shape)
             .background(if (on) Ink else Color.Transparent).border(1.dp, if (on) Ink else Line, shape).focusRing(shape)
@@ -1014,7 +1047,7 @@ private class MoreRow(val label: String, val icon: @Composable (Color) -> Unit, 
  * title and artist, four big tiles for the things done most, then the rest in groups (SONG, PLAYBACK, MORE) of 56 dp rows, each with its own icon.
  */
 @Composable
-private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav: PlayerNav, p: SleevePalette, onDismiss: () -> Unit, onOpen: (String) -> Unit, panes: Boolean = false) {
+private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav: PlayerNav, p: SleevePalette, onDismiss: () -> Unit, onOpen: (String) -> Unit, panes: Boolean = false, upNext: Boolean = false) {
     val app = LocalApp.current
     val ctx = LocalContext.current
     val scrim by animateFloatAsState(if (open) 1f else 0f, tween(if (Tweaks.motion) 220 else 0), label = "moreScrim")
@@ -1042,6 +1075,9 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     add(MoreRow("Lyrics", { GlyphIcon(Glyph.LYRICS, Modifier.size(24.dp), it) }, null, true, close { onOpen("lyrics") }))
                     add(MoreRow("Up next", { GlyphIcon(Glyph.QUEUE, Modifier.size(24.dp), it) }, null, true, close { onOpen("queue") }))
                     add(MoreRow("Song info", { GlyphIcon(Glyph.INFO, Modifier.size(24.dp), it) }, null, true, close { onOpen("info") }))
+                } else if (upNext) {
+                    // Up next has no slot of its own now (swiping, or the line under the controls on a tall phone): here too, so a tap always reaches it
+                    add(MoreRow("Up next", { GlyphIcon(Glyph.QUEUE, Modifier.size(24.dp), it) }, null, true, close { onOpen("queue") }))
                 }
                 add(MoreRow("Rate", { GlyphIcon(Glyph.STAR, Modifier.size(24.dp), it) }, app.userData.rating(t).takeIf { it > 0 }?.let { RatingStore.label(it) } ?: "None", true, close { nav.sheet = ratingSheet(app, t) }))
                 if (t.isMusic) add(MoreRow("MusicBrainz match", { GlyphIcon(Glyph.SEARCH, Modifier.size(24.dp), it) }, null, true, close { musicBrainzSheet(app, nav, t) }))

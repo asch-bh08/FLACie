@@ -114,6 +114,15 @@ for (const [name, w, h, dpr] of sizes) {
       const np = await check(page, main, upright ? 90 : 0, [['.ls-frame', '.ls-times']]);
       problems.push(...np.problems.map((p) => 'Now Playing: ' + p));
       for (const need of ['Previous', 'Next', 'Pause']) if (!np.names.includes(need)) problems.push(`Now Playing: no ${need} on screen`);
+      if (upright) {
+        // the arrangement (owner, 26 Nov): shuffle and repeat either side of the time, previous / play / next alone and big, no Up next slot
+        const mid = async (sel: string) => { const b = (await page.locator(sel).boundingBox())!; return b.y + b.height / 2; };
+        const time = await mid('.ls-times');
+        for (const sel of ['.ls-shuf', '.ls-rep']) if (Math.abs((await mid(sel)) - time) > 6) problems.push(`Now Playing: ${sel} is not beside the time`);
+        const play = (await page.locator('.ls-play').boundingBox())!, prev = (await page.locator('.ls-prev').boundingBox())!;
+        if (play.height < 60 || prev.height < 56 || play.width <= prev.width) problems.push(`Now Playing: the transport is not big (play ${Math.round(play.width)}x${Math.round(play.height)}, previous ${Math.round(prev.width)}x${Math.round(prev.height)})`);
+        if (await page.locator('.ls-actions .ls-slot', { hasText: 'Up next' }).count()) problems.push('Now Playing: an Up next slot is back');
+      }
       if (!(await page.locator('.ls-frame').isVisible())) problems.push('Now Playing: no seek bar');
       // the volume: the Sound tile on a PC, behind Options with rating, speed and sleep on a phone
       if (!np.names.some((n) => phone ? n.startsWith('Options') : n === 'Volume' || n === 'Sound options')) problems.push('Now Playing: no way to the volume');

@@ -86,7 +86,8 @@ test('on a phone the player covers the whole screen and its controls stay clear 
   const inside = await page.evaluate(() => !!document.elementFromPoint(195, 838)?.closest('.ls'));
   expect(inside).toBe(true);
   // the lyrics and the queue open as a sheet over the cover, and close again
-  await page.locator('.ls-actions .ls-slot', { hasText: 'Up next' }).click();
+  // (no Up next slot since 26 Nov: Lyrics opens the same sheet; the Up next line at the foot opens it on the queue)
+  await page.locator('.ls-actions .ls-slot', { hasText: 'Lyrics' }).click();
   await expect(page.locator('.ls')).toHaveClass(/panel-open/);
   await page.getByRole('button', { name: 'Back to the cover' }).click();
   await expect(page.locator('.ls')).not.toHaveClass(/panel-open/);

@@ -597,9 +597,14 @@ internal fun thumbsDown(app: App, t: Track) {
 internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val ud = app.userData
     val items = ArrayList<SheetItem>()
-    items += SheetItem("New playlist...", Glyph.PLUS) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added “${t.title}” to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
+    // on the kit (owner, 26 Nov: the old list was outdated): New playlist first, then each playlist as a list row with its cover and its size;
+    // one that already has the song says so and is ticked
+    items += SheetItem("New playlist...", Glyph.PLUS, tile = true) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added “${t.title}” to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
     shownPlaylists(app).forEach { p ->
-        items += SheetItem(p.name, Glyph.LIST) {
+        // the cover from the first few songs only: this list is built on the tap that opens it
+        val cover = com.ipodemu.playback.BrowseTree.playlistCover(p.paths.asSequence().take(8).mapNotNull { app.library.resolve(it, ud.meta[it]) }.toList())
+        val has = t.path in p.paths
+        items += SheetItem(p.name, Glyph.LIST, selected = has, tile = true, art = cover, detail = if (p.paths.size == 1) "1 song" else "${p.paths.size} songs") {
             if (p.paths.any { it == t.path || app.library.resolve(it, ud.meta[it])?.let { r -> r.matchKey == t.matchKey } == true }) app.ui.say("“${t.title}” is already in ${p.name}", warn = true)
             else { ud.addToPlaylist(p.id, t.path); app.ui.say("Added “${t.title}” to ${p.name}", "Undo") { ud.removeFromPlaylist(p.id, t.path); app.ui.say("Removed “${t.title}” from ${p.name}") } }
         }

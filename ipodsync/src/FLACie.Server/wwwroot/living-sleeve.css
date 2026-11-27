@@ -806,3 +806,60 @@ body.np-open .dj-bar { display: none; }
   .ls-dock .ls-dock-l .ls-dbtn svg, .ls-dock .ls-dock-l .ls-more-btn svg, .ls-dock .ls-dock-l .ls-dbtn-wrap svg { width: 18px; height: 18px; }
   .ls-dock .ls-dock-l .ls-dbtn.on { background: color-mix(in srgb, var(--np-accent) 22%, transparent) !important; }
 }
+
+/* ==== 1g, Now Playing rearranged (owner, 26 Nov), as on Android (LivingSleeve.kt). One button shape: shuffle and repeat are the kit's rounded square of
+   glass (on: the cover's tone, its colour and a dot), on a phone and in the PC's transport. Phone upright: shuffle and repeat either side of the time,
+   so previous / play / next have their row alone and are big (car mode's feel, play the biggest; a step down on a short phone); the slots are
+   Lyrics · More · Info · Add (no Up next slot: swiping and the Up next line go there); the frame takes the height the rest leaves, centred, so the
+   spare room is above and below it rather than one band. The sizes beat the older DJ/mic squeezes further up, hence !important. ==== */
+.ls .ls-shuf, .ls .ls-rep { width: 48px !important; height: 48px; border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink-2); }
+.ls .ls-shuf.on, .ls .ls-rep.on { background: var(--tone); color: var(--np-accent); }
+.ls-peek { display: none; }
+@media (max-width: 760px) and (orientation: portrait) {
+  .ls .ls-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto;
+    column-gap: 14px; row-gap: clamp(8px, 1.4dvh, 16px); align-content: stretch; }
+  .ls .ls-transport { display: contents; }
+  .ls .ls-art { grid-area: 1 / 1 / 2 / -1; place-items: center; margin: 0; }
+  .ls .ls-frame { width: min(100cqw, 100cqh); }
+  .ls .ls-cover { width: calc(min(100cqw, 100cqh) - 2 * var(--frame)); align-self: center; margin-bottom: 0; }
+  .ls .ls-times { grid-area: 2 / 2; align-self: center; margin: 0; }
+  .ls .ls-shuf { grid-area: 2 / 1; justify-self: start; align-self: center; }
+  .ls .ls-rep { grid-area: 2 / 3; justify-self: end; align-self: center; }
+  .ls .ls-title { grid-area: 3 / 1 / 4 / -1; }
+  .ls .ls-prev { grid-area: 4 / 1; justify-self: end; }
+  .ls .ls-ring { grid-area: 4 / 2; justify-self: center; }
+  .ls .ls-next { grid-area: 4 / 3; justify-self: start; }
+  .ls .ls-actions { grid-area: 5 / 1 / 6 / -1; margin: 0; }
+  .ls .ls-actions .ls-add { flex: .75 1 0; }
+  .ls .ls-pillbtn { width: 84px !important; height: 64px; border-radius: var(--k-r-slot); }
+  .ls .ls-pillbtn svg { width: 28px; height: 28px; }
+  .ls .ls-ring { width: 112px !important; height: 72px !important; border-radius: var(--k-r-slot); }
+  .ls .ls-play { width: 112px !important; height: 72px !important; margin: -36px 0 0 -56px !important; border-radius: var(--k-r-slot); }
+  .ls .ls-play svg { width: 38px; height: 38px; }
+  /* the next song in play order, in the band at the foot kept clear of main controls (the home gesture's); the first-run tip has it first */
+  .ls .ls-peek { display: flex; align-items: center; gap: 12px; position: absolute; left: 24px; right: 24px; bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); z-index: 2;
+    min-height: 52px; box-sizing: border-box; padding: 6px 12px 6px 8px; border: 0; border-radius: 14px; background: #f4efe612; color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+  .ls-peek .cover { flex: none; width: 36px; height: 36px; border-radius: 7px; overflow: hidden; }
+  .ls-peek > span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+  .ls-peek small { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+  .ls-peek b { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ls-peek > svg { flex: none; opacity: .7; }
+  .ls-stage:has(.ls-tip:not([hidden])) .ls-peek { display: none; }
+  /* the lyrics start near the top of the sheet and end near its foot (a fifth of the sheet was empty above them) */
+  .ls .ls-lyrics { padding: 4vh 0 14vh; }
+}
+@media (max-width: 760px) and (orientation: portrait) and (max-height: 760px) {
+  .ls .ls-pillbtn { width: 68px !important; height: 56px; }
+  .ls .ls-pillbtn svg { width: 24px; height: 24px; }
+  .ls .ls-ring { width: 88px !important; height: 60px !important; }
+  .ls .ls-play { width: 88px !important; height: 60px !important; margin: -30px 0 0 -44px !important; }
+  .ls .ls-play svg { width: 32px; height: 32px; }
+}
+/* PC: every dock button the same rounded rectangle of glass, 52 tall, as the left side's worded ones (right side square, words only where they fit) */
+@media (min-width: 1200px) {
+  .ls .ls-shuf, .ls .ls-rep { width: 52px !important; height: 52px; }
+  .ls-dock .ls-tiles .ls-dbtn, .ls-dock .ls-tiles .ls-dbtn-wrap > button, .ls-dock .ls-tiles .ls-dbtn-wrap .icon-btn, .ls-dock .ls-tile-eq .chipbtn {
+    width: 52px !important; min-width: 52px !important; height: 52px !important; border-radius: var(--k-r-btn) !important; background: var(--k-glass) !important; color: var(--ink) !important; }
+  .ls-dock .ls-tiles .ls-dbtn.on, .ls-dock .ls-tiles .ls-dbtn-wrap .on, .ls-dock .ls-tile-eq .chip-menu.on > .chipbtn { color: var(--np-accent) !important; }
+  .ls-tiles .ls-volpill { height: 52px; border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink); }
+}

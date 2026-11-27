@@ -272,9 +272,10 @@ test.describe('the full-screen player bar on a PC', () => {
     await expect(page.locator('.ls-dock-l .ls-dj')).toBeVisible(); await expect(page.locator('.ls-dock-r .ls-dock-mic button')).toBeVisible();
     const lw = (await page.locator('.ls-dock-l').boundingBox())!.width, rw = (await page.locator('.ls-tiles').boundingBox())!.width;
     expect(Math.abs(lw - rw)).toBeLessThan(60);
-    const sizes = await page.locator('.ls-dock-l > button, .ls-dock-mic button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => Math.round(e.getBoundingClientRect().height)));
-    expect(sizes.length).toBeGreaterThanOrEqual(5);
-    for (const h of sizes) expect(h).toBe(48);
+    // one button shape, big by default (owner, 26 Nov): both sides and shuffle / repeat in the transport are the kit's 52 px rounded rectangle
+    const sizes = await page.locator('.ls-dock-l > button, .ls-dock-mic button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn, .ls-transport .ls-shuf, .ls-transport .ls-rep').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => { const s = getComputedStyle(e); return [Math.round(e.getBoundingClientRect().height), s.borderTopLeftRadius]; }));
+    expect(sizes.length).toBeGreaterThanOrEqual(7);
+    for (const [h, r] of sizes) { expect(h).toBe(52); expect(r).toBe('16px'); }
     // the top bar holds only close, where it plays from and Retro
     await expect(page.locator('.ls-top .ls-toolset')).toHaveCount(0);
     // More opens upwards, fully on screen

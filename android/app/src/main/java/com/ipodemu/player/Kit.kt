@@ -505,7 +505,8 @@ fun Sheet(
                             Label(item.group, Modifier.padding(start = 24.dp, top = 14.dp, bottom = 4.dp).semantics { heading() }, color = colours.dim)
                         }
                         val on = item.selected
-                        Row(
+                        if (item.tile) SheetTileRow(item, colours, Modifier.then(if (i == 0 && focusFirst) Modifier.focusRequester(first) else Modifier)) { onPick(item) }
+                        else Row(
                             Modifier.fillMaxWidth().heightIn(min = 56.dp)
                                 .then(if (i == 0 && focusFirst) Modifier.focusRequester(first) else Modifier)
                                 .semantics(mergeDescendants = true) { role = Role.Button; if (on) stateDescription = "Selected" }
@@ -522,6 +523,28 @@ fun Sheet(
                 }
             }
         }
+    }
+}
+
+/** A sheet row drawn as the kit's list row (the playlist picker): the cover or the glyph on a glass square, the name over a Small line. */
+@Composable
+private fun SheetTileRow(item: SheetItem, colours: SheetColours, modifier: Modifier, onClick: () -> Unit) {
+    val z = kitSizes()
+    Row(
+        modifier.fillMaxWidth().heightIn(min = z.row).semantics(mergeDescendants = true) { role = Role.Button }.clickable(onClick = onClick)
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        if (item.art != null) ArtImage(item.art, Modifier.size(z.cover), thumb = true, corner = z.coverR)
+        else Box(
+            Modifier.size(z.cover).clip(RoundedCornerShape(z.coverR)).background(Kit.glassFill).border(1.dp, Kit.glassRim, RoundedCornerShape(z.coverR)),
+            contentAlignment = Alignment.Center,
+        ) { GlyphIcon(item.glyph, Modifier.size(22.dp), if (item.glyph == Glyph.PLUS) colours.accent() else colours.dim) }
+        Column(Modifier.weight(1f)) {
+            Body(item.label, color = colours.ink, weight = FontWeight.SemiBold, maxLines = 2)
+            if (!item.detail.isNullOrEmpty()) Small(item.detail, color = colours.dim)
+        }
+        if (item.selected) GlyphIcon(Glyph.CHECK, Modifier.size(20.dp), colours.accent())
     }
 }
 

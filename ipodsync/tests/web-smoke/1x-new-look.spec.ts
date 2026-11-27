@@ -275,12 +275,38 @@ test.describe('the full-screen player bar on a PC', () => {
     // no seek bar in the bar ("remove the mini seek bar": the frame round the cover is the seek bar)
     await expect(page.locator('.ls-dock input[type=range][aria-label="Seek"]')).toHaveCount(0);
     await expect(page.locator('.ls-dock-l .ls-dj')).toBeVisible(); await expect(page.locator('.ls-dock-r .ls-dock-mic button')).toBeVisible();
-    const lw = (await page.locator('.ls-dock-l').boundingBox())!.width, rw = (await page.locator('.ls-tiles').boundingBox())!.width;
-    expect(Math.abs(lw - rw)).toBeLessThan(60);
-    // one button shape, big by default (owner, 26 Nov): both sides and shuffle / repeat in the transport are the kit's 52 px rounded rectangle
-    const sizes = await page.locator('.ls-dock-l > button, .ls-dock-mic button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn, .ls-transport .ls-shuf, .ls-transport .ls-rep').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => { const s = getComputedStyle(e); return [Math.round(e.getBoundingClientRect().height), s.borderTopLeftRadius]; }));
-    expect(sizes.length).toBeGreaterThanOrEqual(7);
-    for (const [h, r] of sizes) { expect(h).toBe(52); expect(r).toBe('16px'); }
+    // the even dock (owner, 27 Nov: "make it even"): the left (5 slots) and the right (3 slots and the volume, two slots wide) are the same width
+    // (measured over the buttons themselves: the groups' boxes can be a few px wider than what is drawn in them)
+    const extent = (sel: string) => page.evaluate((s) => { const rs = [...document.querySelectorAll(s)].map((e) => e.getBoundingClientRect()).filter((r) => r.width > 0);
+      return { l: Math.min(...rs.map((r) => r.left)), r: Math.max(...rs.map((r) => r.right)) }; }, sel);
+    const lg = await extent('.ls-dock-l > *, .ls-dock-l .devpick'), rg = await extent('.ls-tiles > *, .ls-tiles .eq-menu, .ls-tiles .dj-mic');
+    expect(Math.abs((lg.r - lg.l) - (rg.r - rg.l))).toBeLessThanOrEqual(2);
+    // every dock button is the same slot: one width, the kit's slot height (60) and corner (18), its word under the icon; shuffle and repeat in the
+    // transport are slot-tall squares, previous / play / next slot-tall too
+    const slots = await page.locator('.ls-dock-l > button, .ls-dock-l .devpick button, .ls-dock-mic button, .ls-dock .np-more.d .ls-more-btn, .ls-tiles > button, .ls-tiles .eq-menu .chipbtn').evaluateAll((els) => els.filter((e) => (e as HTMLElement).offsetParent).map((e) => {
+      const r = e.getBoundingClientRect(), ic = e.querySelector('svg')!.getBoundingClientRect(), word = [...e.querySelectorAll('span')].find((s) => (s as HTMLElement).offsetParent && s.textContent!.trim());
+      return { n: e.getAttribute('aria-label'), w: Math.round(r.width), h: Math.round(r.height), r: getComputedStyle(e).borderTopLeftRadius, x: r.left, right: r.right, word: word ? word.getBoundingClientRect().top >= ic.bottom - 1 : false };
+    }));
+    expect(slots.length).toBe(8);
+    for (const s of slots) { expect(s.w, s.n!).toBe(slots[0].w); expect(s.h, s.n!).toBe(60); expect(s.r, s.n!).toBe('18px'); expect(s.word, `${s.n} has its word under the icon`).toBe(true); }
+    const vol = (await page.locator('.ls-tiles .ls-volpill').boundingBox())!;
+    expect(Math.round(vol.height)).toBe(60);
+    await expect(page.locator('.ls-tiles .ls-volpill-word')).toHaveText('Volume');
+    // the gaps are all the same, on both sides
+    const lefts = slots.filter((s) => s.right <= vol.x).sort((a, b) => a.x - b.x);
+    const gaps = lefts.slice(1).map((s, i) => Math.round(s.x - lefts[i].right));
+    gaps.push(Math.round(vol.x - lefts[lefts.length - 1].right));
+    const inGroups = gaps.filter((g) => g < 100);   // (not the one across the transport)
+    expect(inGroups).toHaveLength(gaps.length - 1);
+    for (const g of inGroups) expect(Math.abs(g - gaps[0])).toBeLessThanOrEqual(1);
+    expect(Math.abs(vol.width - (2 * slots[0].w + gaps[0]))).toBeLessThanOrEqual(1);
+    // balanced round the transport: as far from its left as the right group is from its right
+    const tr = (await page.locator('.ls-transport').boundingBox())!;
+    expect(Math.abs((tr.x - lg.r) - (rg.l - (tr.x + tr.width)))).toBeLessThanOrEqual(3);
+    const transport = await page.locator('.ls-transport .ls-shuf, .ls-transport .ls-rep, .ls-transport .ls-pillbtn, .ls-transport .ls-play').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+    expect(transport).toHaveLength(5);
+    for (const [, h] of transport) expect(h).toBe(60);
+    expect(transport[0][0]).toBe(60); expect(transport[4][0]).toBe(60);   // shuffle and repeat are squares
     // the top bar holds only close, where it plays from and Retro
     await expect(page.locator('.ls-top .ls-toolset')).toHaveCount(0);
     // More opens upwards, fully on screen

@@ -1908,7 +1908,7 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
             if (playlistId != null && djKey != null && app.player.djAvailable) PlaylistDjChip(djKey, slot = Modifier.weight(1f), accent = look.accent)
             if (isList && tracks.isNotEmpty()) ToolSlot("Share", Glyph.SHARE, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
             // its own page, so it is plain you are editing (owner, 26 Nov: "I didn't even know that was edit mode")
-            if (kind == "Playlist" && playlistId != null && tracks.isNotEmpty()) ToolSlot("Edit", Glyph.LIST, { nav.push(Screen.EditPlaylist(playlistId)) }, Modifier.weight(1f))
+            if (kind == "Playlist" && playlistId != null && tracks.isNotEmpty()) ToolSlot("Edit", Glyph.PENCIL, { nav.push(Screen.EditPlaylist(playlistId)) }, Modifier.weight(1f))
             // no More: Rename, Remove duplicates and Delete are on the Edit page (owner, 26 Nov)
             if (playlistId != null && !(kind == "Playlist" && tracks.isNotEmpty())) ToolSlot("More", Glyph.MORE, { nav.sheet = playlistMoreSheet(app, nav, title, playlistId, tracks, withShare = false) }, Modifier.weight(1f))
             // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
@@ -3237,14 +3237,15 @@ private fun EditPlaylistScreen(id: String, nav: PlayerNav, snap: PlayerSnap) {
                 val (k, t) = kt
                 val dragging = k == dragKey
                 val done = app.offline.peek(t.path)?.state == com.ipodemu.library.offline.OfflineState.DONE
+                // the kit's song row: a 52 cover, the title over artist · album (as the web's Edit page); dragging lifts it (bigger, a shadow)
                 Row(Modifier.fillMaxWidth().zIndex(if (dragging) 1f else 0f)
-                    .graphicsLayer { translationY = if (dragging) dragDy else 0f; shadowElevation = if (dragging) 16f else 0f }
-                    .background(if (dragging) sc.onBg.copy(alpha = .08f) else Color.Transparent, RoundedCornerShape(12.dp))
+                    .graphicsLayer { translationY = if (dragging) dragDy else 0f; shadowElevation = if (dragging) 24f else 0f; val s = if (dragging) 1.02f else 1f; scaleX = s; scaleY = s }
+                    .background(if (dragging) sc.onBg.copy(alpha = .1f) else Color.Transparent, RoundedCornerShape(Kit.rButtonSmall))
                     .onSizeChanged { rowH = it.height.toFloat() }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    ArtImage(t.artKey, Modifier.size(44.dp), corner = 8.dp)
+                    ArtImage(t.artKey, Modifier.size(52.dp), corner = 10.dp)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                        Txt(t.title, size = 15.5f, weight = FontWeight.SemiBold, maxLines = 1)
-                        Txt(t.artist, size = 13f, color = sc.onBgDim, maxLines = 1)
+                        Txt(t.title, size = 16f, weight = FontWeight.SemiBold, maxLines = 1)
+                        Txt(listOf(t.artist, t.album).filter { it.isNotBlank() }.joinToString(" · "), size = 14f, color = sc.onBgDim, maxLines = 1)
                     }
                     PlaylistEditButtons(downloaded = done, handle = Modifier.pointerInput(k) {
                         detectDragGestures(

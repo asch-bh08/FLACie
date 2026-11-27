@@ -108,6 +108,8 @@ enum class Glyph {
     /** The same marks as the web's icons (owner, 12 Nov: "consistent across all platforms"): the equaliser (upright sliders), the sleep timer (a moon),
      *  server admin (a shield), signing out (an arrow out of a door). */
     EQ, MOON, SHIELD, LOGOUT,
+    /** Edit (a playlist): a pencil, as the web's "pencil" icon (owner, 27 Nov); the ≡ lines read as "a list". Last, so stored ordinals keep their meaning. */
+    PENCIL,
 }
 
 @Composable
@@ -250,6 +252,12 @@ fun DrawScope.drawGlyph(g: Glyph, c: Color) {
             drawPath(path { moveTo(x(.42f), y(.14f)); lineTo(x(.2f), y(.14f)); lineTo(x(.2f), y(.86f)); lineTo(x(.42f), y(.86f)) }, c, style = line)
             drawLine(c, Offset(x(.4f), y(.5f)), Offset(x(.86f), y(.5f)), w, StrokeCap.Round)
             drawPath(path { moveTo(x(.7f), y(.34f)); lineTo(x(.86f), y(.5f)); lineTo(x(.7f), y(.66f)) }, c, style = line)
+        }
+        Glyph.PENCIL -> {
+            // the body from the tip (lower left) to the cap (upper right), a line across where the cap starts
+            drawPath(path { moveTo(x(.18f), y(.82f)); lineTo(x(.24f), y(.6f)); lineTo(x(.66f), y(.18f)); cubicTo(x(.7f), y(.14f), x(.86f), y(.3f), x(.82f), y(.34f))
+                lineTo(x(.4f), y(.76f)); close() }, c, style = line)
+            drawLine(c, Offset(x(.58f), y(.26f)), Offset(x(.74f), y(.42f)), w, StrokeCap.Round)
         }
         Glyph.CAR -> {
             drawPath(path { moveTo(x(.22f), y(.48f)); lineTo(x(.3f), y(.26f)); lineTo(x(.7f), y(.26f)); lineTo(x(.78f), y(.48f)) }, c, style = line)

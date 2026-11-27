@@ -607,18 +607,16 @@ private fun SleeveTimeRow(snap: PlayerSnap, p: SleevePalette, modifier: Modifier
     }
 }
 
-/** Shuffle or repeat: a 48 dp rounded square of glass; on, it takes the cover's tone, the icon its colour and a dot under it (more than colour). */
+/** Shuffle or repeat: a 48 dp rounded square of glass; on, it is lit: a fill tinted with the cover's colour and the icon in it (no dot: owner, 27 Nov,
+ *  "the little dot looks weird"; the web does the same). Repeat one keeps its "1" glyph. */
 @Composable
 private fun SleeveToggle(g: Glyph, label: String, on: Boolean, p: SleevePalette, onClick: () -> Unit) {
     val shape = RoundedCornerShape(Kit.rButtonSmall)
     Box(
-        Modifier.size(NowPlayingFit.ROUND.dp).clip(shape).drawBehind { drawRect(if (on) p.tone.value else Glass) }.focusRing(shape)
+        Modifier.size(NowPlayingFit.ROUND.dp).clip(shape).drawBehind { drawRect(if (on) p.main.value.copy(alpha = .22f) else Glass) }.focusRing(shape)
             .semantics { contentDescription = label; role = Role.Button }.clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
-    ) {
-        GlyphIcon(g, Modifier.size(22.dp), if (on) p.main.value else InkDim)
-        if (on) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(4.dp).clip(CircleShape).drawBehind { drawRect(p.main.value) })
-    }
+    ) { GlyphIcon(g, Modifier.size(22.dp), if (on) p.main.value else InkDim) }
 }
 
 /** The DJ button at the left of the controls: the icon in the cover's colour while the DJ is on for this queue, dim when off; a long press opens its settings. */

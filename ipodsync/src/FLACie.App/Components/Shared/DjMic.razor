@@ -10,12 +10,14 @@
     <button type="button" class="@Class dj-mic @(listening ? "on listening" : conversing ? "on" : "") @(busy ? "busy" : "")" @onclick="Press" @onclick:stopPropagation="true"
             aria-label="@(listening ? "Listening. Press to stop" : busy ? "Thinking…" : conversing ? "Talking with the DJ. Press to stop" : "Talk to the DJ")" aria-pressed="@(listening ? "true" : "false")"
             title="@(listening ? "Listening… press again to stop" : "Talk to the DJ: “play my pop playlist”, “something chill”, “what's this song?”")" data-testid="dj-mic">
-        <Icon Name="mic" Size="@Size" />
+        <Icon Name="mic" Size="@Size" />@if (Word is not null) { <span>@Word</span> }
     </button>
 }
 @code {
     [Parameter] public string Class { get; set; } = "ls-plain";
     [Parameter] public int Size { get; set; } = 22;
+    /// <summary>The word under the icon where the mic is a slot (Now Playing's bar on a PC: "Mic").</summary>
+    [Parameter] public string? Word { get; set; }
     /// <summary>Words that are not a request to the DJ go here (the search box); without it, everything is a request.</summary>
     [Parameter] public EventCallback<string> OnHeard { get; set; }
     [Inject] Toasts Toast { get; set; } = default!;

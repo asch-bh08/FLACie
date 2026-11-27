@@ -35,13 +35,24 @@ else
         @if (tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null) is { } washKey) { <div class="pl-wash" aria-hidden="true"><Cover ArtKey="@washKey" /></div> }
         <div class="pl-hero-text">
             <p class="eyebrow">Playlist</p>
-            @{ var (head, last) = SplitTitle(p.Name); }<h1>@head<i>@last</i></h1>
+            @if (renaming)
+            {
+                <form class="pl-rename" @onsubmit="() => Rename(p)">
+                    <input @bind="newName" @bind:event="oninput" aria-label="Playlist name" maxlength="80" />
+                    <button class="btn primary" type="submit" disabled="@(newName.Trim().Length == 0)">Save</button>
+                    <button class="btn" type="button" @onclick="() => renaming = false">Cancel</button>
+                </form>
+            }
+            else
+            {
+                var (head, last) = SplitTitle(p.Name); <h1>@head<i>@last</i></h1>
+            }
             <p class="sub pl-facts">@tracks.Count @(tracks.Count == 1 ? "song" : "songs")@(Length(tracks) is { Length: > 0 } len ? " · " + len : "")@(tracks.Count < p.Entries.Count ? $" ({p.Entries.Count - tracks.Count} not in this library)" : "")@(waiting is { Count: > 0 } ? $" · {waiting.Count} still to come" : "")</p>
             <div class="chips">
                 <button class="btn primary pl-play" @onclick="() => Player.PlayInOrder(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="play" Size="18" />Play</button>
                 <button class="btn pl-shuffle" @onclick="() => Player.ShuffleAll(tracks, p.Name, DjSwitches.KeyOf(p))" disabled="@(tracks.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle</button>
-                @* the quieter actions: one row of equal rounded slots, the icon over its word, as the phone's ToolSlot (owner, 26 Nov). No More here:
-                   Rename, Remove duplicates and Delete are on the Edit page, where a second click on the playlist can't land on them *@
+                @* the quieter actions: one row of equal rounded slots, the icon over its word, as the phone's ToolSlot (owner, 26 Nov). Rename, Remove
+                   duplicates and Delete are on the Edit page; a PC has the room for them one tap away in More too (owner, 27 Nov), a phone keeps four slots *@
                 <div class="pl-tools">
                 @* a button like the others, not an underlined link (owner, 25 Nov); the web downloads per import, not per playlist *@
                 @if (imp is { } im2) { <Slot Class="btn pl-tool pl-slot pl-downloads" Href="@($"/imports/{im2.JobId}/downloads")" data-testid="pl-downloads" Title="This playlist's downloads: what came in, what is still to come" Icon="download" Label="Downloads" /> }
@@ -52,7 +63,28 @@ else
                     <Slot Class="@($"btn pl-tool pl-slot pl-dj {(djChoice is null ? "" : "set")}")" OnClick="() => CycleDj(p)" Title="DJ on this playlist. Auto follows your DJ settings; On or Off is kept for this playlist. Tap to change." Icon="dj" Label="@($"DJ: {DjSwitches.Label(djChoice)}")" />
                 }
                 <Slot Class="btn pl-tool pl-slot" Disabled="@(tracks.Count == 0)" OnClick='() => Sharing.ShareAsync(Session, "playlist", p.Name, tracks)' Icon="share" Label="Share" />
-                <Slot Class="btn pl-tool pl-slot pl-edit" Href="@($"/playlist/{p.Id}/edit")" Icon="lines" Label="Edit" />
+                <Slot Class="btn pl-tool pl-slot pl-edit" Href="@($"/playlist/{p.Id}/edit")" Icon="pencil" Label="Edit" />
+                <div class="pl-more pl-more-slot">
+                    <Slot Class="btn pl-tool pl-slot" OnClick="ToggleMore" Icon="more" Label="More" aria-label="More for this playlist" aria-haspopup="menu" aria-expanded="@(more ? "true" : "false")" />
+                    @if (more)
+                    {
+                        <div class="menu pl-menu" role="menu" aria-label="More for this playlist">
+                            @if (confirm)
+                            {
+                                @* the same words as the Edit page and the phone: it asks first *@
+                                <p class="pl-ask" role="alert">Delete “@p.Name”?</p>
+                                <button role="menuitem" class="danger" @onclick="() => Delete(p)">Delete</button>
+                                <button role="menuitem" @onclick="() => confirm = false">Keep it</button>
+                            }
+                            else
+                            {
+                                <button role="menuitem" @onclick="() => StartRename(p)"><Icon Name="pencil" Size="18" />Rename</button>
+                                <button role="menuitem" disabled="@(p.Entries.Count < 2)" @onclick="() => Dedupe(p)"><Icon Name="check" Size="18" />Remove duplicates</button>
+                                <button role="menuitem" class="danger" @onclick="() => confirm = true"><Icon Name="x" Size="18" />Delete playlist</button>
+                            }
+                        </div>
+                    }
+                </div>
                 </div>
             </div>
         </div>
@@ -88,6 +120,27 @@ else
     [Inject] IJSRuntime Js { get; set; } = default!;
     [Inject] Sharing Sharing { get; set; } = default!;
     [Inject] Toasts Toast { get; set; } = default!;
+    // the PC's More (Rename, Remove duplicates, Delete): closes on a click outside it or Escape (flacie.watchOutside calls Dismiss)
+    bool more, confirm, renaming; string newName = "";
+    DotNetObjectReference<Playlist>? self;
+    async Task ToggleMore()
+    {
+        more = !more; confirm = false;
+        self ??= DotNetObjectReference.Create(this);
+        try { if (more) await Js.InvokeVoidAsync("flacie.watchOutside", ".pl-more-slot", self); else await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { }
+    }
+    [JSInvokable] public void Dismiss() => InvokeAsync(() => { more = false; confirm = false; StateHasChanged(); });
+    async Task CloseMore() { more = false; confirm = false; try { await Js.InvokeVoidAsync("flacie.unwatchOutside"); } catch (Exception) { } }
+    async Task StartRename(FLACie.Core.Playlist p) { await CloseMore(); newName = p.Name; renaming = true; }
+    void Rename(FLACie.Core.Playlist p) { var n = newName.Trim(); if (n.Length > 0) { Session.RenamePlaylist(p.Id, n); SaveProfile(); } renaming = false; }
+    async Task Dedupe(FLACie.Core.Playlist p)
+    {
+        await CloseMore();
+        var n = Session.RemoveDuplicates(p.Id);
+        if (n > 0) SaveProfile();
+        Toast.Show(n == 0 ? "No duplicates in this playlist" : $"Removed {n} duplicate{(n == 1 ? "" : "s")}");
+    }
+    async Task Delete(FLACie.Core.Playlist p) { await CloseMore(); Session.DeletePlaylist(p.Id); SaveProfile(); Nav.NavigateTo("/playlists"); }
     // the last word goes in italics, whatever the name is
     static (string, string) SplitTitle(string n) { n = n.Trim(); var i = n.LastIndexOf(' '); return i < 0 ? ("", n) : (n[..(i + 1)], n[(i + 1)..]); }
     static string Length(IReadOnlyList<Track> ts) { var m = (int)(ts.Sum(t => t.DurationMs) / 60000); return m <= 0 ? "" : m >= 60 ? $"{m / 60} h {m % 60} min" : $"{m} min"; }
@@ -112,7 +165,7 @@ else
     void Retry(WaitingSong w) { Downloads.Song(Session, new CatalogSong(w.Artist, w.Title, "", null, 0, 0, 0), kind: "Import"); StateHasChanged(); }
     protected override async Task OnInitializedAsync() { await base.OnInitializedAsync(); Downloads.Subscribe(Session, OnJobs); }
     void OnJobs() => InvokeAsync(StateHasChanged);
-    public override void Dispose() { if (Session is not null) Downloads.Unsubscribe(Session, OnJobs); base.Dispose(); }
+    public override void Dispose() { self?.Dispose(); if (Session is not null) Downloads.Unsubscribe(Session, OnJobs); base.Dispose(); }
     [Inject] IDownloads Downloads { get; set; } = default!;
     static string Key(PlaylistEntry e) => Matching.MatchKey(e.Title, e.Artist);
     void Get(IReadOnlyCollection<PlaylistEntry> entries)

@@ -8,7 +8,7 @@
         <div class="bar" @onclick="Open">
             <button class="bar-song" data-np @key="t.Path" @onclick="Open" @onclick:stopPropagation="true" aria-label="Open Now Playing">
                 <Cover ArtKey="@(Art.KeyFor(t))" Size="52" Eager="true" />
-                <span class="bar-text"><b>@Title(Lib.DisplayTitle(t))</b><small>@t.Artist</small>@if (chip is { Length: > 0 }) { <span class="bar-chip">@chip</span> }<DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
+                <span class="bar-text"><b>@Title(Lib.DisplayTitle(t))</b><small>@t.Artist</small>@if (chip is { Length: > 0 }) { <span class="bar-chip @(chip.StartsWith("Hi-Res") ? "hires" : "")">@chip</span> }<DownloadTag Session="Session" Artist="@t.Artist" Title="@t.Title" Track="t" /></span>
             </button>
             <div class="bar-controls">
                 <div class="buttons" @onclick:stopPropagation="true">

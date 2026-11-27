@@ -221,8 +221,9 @@
            its middle. Phone: the bar is not drawn; its rating, speed, sleep and sound buttons open from the top bar's Options as before *@
         <footer class="ls-dock">
             @* PC (owner, 12 Nov: "make the now playing controls similar to the player bar on the home screen, the same features"; "the right side buttons
-               bigger than the left and uneven pisses me off"): the same round buttons on both sides at one size, the transport in the middle (the frame round the
-               cover is the seek bar: owner, 12 Nov: "remove the mini seek bar"). Left: more, add, share, devices, the DJ. Right: the mic, favourite, EQ, the volume *@
+               bigger than the left and uneven pisses me off"): the same slots on both sides, the transport in the middle (the frame round the
+               cover is the seek bar: owner, 12 Nov: "remove the mini seek bar"). Left: more, add, share, devices, the DJ. Right: the mic, favourite, EQ, the volume.
+               From 1200 wide every slot has its word under the icon and the volume is two slots wide, so the two sides are the same width (owner, 27 Nov) *@
             <div class="ls-dock-l">
                 @* More first and the DJ last, beside the transport (owner, 12 Nov: "swap the DJ button and the three dots") *@
                 @MoreMenu("d", t)
@@ -240,8 +241,8 @@
                 @* the phone's Options pop-up (on a PC these sit in More and the tiles) *@
                 <div class="ls-toolset"><RatingMenu /><SpeedSleep /></div>
                 <div class="ls-tiles">
-                <span class="ls-dbtn-wrap ls-dock-mic"><DjMic Class="ls-dbtn" Size="22" /></span>
-                <button class="ls-dbtn ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="Favourite"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /></button>
+                <span class="ls-dbtn-wrap ls-dock-mic"><DjMic Class="ls-dbtn" Size="22" Word="Mic" /></span>
+                <button class="ls-dbtn ls-dock-heart @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="Favourite"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" Size="22" /><span>Favourite</span></button>
                 <div class="ls-tile-eq ls-dbtn-wrap"><EqMenu /></div>
                 <SoundTile />
                 </div>

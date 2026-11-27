@@ -82,6 +82,13 @@ Remove from playlist. Words: Favourites (never Favorites), "…" (one character)
   and the More menu/page needs redesigning. So every other page is a redesign, not a re-skin. Method for each page: put the web and the
   phone version side by side (parity page), take the better ideas of each, make them look the same, then fit each to its screen (phone:
   thumb reach, sheets, big main actions; PC: width, popovers, more visible at once). Now Playing, Home and Devices are the reference look.
+- 1g-2 Now Playing rethink (owner, 27 Nov on b146: "still bad"):
+  - the buttons look weird; there seems to be room for Shuffle and Repeat next to previous/play/next again, yet beside the time is not
+    right either: rethink their place (not just back in the row, not where they are now)
+  - Lyrics / Info: Shuffle/Repeat there look odd, the spare space is not used, and the seek bar is squashed: redo that layout
+  - unfolded (Fold inner / tablet / wide): the cover is too small with lots of wasted space: the cover should take the room
+  - the full-screen Info graphs: their buttons need a revamp (onto the kit, even, worded like the dock)
+  - method: mock 2-3 layouts side by side (phone tall, phone short, unfolded, PC) on the parity page before building, pick the best
 - Every page on every platform is in scope (web PC, web phone, Android, the Windows app's pages, Android Auto keeps its own car rules).
 
 - 1h Every screen size (owner, 26 Nov: "fits every aspect ratio, resolution, screen size"): one size list used by both checks — phones

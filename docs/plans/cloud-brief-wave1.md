@@ -17,6 +17,9 @@ You are the second Claude on this repo (see docs/waves/TEAM.md). The local Claud
 Owner rule for every page except Now Playing, Home and Devices: it is a REDESIGN. Put the web and phone versions side by side, take the
 better ideas of each, make them look the same, then fit each to its screen (phone: thumb reach, sheets, big main actions; PC: width).
 
+## Added 27 Nov (owner): 1g-2 Now Playing rethink is now yours too, LAST (after part 10): see one-app-overhaul.md part 1g-2.
+The do-not-touch list below stops applying to Now Playing for 1g-2 only (the local Claude is not working on it).
+
 ## Do not touch (the local Claude is on them now)
 PlayerBar.razor, NowPlaying.razor, living-sleeve.css, Playlist.razor, PlaylistEdit.razor, LivingSleeve.kt, PlaylistHeader /
 EditPlaylistScreen in PlayerUi.kt (branch polish-1127: dock evened out, no shuffle dot, pencil Edit, player bar revamp).

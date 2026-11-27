@@ -72,9 +72,9 @@ fun SyncSetupScreen() {
             }, primary = true)
 
             when {
-                lib.discoveringDevices -> Txt("Searching $host ...", size = 13f)
+                lib.discoveringDevices -> Txt("Searching $host…", size = 13f)
                 lib.syncError != null -> Txt(lib.syncError ?: "", size = 13f, color = Color(0xFFFF8080))
-                lib.syncing -> Txt("Loading library...", size = 13f)
+                lib.syncing -> Txt("Loading library…", size = 13f)
                 lib.lastSyncSearch != null && lib.syncDevices.isEmpty() -> Txt("No iPods found at ${lib.lastSyncSearch}", size = 13f)
             }
 

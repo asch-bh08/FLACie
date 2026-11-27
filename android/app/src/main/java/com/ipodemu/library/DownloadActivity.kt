@@ -18,7 +18,7 @@ object DownloadActivity {
             parts += if (fetching.size == 1) "Getting ${label.substringBefore(" · ")}" + (pc?.let { " · $it" } ?: "")
             else "Getting ${fetching.size} songs" + (pc?.let { " · $it" } ?: "")
         }
-        if (offlineLeft > 0) parts += "Saving ${if (offlineLeft == 1) "1 song" else "$offlineLeft songs"} for offline" + (if (offlinePercent >= 0 && fetching.isEmpty()) " · $offlinePercent%" else "")
+        if (offlineLeft > 0) parts += "Downloading ${if (offlineLeft == 1) "1 song" else "$offlineLeft songs"}" + (if (offlinePercent >= 0 && fetching.isEmpty()) " · $offlinePercent%" else "")
         return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
     }
 }

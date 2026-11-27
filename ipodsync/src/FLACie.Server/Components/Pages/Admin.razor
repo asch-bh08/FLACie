@@ -114,7 +114,7 @@ else
                                 <li><i class="dot on"></i><span><b>@u.DisplayName</b><small>@(u.Kind == "nas" ? "NAS sign-in" : "Jellyfin") · @u.Library.Songs.Count.ToString("N0") songs@(u.Loading ? " · loading the library" : "") · @devs device@(devs == 1 ? "" : "s") connected@(AdminAccess.Is(u, Conf) ? " · admin" : "")</small></span></li>
                             }
                         </ul>
-                        <p class="hint">An account is "on" while this server holds its session: from the moment it signs in until the server restarts or it signs out.</p>
+                        <p class="hint">An account is “on” while this server holds its session: from the moment it signs in until the server restarts or it signs out.</p>
                         break;
                     case "songs":
                         <h3>Your library</h3>
@@ -156,7 +156,7 @@ else
                                     <span class="feed-text"><b>@j.Label</b><small>@j.Kind · @u · @j.Message</small></span><time>@(j.Finished ? Ago(j.At) : "running")</time></li>
                             }
                         </ul>
-                        <p class="hint">"Search" is a song someone asked for, "Autoplay" is fetched ahead for a queue, "Import" comes from a playlist file and "Chart" from the daily charts and "Alexa" is a song asked for by voice. A running download is being searched for on Soulseek or Lidarr, then moved into the library.</p>
+                        <p class="hint">“Search” is a song someone asked for, “Autoplay” is fetched ahead for a queue, “Import” comes from a playlist file and “Chart” from the daily charts and “Alexa” is a song asked for by voice. A running download is being searched for on Soulseek or Lidarr, then moved into the library.</p>
                         break;
                     default:
                         <h3>Playlist imports</h3>
@@ -177,7 +177,7 @@ else
     @* F24: artist names fixed in Jellyfin: a dry-run list first; nothing is written until it is approved here; every change can be undone *@
     <section class="admin-block" aria-label="Artist names" data-testid="artist-fixes">
         @{ var pending = ArtistFixes.Pending; var applied = ArtistFixes.Done.Where(d => !d.Undone).ToList(); }
-        <div class="shelf-head"><div><h2>Artist names</h2><small>Songs tagged under the wrong artist ("Prodigy" for The Prodigy, "Eminem feat. Dido"), fixed in Jellyfin's own data so every app agrees. The music files are not changed.</small></div></div>
+        <div class="shelf-head"><div><h2>Artist names</h2><small>Songs tagged under the wrong artist (“Prodigy” for The Prodigy, “Eminem feat. Dido”), fixed in Jellyfin's own data so every app agrees. The music files are not changed.</small></div></div>
         <div class="row-actions">
             <button class="btn" disabled="@fixBusy" @onclick="PlanFixes">@(fixBusy ? "Checking… (asking MusicBrainz how names are written: a few minutes the first time)" : pending.Count > 0 ? "Check again" : "Check artist names")</button>
             @if (pending.Count > 0) { <button class="btn primary" disabled="@fixBusy" @onclick="ApproveFixes">Approve and fix @pending.Count @(pending.Count == 1 ? "song" : "songs") in Jellyfin</button> }
@@ -186,7 +186,7 @@ else
         @if (fixNote is not null) { <p class="hint" role="status">@fixNote</p> }
         @if (pending.Count > 0)
         {
-            <p class="hint">Dry run @(ArtistFixes.PlannedAt?.ToLocalTime().ToString("d MMM HH:mm")): nothing has been changed yet. "Leave as it is" takes that kind of change off the list, for songs added later too. Once approved, new songs (downloads and imports) are checked the same way every 15 minutes.</p>
+            <p class="hint">Dry run @(ArtistFixes.PlannedAt?.ToLocalTime().ToString("d MMM HH:mm")): nothing has been changed yet. “Leave as it is” takes that kind of change off the list, for songs added later too. Once approved, new songs (downloads and imports) are checked the same way every 15 minutes.</p>
             <ul class="admin-list">
                 @* every change, so the whole list can be read before approving (owner, 7 Nov: "I can only see like 20% of the list") *@
                 @foreach (var c in pending)
@@ -251,7 +251,7 @@ else
     @* songs filed under a playlist's name, shown with their own album (owner, 13 Nov): reviewed here, each can be taken back *@
     <section class="admin-block" aria-label="Album fixes" data-testid="album-fixes">
         @{ var fx = AlbumFixer.Fixed(); }
-        <div class="shelf-head"><div><h2>Album fixes</h2><small>@(fx.Count == 0 ? "No song shown with another album yet. Songs whose album is really a playlist's name (\"Pop Megahits\") are looked up twice a day" : $"{fx.Count} songs filed under a playlist's name show their own album and cover. Undo shows the file's own tags again (after the library is next read); the files are never changed")</small></div></div>
+        <div class="shelf-head"><div><h2>Album fixes</h2><small>@(fx.Count == 0 ? "No song shown with another album yet. Songs whose album is really a playlist's name (“Pop Megahits”) are looked up twice a day" : $"{fx.Count} songs filed under a playlist's name show their own album and cover. Undo shows the file's own tags again (after the library is next read); the files are never changed")</small></div></div>
         @if (fx.Count > 0)
         {
             <ul class="admin-list">
@@ -646,7 +646,7 @@ else
         var (said, used) = DjVoice.SoFar;
         var left = FLACie.Core.DjBudget.LinesLeft(DjVoice.Cap, used);
         return $"Today: {said} line{(said == 1 ? "" : "s")} said, {pct.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}% of the free allowance (cap {DjVoice.Current.CapPercent}%), roughly {left} more line{(left == 1 ? "" : "s")} left today"
-            + $" (about {FLACie.Core.DjBudget.HoursOfEverySong(left).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} h for a listener on \"Every song\", which uses about three times the lines of \"Often\")"
+            + $" (about {FLACie.Core.DjBudget.HoursOfEverySong(left).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)} h for a listener on “Every song”, which uses about three times the lines of “Often”)"
             + (DjVoice.LastModel.Length > 0 ? " · Model: " + DjVoice.LastModel.Split('/')[^1] : "");
     }
     bool djChecking;

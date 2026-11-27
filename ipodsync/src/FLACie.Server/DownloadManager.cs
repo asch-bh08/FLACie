@@ -244,7 +244,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
             log.Add(new DownloadRecord
             {
                 Id = Guid.NewGuid().ToString("N"), UserId = s.Id, UserName = s.DisplayName, Label = label, Title = title, Artist = artist, Kind = "Phone", StartedAt = at, FinishedAt = at,
-                Outcome = "done", Source = source, Message = $"\"{title}\" was downloaded on the phone", File = file, Album = album, DurationMs = durationMs,
+                Outcome = "done", Source = source, Message = $"“{title}” was downloaded on the phone", File = file, Album = album, DurationMs = durationMs,
                 ArtKey = track?.ArtKey,
             });
         }
@@ -299,7 +299,7 @@ public sealed class DownloadManager(IHttpClientFactory hf, WebCatalog catalog, D
         Run(s, job, async (c, on) =>
         {
             // Retry all can start dozens at once; slskd and the file mover time out when asked for that much together, so they go through three at a time
-            on(new(DownloadStage.Requested, "Waiting for its turn..."));
+            on(new(DownloadStage.Requested, "Waiting for its turn…"));
             await RetryTurn.WaitAsync();
             try { await c.DownloadAsync(r.Artist, r.Title, r.Album, r.ArtUrl, r.DurationMs, on); } finally { RetryTurn.Release(); }
         });

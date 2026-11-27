@@ -125,7 +125,7 @@ for (const size of [{ name: 'phone', width: 390, height: 844 }, { name: 'PC', wi
     await expect(page.locator('.pe-row')).toHaveCount(1);
     const foundEdit = await scan(page);
     await page.getByRole('button', { name: 'Delete playlist' }).click();
-    await page.getByRole('button', { name: /^Delete "/ }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await page.waitForURL(/\/playlists$/);
     expect(found).toEqual([]);
     expect(foundEdit).toEqual([]);

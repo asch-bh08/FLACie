@@ -5,7 +5,7 @@ import http from 'node:http';
 // downloads, which can tip one measurement over. One retry; a real failure fails twice.
 test.describe.configure({ retries: 1 });
 
-// "New download" labels and the download tags (beta 54): the small line under a song's artist ("Downloading · Searching Soulseek...", "Recently downloaded · 1s ago")
+// "New download" labels and the download tags (beta 54): the small line under a song's artist ("Downloading · Searching Soulseek…", "Recently downloaded · 1s ago")
 // in the player bar, Now Playing, the queue and every song list; the phone's POST /api/downloaded; the one hour window.
 //
 // A stand-in for the user's download stack runs inside this spec (port 8197): slskd (/slskd/api/v0/...) and the file mover (/fm/move, /fm/file). It has one song
@@ -366,12 +366,13 @@ test.describe.serial('download tags', () => {
     await page.setViewportSize({ width: 1280, height: 1000 });
     await openAlbum();
     await page.getByRole('button', { name: 'More for Lantern 12' }).click();
+    await page.getByRole('menuitem', { name: 'More…' }).click();
     await page.getByRole('menuitem', { name: /Hi-Res version/ }).click();
     await page.getByRole('button', { name: 'Download Hi-Res' }).click();
     const listTag = row('Lantern 12').locator('.dl-tag');
     await expect(listTag).toHaveText(/^Downloading · /, { timeout: 20_000 });
     // it reaches the point where it waits for the peer (the mock holds the transfer)
-    await expect(listTag).toHaveText('Downloading · Waiting for a peer...', { timeout: 40_000 });
+    await expect(listTag).toHaveText('Downloading · Waiting for a peer…', { timeout: 40_000 });
     await expect(row('Lantern 12').locator('.track-dl')).toHaveCount(1);
 
     // in the queue and, once it is the song playing, in the player card
@@ -379,22 +380,22 @@ test.describe.serial('download tags', () => {
     await expect(page.locator('.bar-text b')).toHaveText('Velvet 9', { timeout: 20_000 });
     await pause();
     await openNowPlaying();
-    await expect(qrow('Lantern 12').locator('.dl-tag')).toHaveText('Downloading · Waiting for a peer...');
+    await expect(qrow('Lantern 12').locator('.dl-tag')).toHaveText('Downloading · Waiting for a peer…');
     await qrow('Lantern 12').locator('.q-row').click();
     await pause();                                                       // the mock's songs are 3 seconds long
     await expect(page.locator('.ls-names h2')).toHaveText('Lantern 12', { timeout: 20_000 });
-    await expect(page.locator('.ls-names .dl-tag')).toHaveText('Downloading · Waiting for a peer...');
+    await expect(page.locator('.ls-names .dl-tag')).toHaveText('Downloading · Waiting for a peer…');
     await closeNowPlaying();
     await expect(page.locator('.bar-text b')).toHaveText('Lantern 12');
-    await expect(page.locator('.bar-text .dl-tag')).toHaveText('Downloading · Waiting for a peer...');
-    // under the artist, as for a Search result that says "Searching Soulseek..."
+    await expect(page.locator('.bar-text .dl-tag')).toHaveText('Downloading · Waiting for a peer…');
+    // under the artist, as for a Search result that says "Searching Soulseek…"
     expect(await page.locator('.bar-text small').first().innerText()).toBe('Brass Monkeys');
     const sub = await page.locator('.bar-text small').first().boundingBox(), tag = await page.locator('.bar-text .dl-tag').boundingBox();
     expect(tag!.y).toBeGreaterThanOrEqual(sub!.y + sub!.height - 1);
 
     // the transfer's own message already starts with "Downloading": it is shown as it is, the word is not said twice
     state.bytes = 10_000_000;
-    await expect(page.locator('.bar-text .dl-tag')).toHaveText('Downloading 33%...', { timeout: 30_000 });
+    await expect(page.locator('.bar-text .dl-tag')).toHaveText('Downloading 33%…', { timeout: 30_000 });
     expect(await page.locator('.bar-text .dl-tag').innerText()).not.toContain('Downloading · Downloading');
 
     // the transfer ends: the same song now says it was downloaded
@@ -490,10 +491,10 @@ test.describe.serial('download tags', () => {
     await expect(pending).toHaveCount(3, { timeout: 60_000 });
     await expect(page.locator('.upnext .q-divider', { hasText: 'Autoplay · up next after this' })).toBeVisible();
     for (const t of FETCH_ALL.slice(0, 3)) await expect(pending.filter({ has: page.locator('b', { hasText: new RegExp(`^${t}$`) }) }).locator('.dl-tag')).toHaveText(/^Downloading/);
-    for (let i = 0; i < 3; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText('Downloading · Waiting for a peer...', { timeout: 60_000 });
-    // a transfer's own "Downloading 33%..." is shown as it is
+    for (let i = 0; i < 3; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText('Downloading · Waiting for a peer…', { timeout: 60_000 });
+    // a transfer's own "Downloading 33%…" is shown as it is
     state.bytes = 10_000_000;
-    for (let i = 0; i < 3; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText('Downloading 33%...', { timeout: 30_000 });
+    for (let i = 0; i < 3; i++) await expect(pending.nth(i).locator('.dl-tag')).toHaveText('Downloading 33%…', { timeout: 30_000 });
     // they land: no placeholder is left, each is an ordinary row of the list with "Recently downloaded"
     state.release = true; state.bytes = 0;
     await expect(pending).toHaveCount(0, { timeout: 90_000 });

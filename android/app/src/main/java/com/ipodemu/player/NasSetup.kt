@@ -92,7 +92,7 @@ fun NasSetupScreen() {
             }, primary = true)
 
             when {
-                lib.nasConnecting -> Txt("Scanning $share ...", size = 13f)
+                lib.nasConnecting -> Txt("Scanning $share…", size = 13f)
                 lib.nasConnected -> Txt(lib.nasStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.nasStatus != null -> Txt(lib.nasStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }

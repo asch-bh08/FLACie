@@ -49,7 +49,7 @@ object DownloadGuard {
             fail("Something went wrong while downloading (${e.javaClass.simpleName}). Try again.")
             return
         }
-        if (timedOut) fail("Nothing happened for ${quietMs / 60_000L} minutes after \"${last.get()?.message ?: "starting"}\", so it was stopped. Try again.".replace("for 0 minutes", "for a while"))
+        if (timedOut) fail("Nothing happened for ${quietMs / 60_000L} minutes after “${last.get()?.message ?: "starting"}”, so it was stopped. Try again.".replace("for 0 minutes", "for a while"))
         else fail("The download stopped before it finished. Try again.")
     }
 }

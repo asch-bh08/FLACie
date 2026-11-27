@@ -45,8 +45,8 @@ class DownloadTagsTest {
     // ---- lookup precedence -----------------------------------------------------------------------------------------------------------------
 
     @Test fun aRunningJobBeatsEverything() {
-        val tag = DownloadTags.resolve(now, "Searching Soulseek...", finishedMs = now - 1_000, failedMs = now - 500, cloudAddedMs = now - 2_000)
-        assertEquals(DownloadTag.Downloading("Searching Soulseek..."), tag)
+        val tag = DownloadTags.resolve(now, "Searching Soulseek…", finishedMs = now - 1_000, failedMs = now - 500, cloudAddedMs = now - 2_000)
+        assertEquals(DownloadTag.Downloading("Searching Soulseek…"), tag)
     }
 
     @Test fun aFinishedDownloadBeatsTheCloudAddedTime() {
@@ -80,7 +80,7 @@ class DownloadTagsTest {
         assertEquals("Recently downloaded · 7s ago", DownloadTags.text(DownloadTag.Recent(now - 7_000), now))
         assertEquals("Recently downloaded · just now", DownloadTags.text(DownloadTag.Recent(now), now))
         assertEquals("Recently downloaded · 12 min ago", DownloadTags.text(DownloadTag.Recent(now - 12 * min), now))
-        assertEquals("Downloading · Searching Soulseek...", DownloadTags.text(DownloadTag.Downloading("Searching Soulseek..."), now))
+        assertEquals("Downloading · Searching Soulseek…", DownloadTags.text(DownloadTag.Downloading("Searching Soulseek…"), now))
         assertEquals("Downloading", DownloadTags.text(DownloadTag.Downloading(""), now))
         assertEquals("Couldn't download", DownloadTags.text(DownloadTag.Failed(now - min), now))
         assertNull(DownloadTags.text(DownloadTag.None, now))
@@ -103,9 +103,9 @@ class DownloadTagsTest {
     }
 
     @Test fun theRequestItselfReadsAsStarting() {
-        assertEquals("Starting...", DownloadTags.stageText(DownloadStage.REQUESTED, "Requested \"P\""))
-        assertEquals("Searching Soulseek...", DownloadTags.stageText(DownloadStage.SEARCHING, "Searching Soulseek..."))
-        assertEquals("Starting...", DownloadTags.stageText(DownloadStage.SEARCHING, " "))
+        assertEquals("Starting…", DownloadTags.stageText(DownloadStage.REQUESTED, "Requested “P”"))
+        assertEquals("Searching Soulseek…", DownloadTags.stageText(DownloadStage.SEARCHING, "Searching Soulseek…"))
+        assertEquals("Starting…", DownloadTags.stageText(DownloadStage.SEARCHING, " "))
     }
 
     // ---- the store, fed the way Library feeds it ----------------------------------------------------------------------------------------
@@ -117,13 +117,13 @@ class DownloadTagsTest {
         val s = DownloadTagStore()
         val key = matchKey("P", "JME")
         assertEquals(DownloadTag.None, s.statusOf(key, now))
-        s.onStatus(key, st(DownloadStage.REQUESTED, "Requested \"P\""), now)
-        assertEquals(DownloadTag.Downloading("Starting..."), s.statusOf(key, now))
-        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"), now + 1_000)
-        assertEquals(DownloadTag.Downloading("Searching Soulseek..."), s.statusOf(key, now + 1_000))
-        s.onStatus(key, st(DownloadStage.DOWNLOADING, "Downloading 42%...", "soulseek"), now + 5_000)
-        assertEquals(DownloadTag.Downloading("Downloading 42%..."), s.statusOf(key, now + 5_000))
-        s.onStatus(key, st(DownloadStage.DONE, "\"P\" is ready to play", "soulseek", tracks = listOf(track("P", "JME", TrackSource.CLOUD, now + 9_000))), now + 9_000)
+        s.onStatus(key, st(DownloadStage.REQUESTED, "Requested “P”"), now)
+        assertEquals(DownloadTag.Downloading("Starting…"), s.statusOf(key, now))
+        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek…", "soulseek"), now + 1_000)
+        assertEquals(DownloadTag.Downloading("Searching Soulseek…"), s.statusOf(key, now + 1_000))
+        s.onStatus(key, st(DownloadStage.DOWNLOADING, "Downloading 42%…", "soulseek"), now + 5_000)
+        assertEquals(DownloadTag.Downloading("Downloading 42%…"), s.statusOf(key, now + 5_000))
+        s.onStatus(key, st(DownloadStage.DONE, "“P” is ready to play", "soulseek", tracks = listOf(track("P", "JME", TrackSource.CLOUD, now + 9_000))), now + 9_000)
         assertEquals(DownloadTag.Recent(now + 9_000), s.statusOf(key, now + 10_000))
         assertEquals("Recently downloaded · just now", DownloadTags.text(s.statusOf(key, now + 10_000), now + 10_000))
         assertEquals("Recently downloaded · 6s ago", DownloadTags.text(s.statusOf(key, now + 15_000), now + 15_000))
@@ -133,19 +133,19 @@ class DownloadTagsTest {
 
     @Test fun aHadNothingNoteDoesNotReplaceTheStage() {
         val s = DownloadTagStore(); val key = matchKey("P", "JME")
-        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"), now)
+        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek…", "soulseek"), now)
         s.onStatus(key, st(DownloadStage.SEARCHING, "Soulseek had nothing it could finish", "soulseek", miss = true), now + 1)
-        assertEquals(DownloadTag.Downloading("Searching Soulseek..."), s.statusOf(key, now + 1))
+        assertEquals(DownloadTag.Downloading("Searching Soulseek…"), s.statusOf(key, now + 1))
     }
 
     @Test fun aFailedFetchIsTaggedForTheWindow() {
         val s = DownloadTagStore(); val key = matchKey("Song", "Artist")
-        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"), now)
+        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek…", "soulseek"), now)
         s.onStatus(key, st(DownloadStage.FAILED, "Not found on Soulseek"), now + 20_000)
         assertEquals(DownloadTag.Failed(now + 20_000), s.statusOf(key, now + 30_000))
         assertEquals(DownloadTag.None, s.statusOf(key, now + 20_000 + 60 * min))
         // retried: running again, then done
-        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek...", "soulseek"), now + 40_000)
+        s.onStatus(key, st(DownloadStage.SEARCHING, "Searching Soulseek…", "soulseek"), now + 40_000)
         assertTrue(s.statusOf(key, now + 41_000) is DownloadTag.Downloading)
         s.onStatus(key, st(DownloadStage.DONE, "ready", "soulseek"), now + 50_000)
         assertEquals(DownloadTag.Recent(now + 50_000), s.statusOf(key, now + 51_000))
@@ -154,8 +154,8 @@ class DownloadTagsTest {
     @Test fun anAlbumTagsEverySongItFiledAndNothingElse() {
         val s = DownloadTagStore()
         val songs = listOf(track("One", "Band", TrackSource.CLOUD, now), track("Two", "Band", TrackSource.CLOUD, now))
-        s.onStatus(null, st(DownloadStage.SEARCHING, "Searching Soulseek for \"Album\"...", "soulseek"), now)   // an album has no song key while it runs
-        s.onStatus(null, st(DownloadStage.DONE, "\"Album\" is ready to play", "soulseek", tracks = songs), now + 30_000)
+        s.onStatus(null, st(DownloadStage.SEARCHING, "Searching Soulseek for “Album”…", "soulseek"), now)   // an album has no song key while it runs
+        s.onStatus(null, st(DownloadStage.DONE, "“Album” is ready to play", "soulseek", tracks = songs), now + 30_000)
         assertEquals(DownloadTag.Recent(now + 30_000), s.statusOf(matchKey("One", "Band"), now + 31_000))
         assertEquals(DownloadTag.Recent(now + 30_000), s.statusOf(matchKey("Two", "Band"), now + 31_000))
         assertEquals(DownloadTag.None, s.statusOf(matchKey("Three", "Band"), now + 31_000))
@@ -216,15 +216,15 @@ class DownloadTagsTest {
     // ---- the doubled word, narrow forms, the quiet "New download" ---------------------------------------------------------------------------
 
     @Test fun theWordDownloadingIsNeverDoubled() {
-        assertEquals("Downloading 55%...", DownloadTags.runningText("Downloading 55%..."))
-        assertEquals("Downloading from Jamendo...", DownloadTags.runningText("Downloading from Jamendo..."))
+        assertEquals("Downloading 55%…", DownloadTags.runningText("Downloading 55%…"))
+        assertEquals("Downloading from Jamendo…", DownloadTags.runningText("Downloading from Jamendo…"))
         assertEquals("downloading 3%", DownloadTags.runningText("downloading 3%"))
-        assertEquals("Downloading · Searching Soulseek...", DownloadTags.runningText("Searching Soulseek..."))
-        assertEquals("Downloading · Waiting for a peer...", DownloadTags.runningText("Waiting for a peer..."))
+        assertEquals("Downloading · Searching Soulseek…", DownloadTags.runningText("Searching Soulseek…"))
+        assertEquals("Downloading · Waiting for a peer…", DownloadTags.runningText("Waiting for a peer…"))
         assertEquals("Downloading", DownloadTags.runningText(""))
         assertEquals("Downloading", DownloadTags.runningText("   "))
-        assertEquals("Downloading 40%...", DownloadTags.text(DownloadTag.Downloading("Downloading 40%..."), now))
-        assertEquals("Downloading · Starting...", DownloadTags.text(DownloadTag.Downloading("Starting..."), now))
+        assertEquals("Downloading 40%…", DownloadTags.text(DownloadTag.Downloading("Downloading 40%…"), now))
+        assertEquals("Downloading · Starting…", DownloadTags.text(DownloadTag.Downloading("Starting…"), now))
     }
 
     @Test fun theCompactFormKeepsTheAge() {
@@ -243,8 +243,8 @@ class DownloadTagsTest {
     }
 
     @Test fun otherTagsStayShortInNarrowForms() {
-        assertEquals("Downloading 55%...", DownloadTags.text(DownloadTag.Downloading("Downloading 55%..."), now, TagForm.COMPACT))
-        assertEquals("Downloading", DownloadTags.text(DownloadTag.Downloading("Searching Soulseek..."), now, TagForm.COMPACT))
+        assertEquals("Downloading 55%…", DownloadTags.text(DownloadTag.Downloading("Downloading 55%…"), now, TagForm.COMPACT))
+        assertEquals("Downloading", DownloadTags.text(DownloadTag.Downloading("Searching Soulseek…"), now, TagForm.COMPACT))
         assertEquals("Couldn't download", DownloadTags.text(DownloadTag.Failed(now - min), now, TagForm.AGE_ONLY))
         assertEquals("Streaming", DownloadTags.text(DownloadTag.NewDownload, now, TagForm.COMPACT))
     }

@@ -95,20 +95,20 @@ fun OfflineScreen(nav: PlayerNav) {
                         Card {
                             albums.take(12).forEach { a ->
                                 OfflineRow("${a.album} · ${a.artist}", value = "${OfflineMath.songs(a.songs)}, ${OfflineMath.formatBytes(a.bytes)}") {
-                                    nav.sheet = SheetSpec("Remove ${a.album}?", "${OfflineMath.songs(a.songs)}, ${OfflineMath.formatBytes(a.bytes)}", listOf(
-                                        SheetItem("Yes, remove its downloads", Glyph.CLOSE) { a.paths.forEach { m.remove(it) } }, SheetItem("Keep it", Glyph.CHECK) { }))
+                                    nav.sheet = SheetSpec("Remove “${a.album}”?", "${OfflineMath.songs(a.songs)}, ${OfflineMath.formatBytes(a.bytes)}", listOf(
+                                        SheetItem("Remove", Glyph.CLOSE) { a.paths.forEach { m.remove(it) } }, SheetItem("Keep it", Glyph.CHECK) { }))
                                 }
                             }
                         }
                     }
                 }
                 item { SectionHeader("Offline music") }
-                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing yet. Open a song's menu and choose Download for offline, or switch on Keep favourites offline.", size = 14f, color = sc.onBgDim) } }
+                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing yet. Open a song's menu and choose Download, or switch on Keep favourites offline.", size = 14f, color = sc.onBgDim) } }
                 items(entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs })), key = { it.key }) { e ->
                     OfflineEntryRow(e, onPlay = { play(app, entries, e) }, onRemove = { m.remove(e.path) }, onRetry = { m.enqueue(listOf(e.toTrack()), e.reason) })
                 }
                 if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", "${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(used)}", listOf(
-                    SheetItem("Yes, remove them all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
+                    SheetItem("Remove all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
             }
         }
     }
@@ -142,7 +142,7 @@ private fun MarkIcon(mark: DownloadMark, size: Dp) {
     val sc = LocalScheme.current
     val done = mark == DownloadMark.DOWNLOADED
     // a finished song is the full accent with the word "Offline" (an arrow alone meant nothing to the owner's dad; 1 Nov); one on its way is the same shape, quieter, so a list does not flicker
-    Row(Modifier.semantics(mergeDescendants = true) { contentDescription = if (done) "Available offline" else "Getting it for offline" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+    Row(Modifier.semantics(mergeDescendants = true) { contentDescription = if (done) "Downloaded" else "Downloading" }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
         GlyphIcon(Glyph.DOWNLOADED, Modifier.size(size), if (done) sc.accent else sc.onBgDim.copy(alpha = .7f))
         // on a playlist's page the arrow alone: its Download button already says the list is on the phone, and the word on every row cut the titles short (owner, 26 Nov)
         if (done && LocalPlaylistLook.current == null) Txt("Offline", size = 11f, weight = FontWeight.SemiBold, color = sc.accent, maxLines = 1)
@@ -200,8 +200,8 @@ fun DownloadsScreen(nav: PlayerNav) {
             SheetItem("Play", Glyph.PLAY) { val t = tracksOf(s); if (t.isNotEmpty()) app.player.play(t, 0, context = s.list.name) },
             SheetItem("Shuffle", Glyph.SHUFFLE) { val t = tracksOf(s); if (t.isNotEmpty()) app.player.play(t, t.indices.random(), true, s.list.name) },
             SheetItem("Remove download", Glyph.CLOSE) {
-                nav.sheet = SheetSpec("Remove the download of \"${s.list.name}\"?", s.list.detail, listOf(
-                    SheetItem("Yes, remove the downloads", Glyph.CLOSE) { s.keptId?.let { m.setKept(it, false) }; s.paths.forEach { m.remove(it) } }, SheetItem("Keep it", Glyph.CHECK) { }))
+                nav.sheet = SheetSpec("Remove “${s.list.name}”?", s.list.detail, listOf(
+                    SheetItem("Remove", Glyph.CLOSE) { s.keptId?.let { m.setKept(it, false) }; s.paths.forEach { m.remove(it) } }, SheetItem("Keep it", Glyph.CHECK) { }))
             },
         ))
     }
@@ -259,7 +259,7 @@ fun DownloadsScreen(nav: PlayerNav) {
                 if (songs.isNotEmpty()) item { SectionHeader("Songs") }
                 items(songs, key = { "s" + it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, songs, e, "Offline music") }, onRemove = { m.remove(e.path) }) }
                 if (entries.isNotEmpty()) item { Card { OfflineRow("Remove all downloads") { nav.sheet = SheetSpec("Remove all downloads?", DownloadsOverview.storageLine(doneCount, m.usedBytes), listOf(
-                    SheetItem("Yes, remove them all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
+                    SheetItem("Remove all", Glyph.CLOSE) { m.removeAll() }, SheetItem("Keep them", Glyph.CHECK) { })) } } }
             }
         }
     }
@@ -316,14 +316,14 @@ fun KeepOfflineChip(tracks: List<Track>, nav: PlayerNav, listId: String?, title:
     fun start() {
         if (listId != null) m.setKept(listId, true)
         val n = m.keep(tracks, reason)
-        app.ui.say(if (n > 0) "Downloading ${OfflineMath.songs(n)}" + (if (listId != null) ". New songs added to \"$title\" download too" else "") else "Already on this phone")
+        app.ui.say(if (n > 0) "Downloading ${OfflineMath.songs(n)}" + (if (listId != null) ". New songs added to “$title” download too" else "") else "Already on this phone")
         if (listId != null) app.offlineSyncSoon()
     }
     val tap = {
         when (st.kind) {
             KeepStatus.Kind.NONE, KeepStatus.Kind.FAILED -> start()
-            else -> nav.sheet = SheetSpec(if (st.kind == KeepStatus.Kind.BUSY) "Stop downloading \"$title\"?" else "Remove the download of \"$title\"?", OfflineMath.songs(st.total) + (if (kept) ". Kept up to date" else ""), listOf(
-                SheetItem(if (st.kind == KeepStatus.Kind.BUSY) "Yes, stop and remove" else "Yes, remove the downloads", Glyph.CLOSE) {
+            else -> nav.sheet = SheetSpec(if (st.kind == KeepStatus.Kind.BUSY) "Stop downloading “$title”?" else "Remove “$title”?", OfflineMath.songs(st.total) + (if (kept) ". Kept up to date" else ""), listOf(
+                SheetItem(if (st.kind == KeepStatus.Kind.BUSY) "Stop and remove" else "Remove", Glyph.CLOSE) {
                     if (listId != null) m.setKept(listId, false)
                     m.forget(tracks)
                 },

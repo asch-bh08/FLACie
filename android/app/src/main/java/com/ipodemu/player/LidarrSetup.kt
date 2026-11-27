@@ -88,7 +88,7 @@ fun LidarrSetupScreen() {
                 GlossPill("Back", { ui.lidarrSetupOpen = false }, icon = Glyph.BACK, height = 36.dp)
                 Box(Modifier.padding(start = 14.dp)) { Txt("Lidarr", size = 20f, weight = FontWeight.Bold) }
             }
-            Txt("Lets a search's \"Download\" option request a track you don't have yet.", size = 13f, maxLines = 3)
+            Txt("Lets a search's “Download” option request a track you don't have yet.", size = 13f, maxLines = 3)
 
             field("Server URL (e.g. https://myserver.example/lidarr)", url, { url = it }, focus = true)
             field("API key (Lidarr > Settings > General)", apiKey, { apiKey = it })
@@ -96,7 +96,7 @@ fun LidarrSetupScreen() {
                 if (url.isNotBlank() && apiKey.isNotBlank()) lib.connectLidarr(url.trim(), apiKey.trim())
             }, primary = true)
             when {
-                lib.lidarrConnecting -> Txt("Connecting to $url ...", size = 13f)
+                lib.lidarrConnecting -> Txt("Connecting to $url…", size = 13f)
                 lib.lidarrConnected -> Txt(lib.lidarrStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.lidarrStatus != null -> Txt(lib.lidarrStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }
@@ -110,7 +110,7 @@ fun LidarrSetupScreen() {
                 if (slskdUrl.isNotBlank() && slskdKey.isNotBlank()) lib.connectSlskd(slskdUrl.trim(), slskdKey.trim(), slskdPath.trim())
             })
             when {
-                lib.slskdConnecting -> Txt("Connecting to $slskdUrl ...", size = 13f)
+                lib.slskdConnecting -> Txt("Connecting to $slskdUrl…", size = 13f)
                 lib.slskdConnected -> Txt(lib.slskdStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.slskdStatus != null -> Txt(lib.slskdStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }
@@ -123,7 +123,7 @@ fun LidarrSetupScreen() {
                 if (moverUrl.isNotBlank() && moverKey.isNotBlank()) lib.connectFileMover(moverUrl.trim(), moverKey.trim())
             })
             when {
-                lib.fileMoverConnecting -> Txt("Connecting to $moverUrl ...", size = 13f)
+                lib.fileMoverConnecting -> Txt("Connecting to $moverUrl…", size = 13f)
                 lib.fileMoverConnected -> Txt(lib.fileMoverStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.fileMoverStatus != null -> Txt(lib.fileMoverStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }

@@ -20,7 +20,7 @@
                 <div class="pl-tools">
                 @if (confirmClear)
                 {
-                    <Slot Class="btn danger pl-slot" OnClick="Clear" Icon="x" Label="@($"Clear all {Session.Favorites.Count}")" />
+                    <Slot Class="btn danger pl-slot" OnClick="Clear" Icon="x" Label="Clear all" Title="Clear all favourites?" />
                     <Slot Class="btn pl-tool pl-slot" OnClick="() => confirmClear = false" Icon="check" Label="Keep them" />
                 }
                 else { <Slot Class="btn pl-tool pl-slot" OnClick="() => confirmClear = true" Icon="x" Label="Clear all" /> }

@@ -35,7 +35,7 @@
             <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Often)" @onclick="() => Change(x => x.Chatty = DjChatty.Often)">Often</button>
             <button type="button" aria-pressed="@Pressed(s.Chatty == DjChatty.Every)" @onclick="() => Change(x => x.Chatty = DjChatty.Every)">Every song</button>
         </div>
-        <p class="hint">Rare is about one song in seven, Often about one in three. Every song talks before each song (not songs under a minute, spoken word or ones marked "never"), and uses the most of the day's DJ allowance.</p>
+        <p class="hint">Rare is about one song in seven, Often about one in three. Every song talks before each song (not songs under a minute, spoken word or ones marked “never”), and uses the most of the day's DJ allowance.</p>
         <h3>Style</h3>
         <div class="seg dj-style" role="group" aria-label="DJ style">
             <button type="button" aria-pressed="@Pressed(s.Style == DjStyle.Classic)" @onclick="() => Change(x => x.Style = DjStyle.Classic)">Classic radio</button>
@@ -49,7 +49,7 @@
             <i class="switch" aria-hidden="true"></i>
         </label>
         <label class="switch-row">
-            <span><b>Announce the first song</b><small>Open a playlist or album with "Shuffling Pop, starting with LoveGame". Off: it starts like any other song</small></span>
+            <span><b>Announce the first song</b><small>Open a playlist or album with “Shuffling Pop, starting with LoveGame”. Off: it starts like any other song</small></span>
             <input type="checkbox" role="switch" checked="@s.FirstSong" @onchange="e => Change(x => x.FirstSong = (bool)(e.Value ?? false))" />
             <i class="switch" aria-hidden="true"></i>
         </label>

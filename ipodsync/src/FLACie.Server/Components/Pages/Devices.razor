@@ -234,7 +234,7 @@
         {
             Track? t = (m.ItemId is { } id ? Lib.ByJellyfinId(id) : null) ?? (m.Path is { } p ? Lib.ByPath(p) : null);
             if (t is null && m.ItemId is { } id2 && Live is { } l2) { try { t = await l2.Connect.ResolveAsync(id2); } catch (Exception) { } }
-            if (t is null) { status = $"\"{m.Title}\" isn't in this library, so it can't play here."; return; }
+            if (t is null) { status = $"“{m.Title}” isn't in this library, so it can't play here."; return; }
             tracks.Insert(0, t); at = 0;
         }
         await Player.CarryOnAsync(tracks, at, m.PositionMs, m.Context);

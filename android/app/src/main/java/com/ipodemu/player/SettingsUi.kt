@@ -226,7 +226,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("Talk after skips", if (dj.talkAfterSkips) "On" else "Off", toggle = true, desc = "Keep talking when you skip songs. Off: the DJ stays quiet for a couple of songs after a skip.") {
                                 save(org.json.JSONObject().put("talkAfterSkips", !dj.talkAfterSkips), dj.copy(talkAfterSkips = !dj.talkAfterSkips))
                             }
-                            SettingRow("First song", if (dj.firstSong) "On" else "Off", toggle = true, desc = "When you start a playlist or queue, the DJ says its name and the first song, like \"Shuffling Pop, starting with Lovegame\".") {
+                            SettingRow("First song", if (dj.firstSong) "On" else "Off", toggle = true, desc = "When you start a playlist or queue, the DJ says its name and the first song, like “Shuffling Pop, starting with Lovegame”.") {
                                 save(org.json.JSONObject().put("firstSong", !dj.firstSong), dj.copy(firstSong = !dj.firstSong))
                             }
                             MonoLabel("Where", Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))
@@ -274,7 +274,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         if (!ui.guest) SettingRow("Jellyfin", if (lib.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
                         if (!ui.guest) SettingRow("Plex", if (lib.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
                         if (!ui.guest) SettingRow("NAS", if (lib.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
-                        SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}..." else null, desc = "Reads this phone's music and the servers' song lists again", action = "Reload") { lib.rescan() }
+                        SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}…" else null, desc = "Reads this phone's music and the servers' song lists again", action = "Reload") { lib.rescan() }
                         if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
                         SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
                         // Alexa is linked on FLACie Web (parity, 7 Nov: the phone had no way there): the row opens that part of its Settings
@@ -325,7 +325,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             for (t in all) { val f = AudioFacts.of(t); if (f == null) unknown++ else if (f.hiRes) hi++ else if (f.lossless) lossless++ else lossy++ }
                             listOf(all.size, hi, lossless, lossy, unknown)
                         }
-                        val tiles = listOf("%,d".format(counts[0]) to "Songs in your library", "%,d".format(counts[1]) to "Hi-Res", "%,d".format(counts[2]) to "Lossless (CD quality)", "%,d".format(counts[3]) to "Lossy (MP3, AAC...)") +
+                        val tiles = listOf("%,d".format(counts[0]) to "Songs in your library", "%,d".format(counts[1]) to "Hi-Res", "%,d".format(counts[2]) to "Lossless (CD quality)", "%,d".format(counts[3]) to "Lossy (MP3, AAC…)") +
                             (if (counts[4] > 0) listOf("%,d".format(counts[4]) to "Format not read yet") else emptyList())
                         Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             for (pair in tiles.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -449,8 +449,8 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     androidx.compose.runtime.LaunchedEffect(rev, cleared) {
                         bytes = try { kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { app.cacheBytes() } } catch (_: Exception) { -1L }
                     }
-                    SettingRow("Cache", if (bytes < 0) "Counting..." else cacheSizeLabel(bytes)) { }
-                    SettingRow("Clear cache", if (clearing) "Clearing..." else null, desc = "Covers and saved audio", action = "Clear") {
+                    SettingRow("Cache", if (bytes < 0) "Counting…" else cacheSizeLabel(bytes)) { }
+                    SettingRow("Clear cache", if (clearing) "Clearing…" else null, desc = "Covers and saved audio", action = "Clear") {
                         if (!clearing) {
                             clearing = true
                             scope2.launch {
@@ -552,7 +552,7 @@ internal fun Card(content: @Composable () -> Unit) {
     val sc = LocalScheme.current
     Column(Modifier.padding(horizontal = 16.dp).clip(RoundedCornerShape(14.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp))) { content() }
 }
-val SWIPE_ACTIONS = listOf("Off", "Play next", "Favorite", "Add to queue")
+val SWIPE_ACTIONS = listOf("Off", "Play next", "Add to favourites", "Add to queue")
 
 /** "0 KB", "812 KB", "12.4 MB", "1.3 GB": the Cache line of Settings. */
 fun cacheSizeLabel(bytes: Long): String = when {

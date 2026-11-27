@@ -62,14 +62,14 @@ public class DownloadTagTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Searching Soulseek...", "Downloading · Searching Soulseek...")]
-    [InlineData("Waiting for a peer...", "Downloading · Waiting for a peer...")]
-    [InlineData("Downloading 55%...", "Downloading 55%...")]
-    [InlineData("Downloading from Internet Archive...", "Downloading from Internet Archive...")]
+    [InlineData("Searching Soulseek…", "Downloading · Searching Soulseek…")]
+    [InlineData("Waiting for a peer…", "Downloading · Waiting for a peer…")]
+    [InlineData("Downloading 55%…", "Downloading 55%…")]
+    [InlineData("Downloading from Internet Archive…", "Downloading from Internet Archive…")]
     [InlineData("Downloading", "Downloading")]
-    [InlineData("  Downloading 40%...  ", "Downloading 40%...")]
-    [InlineData("Filing into the library...", "Downloading · Filing into the library...")]
-    [InlineData("downloading 3%...", "Downloading · downloading 3%...")]      // the rule is exact: a prefix test on the word as written
+    [InlineData("  Downloading 40%…  ", "Downloading 40%…")]
+    [InlineData("Filing into the library…", "Downloading · Filing into the library…")]
+    [InlineData("downloading 3%…", "Downloading · downloading 3%…")]      // the rule is exact: a prefix test on the word as written
     [InlineData("", "Downloading")]
     public void A_stage_that_already_starts_with_Downloading_is_not_prefixed_again(string message, string want)
     {
@@ -114,7 +114,7 @@ public class DownloadTagTests : IDisposable
         Assert.Equal("Recently downloaded · 7s ago", new DownloadTagStatus(DownloadTagState.Recent, "", now - 7_000).Text(now));
         Assert.Equal("Recently downloaded · just now", new DownloadTagStatus(DownloadTagState.Recent, "", now - 100).Text(now));
         Assert.Equal("Recently downloaded · 12 min ago", new DownloadTagStatus(DownloadTagState.Recent, "", now - 12 * Min).Text(now));
-        Assert.Equal("Downloading · Searching Soulseek...", new DownloadTagStatus(DownloadTagState.Downloading, "Searching Soulseek...").Text(now));
+        Assert.Equal("Downloading · Searching Soulseek…", new DownloadTagStatus(DownloadTagState.Downloading, "Searching Soulseek…").Text(now));
         Assert.Equal("Downloading", new DownloadTagStatus(DownloadTagState.Downloading, "").Text(now));
         Assert.Equal("Couldn't download", new DownloadTagStatus(DownloadTagState.Failed, "", now - Min).Text(now));
         Assert.Null(DownloadTagStatus.None.Text(now));
@@ -127,8 +127,8 @@ public class DownloadTagTests : IDisposable
     {
         var now = 1_760_000_000_000;
         // running wins over everything
-        var run = DownloadTags.Resolve("Searching Soulseek...", now - Min, now - 2 * Min, now - 3 * Min, now);
-        Assert.Equal(DownloadTagState.Downloading, run.State); Assert.Equal("Searching Soulseek...", run.Message);
+        var run = DownloadTags.Resolve("Searching Soulseek…", now - Min, now - 2 * Min, now - 3 * Min, now);
+        Assert.Equal(DownloadTagState.Downloading, run.State); Assert.Equal("Searching Soulseek…", run.Message);
         // a recent finish wins over a failure, whichever came last
         var done = DownloadTags.Resolve(null, now - 10 * Min, now - Min, 0, now);
         Assert.Equal(DownloadTagState.Recent, done.State); Assert.Equal(now - 10 * Min, done.AtMs);
@@ -215,7 +215,7 @@ public class DownloadTagTests : IDisposable
         // ... and is being fetched again (a Hi-Res copy, a retry): the running stage wins
         using var cts = new CancellationTokenSource();
         var task = m.FetchAsync(s, "Search", "Artist", "Title", "Album", null, 200_000, cts.Token);
-        await Until(() => m.StatusOf(s, "Artist", "Title").Text(Now) == "Downloading · Searching Soulseek...");
+        await Until(() => m.StatusOf(s, "Artist", "Title").Text(Now) == "Downloading · Searching Soulseek…");
         // the same song under another spelling is the same song (feat. tags and case do not matter)
         Assert.Equal(DownloadTagState.Downloading, m.StatusOf(s, "ARTIST", "Title (feat. Someone)").State);
         // a different song is not touched

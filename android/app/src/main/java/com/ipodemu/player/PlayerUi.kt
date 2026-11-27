@@ -2890,6 +2890,7 @@ internal fun AccountAction() {
                 AccountPick.DASHBOARD -> { nav.nowPlaying = false; nav.push(Screen.Dashboard) }
                 AccountPick.DOWNLOADS -> app.ui.downloadsOpen = true
                 AccountPick.RETRO -> openRetro(ctx)
+                AccountPick.CAR -> app.ui.carOpen = true
                 AccountPick.SETTINGS -> { nav.nowPlaying = false; nav.push(Screen.Settings) }
                 AccountPick.SIGN_OUT -> { app.account.signOut(); app.ui.setLogin("") }
             }
@@ -2897,14 +2898,14 @@ internal fun AccountAction() {
     }
 }
 
-/** What the account menu offers, in the web's order (TopBar.razor): Account, Dashboard and Downloads (administrators), Retro, Settings, Sign out. */
-enum class AccountPick { ACCOUNT, DASHBOARD, DOWNLOADS, RETRO, SETTINGS, SIGN_OUT }
+/** What More (the account menu) offers, in the web's order (TopBar.razor): Account, Settings, Car mode, Retro, then Server admin and Downloads
+ * (administrators), and Sign out apart at the end. */
+enum class AccountPick { ACCOUNT, SETTINGS, CAR, RETRO, DASHBOARD, DOWNLOADS, SIGN_OUT }
 
 /** The menu's items for this person: the administrators' two only for administrators; Sign out only when signed in. Pure, unit-tested. */
 fun accountPicks(admin: Boolean, signedIn: Boolean): List<AccountPick> = buildList {
-    add(AccountPick.ACCOUNT)
+    add(AccountPick.ACCOUNT); add(AccountPick.SETTINGS); add(AccountPick.CAR); add(AccountPick.RETRO)
     if (admin) { add(AccountPick.DASHBOARD); add(AccountPick.DOWNLOADS) }
-    add(AccountPick.RETRO); add(AccountPick.SETTINGS)
     if (signedIn) add(AccountPick.SIGN_OUT)
 }
 
@@ -2918,7 +2919,7 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
         properties = androidx.compose.ui.window.PopupProperties(focusable = true)) {
         // at most the screen less a margin, scrolling: on a phone on its side at big text Sign out was below the screen (SheetFit)
         val cfg = androidx.compose.ui.platform.LocalConfiguration.current
-        Column(Modifier.padding(end = 8.dp).widthIn(min = 220.dp, max = 280.dp).heightIn(max = SheetFit.popupMaxHeight(cfg.screenHeightDp.toFloat()).dp)
+        Column(Modifier.padding(end = 8.dp).widthIn(min = 300.dp, max = 340.dp).heightIn(max = SheetFit.popupMaxHeight(cfg.screenHeightDp.toFloat()).dp)
             .clip(RoundedCornerShape(16.dp)).background(sc.top.mix(Color.Black, .45f))
             .border(1.dp, sc.cardBorder, RoundedCornerShape(16.dp)).verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
             Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -2931,20 +2932,25 @@ private fun AccountMenu(name: String, onClose: () -> Unit, onPick: (AccountPick)
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(sc.onBg.copy(alpha = .1f)))
-            for (pick in accountPicks(app.ui.isAdmin && !app.ui.guest, app.prefs.accountKind.isNotEmpty())) {
-                val (label, glyph) = when (pick) {
-                    AccountPick.ACCOUNT -> "Account" to Glyph.ARTIST
-                    AccountPick.DASHBOARD -> "Server admin" to Glyph.SHIELD
-                    AccountPick.DOWNLOADS -> "Download log" to Glyph.DOWN
-                    AccountPick.RETRO -> "Retro" to Glyph.CASSETTE
-                    AccountPick.SETTINGS -> "Settings" to Glyph.GEAR
-                    AccountPick.SIGN_OUT -> "Sign out" to Glyph.LOGOUT
+            // ONE APP 1f, the redesigned More: every place as a kit slot, three to a row, and Sign out apart as a small button (the web's TopBar is the same)
+            val picks = accountPicks(app.ui.isAdmin && !app.ui.guest, app.prefs.accountKind.isNotEmpty())
+            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (row in picks.filter { it != AccountPick.SIGN_OUT }.chunked(3)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (pick in row) {
+                        val (label, glyph) = when (pick) {
+                            AccountPick.ACCOUNT -> "Account" to Glyph.ARTIST
+                            AccountPick.SETTINGS -> "Settings" to Glyph.GEAR
+                            AccountPick.CAR -> "Car mode" to Glyph.CAR
+                            AccountPick.RETRO -> "Retro" to Glyph.CASSETTE
+                            AccountPick.DASHBOARD -> "Server admin" to Glyph.SHIELD
+                            AccountPick.DOWNLOADS -> "Downloads" to Glyph.DOWN
+                            AccountPick.SIGN_OUT -> "Sign out" to Glyph.LOGOUT
+                        }
+                        Slot(label, glyph, { onPick(pick) }, Modifier.weight(1f))
+                    }
+                    repeat(3 - row.size) { Box(Modifier.weight(1f)) }
                 }
-                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(role = androidx.compose.ui.semantics.Role.Button) { onPick(pick) }.padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    GlyphIcon(glyph, Modifier.size(20.dp), sc.onBg)
-                    Txt(label, Modifier.padding(start = 14.dp), size = 15f)
-                }
+                if (AccountPick.SIGN_OUT in picks) SmallButton("Sign out", { onPick(AccountPick.SIGN_OUT) }, Modifier.fillMaxWidth(), icon = Glyph.LOGOUT)
             }
         }
     }

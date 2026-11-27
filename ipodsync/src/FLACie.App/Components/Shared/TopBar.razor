@@ -25,25 +25,30 @@
         @if (open)
         {
             <button class="scrim" aria-label="Close menu" @onclick="() => open = false"></button>
-            <div class="account-menu" role="menu">
+            @* ONE APP 1f, the redesigned More: who you are, then every place one tap away as a grid of the kit's slots (icon over word), and Sign out
+               apart at the end. A popover on a PC; at phone width a bottom sheet (kit.css), as the phone's sheets *@
+            <div class="account-menu am-more" role="menu" aria-label="More">
                 <div class="am-head"><span class="avatar big">@Initial</span><div><b>@Session.DisplayName</b><small>@(Session.Kind == "nas" ? "NAS" : "Jellyfin")@(Session.Jellyfin is not null && Session.Nas is not null ? " and NAS" : "")</small></div></div>
-                @if (AppHost.Server) { <a role="menuitem" href="/account" @onclick="() => open = false"><Icon Name="artists" Size="18" />Account</a> }
-                @if (AdminAccess.Is(Session, Conf))
-                {
-                    <a role="menuitem" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="18" />Server admin</a>
-                    @if (Dls.Allowed) { <a role="menuitem" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="18" />Downloads</a> }
-                }
-                @* on a phone the bottom bar has only the four main places: these come here instead *@
+                <div class="am-grid">
+                @if (AppHost.Server) { <a role="menuitem" class="k-slot" href="/account" @onclick="() => open = false"><Icon Name="artists" Size="22" /><span>Account</span></a> }
+                <a role="menuitem" class="k-slot" href="/settings" @onclick="() => open = false"><Icon Name="settings" Size="22" /><span>Settings</span></a>
+                @* on a phone the bottom bar has only the main places: these come here instead *@
                 @if (AppHost.Server)
                 {
-                    <a role="menuitem" class="am-phone" href="/devices" @onclick="() => open = false"><Icon Name="devices" Size="18" />Devices</a>
-                    <a role="menuitem" class="am-phone" href="/jam" @onclick="() => open = false"><Icon Name="jam" Size="18" />Jam</a>
+                    <a role="menuitem" class="k-slot am-phone" href="/devices" @onclick="() => open = false"><Icon Name="devices" Size="22" /><span>Devices</span></a>
+                    <a role="menuitem" class="k-slot am-phone" href="/jam" @onclick="() => open = false"><Icon Name="jam" Size="22" /><span>Jam</span></a>
                 }
-                <a role="menuitem" class="am-phone" href="/headphones" @onclick="() => open = false"><Icon Name="headphones" Size="18" />Headphone test</a>
-                <a role="menuitem" href="/retro" @onclick="() => open = false"><Icon Name="retro" Size="18" />Retro</a>
-                <a role="menuitem" href="/settings" @onclick="() => open = false"><Icon Name="settings" Size="18" />Settings</a>
-                @if (AppHost.Server) { <form method="post" action="/auth/logout" data-enhance="false"><button role="menuitem" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form> }
-                else { <a role="menuitem" href="/signout" @onclick="() => open = false"><Icon Name="logout" Size="18" />Sign out</a> }
+                <a role="menuitem" class="k-slot" href="/car" @onclick="() => open = false"><Icon Name="car" Size="22" /><span>Car mode</span></a>
+                <a role="menuitem" class="k-slot am-phone" href="/headphones" @onclick="() => open = false"><Icon Name="headphones" Size="22" /><span>Headphone test</span></a>
+                <a role="menuitem" class="k-slot" href="/retro" @onclick="() => open = false"><Icon Name="retro" Size="22" /><span>Retro</span></a>
+                @if (AdminAccess.Is(Session, Conf))
+                {
+                    <a role="menuitem" class="k-slot" href="/dashboard" @onclick="() => open = false"><Icon Name="shield" Size="22" /><span>Server admin</span></a>
+                    @if (Dls.Allowed) { <a role="menuitem" class="k-slot" href="/downloads" @onclick="() => open = false"><Icon Name="download" Size="22" /><span>Downloads</span></a> }
+                }
+                </div>
+                @if (AppHost.Server) { <form method="post" action="/auth/logout" data-enhance="false"><button role="menuitem" class="k-btn-sm am-out" type="submit"><Icon Name="logout" Size="18" />Sign out</button></form> }
+                else { <a role="menuitem" class="k-btn-sm am-out" href="/signout" @onclick="() => open = false"><Icon Name="logout" Size="18" />Sign out</a> }
             </div>
         }
     </div>

@@ -122,6 +122,7 @@ td.bad{background:var(--badbg)}ul{margin:4px 0 0;padding-left:16px;color:var(--b
 .sum li{color:var(--fg)}.wrap{overflow-x:auto}
 </style></head><body>
 <h1>Parity check</h1>
+<p><a href="np-1g2.html">Now Playing rethink (1g-2): the three mock-up layouts beside today's player</a></p>
 <p class="mut">Web shot ${esc(data.web?.at ?? 'never')} · phone shot ${esc(data.phone?.at ?? 'never')} (emulator, mock library). Flags: off screen,
 overlapping controls, sideways scroll, and an empty band (a strip over ${BAND * 100}% of the height with nothing in it, drawn in red).
 Made by <code>node ipodsync/tools/parity/run.mjs</code>.</p>

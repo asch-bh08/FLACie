@@ -54,9 +54,8 @@ test.describe('phone (390 x 844)', () => {
     const frame = (await page.locator('.ls-frame').boundingBox())!, cover = (await page.locator('.ls-cover').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
     expect(frame.width).toBeGreaterThan(250); expect(Math.abs(frame.width - frame.height)).toBeLessThan(1);
     expect(frame.x).toBeLessThan(cover.x); expect(frame.x + frame.width).toBeGreaterThan(cover.x + cover.width);
-    // (the time shares its row with shuffle and repeat since 26 Nov: the row starts right under the frame)
-    const shuf = (await page.locator('.ls-shuf').boundingBox())!;
-    expect(Math.min(time.y, shuf.y) - (frame.y + frame.height)).toBeLessThan(10);
+    // the time's row starts right under the frame (1g-2: the time has the row to itself)
+    expect(time.y - (frame.y + frame.height)).toBeLessThan(10);
     expect(await page.locator('.ls-play').evaluate((e) => getComputedStyle(e).borderRadius)).not.toBe('50%');
     const wave = page.locator('.ls-frame canvas');
     await expect.poll(() => wave.evaluate((c: HTMLCanvasElement) => c.width), { timeout: 5_000 }).toBeGreaterThan(100);
@@ -73,15 +72,21 @@ test.describe('phone (390 x 844)', () => {
     await expect.poll(async () => Math.abs(Number(await input.inputValue()) - max / 4), { timeout: 5_000 }).toBeLessThanOrEqual(1);
   });
 
-  test('previous and next are tinted, shuffle and repeat are glass, all the one rounded rectangle, and shuffle and repeat flank the time', async ({ page }) => {
+  test('previous and next are tinted rounded rectangles; Shuffle and Repeat are slots in the row of quiet actions, ink when on (1g-2, layout B)', async ({ page }) => {
     const css = (n: string) => page.locator('.ls-transport').getByRole('button', { name: n }).evaluate((e) => { const s = getComputedStyle(e); return [s.backgroundColor, s.borderTopLeftRadius]; });
-    for (const n of ['Previous', 'Next', 'Shuffle off', 'Repeat off']) {
+    for (const n of ['Previous', 'Next']) {
       const [bg, r] = await css(n);
       expect(bg, n).not.toBe('rgba(0, 0, 0, 0)'); expect(['16px', '18px'], n).toContain(r);
     }
-    const mid = async (s: string) => { const b = (await page.locator(s).boundingBox())!; return b.y + b.height / 2; };
-    expect(Math.abs((await mid('.ls-shuf')) - (await mid('.ls-times')))).toBeLessThan(6);
-    expect(Math.abs((await mid('.ls-rep')) - (await mid('.ls-times')))).toBeLessThan(6);
+    await expect(page.locator('.ls-transport .ls-shuf')).toBeHidden();
+    const shuf = page.locator('.ls-actions .ls-slot-shuf'), rep = page.locator('.ls-actions .ls-slot-rep');
+    await expect(shuf).toBeVisible(); await expect(rep).toBeVisible();
+    const words = await page.locator('.ls-actions > .ls-slot, .ls-actions .ls-more-btn').allInnerTexts();
+    expect(words.map((w) => w.trim())).toEqual(['Shuffle', 'Repeat', 'Lyrics', 'Info', 'More']);
+    const before = await shuf.evaluate((e) => getComputedStyle(e).backgroundColor);
+    await shuf.click(); await page.waitForTimeout(400);
+    expect(await shuf.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe(before);
+    await shuf.click();
   });
 
   test('no main control is in the bottom 100px and there are no lyrics on the main screen', async ({ page }) => {

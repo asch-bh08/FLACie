@@ -242,7 +242,7 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                 if (fit.layout != NowPlayingFit.Layout.SIDE) {
                     if (fit.actions == NowPlayingFit.Actions.MORE_ONLY) Spacer(Modifier.height(maxDp(nav0 + 10.dp, 18.dp)))
                     else Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
-                        SleeveActions(false, pane, toggle, addToPlaylist, fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
+                        SleeveActions(snap, false, pane, toggle, addToPlaylist, fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
                     }
                 }
             }
@@ -358,7 +358,7 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BoxWithConstraints(Modifier.weight(.45f).fillMaxHeight().padding(bottom = 8.dp), contentAlignment = Alignment.Center) {
-                val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                val side = minOf(maxWidth - 16.dp, maxHeight, NowPlayingFit.COVER_MAX.dp)
                 if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
                 else SleeveCard(card, snap, t, p, Modifier.width(maxWidth - 16.dp).fillMaxHeight()) { onOpen(card) }
             }
@@ -367,13 +367,13 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
                 Spacer(Modifier.weight(1f))
                 if (card == null) SleeveTitle(nav, t, p, Modifier.padding(horizontal = 12.dp), fit, onMore.takeIf { fit.actions == NowPlayingFit.Actions.MORE_ONLY })
                 Spacer(Modifier.height(8.dp))
-                SleeveTimeRow(snap, p, Modifier.padding(horizontal = 12.dp)) { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier) }
+                SleeveTimeRow(snap, p, Modifier.padding(horizontal = 12.dp), NowPlayingSlots.togglesBesideTime(fit.actions)) { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier) }
                 Spacer(Modifier.height(8.dp))
                 SleeveControls(snap, p, Modifier.padding(horizontal = 8.dp), fit.bigControls)
                 Spacer(Modifier.weight(1f))
                 // with no room for the row, More is beside the heart (the time's sides are shuffle and repeat now)
                 if (fit.actions != NowPlayingFit.Actions.MORE_ONLY) Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
-                    SleeveActions(false, card, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore)
+                    SleeveActions(snap, false, card, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore)
                 } else Spacer(Modifier.height(maxDp(nav0, 8.dp)))
             }
         } else Column(
@@ -395,14 +395,19 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
             var peekH by remember { mutableStateOf(0.dp) }
             var peekOn by remember { mutableStateOf(false) }
             BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f, fill = false).padding(top = 4.dp), contentAlignment = Alignment.Center) {
-                val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                val side = minOf(maxWidth - 16.dp, maxHeight, NowPlayingFit.COVER_MAX.dp)
                 if (!cramped) SideEffect { spare = maxHeight - side }
                 if (card == null) SleeveFrame(snap, t, p, side, pos, dur, scrub, fit.compactBand)
                 // Lyrics and Info take all the room above the controls, not just the cover's square: on an S22 the graph and the lyrics were below the fold (owner, 1 Nov)
-                else SleeveCard(card, snap, t, p, Modifier.width(minOf(maxWidth - 16.dp, 560.dp)).fillMaxHeight()) { onOpen(card) }
+                else SleeveCard(card, snap, t, p, Modifier.width(minOf(maxWidth - 16.dp, NowPlayingFit.COVER_MAX.dp)).fillMaxHeight()) { onOpen(card) }
             }
             // shuffle and repeat either side of the time: the room beside it is used and previous / play / next get their row (owner, 26 Nov)
-            SleeveTimeRow(snap, p, Modifier.padding(horizontal = 22.dp)) { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier) }
+            // Lyrics / Info: the song as one small line above the seek line, since the card has taken the title's place
+            if (card != null) Row(Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                ArtImage(t.artKey, Modifier.size(40.dp), thumb = true, corner = 8.dp)
+                Column(Modifier.padding(start = 12.dp).weight(1f)) { Body(t.title, color = Ink, weight = FontWeight.SemiBold); Small(t.artist, color = InkDim) }
+            }
+            SleeveTimeRow(snap, p, Modifier.padding(horizontal = 22.dp), NowPlayingSlots.togglesBesideTime(fit.actions)) { if (card == null) SleeveTime(pos, dur, scrub) else SleeveSeekLine(pos, dur, p, Modifier) }
             Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp))
             // the card's header names the song, so the big title steps aside for it
             if (card == null) {
@@ -419,7 +424,7 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
                 Box(Modifier.onSizeChanged { peekH = with(d) { it.height.toDp() } }) { SleeveUpNextPeek(snap, p) { onOpen("queue") } }
             }
             // on a phone the Lyrics / Up next / Info / More row sits at the foot of the screen, under every pane
-            if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(wide, tab, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore) }
+            if (wide) { Spacer(Modifier.height(if (h < 700.dp) 8.dp else 14.dp)); SleeveActions(snap, wide, tab, onOpen, { nav.sheet = playlistPicker(app, nav, t) }, fit.actions, onMore = onMore) }
         }
     }
 }
@@ -580,7 +585,7 @@ private fun rememberWaveShape(t: Track): State<IntArray?> {
 @Composable
 private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, big: Boolean) {
     val app = LocalApp.current
-    // previous | play | next, alone in their row so they can be big (owner, 26 Nov: car mode's feel); shuffle and repeat are beside the time.
+    // previous | play | next, alone in their row so they can be big (owner, 26 Nov: car mode's feel); shuffle and repeat are slots (1g-2).
     // NowPlayingFit says big or a step down; only a very narrow screen shrinks them further, gaps too, so the three always fit
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
         val k = NowPlayingFit.controlsScale(maxWidth.value, big)
@@ -597,8 +602,10 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
  * used rather than left empty (owner, 26 Nov).
  */
 @Composable
-private fun SleeveTimeRow(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, middle: @Composable () -> Unit) {
+private fun SleeveTimeRow(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, toggles: Boolean = true, middle: @Composable () -> Unit) {
     val app = LocalApp.current
+    // layout B (1g-2): Shuffle and Repeat are in the slot row, so the time or the seek line has the whole width (it was squashed between them)
+    if (!toggles) { Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { middle() }; return }
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         SleeveToggle(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", snap.shuffle, p) { app.shuffleTap() }
         Box(Modifier.weight(1f).padding(horizontal = 10.dp), contentAlignment = Alignment.Center) { middle() }
@@ -880,7 +887,7 @@ private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette,
 // ---- Lyrics, Up next, More --------------------------------------------------------------------------------------------------
 
 @Composable
-private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, fill: Color? = null, onMore: () -> Unit) {
+private fun SleeveActions(snap: PlayerSnap, wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, fill: Color? = null, onMore: () -> Unit) {
     // Lyrics · More · Info · Add (owner, 26 Nov: no Up next slot, swiping and the Up next line under the controls go there; Add a little narrower).
     // Each is an icon over its word (icons alone left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream.
     // On a short screen (NowPlayingFit) the slots are 40 dp with the word alone, and at the last step only More is left, its sheet listing the panes
@@ -892,12 +899,15 @@ private fun SleeveActions(wide: Boolean, tab: String?, onOpen: (String) -> Unit,
         @Composable
         fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true, weight: Float = 1f) =
             com.ipodemu.player.Slot(word, glyph, onClick, Modifier.weight(weight), on = on, description = label, tab = tab, compact = !full, fill = fill ?: Glass, ink = Ink, onInk = OnMain, rim = false)
-        if (actions == NowPlayingFit.Actions.MORE_ONLY) Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
-        else {
-            Slot("Lyrics", "Lyrics", tab == "lyrics", Glyph.LYRICS, { onOpen("lyrics") })
-            Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
-            Slot("Song info", "Info", tab == "info", Glyph.INFO, { onOpen("info") })
-            if (onAdd != null) Slot("Add to playlist", "Add", false, Glyph.PLUS, onAdd, tab = false, weight = .75f)
+        // ONE APP 1g-2, layout B: Shuffle and Repeat are two-state slots here (ink when on), so the transport keeps its row alone; Add is in More
+        val app = LocalApp.current
+        for (id in NowPlayingSlots.of(actions)) when (id) {
+            "shuffle" -> Slot(if (snap.shuffle) "Shuffle on" else "Shuffle off", "Shuffle", snap.shuffle, Glyph.SHUFFLE, { app.shuffleTap() }, tab = false)
+            "repeat" -> Slot(RepeatCycle.label(snap.repeat), if (snap.repeat == RepeatCycle.ONE) "Repeat 1" else "Repeat", snap.repeat != RepeatCycle.OFF,
+                if (snap.repeat == RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, { repeatTap(app) }, tab = false)
+            "lyrics" -> Slot("Lyrics", "Lyrics", tab == "lyrics", Glyph.LYRICS, { onOpen("lyrics") })
+            "info" -> Slot("Song info", "Info", tab == "info", Glyph.INFO, { onOpen("info") })
+            else -> Slot("More options", "More", false, Glyph.MORE, onMore, tab = false)
         }
     }
     }
@@ -1287,7 +1297,7 @@ fun RemoteSleeveBody(s: com.ipodemu.library.JellyfinConnect.Session, onClose: ()
             // the cover (owner, 26 Nov: "more wasted space"), it goes to the foot, where Up next names the next song
             var spare by remember { mutableStateOf(0.dp) }
             BoxWithConstraints(if (cramped) Modifier.fillMaxWidth().height(200.dp) else Modifier.fillMaxWidth().weight(1f, fill = false).padding(top = 4.dp), contentAlignment = Alignment.Center) {
-                val side = minOf(maxWidth - 16.dp, maxHeight, 560.dp)
+                val side = minOf(maxWidth - 16.dp, maxHeight, NowPlayingFit.COVER_MAX.dp)
                 if (!cramped) SideEffect { spare = maxHeight - side }
                 CoverFrame(art, !s.paused, null, p, side, pos, dur, scrub, fit.compactBand, shared = false,
                     onSeek = { seek(it) }, onToggle = { c.command(latest, "PlayPause") }, onSkip = { d -> seek(pos.longValue + d) })

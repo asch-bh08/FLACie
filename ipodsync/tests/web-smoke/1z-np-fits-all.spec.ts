@@ -115,10 +115,9 @@ for (const [name, w, h, dpr] of sizes) {
       problems.push(...np.problems.map((p) => 'Now Playing: ' + p));
       for (const need of ['Previous', 'Next', 'Pause']) if (!np.names.includes(need)) problems.push(`Now Playing: no ${need} on screen`);
       if (upright) {
-        // the arrangement (owner, 26 Nov): shuffle and repeat either side of the time, previous / play / next alone and big, no Up next slot
-        const mid = async (sel: string) => { const b = (await page.locator(sel).boundingBox())!; return b.y + b.height / 2; };
-        const time = await mid('.ls-times');
-        for (const sel of ['.ls-shuf', '.ls-rep']) if (Math.abs((await mid(sel)) - time) > 6) problems.push(`Now Playing: ${sel} is not beside the time`);
+        // the arrangement (1g-2, layout B "mode slots"): Shuffle and Repeat are slots in the row of quiet actions, previous / play / next alone and big,
+        // no Up next slot
+        for (const w of ['Shuffle', 'Repeat']) if (!(await page.locator('.ls-actions .ls-slot', { hasText: w }).isVisible())) problems.push(`Now Playing: no ${w} slot`);
         const play = (await page.locator('.ls-play').boundingBox())!, prev = (await page.locator('.ls-prev').boundingBox())!;
         if (play.height < 60 || prev.height < 56 || play.width <= prev.width) problems.push(`Now Playing: the transport is not big (play ${Math.round(play.width)}x${Math.round(play.height)}, previous ${Math.round(prev.width)}x${Math.round(prev.height)})`);
         if (await page.locator('.ls-actions .ls-slot', { hasText: 'Up next' }).count()) problems.push('Now Playing: an Up next slot is back');
@@ -142,7 +141,8 @@ for (const [name, w, h, dpr] of sizes) {
 
       // the graph, in Info. (The stand-in's songs last a few seconds: Repeat one keeps the same song playing, so Info is not drawn afresh for the next one
       // in the middle of the checks)
-      const rep = page.locator('.ls-transport button[aria-label^="Repeat"]');
+      // Repeat: a slot in the row of quiet actions on a phone (1g-2), in the dock's transport on a PC
+      const rep = page.locator(phone ? '.ls-actions .ls-slot-rep' : '.ls-transport button[aria-label^="Repeat"]');
       for (let i = 0; i < 3 && (await rep.getAttribute('aria-label')) !== 'Repeat one'; i++) { await rep.click(); await page.waitForTimeout(300); }
       await expect(rep).toHaveAttribute('aria-label', 'Repeat one');
       if (phone) await page.locator('.ls-actions').getByRole('button', { name: 'Info', exact: true }).click();

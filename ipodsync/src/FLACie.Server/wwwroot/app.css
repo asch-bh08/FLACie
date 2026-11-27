@@ -373,7 +373,7 @@ button.q-row:hover { background: #ffffff12; }
   .top-brand { padding-left: 0; }
   .top-name { display: none; }
   .rail { top: auto; height: calc(var(--tabs) + env(safe-area-inset-bottom, 0px)); overflow: visible; }
-  .rail a[href="/devices"], .rail a[href="/import"] { display: none; }
+  .rail a[href="/import"] { display: none; }   /* Devices is one of the five tabs now (ONE APP part 10) */
   .devpop { position: fixed; left: 8px; right: 8px; bottom: calc(var(--bar) + var(--tabs) + 8px); width: auto; }
   .devpick { display: none; }
 }

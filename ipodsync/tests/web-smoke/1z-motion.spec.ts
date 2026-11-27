@@ -36,8 +36,8 @@ test('a page change runs a view transition, and nothing is left named after it',
   await signIn(page);
   await idle(page);
   const before = await runs(page);
-  await page.locator('#main-rail').getByRole('link', { name: 'Favourites' }).click();
-  await page.waitForURL(/\/favorites/);
+  await page.locator('#main-rail').getByRole('link', { name: 'Library' }).click();   // part 10: Favourites is in Library now
+  await page.waitForURL(/\/library/);
   expect(await runs(page)).toBeGreaterThan(before);
   expect(await page.evaluate(() => (window as any).flacieMotion.last)).toBe('page');
   await idle(page);
@@ -111,8 +111,8 @@ test('with Animations off nothing moves: no view transition, the menu is instant
   await signIn(page, true);
   expect(await page.evaluate(() => document.documentElement.classList.contains('pref-calm'))).toBe(true);
   const before = await runs(page);
-  await page.locator('#main-rail').getByRole('link', { name: 'Favourites' }).click();
-  await page.waitForURL(/\/favorites/);
+  await page.locator('#main-rail').getByRole('link', { name: 'Library' }).click();   // part 10: Favourites is in Library now
+  await page.waitForURL(/\/library/);
   await playAlbum(page);
   await page.locator('.player .bar-song').click();
   await expect(page.locator('.np')).toBeVisible();
@@ -132,8 +132,8 @@ test('a computer asking for less motion gets no view transitions either', async 
   await page.setViewportSize({ width: 1440, height: 900 });
   await signIn(page);
   const before = await runs(page);
-  await page.locator('#main-rail').getByRole('link', { name: 'Favourites' }).click();
-  await page.waitForURL(/\/favorites/);
+  await page.locator('#main-rail').getByRole('link', { name: 'Library' }).click();   // part 10: Favourites is in Library now
+  await page.waitForURL(/\/library/);
   await page.waitForTimeout(400);
   expect(await runs(page)).toBe(before);
 });

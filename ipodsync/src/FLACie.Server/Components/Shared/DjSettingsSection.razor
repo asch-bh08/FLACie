@@ -1,4 +1,5 @@
 @inherits UserComponent
+@inject IConfiguration Conf
 @*
     The DJ's settings for this person (docs/spec/ai-dj.md). On FLACie Web they are kept on the server, so the phone, the car, the web and the Windows app all
     follow them. The Windows app's own copy of the server goes through the family's FLACie Web when the profile names it (HomeDj), and says when it can't, or
@@ -132,7 +133,10 @@
     /// <summary>What to say when the DJ's own voice can't be made where it is made (Cloudflare not set up there); null when it can, or while it isn't known yet.</summary>
     string? VoiceNote(FLACie.Core.IDjService dj, FLACie.Server.Dj.DjHome? where)
     {
-        if (home is null) return dj.VoiceReady ? null : "Cloudflare isn't set up yet. Ask the admin (Server admin → DJ). Until then the DJ stays quiet, unless Device voice is on.";
+        // whoever runs the server is told what to set up and where; someone invited is not shown the plumbing (ONE APP 1j)
+        if (home is null) return dj.VoiceReady ? null : AdminAccess.Is(Session, Conf)
+            ? "Cloudflare isn't set up yet. Ask the admin (Server admin → DJ). Until then the DJ stays quiet, unless Device voice is on."
+            : "The DJ's voice isn't set up on this server yet; whoever runs it can turn it on. Until then the DJ stays quiet, unless Device voice is on.";
         if (where is { Reachable: null }) return null;
         if (where is { Reachable: true }) return where.VoiceReady ? null : "Cloudflare isn't set up on FLACie Web yet. Ask its admin (Server admin → DJ there). Until then the DJ stays quiet, unless Device voice is on.";
         if (home.VoiceReadyFor(Session)) return null;

@@ -265,15 +265,18 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                     SetPanel("Library", "Where the songs come from. Your profile is kept in your ${if (prefs.accountKind == "nas") "NAS" else "Jellyfin account"}, so signing in on another device brings everything back.") {
                         // the web's facts first: who is signed in where, and how big the library is
                         val lib = app.library
-                        SetFacts(listOf(
-                            "Jellyfin" to (if (lib.jellyfinConnected || prefs.accountKind == "jellyfin") "${prefs.accountUserName.ifBlank { "Signed in" }} on ${prefs.accountServer.ifBlank { prefs.jellyfinUrl }}" else "Not connected"),
-                            "NAS" to (if (lib.nasConnected) "${prefs.nasHost}/${prefs.nasShare}" else "Not connected"),
+                        // ONE APP 1j: whoever runs the server (or a phone with no FLACie Web, its own) sees where the songs come from and can add more;
+                        // someone invited sees their music, not the plumbing
+                        val plumbing = showsSources(ui.guest, canAdmin)
+                        SetFacts(listOfNotNull(
+                            if (!plumbing) null else "Jellyfin" to (if (lib.jellyfinConnected || prefs.accountKind == "jellyfin") "${prefs.accountUserName.ifBlank { "Signed in" }} on ${prefs.accountServer.ifBlank { prefs.jellyfinUrl }}" else "Not connected"),
+                            if (!plumbing) null else "NAS" to (if (lib.nasConnected) "${prefs.nasHost}/${prefs.nasShare}" else "Not connected"),
                             "Library" to "${lib.songs().size} songs · ${lib.albums().size} albums",
                         ))
                         // guests use this device's files only
-                        if (!ui.guest) SettingRow("Jellyfin", if (lib.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
-                        if (!ui.guest) SettingRow("Plex", if (lib.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
-                        if (!ui.guest) SettingRow("NAS", if (lib.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
+                        if (plumbing) SettingRow("Jellyfin", if (lib.jellyfinConnected) "Connected" else "Not connected", chevron = true) { ui.jellyfinSetupOpen = true }
+                        if (plumbing) SettingRow("Plex", if (lib.plexConnected) "Connected" else "Not connected", chevron = true) { ui.plexSetupOpen = true }
+                        if (plumbing) SettingRow("NAS", if (lib.nasConnected) "Connected" else "Not connected", chevron = true) { ui.nasSetupOpen = true }
                         SettingRow("Reload library", if (lib.scanning) "Scanning ${lib.scanCount}…" else null, desc = "Reads this phone's music and the servers' song lists again", action = "Reload") { lib.rescan() }
                         if (!ui.guest) SettingRow("Download log", "Open", chevron = true) { ui.downloadsOpen = true }
                         SettingRow("Headphone test", "Tones, bass, 3D", chevron = true) { ui.headphonesOpen = true }
@@ -630,3 +633,7 @@ private fun SettingsFind(query: String, onChange: (String) -> Unit) {
         if (query.isNotEmpty()) IconAction(Glyph.CLOSE, "Clear", { onChange("") }, size = 32.dp)
     }
 }
+
+/** Settings > Library shows the server facts and the Jellyfin / Plex / NAS setup rows only to whoever runs the server (or a phone with no
+ * FLACie Web, which is its own); a guest or someone invited to a server sees their music, not the plumbing (ONE APP 1j). Pure, unit-tested. */
+fun showsSources(guest: Boolean, canAdmin: Boolean): Boolean = !guest && canAdmin

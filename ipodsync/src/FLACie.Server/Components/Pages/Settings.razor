@@ -9,7 +9,7 @@
 <div class="sp sp-cols">
 <header class="page-head"><h1><i>Settings</i></h1></header>
 <nav class="subnav" aria-label="Settings sections">
-    <a href="/settings#playback">Playback</a>@if (Player.Dj is not null) { <a href="/settings#dj">DJ</a> }<a href="/settings#look">Appearance</a><a href="/settings#sources">Library</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a>@if (Policy.Allowed) { <a href="/downloads">Download log</a> }@if (admin) { <a href="/dashboard">Server admin</a> }
+    <a href="/settings#playback">Playback</a>@if (Player.Dj is not null) { <a href="/settings#dj">DJ</a> }<a href="/settings#look">Appearance</a><a href="/settings#sources">Library</a><a href="/settings#alexa">Alexa</a><a href="/settings#account">Account</a><a href="/settings#about">About</a>@if (Policy.Allowed && admin) { <a href="/downloads">Download log</a> }@if (admin) { <a href="/dashboard">Server admin</a> }
 </nav>
 @* finds a setting: only the groups whose words match stay (flacie.settingsFind, in the browser, as it is typed) *@
 <div class="set-find">
@@ -67,15 +67,20 @@
 
 <section class="panel set" id="sources">
     <div class="set-head"><h2>Library</h2><p class="hint">Where the songs come from. Your profile is kept in @Where, so signing in on another device brings everything back.</p></div>
+    @* ONE APP 1j: whoever runs the server sees where the songs come from and can add more; someone invited to it sees their music, not the
+       plumbing (no server addresses, no NAS or Jellyfin forms) *@
     <dl class="kv">
+        @if (admin)
+        {
         <dt>Jellyfin</dt><dd>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</dd>
         <dt>NAS</dt><dd>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</dd>
+        }
         <dt>Library</dt><dd>@Lib.Songs.Count songs · @Lib.Albums.Count albums@(Session.Loading ? " (loading…)" : "")</dd>
     </dl>
     <div class="row-actions"><button class="btn" @onclick="Reload" disabled="@Session.Loading">Reload library</button></div>
     <CacheLine />
     @if (Session.Problem is { } p) { <p class="form-error">@p</p> }
-    @if (Session.Nas is null)
+    @if (admin && Session.Nas is null)
     {
         <details class="more"><summary>Add a NAS</summary>
             <p class="hint">Plays the music on a network share, and keeps a copy of your profile there.</p>
@@ -89,7 +94,7 @@
             </div>
         </details>
     }
-    @if (Session.Jellyfin is null)
+    @if (admin && Session.Jellyfin is null)
     {
         <details class="more"><summary>Add Jellyfin</summary>
             <p class="hint">Streams your Jellyfin library, and keeps a copy of your profile in your Jellyfin account.</p>
@@ -171,10 +176,14 @@
     <div class="set-head"><h2>About</h2><p class="hint">What is running here.</p></div>
     <dl class="kv">
         <dt>Version</dt><dd id="about-version">@AppInfo.Version</dd>
+        @* the addresses and the data folder are the server's plumbing: for whoever runs it (ONE APP 1j) *@
+        @if (admin)
+        {
         <dt>You opened this page at</dt><dd id="about-server">@ServerUrl</dd>
         @* the phone's address for this server (owner, 9 Nov: it used to follow whichever address this page was opened at) *@
         <dt>Your phone uses</dt><dd id="about-phone">@(Address.Current is { } pa ? pa + " (" + Address.Source + ")" : "Not known yet: open FLACie Web once at its Tailscale address, or set it in Server admin")</dd>
         <dt>Data folder</dt><dd id="about-data">@DataFolder</dd>
+        }
         <dt>Licences</dt><dd><a href="/licenses" target="_blank" rel="noopener">Third-party licences</a></dd>
         <dt>Privacy</dt><dd><a href="/privacy" target="_blank" rel="noopener">What this server keeps and sends</a></dd>
     </dl>

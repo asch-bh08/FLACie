@@ -29,9 +29,17 @@
 <section class="panel set">
     <div class="set-head"><h2>Connected</h2><p class="hint">Where your music and profile live. Your playlists, favourites and services are kept in @Where, so every FLACie you sign in to picks them up.</p></div>
     <ul class="links">
+        @* ONE APP 1j: whoever runs the server sees the addresses and can add or manage the sources; someone invited just sees that they are signed in *@
+        @if (AdminAccess.Is(Session, Conf))
+        {
         <li><i class="dot @(Session.Jellyfin is not null ? "on" : "")"></i><span><b>Jellyfin</b><small>@(Session.Jellyfin is { } j ? $"{j.UserName} on {j.Server}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Jellyfin is null ? "Add" : "Manage")</a></li>
         <li><i class="dot @(Session.Nas is not null ? "on" : "")"></i><span><b>NAS</b><small>@(Session.Nas is { } n ? $"{n.Host}/{n.Share}{(n.Folder.Length > 0 ? "/" + n.Folder : "")}" : "Not connected")</small></span><a class="btn ghost" href="/settings#sources">@(Session.Nas is null ? "Add" : "Manage")</a></li>
-        @if (Policy.Allowed) {
+        }
+        else
+        {
+        <li><i class="dot on"></i><span><b>@(Session.Kind == "nas" ? "NAS" : "Jellyfin")</b><small>Signed in as @Session.DisplayName</small></span></li>
+        }
+        @if (Policy.Allowed && AdminAccess.Is(Session, Conf)) {
         <li><i class="dot @(Session.Services.SoulseekReady || Session.Services.LidarrReady ? "on" : "")"></i><span><b>Downloads</b><small>@(Session.Services.SoulseekReady ? "Soulseek" : "") @(Session.Services.LidarrReady ? "Lidarr" : "")@(Session.Services.Any ? "" : "Not set up")</small></span>@if (AdminAccess.Is(Session, Conf)) { <a class="btn ghost" href="/dashboard#downloads">@(Session.Services.Any ? "Manage" : "Set up")</a> }</li>
         }
         @if (Live is { } l) { <li><i class="dot @(l.Connect.Connected ? "on" : "")"></i><span><b>Devices</b><small>@(l.Connect.Connected ? "Connected for remote control and Jams" : "Connecting…")</small></span><a class="btn ghost" href="/devices">Open</a></li> }

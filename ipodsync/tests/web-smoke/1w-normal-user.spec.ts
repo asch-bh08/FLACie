@@ -38,3 +38,19 @@ test("a normal user's Settings has no server addresses and no NAS or Jellyfin fo
   await expect(page.locator('main')).not.toContainText(/Add a NAS|Add Jellyfin|NAS address|Jellyfin server|127\.0\.0\.1/);
   await expect(page.locator('main')).not.toContainText(/Server admin/);
 });
+
+test("a normal user's Account says they are signed in, with no server address and nothing to set up", async ({ page }) => {
+  await open(page, '/account');
+  await expect(page.locator('main')).toContainText(/Signed in as listener/, { timeout: 15_000 });
+  await expect(page.locator('main')).not.toContainText(/127\.0\.0\.1|Not set up|Set up/);
+  await expect(page.locator('main').getByRole('link', { name: 'Add' })).toHaveCount(0);
+});
+
+// sign the listener out again, so its live session does no more background work while the specs after this one run
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  await open(page, '/settings');
+  await page.locator('form[action="/auth/logout"] button').first().click().catch(() => {});
+  await page.waitForTimeout(1000);
+  await page.close();
+});

@@ -819,7 +819,8 @@ body.np-open .dj-bar { display: none; }
   .ls .ls-stage { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto auto auto auto;
     --np-gap: clamp(8px, calc((100dvh - 760px) / 8 + 10px), 28px); column-gap: 14px; row-gap: var(--np-gap); align-content: stretch; }
   .ls .ls-transport { display: contents; }
-  .ls .ls-art { grid-area: 1 / 1 / 2 / -1; place-items: end center; margin: 0; }
+  /* the frame's bars may use the stage's side margin: a narrow tall phone (the Fold's cover screen) gets a bigger cover, less room left over */
+  .ls .ls-art { grid-area: 1 / 1 / 2 / -1; place-items: end center; margin: 0 -12px; }
   .ls .ls-frame { width: min(100cqw, 100cqh); }
   .ls .ls-cover { width: calc(min(100cqw, 100cqh) - 2 * var(--frame)); align-self: end; margin-bottom: var(--frame); }
   /* the time's row sits right under the frame whatever the gap */
@@ -850,6 +851,8 @@ body.np-open .dj-bar { display: none; }
   /* the lyrics start near the top of the sheet and end near its foot (a fifth of the sheet was empty above them) */
   .ls .ls-lyrics { padding: 4vh 0 14vh; }
 }
+/* very tall and narrow (the Fold's cover screen, 344 x 882): the frame is held by the width, so the gaps take more of the height left over */
+@media (max-width: 760px) and (max-aspect-ratio: 2/5) { .ls .ls-stage { --np-gap: clamp(8px, calc((100dvh - 760px) / 4 + 10px), 44px); } }
 @media (max-width: 760px) and (orientation: portrait) and (max-height: 760px) {
   .ls .ls-pillbtn { width: 68px !important; height: 56px; }
   .ls .ls-pillbtn svg { width: 24px; height: 24px; }

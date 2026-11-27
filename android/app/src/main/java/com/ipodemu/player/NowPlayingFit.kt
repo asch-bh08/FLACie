@@ -143,6 +143,8 @@ object NowPlayingFit {
     const val PLAY_W = 112f; const val PLAY_H = 72f; const val PILL_W = 84f; const val PILL_H = 64f
     const val PLAY_W_TIGHT = 88f; const val PLAY_H_TIGHT = 60f; const val PILL_W_TIGHT = 68f; const val PILL_H_TIGHT = 56f
     const val ROUND = 48f
+    /** The cover's largest side: an unfolded Fold or a tablet gives it the room (1g-2: it was held to 560 dp, small with space round it). */
+    const val COVER_MAX = 760f
     const val GAP = 14f
 
     /** Previous | play | next with their two gaps, end to end. */
@@ -208,4 +210,14 @@ object NowPlayingFit {
         val overhead = 28f + 48f + 10f + max(44f, 28f * 1.3f * fontScale) + 10f
         return if (want + overhead <= panelH) want else (panelH - overhead).coerceIn(96f, want)
     }
+}
+
+/** Now Playing's row of quiet actions (ONE APP 1g-2, layout B "mode slots", chosen from the mock-ups on docs/parity/np-1g2.html): Shuffle and
+ *  Repeat are two-state slots beside Lyrics and Info, so previous / play / next keep their big row alone and the time (or the seek line) has its
+ *  own; Add to playlist is in More's sheet. Only when the row shrinks to More do Shuffle and Repeat go back beside the time. Pure, unit-tested. */
+object NowPlayingSlots {
+    fun of(actions: NowPlayingFit.Actions): List<String> =
+        if (actions == NowPlayingFit.Actions.MORE_ONLY) listOf("more") else listOf("shuffle", "repeat", "lyrics", "info", "more")
+
+    fun togglesBesideTime(actions: NowPlayingFit.Actions): Boolean = actions == NowPlayingFit.Actions.MORE_ONLY
 }

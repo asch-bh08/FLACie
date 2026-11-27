@@ -330,16 +330,12 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                 SerifTitle(graphTitle(mode), Modifier.weight(1f), size = 32f, color = InfoInk)
                 Box(Modifier.clip(RoundedCornerShape(50)).background(accent.copy(alpha = .2f)).padding(horizontal = 10.dp, vertical = 4.dp)) { MonoLabel("● Live", size = 10.5f, color = accent) }
                 Spacer(Modifier.width(10.dp))
-                Box(Modifier.size(48.dp).clip(CircleShape).background(InfoInk.copy(alpha = .14f)).semantics { contentDescription = "Close full screen"; role = androidx.compose.ui.semantics.Role.Button }
-                    .clickable(onClick = onClose), contentAlignment = Alignment.Center) { Txt("✕", size = 20f, weight = FontWeight.SemiBold, color = InfoInk) }
+                // ONE APP 1g-2: the kit's small button, worded (it was a bare ✕ in a circle)
+                SmallButton("Close", onClose, icon = Glyph.CLOSE)
             }
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for ((id, label) in graphs) {
-                    val on = mode == id; val shape = RoundedCornerShape(12.dp)
-                    Box(Modifier.height(44.dp).clip(shape).background(if (on) InfoInk else Color.Transparent).border(1.dp, if (on) InfoInk else InfoInk.copy(alpha = .28f), shape)
-                        .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Tab; selected = on }.clickable { onMode(id) }.padding(horizontal = 14.dp),
-                        contentAlignment = Alignment.Center) { Txt(label, size = 14f, weight = FontWeight.SemiBold, color = if (on) InfoOnMain else InfoInk) }
-                }
+                // the graphs as the kit's small buttons, the shown one in ink (1g-2)
+                for ((id, label) in graphs) SmallButton(label, { onMode(id) }, selected = mode == id)
             }
             androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(tone.copy(alpha = .45f)).padding(12.dp).pointerInput(mode) {
                 var dx = 0f
@@ -368,15 +364,19 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
             val snap = rememberSnap(app.player, app.prefs)
             val controls: @Composable () -> Unit = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    FgPlain(Glyph.SHUFFLE, if (snap.shuffle) "Shuffle on" else "Shuffle off", snap.shuffle, accent) { app.shuffleTap() }
+                    // Shuffle and Repeat worded like the player's slots (1g-2), ink when on
+                    Slot("Shuffle", Glyph.SHUFFLE, { app.shuffleTap() }, Modifier.width(64.dp), on = snap.shuffle, description = if (snap.shuffle) "Shuffle on" else "Shuffle off",
+                        fill = InfoInk.copy(alpha = .1f), ink = InfoInk, onInk = InfoOnMain, rim = false)
                     for ((g, label, act) in listOf(Triple(Glyph.PREV, "Previous", { app.player.prev() }), Triple(if (playing) Glyph.PAUSE else Glyph.PLAY, if (playing) "Pause" else "Play", { app.player.toggle() }), Triple(Glyph.NEXT, "Next", { app.player.next() }))) {
                         val big = label == "Pause" || label == "Play"
-                        Box(Modifier.size(if (big) 72.dp else 52.dp, if (big) 56.dp else 48.dp).clip(RoundedCornerShape(if (big) 20.dp else 24.dp)).background(if (big) accent else InfoInk.copy(alpha = .12f))
+                        Box(Modifier.size(if (big) 72.dp else 52.dp, if (big) 56.dp else 48.dp).clip(RoundedCornerShape(Kit.rSlot)).background(if (big) accent else InfoInk.copy(alpha = .12f))
                             .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button }.clickable { act() }, contentAlignment = Alignment.Center) {
                             GlyphIcon(g, Modifier.size(if (big) 28.dp else 22.dp), if (big) Color(DesignColour.readableOn(accent.toArgb())) else InfoInk)
                         }
                     }
-                    FgPlain(if (snap.repeat == com.ipodemu.playback.RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, com.ipodemu.playback.RepeatCycle.label(snap.repeat), snap.repeat != com.ipodemu.playback.RepeatCycle.OFF, accent) { repeatTap(app) }
+                    Slot(if (snap.repeat == com.ipodemu.playback.RepeatCycle.ONE) "Repeat 1" else "Repeat", if (snap.repeat == com.ipodemu.playback.RepeatCycle.ONE) Glyph.REPEAT_ONE else Glyph.REPEAT, { repeatTap(app) },
+                        Modifier.width(64.dp), on = snap.repeat != com.ipodemu.playback.RepeatCycle.OFF, description = com.ipodemu.playback.RepeatCycle.label(snap.repeat),
+                        fill = InfoInk.copy(alpha = .1f), ink = InfoInk, onInk = InfoOnMain, rim = false)
                 }
             }
             val extras: @Composable () -> Unit = {
@@ -926,7 +926,7 @@ private class Gfx(
 @Composable
 private fun FgPlain(g: Glyph, label: String, on: Boolean, accent: Color, onClick: () -> Unit) {
     Box(
-        Modifier.size(44.dp).clip(CircleShape).background(if (on) accent.copy(alpha = .18f) else InfoInk.copy(alpha = .1f))
+        Modifier.size(48.dp).clip(RoundedCornerShape(Kit.rButtonSmall)).background(if (on) accent.copy(alpha = .18f) else InfoInk.copy(alpha = .1f))
             .semantics { contentDescription = label; role = androidx.compose.ui.semantics.Role.Button; stateDescription = if (on) "On" else "Off" }.clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { GlyphIcon(g, Modifier.size(20.dp), if (on) accent else InfoInk) }

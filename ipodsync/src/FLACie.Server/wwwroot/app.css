@@ -1613,3 +1613,22 @@ main.content { min-width: 0; }
   background: color-mix(in srgb, var(--ink, #fff) 14%, transparent); color: var(--ink, #fff); }
 .graph-tabs-arrow:hover { background: color-mix(in srgb, var(--ink, #fff) 24%, transparent); }
 @media (hover: none) { .graph-tabs-arrow { display: none; } }
+
+/* ---- ONE APP 1g-2: the full-screen graph's buttons on the kit, worded like the player's dock: Shuffle and Repeat are slots with their word (ink
+   when on), previous / play / next the transport's rounded rectangles, the graph tabs small buttons, and Close says so (it was a bare ✕) ---- */
+.graph-word { display: none; }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-plain { flex-direction: column; gap: 3px; width: 72px; height: var(--k-slot, 60px); border-radius: var(--k-r-slot, 18px);
+  background: var(--k-glass, #ffffff0f); border: 1px solid var(--k-rim, #ffffff24); color: var(--ink); font: 600 12.5px/1 var(--k-sans, sans-serif); }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-plain .graph-word { display: block; }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-plain.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-transport > .icon-btn:not(.graph-plain) { width: 72px; height: 56px; border-radius: var(--k-r-slot, 18px); background: var(--k-glass, #ffffff0f); }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-play { width: 96px; height: 64px; border-radius: var(--k-r-slot, 18px); }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-transport { gap: 10px; }
+:is(.graph-box:fullscreen, .graph-box.full) .gtab { min-height: var(--k-btn-sm, 44px); padding: 0 18px; border-radius: var(--k-r-btn, 16px); font: 600 15px/1 var(--k-sans, sans-serif); }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-full-btn { width: auto; min-width: 0; height: var(--k-btn-sm, 44px); padding: 0 18px; border-radius: var(--k-r-btn, 16px); }
+:is(.graph-box:fullscreen, .graph-box.full) .graph-full-btn::before { content: "Close"; font: 600 15px/1 var(--k-sans, sans-serif); }
+@media (max-width: 560px) {
+  :is(.graph-box:fullscreen, .graph-box.full) .graph-plain { width: 60px; }
+  :is(.graph-box:fullscreen, .graph-box.full) .graph-transport > .icon-btn:not(.graph-plain) { width: 56px; }
+  :is(.graph-box:fullscreen, .graph-box.full) .graph-play { width: 76px; }
+}

@@ -383,7 +383,7 @@ private fun FullGraph(graphs: List<Pair<String, String>>, mode: String, onMode: 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     app.userData.rev
                     val fav = app.userData.isFavorite(t)
-                    FgPlain(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Remove from favourites" else "Favourite", fav, accent) { app.userData.toggleFavorite(t) }
+                    FgPlain(if (fav) Glyph.HEART_FILLED else Glyph.HEART, if (fav) "Remove from favourites" else "Add to favourites", fav, accent) { app.userData.toggleFavorite(t) }
                     snap.dj?.let { dj ->
                         FgPlain(Glyph.DJ, djLabel(dj), dj, accent) { djTap(app) }
                         DjMicButton(44.dp, tint = InfoInk, glass = InfoInk.copy(alpha = .1f), lit = accent)

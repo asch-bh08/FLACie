@@ -76,7 +76,7 @@ test('A song menu offers the DJ choices, ticks the current one and keeps it', as
   const rows = page.locator('.tracks .track');
   await expect(rows).toHaveCount(8, { timeout: 20_000 });
   const open = async () => { await rows.nth(1).getByRole('button', { name: /^More for/ }).click(); return rows.nth(1).locator('.menu'); };
-  const openDj = async () => { const m = await open(); await m.getByRole('menuitem', { name: 'The DJ and this song' }).click(); return m; };
+  const openDj = async () => { const m = await open(); await m.getByRole('menuitem', { name: 'More…' }).click(); await m.getByRole('menuitem', { name: 'The DJ and this song…' }).click(); return m; };
   let menu = await openDj();
   await expect(menu.getByRole('menuitemradio', { name: 'DJ: always introduce this song' })).toHaveAttribute('aria-checked', 'false');
   await expect(menu.getByRole('menuitemradio', { name: 'DJ: never talk over this song' })).toHaveAttribute('aria-checked', 'false');

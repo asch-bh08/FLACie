@@ -86,7 +86,7 @@ fun JellyfinSetupScreen() {
             if (lib.jellyfinConnected || p.jellyfinUrl.isNotBlank()) GlossPill("Disconnect", { lib.disconnectJellyfin(); url = ""; apiKey = "" })
 
             when {
-                lib.jellyfinConnecting -> Txt("Connecting to $url ...", size = 13f)
+                lib.jellyfinConnecting -> Txt("Connecting to $url…", size = 13f)
                 lib.jellyfinConnected -> Txt(lib.jellyfinStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.jellyfinStatus != null -> Txt(lib.jellyfinStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }

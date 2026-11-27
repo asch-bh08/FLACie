@@ -81,7 +81,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
 
     public async Task DownloadAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default)
     {
-        on(new(DownloadStage.Requested, $"Requested \"{title}\""));
+        on(new(DownloadStage.Requested, $"Requested “{title}”"));
         durationMs = await LengthOf(artist, title, durationMs, ct);
         var sec = (int)(durationMs / 1000);
         // YouTube and the open sources can't be stopped once their file mover has started filing, so they only race when a copy that lost can be moved
@@ -102,7 +102,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             racing = await canRace;
             if (win is not null)
             {
-                on(new(DownloadStage.Done, win.HiRes ? $"\"{title}\" is ready to play (Hi-Res)" : $"\"{title}\" is ready to play", win.Source, [win.Track], HiRes: win.HiRes));
+                on(new(DownloadStage.Done, win.HiRes ? $"“{title}” is ready to play (Hi-Res)" : $"“{title}” is ready to play", win.Source, [win.Track], HiRes: win.HiRes));
                 return;
             }
             if (cfg.SoulseekReady) on(new(DownloadStage.Searching, racing ? "No source had a copy it could finish" : "Soulseek had nothing it could finish", "soulseek", null, true));
@@ -149,10 +149,10 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             var hit = await FetchFirst(sl, cands, m => on(new(DownloadStage.Downloading, hiRes ? m.Replace("Downloading", "Downloading a Hi-Res copy") : m, "soulseek")), both.Token,
                 hiRes ? 2 : PeerRace.MaxAtOnce, hiRes ? (got, size) => e.Report(got, size) : null);
             if (hit is null) return null;
-            on(new(DownloadStage.Importing, "Filing into the library...", "soulseek"));
+            on(new(DownloadStage.Importing, "Filing into the library…", "soulseek"));
             return await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(hiRes ? " [Hi-Res]" : "")}", null, artist, artUrl, ct);
         }
-        on(new(DownloadStage.Searching, "Searching Soulseek...", "soulseek"));
+        on(new(DownloadStage.Searching, "Searching Soulseek…", "soulseek"));
         yield return new RaceEntrant("soulseek", false, (e, race) => Run(e, false, race));
         yield return new RaceEntrant("soulseek", true, (e, race) => Run(e, true, race));
     }
@@ -179,7 +179,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                     var done = await Task.WhenAny(left).WaitAsync(race);
                     left.Remove(done);
                     if (await done is not { } hit || !OpenSources.Allowed(hit) || TooShort((int)hit.DurationSec, (int)(durationMs / 1000))) continue;
-                    on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
+                    on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}…", hit.Source));
                     var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}.{hit.Ext}";
                     if (!await FetchViaFileMover(hit.Url, dest, ct)) { on(new(DownloadStage.Searching, OpenSourceSettings.Name(hit.Source) + " had it, but the download failed", hit.Source, null, true)); continue; }
                     e.Source = hit.Source;   // the job's label says which open source it was (Internet Archive, Audius, Jamendo)
@@ -216,11 +216,11 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 var sname = OpenSourceSettings.Name(id);
                 var left = (int)Math.Max(0, deadline - Environment.TickCount64);
                 if (await Task.WhenAny(task, Task.Delay(left, ct)) != task || await task is not { } hit || TooShort((int)hit.DurationSec, (int)(durationMs / 1000))) { on(new(DownloadStage.Searching, sname + " had nothing", id, null, true)); continue; }
-                on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}...", hit.Source));
+                on(new(DownloadStage.Downloading, $"Downloading from {hit.Label}…", hit.Source));
                 var dest = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}.{hit.Ext}";
-                on(new(DownloadStage.Importing, "Filing into the library...", hit.Source));
+                on(new(DownloadStage.Importing, "Filing into the library…", hit.Source));
                 if (!await FetchViaFileMover(hit.Url, dest, ct)) { on(new(DownloadStage.Searching, sname + " had it, but the download failed", id, null, true)); continue; }
-                on(new(DownloadStage.Done, $"\"{title}\" is ready to play", hit.Source, [OpenTrack(dest, title, artist, album, artUrl, durationMs > 0 ? durationMs : hit.DurationSec * 1000L)]));
+                on(new(DownloadStage.Done, $"“{title}” is ready to play", hit.Source, [OpenTrack(dest, title, artist, album, artUrl, durationMs > 0 ? durationMs : hit.DurationSec * 1000L)]));
                 return true;
             }
             return false;
@@ -236,11 +236,11 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         if (PlaylistLinks.SongLink(url) is not { } link) { on(new(DownloadStage.Failed, "That isn't a SoundCloud or YouTube song link")); return; }
         if (cfg.FileMoverUrl.Length == 0) { on(new(DownloadStage.Failed, "Song links need FLACie's download services (the file mover) set up in Server admin")); return; }
         var tag = link.Service == "SoundCloud" ? SoundCloud.Id : "ytdl";
-        on(new(DownloadStage.Searching, $"Waiting for {link.Service}'s turn...", tag));
+        on(new(DownloadStage.Searching, $"Waiting for {link.Service}'s turn…", tag));
         await YtdlTurn.WaitAsync(ct);
         try
         {
-            on(new(DownloadStage.Downloading, $"Getting it from {link.Service}...", tag));
+            on(new(DownloadStage.Downloading, $"Getting it from {link.Service}…", tag));
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct); limit.CancelAfter(TimeSpan.FromSeconds(240));
             using var req = new HttpRequestMessage(HttpMethod.Post, cfg.FileMoverUrl.TrimEnd('/') + "/ytdl")
             { Content = new StringContent(new JsonObject { ["url"] = link.Url, ["toDir"] = cfg.NasFolder.Trim('/') }.ToJsonString(), Encoding.UTF8, "application/json") };
@@ -253,7 +253,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                 {
                     var artist = j["artist"]?.GetValue<string>() ?? ""; var title = j["title"]?.GetValue<string>() ?? "";
                     var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
-                    on(new(DownloadStage.Done, $"\"{title}\" by {artist} is ready to play", tag, [OpenTrack(path, title, artist, "", null, secs * 1000L)]));
+                    on(new(DownloadStage.Done, $"“{title}” by {artist} is ready to play", tag, [OpenTrack(path, title, artist, "", null, secs * 1000L)]));
                     return;
                 }
                 var said = j?["error"]?.GetValue<string>() ?? "";
@@ -278,7 +278,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     async Task<bool> TryYtdl(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct)
     {
         if (await YtdlAsync(artist, title, album, artUrl, durationMs, on, ct, ct) is not { } track) return false;
-        on(new(DownloadStage.Done, $"\"{title}\" is ready to play", "ytdl", [track]));
+        on(new(DownloadStage.Done, $"“{title}” is ready to play", "ytdl", [track]));
         return true;
     }
 
@@ -290,12 +290,12 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         string why = name + " had no matching upload";
         try
         {
-            on(new(DownloadStage.Searching, $"Waiting for {name}'s turn...", tag));
+            on(new(DownloadStage.Searching, $"Waiting for {name}'s turn…", tag));
             await YtdlTurn.WaitAsync(before);
             try
             {
                 if (before.IsCancellationRequested) return null;
-                on(new(DownloadStage.Searching, $"Looking on {name}...", tag));
+                on(new(DownloadStage.Searching, $"Looking on {name}…", tag));
                 var noExt = string.Join("/", new[] { cfg.NasFolder.Trim('/'), Clean(artist) }.Where(x => x.Length > 0)) + $"/{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}" + (sc ? " (SoundCloud)" : "");   // its own file: both may be filing at once
                 for (var attempt = 0; attempt < 2; attempt++)
                 {
@@ -309,7 +309,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
                         var j = JsonNode.Parse(await res.Content.ReadAsStringAsync(limit.Token));
                         if (res.IsSuccessStatusCode && j?["ok"]?.GetValue<bool>() == true && j["ext"]?.GetValue<string>() is { Length: > 0 } ext)
                         {
-                            on(new(DownloadStage.Importing, "Filing into the library...", tag));
+                            on(new(DownloadStage.Importing, "Filing into the library…", tag));
                             var secs = j["durationSec"] is JsonValue d && d.TryGetValue<int>(out var n) ? n : 0;
                             if (TooShort(secs, (int)(durationMs / 1000)))
                             {
@@ -352,19 +352,19 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     public async Task DownloadAlbumAsync(CatalogAlbum album, Action<DownloadStatus> on, CancellationToken ct = default)
     {
         var name = album.CleanTitle;
-        on(new(DownloadStage.Requested, $"Requested \"{name}\""));
+        on(new(DownloadStage.Requested, $"Requested “{name}”"));
         var list = await catalog.TracksAsync(album, ct);
         if (cfg.SoulseekReady && list.Count > 0)
         {
             var tracks = await TrySoulseekAlbum(album, list, on, ct);
             if (tracks.Count > 0)
             {
-                on(new(DownloadStage.Done, tracks.Count == list.Count ? $"\"{name}\" is ready to play" : $"\"{name}\": {tracks.Count} of {list.Count} songs ready", "soulseek", tracks));
+                on(new(DownloadStage.Done, tracks.Count == list.Count ? $"“{name}” is ready to play" : $"“{name}”: {tracks.Count} of {list.Count} songs ready", "soulseek", tracks));
                 return;
             }
         }
-        if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, $"\"{name}\" wasn't found on Soulseek")); return; }
-        if (!await new LidarrFlow(http, cfg).TryAsync(album.Artist, "", name, on, ct)) on(new(DownloadStage.Failed, $"\"{name}\" wasn't found"));
+        if (!cfg.LidarrReady) { on(new(DownloadStage.Failed, $"“{name}” wasn't found on Soulseek")); return; }
+        if (!await new LidarrFlow(http, cfg).TryAsync(album.Artist, "", name, on, ct)) on(new(DownloadStage.Failed, $"“{name}” wasn't found"));
     }
 
     /// <summary>The searches to try for a song, best first. Soulseek's server refuses to search some full artist names (a query containing "kendrick lamar" returns
@@ -390,15 +390,15 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     {
         try
         {
-            on(new(DownloadStage.Searching, hiRes ? "Searching Soulseek for a Hi-Res copy..." : "Searching Soulseek...", "soulseek"));
+            on(new(DownloadStage.Searching, hiRes ? "Searching Soulseek for a Hi-Res copy…" : "Searching Soulseek…", "soulseek"));
             var sl = Slskd;
             var cands = SlskdClient.RankSong(await SearchSong(sl, artist, title, durationSec, hiRes, on, ct), artist, title, durationSec, hiRes);
             var hit = cands.Count == 0 ? null : await FetchFirst(sl, cands, m => on(new(DownloadStage.Downloading, m, "soulseek")), ct);
             if (hit is null) return false;
-            on(new(DownloadStage.Importing, "Filing into the library...", "soulseek"));
+            on(new(DownloadStage.Importing, "Filing into the library…", "soulseek"));
             var track = await FileAsync(hit, artist, title, album, 0, 0, durationSec * 1000L, $"{Clean(artist)} - {Clean(WebCatalog.BaseTitle(title))}{(hiRes ? " [Hi-Res]" : "")}", null, artist, artUrl, ct);
             if (track is null) { on(new(DownloadStage.Searching, "Soulseek sent the file but it could not be filed: " + (FileWhy.Value ?? "unknown reason"), "soulseek", null, true)); return false; }
-            on(new(DownloadStage.Done, hiRes ? $"\"{title}\" is ready to play (Hi-Res {HiResLabel(hit)})" : $"\"{title}\" is ready to play", "soulseek", [track], HiRes: hiRes && hit.HiRes));
+            on(new(DownloadStage.Done, hiRes ? $"“{title}” is ready to play (Hi-Res {HiResLabel(hit)})" : $"“{title}” is ready to play", "soulseek", [track], HiRes: hiRes && hit.HiRes));
             return true;
         }
         catch (OperationCanceledException) { throw; }
@@ -452,7 +452,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
     /// the normal download runs instead (the same sources and order as a plain Download), so the song still arrives, just not in Hi-Res.</summary>
     public async Task DownloadHiResAsync(string artist, string title, string album, string? artUrl, long durationMs, Action<DownloadStatus> on, CancellationToken ct = default, bool fallbackToNormal = true)
     {
-        on(new(DownloadStage.Requested, $"Requested \"{title}\" in Hi-Res"));
+        on(new(DownloadStage.Requested, $"Requested “{title}” in Hi-Res"));
         durationMs = await LengthOf(artist, title, durationMs, ct);
         if (cfg.SoulseekReady)
         {
@@ -471,7 +471,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         void Status(string m) => on(new(DownloadStage.Downloading, m, "soulseek"));
         try
         {
-            on(new(DownloadStage.Searching, $"Searching Soulseek for \"{name}\"...", "soulseek"));
+            on(new(DownloadStage.Searching, $"Searching Soulseek for “{name}”…", "soulseek"));
             // the full artist name can be a phrase Soulseek refuses to search (see SearchPlan): fall back to the artist's first word, then the album alone
             var albumName = Regex.Replace(name, @"s*[([][^)]]*[)]]", "").Trim();
             var aw = Matching.PrimaryArtist(album.Artist).Split(' ', StringSplitOptions.RemoveEmptyEntries);
@@ -489,7 +489,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             {
                 var want = Enumerable.Range(0, list.Count).Where(i => got[i] is null && folder[i] is not null).ToList();
                 if (want.Count == 0) continue;
-                var ok = await FetchBatch(sl, want.Select(i => folder[i]!).ToList(), m => Status($"Downloading \"{name}\": {m}"), ct);
+                var ok = await FetchBatch(sl, want.Select(i => folder[i]!).ToList(), m => Status($"Downloading “{name}”: {m}"), ct);
                 foreach (var i in want) if (ok.Contains(folder[i]!)) got[i] = folder[i];
                 if (got.All(g => g is not null)) break;
             }
@@ -497,7 +497,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             var missing = Enumerable.Range(0, list.Count).Where(i => got[i] is null).Take(8).ToList();
             if (missing.Count > 0)
             {
-                Status($"Finding {missing.Count} more song{(missing.Count == 1 ? "" : "s")}...");
+                Status($"Finding {missing.Count} more song{(missing.Count == 1 ? "" : "s")}…");
                 var gate = new SemaphoreSlim(3);
                 await Task.WhenAll(missing.Select(async i =>
                 {
@@ -515,7 +515,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
         catch (OperationCanceledException) { throw; }
         catch (Exception) { }
         if (got.All(g => g is null)) return [];
-        on(new(DownloadStage.Importing, $"Filing \"{name}\" into the library...", "soulseek"));
+        on(new(DownloadStage.Importing, $"Filing “{name}” into the library…", "soulseek"));
         var multiDisc = list.Any(s => s.DiscNo > 1);
         var tracks = new List<Track>();
         for (var i = 0; i < list.Count; i++)
@@ -571,7 +571,7 @@ public sealed class DownloadCoordinator(HttpClient http, WebCatalog catalog, Dow
             if (active.MaxBy(x => x.Bytes) is { } best)
             {
                 bytes?.Invoke(best.Bytes, best.F.Size);
-                progress(best.Bytes == 0 ? "Waiting for a peer..." : $"Downloading {Math.Min(99, best.Bytes * 100 / Math.Max(1, best.F.Size))}%...");
+                progress(best.Bytes == 0 ? "Waiting for a peer…" : $"Downloading {Math.Min(99, best.Bytes * 100 / Math.Max(1, best.F.Size))}%…");
             }
         }
         return null;   // the transfers still running are stopped by FetchFirst
@@ -731,7 +731,7 @@ sealed class LidarrFlow(HttpClient http, DownloadServices cfg)
     {
         try
         {
-            on(new(DownloadStage.Searching, $"Looking up \"{artist}\" on Lidarr...", "lidarr"));
+            on(new(DownloadStage.Searching, $"Looking up “{artist}” on Lidarr…", "lidarr"));
             var found = (await Call(HttpMethod.Get, $"/api/v1/artist/lookup?term={Uri.EscapeDataString(artist)}", null, ct) as JsonArray)?.OfType<JsonObject>().FirstOrDefault();
             if (found is null) return false;
             var foreign = found["foreignArtistId"]!.GetValue<string>();
@@ -741,7 +741,7 @@ sealed class LidarrFlow(HttpClient http, DownloadServices cfg)
             if (existing is not null) artistId = existing["id"]!.GetValue<int>();
             else
             {
-                on(new(DownloadStage.Searching, $"Adding \"{found["artistName"]?.GetValue<string>()}\" to Lidarr...", "lidarr"));
+                on(new(DownloadStage.Searching, $"Adding “{found["artistName"]?.GetValue<string>()}” to Lidarr…", "lidarr"));
                 var profiles = await Call(HttpMethod.Get, "/api/v1/qualityprofile", null, ct) as JsonArray;
                 var profile = profiles?.OfType<JsonObject>().FirstOrDefault(o => string.Equals(o["name"]?.GetValue<string>(), "Lossless", StringComparison.OrdinalIgnoreCase)) ?? profiles?.OfType<JsonObject>().First();
                 var root = (await Call(HttpMethod.Get, "/api/v1/rootfolder", null, ct) as JsonArray)?.OfType<JsonObject>().First()["path"]!.GetValue<string>();
@@ -763,11 +763,11 @@ sealed class LidarrFlow(HttpClient http, DownloadServices cfg)
                 for (var i = 0; justAdded && i < 10 && (await Albums(artistId, ct)).Count == 0; i++) await Task.Delay(1500, ct);
                 albumId = (await Albums(artistId, ct)).FirstOrDefault(a => a.Title.Contains(album, StringComparison.OrdinalIgnoreCase) || album.Contains(a.Title, StringComparison.OrdinalIgnoreCase)).Id is var id && id != 0 ? id : null;
             }
-            on(new(DownloadStage.Searching, "Searching indexers...", "lidarr"));
+            on(new(DownloadStage.Searching, "Searching indexers…", "lidarr"));
             await Call(HttpMethod.Post, "/api/v1/command", albumId is { } alb
                 ? new JsonObject { ["name"] = "AlbumSearch", ["albumIds"] = new JsonArray(alb) } : new JsonObject { ["name"] = "ArtistSearch", ["artistId"] = artistId }, ct);
 
-            on(new(DownloadStage.Downloading, "Waiting for a grab...", "lidarr"));
+            on(new(DownloadStage.Downloading, "Waiting for a grab…", "lidarr"));
             // two minutes to be grabbed; once Lidarr's queue has it the wait follows the download (a torrent or usenet grab often takes longer than two minutes,
             // and a song that arrived minutes later used to be logged as "Not found"), up to 30 minutes
             var seen = false; var deadline = Environment.TickCount64 + 120_000; var hardStop = Environment.TickCount64 + 30 * 60_000;
@@ -784,13 +784,13 @@ sealed class LidarrFlow(HttpClient http, DownloadServices cfg)
                     var state = item["trackedDownloadState"]?.GetValue<string>() ?? "";
                     if ((state.Contains("import", StringComparison.OrdinalIgnoreCase) || state.Contains("warning", StringComparison.OrdinalIgnoreCase)) && item["downloadId"]?.GetValue<string>() is { Length: > 0 } dl)
                     {
-                        on(new(DownloadStage.Importing, "Importing...", "lidarr"));
+                        on(new(DownloadStage.Importing, "Importing…", "lidarr"));
                         if (await Call(HttpMethod.Get, $"/api/v1/manualimport?downloadId={dl}", null, ct) is JsonArray { Count: > 0 } cands) await ManualImport(cands, ct);
                     }
                 }
                 else if (seen)
                 {
-                    on(new(DownloadStage.Done, $"\"{(title.Length > 0 ? title : album)}\" should appear in your library soon", "lidarr"));
+                    on(new(DownloadStage.Done, $"“{(title.Length > 0 ? title : album)}” should appear in your library soon", "lidarr"));
                     return true;
                 }
                 await Task.Delay(3000, ct);

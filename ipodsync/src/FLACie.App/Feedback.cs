@@ -20,6 +20,9 @@ public static class Feedback
         if (player is not null) await player.Dislike(t.Path);
     }
 
+    /// <summary>What the toast says after "Never pick this song" (the phone says the same).</summary>
+    public static string NeverPicked(Track t) => $"“{t.Title}” won't be picked for you again";
+
     /// <summary>"Less like this": the song is fine, but fewer like it.</summary>
     public static void LessLikeThis(UserSession s, Track t) => RetroHost.Listen?.Invoke(s, ListenEvent.Of(ListenKind.LessLikeThis, t));
 }

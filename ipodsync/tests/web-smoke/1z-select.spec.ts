@@ -25,6 +25,7 @@ test('select three songs and add them to the queue in one go', async ({ page }) 
   await page.getByRole('button', { name: 'Pause', exact: true }).first().click();
 
   await page.getByRole('button', { name: 'More for Lab 3' }).click();
+  await page.getByRole('menuitem', { name: 'More…' }).click();
   await page.getByRole('menuitem', { name: 'Select songs' }).click();
   const bar = page.getByRole('region', { name: 'Selected songs' });
   await expect(bar).toContainText('1 selected');

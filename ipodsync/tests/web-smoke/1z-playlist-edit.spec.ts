@@ -101,7 +101,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     await page.getByRole('button', { name: 'Delete playlist' }).click();
     await page.getByRole('button', { name: 'Keep it' }).click();
     await page.getByRole('button', { name: 'Delete playlist' }).click();
-    await page.getByRole('button', { name: /^Delete "/ }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await page.waitForURL(/\/playlists$/);
     await expect(page.locator('.pl-grid .card', { hasText: renamed })).toHaveCount(0);
   });

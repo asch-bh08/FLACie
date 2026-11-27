@@ -68,7 +68,7 @@ fun PlexSetupScreen() {
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
                 modifier = Modifier.fillMaxWidth().focusRequester(fr).clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp),
             )
-            Txt("Plex token (Settings > ... in a Plex web session's network tab, or plex.tv/claim)", size = 12f)
+            Txt("Plex token (Settings > … in a Plex web session's network tab, or plex.tv/claim)", size = 12f)
             SetupTextField(
                 token, { token = it }, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
@@ -79,7 +79,7 @@ fun PlexSetupScreen() {
             }, primary = true)
 
             when {
-                lib.plexConnecting -> Txt("Connecting to $url ...", size = 13f)
+                lib.plexConnecting -> Txt("Connecting to $url…", size = 13f)
                 lib.plexConnected -> Txt(lib.plexStatus ?: "Connected", size = 13f, color = Color(0xFF7CE0A0))
                 lib.plexStatus != null -> Txt(lib.plexStatus ?: "", size = 13f, color = Color(0xFFFF8080))
             }

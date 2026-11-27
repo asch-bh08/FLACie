@@ -102,7 +102,7 @@ fun LinkImportBox(startWith: String? = null, showProgress: Boolean = true, onSta
                 modifier = Modifier.weight(1f).height(52.dp).semantics { contentDescription = "Playlist link" },
                 decorationBox = { inner ->
                     Box(Modifier.fillMaxSize().clip(RoundedCornerShape(14.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(14.dp)).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
-                        if (text.isEmpty()) Txt("https://open.spotify.com/playlist/...", size = 16f, color = sc.onBgDim)
+                        if (text.isEmpty()) Txt("https://open.spotify.com/playlist/…", size = 16f, color = sc.onBgDim)
                         inner()
                     }
                 },

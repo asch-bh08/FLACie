@@ -42,7 +42,7 @@ public static class NasClient
         if (status != NTStatus.STATUS_SUCCESS && a.User.Length == 0) status = c.Client.Login(a.Domain, "guest", "", AuthenticationMethod.NTLMv2);
         if (status != NTStatus.STATUS_SUCCESS) { c.Dispose(); throw new UnauthorizedAccessException("The NAS didn't accept that login."); }
         c.Store = c.Client.TreeConnect(a.Share, out status);
-        if (status != NTStatus.STATUS_SUCCESS) { c.Dispose(); throw new IOException($"No share called \"{a.Share}\" on {a.Host}"); }
+        if (status != NTStatus.STATUS_SUCCESS) { c.Dispose(); throw new IOException($"No share called “{a.Share}” on {a.Host}"); }
         return c;
     }
 
@@ -79,7 +79,7 @@ public static class NasClient
     public static void Test(NasAccount a)
     {
         using var c = Open(a);
-        if (a.Folder.Length > 0 && List(c, a.Folder).Count == 0) throw new IOException($"Nothing found in \"{a.Folder}\"");
+        if (a.Folder.Length > 0 && List(c, a.Folder).Count == 0) throw new IOException($"Nothing found in “{a.Folder}”");
     }
 
     /// <summary>Every song under the music folder. Folder layout gives the credits: Artist/Album/file, and a loose

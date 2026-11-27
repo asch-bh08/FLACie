@@ -29,7 +29,7 @@ test('Clear all favourites, then Undo', async ({ page }) => {
   await expect.poll(titles, { timeout: 20_000 }).toEqual(expect.arrayContaining(['Lab 5', 'Lab 6']));
   const before = (await titles()).length;
   await page.getByRole('button', { name: 'Clear all', exact: true }).click();
-  await page.getByRole('button', { name: new RegExp('^Clear all ' + before + '$') }).click();
+  await page.getByRole('button', { name: 'Clear all', exact: true }).click();
   await expect.poll(titles).toEqual([]);
   await expect(page.locator('.toast')).toContainText(`Cleared ${before} favourites`);
   await page.locator('.toast').getByRole('button', { name: 'Undo' }).click();

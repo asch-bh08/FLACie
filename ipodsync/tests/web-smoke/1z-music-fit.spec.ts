@@ -96,7 +96,7 @@ for (const [w, h] of [[1440, 900], [1024, 768], [390, 844]]) {
       // another spec may have left a heart on: empty the list first
       if (await page.getByRole('button', { name: 'Clear all', exact: true }).isVisible()) {
         await page.getByRole('button', { name: 'Clear all', exact: true }).click();
-        await page.getByRole('button', { name: /^Clear all \d+/ }).click();
+        await page.getByRole('button', { name: 'Clear all', exact: true }).click();
       }
       const empty = page.locator('.empty-state');
       await expect(empty).toContainText('No favourites yet');

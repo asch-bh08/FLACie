@@ -198,7 +198,7 @@ public sealed class UpgradeWorker(
             {
                 Id = Guid.NewGuid().ToString("N"), UserId = e.UserId, UserName = s.DisplayName, Label = name, Title = e.Title, Artist = e.Artist, Album = e.Album, DurationMs = e.DurationMs,
                 Kind = "Upgrade", StartedAt = at, FinishedAt = at, Outcome = "done", Source = "soulseek", File = copy.File,
-                Message = lossless ? $"\"{e.Title}\" was swapped for a lossless copy" : $"\"{e.Title}\" was upgraded to Hi-Res ({facts!.BitDepth}-bit / {facts.SampleRate / 1000.0:0.#} kHz)",
+                Message = lossless ? $"“{e.Title}” was swapped for a lossless copy" : $"“{e.Title}” was upgraded to Hi-Res ({facts!.BitDepth}-bit / {facts.SampleRate / 1000.0:0.#} kHz)",
             });
         }
         catch (Exception) { }

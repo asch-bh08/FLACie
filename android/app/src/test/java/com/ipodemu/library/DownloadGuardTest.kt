@@ -17,18 +17,18 @@ class DownloadGuardTest {
     }
 
     @Test fun aDownloadThatFinishesIsLeftAlone() {
-        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...")); it(DownloadStatus(DownloadStage.DONE, "Done")) }
+        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek…")); it(DownloadStatus(DownloadStage.DONE, "Done")) }
         assertEquals(listOf(DownloadStage.SEARCHING, DownloadStage.DONE), s.map { it.stage })
     }
 
     @Test fun anErrorEndsItWithAReason() {
-        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...")); throw IllegalStateException("boom") }
+        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek…")); throw IllegalStateException("boom") }
         assertEquals(DownloadStage.FAILED, s.last().stage)
         assertTrue(s.last().message, s.last().message.contains("went wrong"))
     }
 
     @Test fun nothingHappeningForTooLongEndsIt() {
-        val s = run(quietMs = 150) { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...")); awaitCancellation() }
+        val s = run(quietMs = 150) { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek…")); awaitCancellation() }
         assertEquals(DownloadStage.FAILED, s.last().stage)
         assertTrue(s.last().message, s.last().message.contains("Searching Soulseek"))
     }
@@ -42,12 +42,12 @@ class DownloadGuardTest {
     }
 
     @Test fun endingWithoutAWordSaysSo() {
-        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek...")) }
+        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek…")) }
         assertEquals(DownloadStage.FAILED, s.last().stage)
     }
 
     @Test fun beingCancelledFromOutsideStillSaysSo() {
-        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching...")); throw CancellationException("scope went") }
+        val s = run { it(DownloadStatus(DownloadStage.SEARCHING, "Searching…")); throw CancellationException("scope went") }
         assertEquals(DownloadStage.FAILED, s.last().stage)
     }
 }

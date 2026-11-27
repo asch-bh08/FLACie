@@ -133,7 +133,7 @@ else
     </section>;
 
     string? retryNote;
-    void Retry(DownloadRecord r) { retryNote = Manager.Retry(Session, r) ? $"Trying \"{r.Title}\" again." : null; }
+    void Retry(DownloadRecord r) { retryNote = Manager.Retry(Session, r) ? $"Trying “{r.Title}” again." : null; }
     void RetryAll()
     {
         var n = Manager.RetryAll(Session, Log.For(Session.Id));

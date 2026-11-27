@@ -83,7 +83,7 @@ fun SyncModeScreen() {
         link = l; devices = null
         val local = l is com.ipodemu.library.EngineLink
         if (!local) app.prefs.syncHost = l.label
-        busy = true; status = if (local) "Looking for an iPod plugged into this device..." else "Looking for iPods on ${l.label}..."
+        busy = true; status = if (local) "Looking for an iPod plugged into this device…" else "Looking for iPods on ${l.label}…"
         scope.launch {
             try {
                 devices = l.devices()
@@ -98,7 +98,7 @@ fun SyncModeScreen() {
     }
     fun load(d: SyncDevice) {
         val l = link ?: return
-        busy = true; status = "Reading ${d.volumeLabel ?: d.rootPath}..."
+        busy = true; status = "Reading ${d.volumeLabel ?: d.rootPath}…"
         scope.launch {
             try { val db = l.load(d.rootPath); staging = SyncStaging(db); device = d; status = null; rev++}
             catch (e: Exception) { status = "Couldn't read the iPod: ${e.message}" }
@@ -131,7 +131,7 @@ fun SyncModeScreen() {
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Txt("Edit an iPod: rename songs, rate them, and build or reorder playlists. Changes are only written after you review and confirm them, and the iPod's database is backed up first.", size = 14f, color = sc.onBgDim, maxLines = 6)
                     // no PC, no Wi-Fi: the iPod on this device's USB port, through ipodsync's engine built into this app
-                    if (com.ipodemu.library.IpodEngine.available) GlossPill(if (busy && link is com.ipodemu.library.EngineLink) "Looking..." else "iPod plugged into this device (USB)", { useThisDevice() }, icon = Glyph.IPOD, primary = true)
+                    if (com.ipodemu.library.IpodEngine.available) GlossPill(if (busy && link is com.ipodemu.library.EngineLink) "Looking…" else "iPod plugged into this device (USB)", { useThisDevice() }, icon = Glyph.IPOD, primary = true)
                     if (link is com.ipodemu.library.EngineLink) devices?.forEach { d -> DeviceRow(d, onOpen = {
                         if (d.rootPath == com.ipodemu.library.EngineLink.NEEDS_ACCESS) ctx.startActivity(com.ipodemu.library.EngineLink.allFilesAccessIntent(ctx)) else load(d)
                     }) }
@@ -139,13 +139,13 @@ fun SyncModeScreen() {
                         // an iPod folder that isn't mounted as a volume (a copy or backup of one)
                         var localPath by remember { mutableStateOf("") }
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Box(Modifier.weight(1f)) { SyncField("Or an iPod folder on this device", localPath, { localPath = it }, "/sdcard/...", uri = true) }
+                            Box(Modifier.weight(1f)) { SyncField("Or an iPod folder on this device", localPath, { localPath = it }, "/sdcard/…", uri = true) }
                             GlossPill("Open", { if (localPath.isNotBlank()) load(SyncDevice(localPath.trim(), null, true)) }, height = 44.dp)
                         }
                     }
                     Txt("Or an iPod plugged into a PC running FLACie for Windows:", size = 13f, color = sc.onBgDim)
                     SyncField("PC address (host:port)", host, { host = it }, "my-pc:5070", uri = true)
-                    GlossPill(if (busy && link is com.ipodemu.library.HttpLink) "Looking..." else "Find iPods on that PC", { if (host.isNotBlank()) findDevices(com.ipodemu.library.HttpLink(host.trim())) })
+                    GlossPill(if (busy && link is com.ipodemu.library.HttpLink) "Looking…" else "Find iPods on that PC", { if (host.isNotBlank()) findDevices(com.ipodemu.library.HttpLink(host.trim())) })
                     if (link is com.ipodemu.library.HttpLink) {
                         devices?.forEach { d -> DeviceRow(d, onOpen = { load(d) }) }
                         // for when detection misses the iPod (or to open a copy of one): its drive or folder on that PC
@@ -230,7 +230,7 @@ private fun HealthTab(link: com.ipodemu.library.IpodLink, root: String) {
         checking = false
     }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (checking) Txt("Checking the iPod (nothing is written)...", size = 14f, color = sc.onBgDim, maxLines = 3)
+        if (checking) Txt("Checking the iPod (nothing is written)…", size = 14f, color = sc.onBgDim, maxLines = 3)
         error?.let { Txt(it, size = 14f, color = Color(0xFFFFB0B0), maxLines = 5) }
         info?.let { h ->
             Txt(h.model ?: "iPod", size = 20f, weight = FontWeight.Bold, maxLines = 2)
@@ -271,7 +271,7 @@ private fun BackupsTab(link: com.ipodemu.library.IpodLink) {
         Txt("Before every write the iPod database is copied here, and put back automatically if a check after the write fails.", size = 13f, color = sc.onBgDim, maxLines = 4)
         error?.let { Txt(it, size = 14f, color = Color(0xFFFFB0B0), maxLines = 4) }
         val list = items
-        if (list == null && error == null) Txt("Looking...", size = 14f, color = sc.onBgDim)
+        if (list == null && error == null) Txt("Looking…", size = 14f, color = sc.onBgDim)
         if (list != null && list.isEmpty()) Txt("No backups yet. The first write makes one.", size = 14f, color = sc.onBgDim)
         list?.forEach { b ->
             val date = java.text.SimpleDateFormat("d MMM yyyy, HH:mm", java.util.Locale.getDefault()).format(java.util.Date(b.createdMs))
@@ -414,7 +414,7 @@ private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice,
             }
             val r = result ?: dry
             when {
-                r == null -> Txt("Checking every change against the iPod's database (dry run, nothing is written)...", size = 14f, color = sc.onBgDim, maxLines = 3)
+                r == null -> Txt("Checking every change against the iPod's database (dry run, nothing is written)…", size = 14f, color = sc.onBgDim, maxLines = 3)
                 else -> {
                     val headline = when {
                         result?.written == true -> "Written to the iPod and verified. Backup: ${result?.backupDir ?: "-"}"
@@ -433,7 +433,7 @@ private fun ReviewScreen(link: com.ipodemu.library.IpodLink, device: SyncDevice,
                         if (result?.written == true) GlossPill("Done", { onWritten("Wrote ${r.ops.size} change(s) to the iPod") }, primary = true)
                         else {
                             GlossPill("Back to editing", onClose)
-                            if (result == null && r.ok && r.confirmToken != null) GlossPill(if (writing) "Writing..." else "Write to iPod", { if (!writing) confirm = true }, primary = true)
+                            if (result == null && r.ok && r.confirmToken != null) GlossPill(if (writing) "Writing…" else "Write to iPod", { if (!writing) confirm = true }, primary = true)
                         }
                     }
                 }

@@ -287,7 +287,7 @@ test.describe.serial('the DJ', () => {
     // clean up so a rerun starts clean
     await page.locator('.pl-hero').getByRole('link', { name: 'Edit', exact: true }).click();
     await page.getByRole('button', { name: 'Delete playlist' }).click();
-    await page.getByRole('button', { name: /^Delete "/ }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
     await page.waitForURL(/\/playlists$/);
   });
 

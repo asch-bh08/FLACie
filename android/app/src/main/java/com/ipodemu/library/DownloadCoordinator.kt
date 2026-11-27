@@ -45,7 +45,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
 
     /** One song. [durationMs] (from the catalog) rules out peers' files of a different length (a live take, a cover). */
     suspend fun download(artist: String, title: String, album: String, durationMs: Long = 0, onUpdate: (DownloadStatus) -> Unit) {
-        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"${title.ifBlank { album.ifBlank { artist } }}\""))
+        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested “${title.ifBlank { album.ifBlank { artist } }}”"))
         if (title.isBlank()) { // an album/artist with no tracklist: Lidarr alone
             if (!lidarrReady) onUpdate(DownloadStatus(DownloadStage.FAILED, "Lidarr isn't configured (Settings > Lidarr)"))
             else if (!tryLidarr(artist, title, album, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "Not found on Lidarr"))
@@ -80,9 +80,9 @@ class DownloadCoordinator(private val prefs: Prefs) {
             val task = finders?.tasks?.get(id) ?: continue
             val hit = withTimeoutOrNull((deadline - System.currentTimeMillis()).coerceAtLeast(0)) { task.await() }
             if (hit == null) { onUpdate(DownloadStatus(DownloadStage.SEARCHING, OpenSourceNames.of(id) + " had nothing", id, miss = true)); continue }
-            onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from ${hit.label}...", hit.source))
+            onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Downloading from ${hit.label}…", hit.source))
             val dest = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}.${hit.ext}"
-            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", hit.source))
+            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library…", hit.source))
             try { fileMover.fetch(prefs.fileMoverUrl, prefs.fileMoverApiKey, hit.url, dest) } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { onUpdate(DownloadStatus(DownloadStage.SEARCHING, OpenSourceNames.of(id) + " had it, but the download failed", id, miss = true)); continue }
             finishWithJellyfinScan(artist, onUpdate, hit.source, title, openTrack(dest, artist, title, album, if (durationMs > 0) durationMs else hit.durationSec * 1000L))
             done = true; break
@@ -105,15 +105,15 @@ class DownloadCoordinator(private val prefs: Prefs) {
         var why = "YouTube had no matching upload"
         try {
             // the yt-dlp service takes two songs at a time: the wait for a turn is kept here, so it does not eat into the time limit of the fetch itself
-            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Waiting for YouTube's turn...", "ytdl"))
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Waiting for YouTube's turn…", "ytdl"))
             ytdlTurn.withPermit {
-                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking on YouTube...", "ytdl"))
+                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking on YouTube…", "ytdl"))
                 val noExt = listOfNotNull(prefs.nasFolder.trim('/').ifBlank { null }, clean(artist)).joinToString("/") + "/${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}"
                 for (attempt in 0 until 2) {
                     try {
                         val r = fileMover.ytdl(prefs.fileMoverUrl, prefs.fileMoverApiKey, artist, WebCatalog.baseTitle(title), (durationMs / 1000).toInt(), noExt)
                         if (r == null) { why = "YouTube had no matching upload"; break }
-                        onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "ytdl"))
+                        onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library…", "ytdl"))
                         finishWithJellyfinScan(artist, onUpdate, "ytdl", title, openTrack("$noExt.${r.first}", artist, title, album, if (durationMs > 0) durationMs else r.second * 1000L))
                         return true
                     } catch (e: kotlinx.coroutines.CancellationException) { throw e }
@@ -130,18 +130,18 @@ class DownloadCoordinator(private val prefs: Prefs) {
     /** A whole album or EP: one peer's folder where possible, missing songs one by one; Lidarr if Soulseek finds nothing. */
     suspend fun downloadAlbum(album: WebCatalog.Album, onUpdate: (DownloadStatus) -> Unit) {
         val name = album.cleanTitle
-        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$name\""))
+        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested “$name”"))
         val list = withContext(Dispatchers.IO) { WebCatalog.tracks(album) }
         if (soulseekReady && list.isNotEmpty()) {
             val tracks = trySoulseekAlbum(album, list, onUpdate)
             if (tracks.isNotEmpty()) {
-                val msg = if (tracks.size == list.size) "\"$name\" is ready to play" else "\"$name\": ${tracks.size} of ${list.size} songs ready"
+                val msg = if (tracks.size == list.size) "“$name” is ready to play" else "“$name”: ${tracks.size} of ${list.size} songs ready"
                 onUpdate(DownloadStatus(DownloadStage.DONE, msg, "soulseek", newTracks = tracks))
                 return
             }
         }
-        if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, "\"$name\" wasn't found on Soulseek")); return }
-        if (!tryLidarr(album.artist, "", name, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "\"$name\" wasn't found"))
+        if (!lidarrReady) { onUpdate(DownloadStatus(DownloadStage.FAILED, "“$name” wasn't found on Soulseek")); return }
+        if (!tryLidarr(album.artist, "", name, onUpdate)) onUpdate(DownloadStatus(DownloadStage.FAILED, "“$name” wasn't found"))
     }
 
     /** The searches to try for a song, best first. Soulseek's server refuses to search some full artist names (a query containing "kendrick lamar" returns nothing
@@ -163,7 +163,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
     /** One song from Soulseek. [hiRes] is the explicit Hi-Res download: only Hi-Res files, filed next to the normal copy as "Artist - Title [Hi-Res]".
      * A normal download never takes a Hi-Res file (they are several times the size), and says so when that is all there is. */
     private suspend fun trySoulseek(artist: String, title: String, album: String, durationSec: Int, onUpdate: (DownloadStatus) -> Unit, hiRes: Boolean = false): Boolean = try {
-        onUpdate(DownloadStatus(DownloadStage.SEARCHING, if (hiRes) "Searching Soulseek for a Hi-Res copy..." else "Searching Soulseek...", "soulseek"))
+        onUpdate(DownloadStatus(DownloadStage.SEARCHING, if (hiRes) "Searching Soulseek for a Hi-Res copy…" else "Searching Soulseek…", "soulseek"))
         var found = emptyList<SlskdClient.FileResult>(); var cands = emptyList<SlskdClient.FileResult>()
         val plan = searchPlan(artist, title)
         for ((i, step) in plan.withIndex()) {
@@ -177,7 +177,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Soulseek only has Hi-Res copies of this song. Use the Hi-Res download if you want one.", "soulseek", miss = true))
         val hit = if (cands.isEmpty()) null else fetchFirst(cands) { onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, it, "soulseek")) }
         if (hit == null) false else {
-            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library...", "soulseek"))
+            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing into the library…", "soulseek"))
             // the file itself may be untagged: the album comes from the catalog so it groups and gets a cover
             val alb = album.ifBlank { withContext(Dispatchers.IO) { CoverLookup.song(artist, title) }?.album.orEmpty() }
             val track = file(hit, artist, title, alb, 0, 0, durationSec * 1000L, "${clean(artist)} - ${clean(WebCatalog.baseTitle(title))}${if (hiRes) " [Hi-Res]" else ""}", null)
@@ -188,7 +188,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
     /** The explicit Hi-Res download of one song (administrators only, per song, never automatic): Soulseek is searched for a Hi-Res copy first and, when there is none,
      * the normal download runs instead (the same sources and order as a plain Download), so the song still arrives, just not in Hi-Res. */
     suspend fun downloadHiRes(artist: String, title: String, album: String, durationMs: Long = 0, fallbackToNormal: Boolean = true, onUpdate: (DownloadStatus) -> Unit) {
-        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested \"$title\" in Hi-Res"))
+        onUpdate(DownloadStatus(DownloadStage.REQUESTED, "Requested “$title” in Hi-Res"))
         if (soulseekReady) {
             if (trySoulseek(artist, title, album, (durationMs / 1000).toInt(), onUpdate, hiRes = true)) return
             if (!fallbackToNormal) { onUpdate(DownloadStatus(DownloadStage.FAILED, "No Hi-Res copy of this song was found on Soulseek. Nothing was changed.")); return }
@@ -203,7 +203,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
         val got = arrayOfNulls<SlskdClient.FileResult>(list.size)
         fun status(msg: String) = onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, msg, "soulseek"))
         try {
-            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek for \"$name\"...", "soulseek"))
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching Soulseek for “$name”…", "soulseek"))
             // the full artist name can be a phrase Soulseek refuses to search (see searchPlan): fall back to the artist's first word, then the album alone
             val albumName = name.replace(Regex("""s*[([][^)]]*[)]]"""), "").trim()
             val aw = primaryArtist(album.artist).split(' ').filter { it.isNotEmpty() }
@@ -216,7 +216,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             for (folder in folders.take(3)) {
                 val want = folder.indices.filter { got[it] == null && folder[it] != null }
                 if (want.isEmpty()) continue
-                val ok = fetchBatch(want.map { folder[it]!! }) { status("Downloading \"$name\": $it") }
+                val ok = fetchBatch(want.map { folder[it]!! }) { status("Downloading “$name”: $it") }
                 for (i in want) if (folder[i] in ok) got[i] = folder[i]
                 if (got.all { it != null }) break
             }
@@ -224,7 +224,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             // at most 8 single-song searches per album, to keep one album from firing a burst of searches
             val missing = list.indices.filter { got[it] == null }.take(8)
             if (missing.isNotEmpty()) {
-                status("Finding ${missing.size} more song${if (missing.size == 1) "" else "s"}...")
+                status("Finding ${missing.size} more song${if (missing.size == 1) "" else "s"}…")
                 val gate = Semaphore(3)
                 coroutineScope {
                     missing.map { i ->
@@ -241,7 +241,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             }
         } catch (_: Exception) {}
         if (got.all { it == null }) return emptyList()
-        onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing \"$name\" into the library...", "soulseek"))
+        onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Filing “$name” into the library…", "soulseek"))
         val multiDisc = list.any { it.discNo > 1 }
         return list.indices.mapNotNull { i ->
             val hit = got[i] ?: return@mapNotNull null
@@ -285,7 +285,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             // more peers while none is sending yet, and a dropped one replaced
             while (PeerRace.startAnother(active.size, active.any { it.bytes > 0 }, queue.size)) { val before = active.size; startNext(); if (active.size == before) break }
             active.maxByOrNull { it.bytes }?.let { a ->
-                progress(if (a.bytes == 0L) "Waiting for a peer..." else "Downloading ${(a.bytes * 100 / a.f.size.coerceAtLeast(1)).coerceAtMost(99)}%...")
+                progress(if (a.bytes == 0L) "Waiting for a peer…" else "Downloading ${(a.bytes * 100 / a.f.size.coerceAtLeast(1)).coerceAtMost(99)}%…")
             }
         }
         active.toList().forEach { drop(it) }
@@ -344,12 +344,12 @@ class DownloadCoordinator(private val prefs: Prefs) {
     private suspend fun tryLidarr(artist: String, title: String, album: String, onUpdate: (DownloadStatus) -> Unit): Boolean {
         val url = prefs.lidarrUrl; val key = prefs.lidarrApiKey
         return try {
-            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking up \"$artist\" on Lidarr...", "lidarr"))
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Looking up “$artist” on Lidarr…", "lidarr"))
             val best = lidarr.lookupArtist(url, key, artist).firstOrNull() ?: return false
             var artistId = lidarr.existingArtistId(url, key, best.foreignArtistId)
             val justAdded = artistId == null
             if (artistId == null) {
-                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Adding \"${best.artistName}\" to Lidarr...", "lidarr"))
+                onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Adding “${best.artistName}” to Lidarr…", "lidarr"))
                 artistId = lidarr.addArtist(url, key, best)
             }
             val watchArtistId = artistId
@@ -379,10 +379,10 @@ class DownloadCoordinator(private val prefs: Prefs) {
                 targetAlbumId = albums.firstOrNull { it.second.contains(album, ignoreCase = true) || album.contains(it.second, ignoreCase = true) }?.first
             }
             val albumId = targetAlbumId
-            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching indexers...", "lidarr"))
+            onUpdate(DownloadStatus(DownloadStage.SEARCHING, "Searching indexers…", "lidarr"))
             if (albumId != null) lidarr.triggerAlbumSearch(url, key, albumId) else lidarr.triggerArtistSearch(url, key, watchArtistId)
 
-            onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Waiting for a grab...", "lidarr"))
+            onUpdate(DownloadStatus(DownloadStage.DOWNLOADING, "Waiting for a grab…", "lidarr"))
             var seenInQueue = false
             val outcome = withTimeoutOrNull(120_000L) {
                 while (true) {
@@ -400,7 +400,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
                         val stuckAwaitingImport = item.trackedDownloadState?.contains("import", true) == true ||
                             item.trackedDownloadState?.contains("warning", true) == true
                         if (stuckAwaitingImport && item.downloadId != null) {
-                            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Importing...", "lidarr"))
+                            onUpdate(DownloadStatus(DownloadStage.IMPORTING, "Importing…", "lidarr"))
                             val candidates = lidarr.manualImportCandidates(url, key, item.downloadId)
                             if (candidates.length() > 0) lidarr.triggerManualImport(url, key, candidates)
                         }
@@ -421,7 +421,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
     }
 
     private suspend fun finishWithJellyfinScan(artist: String, onUpdate: (DownloadStatus) -> Unit, source: String, title: String, newTrack: Track? = null) {
-        onUpdate(DownloadStatus(DownloadStage.SCANNING, if (newTrack != null) "Adding to your library..." else "Refreshing Jellyfin...", source))
+        onUpdate(DownloadStatus(DownloadStage.SCANNING, if (newTrack != null) "Adding to your library…" else "Refreshing Jellyfin…", source))
         // A Soulseek win (newTrack != null) is already visible via addDownloadedTrack -- Jellyfin's
         // own scan is no longer needed to surface it in this app, and triggering it anyway caused a
         // real, confirmed-live duplicate: this app's merge sometimes read Jellyfin's title back
@@ -436,7 +436,7 @@ class DownloadCoordinator(private val prefs: Prefs) {
             } catch (_: Exception) { /* a nice-to-have speed boost, not required for correctness -- the
                 library's own periodic auto-refresh will pick the track up regardless */ }
         }
-        val message = if (newTrack != null) "\"$title\" is ready to play" else "\"$title\" should appear within 45s"
+        val message = if (newTrack != null) "“$title” is ready to play" else "“$title” should appear within 45s"
         onUpdate(DownloadStatus(DownloadStage.DONE, message, source, newTrack))
     }
 }

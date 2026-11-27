@@ -1,22 +1,18 @@
 {
  "web": {
-  "at": "2026-11-27 12:15",
+  "at": "2026-11-27 11:56",
   "sizes": {
    "p360x640": {
     "home": {
      "img": "img/web-p360x640-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-p360x640-playlist.jpg",
+    "library": {
+     "img": "img/web-p360x640-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-p360x640-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-p360x640-np.jpg",
+    "favourites": {
+     "img": "img/web-p360x640-favourites.jpg",
      "flags": []
     }
    },
@@ -25,16 +21,12 @@
      "img": "img/web-p375x667-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-p375x667-playlist.jpg",
+    "library": {
+     "img": "img/web-p375x667-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-p375x667-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-p375x667-np.jpg",
+    "favourites": {
+     "img": "img/web-p375x667-favourites.jpg",
      "flags": []
     }
    },
@@ -47,21 +39,17 @@
        "text": "empty band 6–23% (17% of the height)",
        "band": {
         "top": 0.058056872037914695,
-        "h": 0.16864139020537125
+        "h": 0.16824644549763032
        }
       }
      ]
     },
-    "playlist": {
-     "img": "img/web-p390x844-playlist.jpg",
+    "library": {
+     "img": "img/web-p390x844-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-p390x844-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-p390x844-np.jpg",
+    "favourites": {
+     "img": "img/web-p390x844-favourites.jpg",
      "flags": []
     }
    },
@@ -70,16 +58,21 @@
      "img": "img/web-p412x915-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-p412x915-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-p412x915-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 78–95% (17% of the height)",
+       "band": {
+        "top": 0.7822647793505412,
+        "h": 0.16569525395503748
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-p412x915-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-p412x915-np.jpg",
+    "favourites": {
+     "img": "img/web-p412x915-favourites.jpg",
      "flags": []
     }
    },
@@ -88,17 +81,31 @@
      "img": "img/web-p412x1000-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-p412x1000-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-p412x1000-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 72–95% (24% of the height)",
+       "band": {
+        "top": 0.7158095238095238,
+        "h": 0.23657142857142857
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-p412x1000-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-p412x1000-np.jpg",
-     "flags": []
+    "favourites": {
+     "img": "img/web-p412x1000-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 76–94% (18% of the height)",
+       "band": {
+        "top": 0.7558095238095238,
+        "h": 0.18361904761904763
+       }
+      }
+     ]
     }
    },
    "fold-cover": {
@@ -107,24 +114,29 @@
      "flags": [
       {
        "kind": "band",
-       "text": "empty band 6–18% (12% of the height)",
+       "text": "empty band 6–24% (18% of the height)",
        "band": {
         "top": 0.05529157667386609,
-        "h": 0.12267818574514039
+        "h": 0.18185745140388768
        }
       }
      ]
     },
-    "playlist": {
-     "img": "img/web-fold-cover-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-fold-cover-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 78–95% (17% of the height)",
+       "band": {
+        "top": 0.7801295896328294,
+        "h": 0.16587473002159828
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-fold-cover-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-fold-cover-np.jpg",
+    "favourites": {
+     "img": "img/web-fold-cover-favourites.jpg",
      "flags": []
     }
    },
@@ -142,16 +154,12 @@
       }
      ]
     },
-    "playlist": {
-     "img": "img/web-fold-inner-playlist.jpg",
+    "library": {
+     "img": "img/web-fold-inner-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-fold-inner-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-fold-inner-np.jpg",
+    "favourites": {
+     "img": "img/web-fold-inner-favourites.jpg",
      "flags": []
     }
    },
@@ -160,16 +168,12 @@
      "img": "img/web-p-land-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-p-land-playlist.jpg",
+    "library": {
+     "img": "img/web-p-land-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-p-land-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-p-land-np.jpg",
+    "favourites": {
+     "img": "img/web-p-land-favourites.jpg",
      "flags": []
     }
    },
@@ -178,17 +182,31 @@
      "img": "img/web-tab768x1024-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-tab768x1024-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-tab768x1024-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 71–100% (29% of the height)",
+       "band": {
+        "top": 0.70703125,
+        "h": 0.29296875
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-tab768x1024-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-tab768x1024-np.jpg",
-     "flags": []
+    "favourites": {
+     "img": "img/web-tab768x1024-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 85–100% (15% of the height)",
+       "band": {
+        "top": 0.8515625,
+        "h": 0.1484375
+       }
+      }
+     ]
     }
    },
    "tab1024x768": {
@@ -196,16 +214,21 @@
      "img": "img/web-tab1024x768-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-tab1024x768-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-tab1024x768-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 84–100% (16% of the height)",
+       "band": {
+        "top": 0.8359375,
+        "h": 0.1640625
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-tab1024x768-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-tab1024x768-np.jpg",
+    "favourites": {
+     "img": "img/web-tab1024x768-favourites.jpg",
      "flags": []
     }
    },
@@ -214,16 +237,12 @@
      "img": "img/web-lap1280x720-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-lap1280x720-playlist.jpg",
+    "library": {
+     "img": "img/web-lap1280x720-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-lap1280x720-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-lap1280x720-np.jpg",
+    "favourites": {
+     "img": "img/web-lap1280x720-favourites.jpg",
      "flags": []
     }
    },
@@ -232,16 +251,21 @@
      "img": "img/web-lap1366x768-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-lap1366x768-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-lap1366x768-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 84–100% (16% of the height)",
+       "band": {
+        "top": 0.8359375,
+        "h": 0.1640625
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-lap1366x768-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-lap1366x768-np.jpg",
+    "favourites": {
+     "img": "img/web-lap1366x768-favourites.jpg",
      "flags": []
     }
    },
@@ -250,16 +274,12 @@
      "img": "img/web-lap1366-125-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-lap1366-125-playlist.jpg",
+    "library": {
+     "img": "img/web-lap1366-125-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-lap1366-125-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-lap1366-125-np.jpg",
+    "favourites": {
+     "img": "img/web-lap1366-125-favourites.jpg",
      "flags": []
     }
    },
@@ -268,16 +288,12 @@
      "img": "img/web-lap1366-150-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-lap1366-150-playlist.jpg",
+    "library": {
+     "img": "img/web-lap1366-150-library.jpg",
      "flags": []
     },
-    "playlist-edit": {
-     "img": "img/web-lap1366-150-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-lap1366-150-np.jpg",
+    "favourites": {
+     "img": "img/web-lap1366-150-favourites.jpg",
      "flags": []
     }
    },
@@ -286,17 +302,31 @@
      "img": "img/web-pc1920x1080-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-pc1920x1080-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-pc1920x1080-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 59–100% (41% of the height)",
+       "band": {
+        "top": 0.5944444444444444,
+        "h": 0.40555555555555556
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-pc1920x1080-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-pc1920x1080-np.jpg",
-     "flags": []
+    "favourites": {
+     "img": "img/web-pc1920x1080-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 73–100% (27% of the height)",
+       "band": {
+        "top": 0.7314814814814815,
+        "h": 0.26851851851851855
+       }
+      }
+     ]
     }
    },
    "uw2560x1080": {
@@ -304,17 +334,31 @@
      "img": "img/web-uw2560x1080-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-uw2560x1080-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-uw2560x1080-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 59–100% (41% of the height)",
+       "band": {
+        "top": 0.5944444444444444,
+        "h": 0.40555555555555556
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-uw2560x1080-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-uw2560x1080-np.jpg",
-     "flags": []
+    "favourites": {
+     "img": "img/web-uw2560x1080-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 73–100% (27% of the height)",
+       "band": {
+        "top": 0.7314814814814815,
+        "h": 0.26851851851851855
+       }
+      }
+     ]
     }
    },
    "4k-200": {
@@ -322,17 +366,31 @@
      "img": "img/web-4k-200-home.jpg",
      "flags": []
     },
-    "playlist": {
-     "img": "img/web-4k-200-playlist.jpg",
-     "flags": []
+    "library": {
+     "img": "img/web-4k-200-library.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 59–100% (41% of the height)",
+       "band": {
+        "top": 0.5944444444444444,
+        "h": 0.40555555555555556
+       }
+      }
+     ]
     },
-    "playlist-edit": {
-     "img": "img/web-4k-200-playlist-edit.jpg",
-     "flags": []
-    },
-    "np": {
-     "img": "img/web-4k-200-np.jpg",
-     "flags": []
+    "favourites": {
+     "img": "img/web-4k-200-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 73–100% (27% of the height)",
+       "band": {
+        "top": 0.7314814814814815,
+        "h": 0.26851851851851855
+       }
+      }
+     ]
     }
    }
   }

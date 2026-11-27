@@ -46,12 +46,12 @@ for (const [w, h] of [[1440, 900], [1024, 768], [390, 844]]) {
       await live(page, '/');
       const flat = await page.locator('.mood-chips .mood').evaluateAll((els) => els.filter((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius) < e.getBoundingClientRect().height / 2 - 1).length);
       expect(flat).toBe(0);
-      const heads = page.locator('.shelf-head:has(.chip.small)');
+      const heads = page.locator('.shelf-head:has(.k-btn-sm)');
       const n = await heads.count();
       expect(n).toBeGreaterThan(0);
       for (let i = 0; i < n; i++) {
         const bad = await heads.nth(i).evaluate((head) => {
-          const hb = head.getBoundingClientRect(), play = head.querySelector('.chip.small')!.getBoundingClientRect(), title = head.querySelector(':scope > div')!.getBoundingClientRect();
+          const hb = head.getBoundingClientRect(), play = head.querySelector('.k-btn-sm')!.getBoundingClientRect(), title = head.querySelector(':scope > div')!.getBoundingClientRect();
           const out: string[] = [];
           if (play.height > 46) out.push(`Play all is ${Math.round(play.height)} px tall (two lines)`);
           if (play.right > hb.right + 1 || play.left < hb.left - 1) out.push('Play all hangs off the shelf');

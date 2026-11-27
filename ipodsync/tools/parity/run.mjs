@@ -171,7 +171,7 @@ async function web() {
     const steps = {
       home: () => go('/'),
       search: async () => { await go('/search?q=Aurora'); },
-      library: () => go('/explore'),
+      library: () => go('/library'),
       songs: () => go('/songs'),
       album: async () => { await go('/albums'); await click(page.locator('main a[href^="/album/"]')); },
       artist: () => go('/artist/Aurora%20Vale'),

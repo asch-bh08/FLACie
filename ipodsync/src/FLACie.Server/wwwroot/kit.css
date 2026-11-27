@@ -132,7 +132,7 @@
 .ls-icon, .ls-plain, .ls-pillbtn, .ls-heart, .ls-dock .ls-heart, .ls-title .ls-more-btn, .ls-actions .ls-more-btn, .ls-play, .ls .dj-mic, .ls-tile,
 .ls-volpill-mute, .ls-volpill-more { border-radius: var(--k-r-btn); }
 .btn, .chip, .play, .pill-btn, .shuffle-all, .sp .btn, .login .btn, .pl-newbar .btn, .pl-hero .pl-play, .pl-hero .pl-shuffle, .pe-done,
-.ls-seg, .ls-seg button, .q-save { border-radius: var(--k-r-btn); }
+.ls-seg, .ls-seg button, .q-save, .np.ls .q-save { border-radius: var(--k-r-btn); }
 html.buffering .play::after { border-radius: calc(var(--k-r-btn) + 3px); }
 .ls-play { border-radius: var(--k-r-slot); }
 .dj-mic.listening::after { border-radius: calc(var(--k-r-btn) + 3px); }

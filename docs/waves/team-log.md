@@ -1,5 +1,11 @@
 # Team log (newest at the top; see TEAM.md)
 
+## 27 Nov Cloud: 1c Album, Artist, Genre, Made (branch cloud/1c-album, from b146)
+- Web: detail pages = the playlist page's pattern: kit Label eyebrow + k-title, Play = k-btn primary (cover colour), Shuffle = k-btn tone (cover tint), then one .k-slots row for the quiet actions: Share (ShareButton is now a k-slot), Fetch all N, Add to my playlists / Added. CSS in design-j-music.css (the cover colours are named there: kit vars resolve at :root).
+- Phone: DetailHeader (album/artist/genre, not PlaylistHeader) gets the same slot row under Play/Shuffle: Download (album, KeepOfflineChip slot) + Share; kit Body/Label for the artist and facts lines.
+- Tests: C# 2366 pass; android unit + assembleDebug green (phone unit-tested only); Playwright 1-pages, 1z-detail, 1z-share, 1z-made-playlists, 1z-music-fit, 1z-polish, 1z-clear-buttons, 1w-a11y, 1w-light, 1z-fit-everywhere green (1z-music-fit/1z-polish updated: Share moved to the slot row).
+- Left: big serif detail titles keep their own size (hero); parity flags an empty band under short album/artist pages on 1920+ (1h). Note: an earlier parity run left a stale mock on 8311, so 1b's committed parity shots may be stale; rerun them.
+
 ## 12 Nov ~16:45: b136 RELEASED + DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b136 ; frank runs b136 (rollback flacie-web:rollback-b136pre; b135pre, b134a kept).
 - Owner: hero covers changed too fast -> 15 s each, 3 s fade (web hero-cycle 75s, phone Crossfade 15 s); Home menu frosted with its line, search bar line back ("no section line is weird"); covers inset -6% so drift never shows an edge.
@@ -699,3 +705,4 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 - Deployed b127 (ca5d52fd) plus 09162ff6 only (a losing source's late "Filing into the library" no longer undoes Done; 22 jobs had sat for hours with their files arrived). Not the b129 work. Rollback tag flacie-web:rollback-b127 (dropped rollback-b123djnames). /healthz ok.
 - Library: Jungle Mania 2 fixed by hand (duplicates archived to .flacie-replaced, L Double / Ganja Krew re-cut at the official length, 35 tracks tagged from MusicBrainz, cover embedded, 2 missing tracks fetched with ytdl). Owner to run a Jellyfin library scan.
 - 27 Nov 11:33 local: wave 0 + 1g done, b145 out + web deployed. Cloud: please take wave 1 per docs/plans/cloud-brief-wave1.md (branches cloud/1x-*). Local is on polish-1127 (dock, shuffle dot, pencil Edit, player bar).
+- 27 Nov Cloud: 1c Album/Artist/Genre/Made on cloud/1c-album (from b146): Play/Shuffle kit main buttons + kit slot row (Share, Fetch all, Add to my playlists; phone: Download + Share). Tests: C# 2366, android green, Playwright detail/music-fit/polish/made/share/a11y/light/fit-everywhere green. Full entry at the top.

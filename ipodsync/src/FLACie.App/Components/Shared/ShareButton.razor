@@ -1,7 +1,8 @@
 @* Share on a detail page (album, artist, genre): a link to these songs that opens in the FLACie of whoever gets it (their own library). *@
 @inherits UserComponent
 @inject Sharing Sharing
-<button class="detail-shuffle detail-share" aria-label="Share" @onclick='() => Sharing.ShareAsync(Session, "playlist", Title, Songs)'><Icon Name="share" Size="18" />Share</button>
+@* a kit slot (ONE APP 1c): it sits in the page's row of quiet actions under Play and Shuffle *@
+<button class="k-slot detail-share" aria-label="Share" @onclick='() => Sharing.ShareAsync(Session, "playlist", Title, Songs)'><Icon Name="share" Size="22" /><span>Share</span></button>
 @code {
     [Parameter] public string Title { get; set; } = "";
     [Parameter] public IReadOnlyList<Track> Songs { get; set; } = [];

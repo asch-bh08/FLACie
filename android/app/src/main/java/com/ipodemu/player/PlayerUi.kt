@@ -1793,6 +1793,9 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
     }
 }
 
+/** The detail pages whose quiet actions are a row of kit slots (design I). */
+private val SLOT_ROW_KINDS = setOf("Album", "Artist", "Genre")
+
 @Composable
 private fun DetailHeader(art: String?, title: String, line1: String, line2: String, tracks: List<Track>, nav: PlayerNav, playlistId: String? = null, kind: String = "", djKey: String? = null, since: Long = 0L) {
     val app = LocalApp.current
@@ -1813,14 +1816,19 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         Column(Modifier.entranceRise(since, 2), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (kind.isNotEmpty()) MonoLabel(kind)
             SerifTitle(title, size = DetailFit.titleSp(title.length > SleeveText.LONG_TITLE, cfg.fontScale), maxLines = 3)
-            if (line1.isNotEmpty()) Txt(line1, size = 16f, weight = FontWeight.Bold, maxLines = 2)
-            if (line2.isNotEmpty()) MonoLabel(line2, Modifier.padding(top = 2.dp), maxLines = 2)
+            if (line1.isNotEmpty()) Body(line1, weight = FontWeight.Bold, maxLines = 2)
+            if (line2.isNotEmpty()) Label(line2, Modifier.padding(top = 2.dp), maxLines = 2)
         }
         // Play is the list in order and Shuffle is shuffled, whatever the shuffle switch was (two buttons, two meanings); they wrap at big text
         @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
         androidx.compose.foundation.layout.FlowRow(Modifier.entranceRise(since, 4), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (tracks.isNotEmpty()) AccentPill("Play", Glyph.PLAY, cols, { app.player.play(tracks, 0, false, title, djKey) })
             if (tracks.isNotEmpty()) TonePill("Shuffle", Glyph.SHUFFLE, cols, { app.player.play(tracks, tracks.indices.random(), true, title, djKey) })
+        }
+        // ONE APP 1c: the quiet actions as one row of kit slots under Play and Shuffle (the web's album, artist and genre pages have the same row)
+        if (tracks.isNotEmpty() && kind in SLOT_ROW_KINDS) Row(Modifier.fillMaxWidth().entranceRise(since, 5), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (kind == "Album") KeepOfflineChip(tracks, nav, null, title, slot = Modifier.weight(1f))
+            Slot("Share", Glyph.SHARE, { shareSongs(app, "playlist", title, tracks) }, Modifier.weight(1f))
         }
     } else {
     Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1839,7 +1847,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
     }
     }
     // an album or a playlist can be kept on the phone as a whole; a playlist then also keeps itself up to date
-    if ((kind == "Album" || kind == "Playlist") && tracks.isNotEmpty()) KeepOfflineChip(tracks, nav, if (kind == "Playlist") (playlistId ?: "folder:$title") else null, title)
+    if ((kind == "Album" && !LocalStyle.current.modern || kind == "Playlist") && tracks.isNotEmpty()) KeepOfflineChip(tracks, nav, if (kind == "Playlist") (playlistId ?: "folder:$title") else null, title)
     // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
     if (kind == "Your favourites" && tracks.isNotEmpty()) {
         val app = LocalApp.current

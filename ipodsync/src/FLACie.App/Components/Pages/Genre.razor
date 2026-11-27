@@ -13,12 +13,14 @@ else
 <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@art" Class="detail-cover" />
         <div class="detail-text">
-            <p class="eyebrow">Genre</p>
-            <h1>@Title(name)</h1>
+            <p class="eyebrow k-label">Genre</p>
+            <h1 class="k-title">@Title(name)</h1>
             <p class="detail-facts">@Facts(songs)</p>
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => Player.PlayInOrder(songs, name)"><Icon Name="play" Size="22" />Play</button>
-                <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="k-btn primary detail-play" @onclick="() => Player.PlayInOrder(songs, name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="k-btn tone detail-shuffle" @onclick="() => Player.ShuffleAll(songs, name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            </div>
+            <div class="k-slots detail-slots">
                 <ShareButton Title="@name" Songs="songs" />
             </div>
         </div>

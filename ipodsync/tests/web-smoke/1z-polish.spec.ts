@@ -57,7 +57,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       const box = (await cover.boundingBox())!;
       expect(Math.abs(box.width - box.height)).toBeLessThan(2);
       expect(await cover.evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius))).toBe(50);
-      const actions = (await page.locator('.detail-actions').boundingBox())!;
+      const actions = (await page.locator('.detail-slots').boundingBox())!;   // the last row of the header's actions (ONE APP 1c: the slot row)
       const albums = (await page.locator('h2.section').first().boundingBox())!;
       expect(albums.y - (actions.y + actions.height)).toBeLessThan(60);
       expect(await noSideScroll(page)).toBe(true);

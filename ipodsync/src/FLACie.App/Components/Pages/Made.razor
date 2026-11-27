@@ -23,8 +23,8 @@ else
     <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@m.ArtKey" Class="detail-cover" />
         <div class="detail-text">
-            <p class="eyebrow">@(web is null ? "Made for you" : "Playlist · " + From(web.Source))</p>
-            <h1>@Title(m.Name)</h1>
+            <p class="eyebrow k-label">@(web is null ? "Made for you" : "Playlist · " + From(web.Source))</p>
+            <h1 class="k-title">@Title(m.Name)</h1>
             <p class="detail-facts">@Facts(songs)</p>
             @if (web is not null && web.Tracks.Count > songs.Count)
             {
@@ -32,19 +32,21 @@ else
                 <p class="detail-facts made-missing" role="status">@(web.Tracks.Count - songs.Count) more @(web.Tracks.Count - songs.Count == 1 ? "song is" : "songs are") @(Downloads.Ready(Session) ? "being fetched; they join the list as they arrive" : "not in your library")</p>
             }
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => { Played(); return Player.PlayInOrder(songs, m.Name); }"><Icon Name="play" Size="22" />Play</button>
-                <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(songs, m.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="k-btn primary detail-play" @onclick="() => { Played(); return Player.PlayInOrder(songs, m.Name); }"><Icon Name="play" Size="22" />Play</button>
+                <button class="k-btn tone detail-shuffle" @onclick="() => Player.ShuffleAll(songs, m.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            </div>
+            <div class="k-slots detail-slots">
                 @if (waiting?.Count(w => !w.Failed && w.Status == "Not downloaded yet") is > 0 and var toFetch && Downloads.Ready(Session))
                 {
-                    <button class="detail-shuffle" @onclick="() => FetchAll(waiting!)" data-testid="fetch-all"><Icon Name="download" Size="18" />Fetch all @toFetch</button>
+                    <button class="k-slot" @onclick="() => FetchAll(waiting!)" data-testid="fetch-all"><Icon Name="download" Size="22" /><span>Fetch all @toFetch</span></button>
                 }
                 @if (savedId is { } sid)
                 {
-                    <a class="detail-shuffle made-added" href="/playlist/@sid" role="status"><Icon Name="check" Size="18" />Added</a>
+                    <a class="k-slot on made-added" href="/playlist/@sid" role="status"><Icon Name="check" Size="22" /><span>Added</span></a>
                 }
                 else
                 {
-                    <button class="detail-shuffle made-save" @onclick="() => Save(m)"><Icon Name="plus" Size="18" />Add to my playlists</button>
+                    <button class="k-slot made-save" @onclick="() => Save(m)"><Icon Name="plus" Size="22" /><span>Add to my playlists</span></button>
                 }
             </div>
         </div>

@@ -126,6 +126,8 @@ const withSources = (x) => ((x.Id.startsWith('s') || x.Id.startsWith('p')) && x.
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 let phoneSession = false;
 const me = { Id: 'u1', Name: 'tester', Policy: { IsAdministrator: true } };
+// listener / pw: a normal user (not an administrator) with the same library, for the admin-only checks (ONE APP 1i)
+const listener = { Id: 'u2', Name: 'listener', Policy: { IsAdministrator: false } };
 let prefs = { Id: 'ipodplayer', Client: 'ipodplayer', CustomPrefs: {} };
 
 const json = (res, code, body) => {
@@ -142,7 +144,9 @@ const readBody = (req) =>
 http
   .createServer(async (req, res) => {
     const u = new URL(req.url, 'http://x');
-    const p = u.pathname, q = u.searchParams, m = req.method;
+    const asListener = (req.headers.authorization || '').includes('Token="mock-token-listener"');
+    // the listener sees the same library: its user paths are answered as the tester's
+    const p = asListener ? u.pathname.replace(/^\/Users\/u2\//, '/Users/u1/') : u.pathname, q = u.searchParams, m = req.method;
     // request counter for the load tests: GET /__counts (totals by kind since the last POST /__reset). Not part of Jellyfin; no auth.
     if (p === '/__mock') return json(res, 200, { mock: true });   // marker: every test harness checks this before it talks to a Jellyfin
     if (p === '/__counts') return json(res, 200, counts);
@@ -189,11 +193,12 @@ http
       const b = JSON.parse((await readBody(req)) || '{}');
       // 'revoked' signs in fine but its token is refused from then on (a token Jellyfin has dropped)
       if (b.Username === 'revoked' && b.Pw === 'pw') return json(res, 200, { User: { ...me, Name: 'revoked' }, AccessToken: 'dead-token' });
+      if (b.Username === 'listener' && b.Pw === 'pw') return json(res, 200, { User: listener, AccessToken: 'mock-token-listener' });
       return b.Username === 'tester' && b.Pw === 'pw' ? json(res, 200, { User: me, AccessToken: 'mock-token' }) : json(res, 401, { error: 'bad' });
     }
-    if (!(req.headers.authorization || '').includes('Token="mock-token"')) return json(res, 401, {});
+    if (!(req.headers.authorization || '').includes('Token="mock-token"') && !asListener) return json(res, 401, {});
     if (p === '/QuickConnect/Initiate') return json(res, 401, {});
-    if (p === '/Users/Me') return json(res, 200, me);
+    if (p === '/Users/Me') return json(res, 200, asListener ? listener : me);
     if (p.startsWith('/DisplayPreferences/')) {
       if (m !== 'POST' && prefsDelay > 0) await new Promise((r) => setTimeout(r, prefsDelay));
       if (m === 'POST') {

@@ -134,6 +134,12 @@ h2.section.k-section { font-size: 24px; line-height: 1.1; }
 .k-toast.warn, .toast.warn { border-color: var(--line); color: var(--k-amber); }
 .toast.warn button.x { color: var(--dim); }
 
+/* ---------------------------------------------------------------- headings that took the kit class keep the kit size over a page's older,
+   more specific heading rule (ONE APP 1e: Devices, Jam); a danger small button is a red outline */
+h1.k-title, .sp .page-head h1.k-title { font-size: 30px; line-height: 1.05; }
+h2.k-section, .dv-h.k-section { font-size: 24px; line-height: 1.1; }
+.k-btn-sm.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+
 /* ---------------------------------------------------------------- switch: 44 x 26, white knob 22, accent track */
 .k-switch, .switch, .sp .switch { flex: none; position: relative; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-3); }
 .k-switch::after, .switch::after, .sp .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; }

@@ -3,7 +3,7 @@
 @inherits UserComponent
 <PageTitle>Jam · FLACie</PageTitle>
 <div class="sp sp-jam">
-<header class="page-head"><h1><i>Jam</i></h1></header>
+<header class="page-head"><h1 class="k-title"><i>Jam</i></h1></header>
 
 @if (Live is not { } live)
 {
@@ -18,27 +18,27 @@ else
     @if (jam.InJam)
     {
         <section class="panel">
-            <h2>@jam.GroupName</h2>
+            <h2 class="k-section">@jam.GroupName</h2>
             <p>@(string.Join(", ", jam.People))</p>
             <p class="hint">Play songs as usual; they play for the whole Jam.</p>
-            <button class="btn danger" @onclick="jam.LeaveAsync">Leave the Jam</button>
+            <button class="k-btn-sm danger" @onclick="jam.LeaveAsync">Leave the Jam</button>
         </section>
     }
     else
     {
         <section class="panel">
-            <h2>Start a Jam</h2>
+            <h2 class="k-section">Start a <i>Jam</i></h2>
             <p class="hint">@(Player.Current?.JellyfinId is not null ? "Starts with what plays now." : "Start a Jam, then play a song from Jellyfin.")</p>
-            <button class="btn primary" @onclick="jam.StartAsync">Start a Jam</button>
+            <button class="k-btn primary" @onclick="jam.StartAsync">Start a Jam</button>
         </section>
         <section class="panel">
-            <h2>Join a Jam</h2>
+            <h2 class="k-section">Join a <i>Jam</i></h2>
             @foreach (var g in jam.Groups)
             {
-                <div class="row-actions"><span><b>@g.Name</b> <span class="hint">@string.Join(", ", g.People)</span></span><button class="btn" @onclick="() => jam.JoinAsync(g)">Join</button></div>
+                <div class="row-actions"><span><b>@g.Name</b> <span class="hint">@string.Join(", ", g.People)</span></span><button class="k-btn-sm" @onclick="() => jam.JoinAsync(g)">Join</button></div>
             }
             @if (jam.Groups.Count == 0) { <p class="hint">No Jams going on right now.</p> }
-            <button class="btn ghost" @onclick="jam.LoadGroupsAsync">Refresh</button>
+            <button class="k-btn-sm" @onclick="jam.LoadGroupsAsync">Refresh</button>
         </section>
     }
 }

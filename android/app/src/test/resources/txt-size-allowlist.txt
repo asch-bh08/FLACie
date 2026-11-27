@@ -1,7 +1,7 @@
 # Txt(..., size = <number>) calls each file may still have (KitLintTest); lower them as screens move to the kit styles.
 AccountUi.kt 5
 CarMode.kt 3
-DevicesUi.kt 9
+DevicesUi.kt 1
 DjCaptionUi.kt 2
 DjMicUi.kt 2
 DjStatus.kt 1
@@ -11,7 +11,7 @@ ForYouUi.kt 6
 HeadphoneTestUi.kt 15
 InfoPanel.kt 10
 IpodPicker.kt 17
-JamUi.kt 12
+JamUi.kt 3
 JellyfinSetup.kt 7
 LegalUi.kt 3
 LidarrSetup.kt 21

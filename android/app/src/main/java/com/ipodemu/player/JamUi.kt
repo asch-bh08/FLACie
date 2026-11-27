@@ -42,38 +42,38 @@ fun JamScreen() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { ui.jamOpen = false }, tint = Color.White)
-                SerifTitle("Jam", Modifier.padding(start = 4.dp), size = 30f, color = Color.White)   // design I: the serif heading, as on the web
+                Title("Jam", Modifier.padding(start = 4.dp), color = Color.White)   // design I: the serif heading, as on the web
             }
             if (!app.connect.available) {
-                Txt("Sign in with Jellyfin to listen together with other people on your server.", size = 15f, color = Color(0xCCFFFFFF), maxLines = 3)
+                Body("Sign in with Jellyfin to listen together with other people on your server.", color = Color(0xCCFFFFFF), maxLines = 3)
                 return@Column
             }
             if (jam.inJam) {
                 Txt(jam.groupName, size = 20f, weight = FontWeight.SemiBold, color = Color.White)
-                Txt("Everyone hears the same song at the same moment. Anyone can play, pause, skip or add songs.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 3)
+                Small("Everyone hears the same song at the same moment. Anyone can play, pause, skip or add songs.", color = Color(0xCCFFFFFF), maxLines = 3)
                 Txt("LISTENING", size = 12f, weight = FontWeight.Bold, color = Color(0x99FFFFFF))
                 for (p in jam.people) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(Modifier.size(36.dp).clip(CircleShape).background(sc.accent.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
-                        Txt(p.take(1).uppercase(), size = 15f, weight = FontWeight.Bold, color = Color.White)
+                        Body(p.take(1).uppercase(), weight = FontWeight.Bold, color = Color.White)
                     }
-                    Txt(p, size = 16f, color = Color.White)
+                    Body(p, color = Color.White)
                 }
                 GlossPill("Leave the Jam", { jam.leave() }, height = 40.dp)
             } else {
-                Txt("Listen together with anyone on this Jellyfin server. Songs stored only on one device can't be shared.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 3)
+                Small("Listen together with anyone on this Jellyfin server. Songs stored only on one device can't be shared.", color = Color(0xCCFFFFFF), maxLines = 3)
                 GlossPill("Start a Jam", { jam.start() }, primary = true, icon = Glyph.JAM, height = 44.dp)
                 Txt("JAMS ON THIS SERVER", size = 12f, weight = FontWeight.Bold, color = Color(0x99FFFFFF))
-                if (jam.groups.isEmpty()) Txt("No Jams right now.", size = 14f, color = Color(0x99FFFFFF))
+                if (jam.groups.isEmpty()) Small("No Jams right now.", color = Color(0x99FFFFFF))
                 for (g in jam.groups) Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(14.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Txt(g.name, size = 16f, weight = FontWeight.SemiBold, color = Color.White)
-                    Txt(g.people.joinToString(", ").ifBlank { "Nobody yet" }, size = 13f, color = Color(0xBBFFFFFF), maxLines = 2)
+                    Body(g.name, weight = FontWeight.SemiBold, color = Color.White)
+                    Small(g.people.joinToString(", ").ifBlank { "Nobody yet" }, color = Color(0xBBFFFFFF), maxLines = 2)
                     GlossPill("Join", { jam.join(g) }, primary = true, height = 36.dp)
                 }
             }
-            jam.status?.let { Txt(it, size = 14f, color = Color(0xFFFFB0B0), maxLines = 4) }
+            jam.status?.let { Small(it, color = Color(0xFFFFB0B0), maxLines = 4) }
         }
     }
 }

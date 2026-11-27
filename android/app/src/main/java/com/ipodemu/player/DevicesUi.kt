@@ -93,9 +93,9 @@ fun DevicesScreen() {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { ui.devicesOpen = false }, tint = Color.White)
-                SerifTitle("Your devices", Modifier.padding(start = 4.dp), size = 34f, color = Color.White)
+                Title("Your devices", Modifier.padding(start = 4.dp), color = Color.White)
             }
-            Txt("Everything signed in to this account. Move the music between them, or go back to where any of them was today.", size = 14.5f, color = dim, maxLines = 4)
+            Small("Everything signed in to this account. Move the music between them, or go back to where any of them was today.", color = dim, maxLines = 4)
 
             SectionTitle("This phone")
             DeviceCard(
@@ -110,7 +110,7 @@ fun DevicesScreen() {
             SectionTitle("Other devices")
             if (!c.available) Empty("Connect needs a Jellyfin sign-in.", "Sign in with Jellyfin to see and control your other devices.")
             else {
-                if (!c.connected) Txt("Connecting to Jellyfin…", size = 13.5f, color = dim)
+                if (!c.connected) Small("Connecting to Jellyfin…", color = dim)
                 for (s in others) {
                     val playing = s.itemId != null
                     val pos = s.estimatedMs(now)
@@ -148,7 +148,7 @@ fun DevicesScreen() {
             }
 
             SectionTitle("Where you were")
-            Txt("The last 24 hours on each device, newest first. Pick a moment to carry on from there, here.", size = 13.5f, color = dim, maxLines = 3)
+            Small("The last 24 hours on each device, newest first. Pick a moment to carry on from there, here.", color = dim, maxLines = 3)
             when {
                 !web.available -> Empty("Needs FLACie Web.", "Add your FLACie Web address in Settings to keep where each device was.")
                 where.isEmpty() -> Empty(if (whereFailed) "Can't reach FLACie Web just now." else "Nothing yet.", "As you play music on any device signed in to this account, FLACie keeps where you were for a day.")
@@ -162,7 +162,7 @@ fun DevicesScreen() {
                         Glass {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 KindBadge(d.kind, 28.dp)
-                                Txt(named(app, d), size = 15f, weight = FontWeight.Bold, color = Color.White)
+                                Body(named(app, d), weight = FontWeight.Bold, color = Color.White)
                                 MonoLabel("${d.moments.size} ${if (d.moments.size == 1) "moment" else "moments"} · last ${WhereYouWere.ago(d.lastSeen, now)}", size = 10.5f, color = dim)
                             }
                             for (m in if (open) d.moments else d.moments.take(5)) MomentRow(m, artOf(app, m), now) { carryOn(m) }
@@ -229,21 +229,21 @@ private fun DeviceCard(
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 KindBadge(kind)
-                Txt(name, size = 16f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                Body(name, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
             }
             Chips(chips)
             if (song != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 ArtImage(artKey, Modifier.size(64.dp), thumb = true, corner = 12.dp)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     SerifTitle(song, size = 22f, color = Color.White, italicWords = -1)
-                    if (!artist.isNullOrBlank()) Txt(artist, size = 13.5f, color = Color(0xB3FFFFFF), maxLines = 1)
+                    if (!artist.isNullOrBlank()) Small(artist, color = Color(0xB3FFFFFF), maxLines = 1)
                     if (progress != null) Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(Kit.glassRim)) {
                         Box(Modifier.fillMaxWidth(progress).height(3.dp).background(sc.accent))
                     }
                     if (time != null) MonoLabel(time, size = 11f, color = Color(0x99FFFFFF), upper = false)
                 }
             }
-            if (note != null) Txt(note, size = 13.5f, color = Color(0x99FFFFFF), maxLines = 3)
+            if (note != null) Small(note, color = Color(0x99FFFFFF), maxLines = 3)
             actions()
         }
     }
@@ -256,12 +256,12 @@ private fun MomentRow(m: WhereYouWere.Moment, art: String?, now: Long, onCarryOn
     Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.width(64.dp)) {
-                MonoLabel(WhereYouWere.ago(m.at, now), size = 10.5f, color = sc.accent, maxLines = 2)
+                Label(WhereYouWere.ago(m.at, now), color = sc.accent, maxLines = 2)
                 MonoLabel(java.text.SimpleDateFormat("HH:mm", java.util.Locale.ROOT).format(java.util.Date(m.at)), size = 10.5f, color = Color(0x99FFFFFF), upper = false)
             }
             ArtImage(art, Modifier.size(44.dp), thumb = true, corner = 8.dp)
             Column(Modifier.weight(1f)) {
-                Txt(m.title, size = 15f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                Body(m.title, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
                 Txt(m.artist + " · " + WhereYouWere.where(m.positionMs, m.context) + if (m.paused) " · paused" else "", size = 12.5f, color = Color(0x99FFFFFF), maxLines = 2)
             }
         }

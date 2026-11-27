@@ -48,7 +48,7 @@ for (const [name, w, h] of [['phone', 390, 844], ['desktop', 1440, 900]] as cons
         const b = page.locator(`.player button[aria-label="${label}"]`);
         const cs = await b.evaluate((e) => ({ bg: getComputedStyle(e).backgroundColor, r: parseFloat(getComputedStyle(e).borderTopLeftRadius) }));
         expect(cs.bg).not.toBe('rgba(0, 0, 0, 0)'); expect(cs.bg).not.toBe(accent);
-        expect(cs.r).toBeGreaterThanOrEqual(18);
+        expect(cs.r).toBeGreaterThanOrEqual(16);   // the kit's one button shape (owner, 26 Nov)
       }
     });
 

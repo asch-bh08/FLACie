@@ -179,9 +179,11 @@ test.describe.serial('the DJ', () => {
         await expect(dock.locator(':scope > :last-child')).toHaveClass(/ls-dj/);
         await expect(tr.getByRole('button', { name: 'DJ', exact: true })).toHaveCount(0);
       }
-      const boxes = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width }; }).filter((b) => b.w > 0));
-      const withMic = !phone && await tr.locator(".dj-mic").count() > 0;
-      expect(boxes).toHaveLength(5);   // shuffle, previous, play, next, repeat (on a PC the DJ and the mic are in the bar under them)
+      const all = await tr.evaluate((el) => [...el.children].map((c) => { const r = c.getBoundingClientRect(); return { l: r.left, r: r.right, w: r.width, t: r.top + r.height / 2 }; }).filter((b) => b.w > 0));
+      // owner, 26 Nov: on a phone shuffle and repeat sit beside the time, so the play row is previous, play, next; on a PC all five stay in the row
+      const playY = await tr.locator('.ls-ring').evaluate((e) => { const r = e.getBoundingClientRect(); return r.top + r.height / 2; });
+      const boxes = all.filter((b) => Math.abs(b.t - playY) < 24).sort((a, b) => a.l - b.l);
+      expect(boxes).toHaveLength(phone ? 3 : 5);
       // the play button (the ring) is the middle of the row: as much on its left as on its right
       const ring = await tr.locator('.ls-ring').evaluate((e) => { const r = e.getBoundingClientRect(); return (r.left + r.right) / 2; });
       const mid = (boxes[0].l + boxes[boxes.length - 1].r) / 2;

@@ -146,11 +146,22 @@ test.describe.serial('the song asked for is the Top result', () => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1440, height: 900 });
     await signIn(page);
-    await page.goto('/playlists');
-    await page.waitForTimeout(1500);
+    // any "2026" left by an earlier run goes first (each one made another "Add to 2026" in the song menu)
+    for (let i = 0; i < 10; i++) {
+      await page.goto('/playlists');
+      await page.waitForTimeout(1500);
+      const old = page.locator('.pl-grid .card').filter({ has: page.locator('.card-title', { hasText: /^2026$/ }) }).first();
+      if (!(await old.isVisible().catch(() => false))) break;
+      await old.click();
+      await page.locator('.pl-hero').getByRole('link', { name: 'Edit', exact: true }).click();
+      await page.getByRole('button', { name: 'Delete playlist' }).click();
+      await page.getByRole('button', { name: 'Delete', exact: true }).click();
+      await page.waitForURL(/\/playlists$/);
+    }
     await page.getByRole('textbox', { name: 'New playlist name' }).fill('2026');
     await page.getByRole('button', { name: 'Create' }).click();
     await expect(page).toHaveURL(/\/playlist\//, { timeout: 15_000 });
+    const made = page.url();
     await page.goto('/search?q=' + encodeURIComponent('heads will roll'));
     const song = page.getByRole('region', { name: 'Top result' });
     await expect(song.locator('.sr-hero-title')).toHaveText('Heads Will Roll', { timeout: 45_000 });
@@ -174,5 +185,10 @@ test.describe.serial('the song asked for is the Top result', () => {
     await page.waitForTimeout(400);
     expect((await regions(page))[0]).toBe('Top result');
     expect(await noSideScroll(page)).toBe(true);
+    // clean up so a rerun starts clean
+    await page.goto(made + '/edit');
+    await page.getByRole('button', { name: 'Delete playlist' }).click();
+    await page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await page.waitForURL(/\/playlists$/);
   });
 });

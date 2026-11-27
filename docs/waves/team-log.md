@@ -698,3 +698,4 @@ Owner wants the phone app overhauled to match the web (web done or in progress o
 ## 2026-11-11 Local: frank = b127 + the stuck-downloads fix
 - Deployed b127 (ca5d52fd) plus 09162ff6 only (a losing source's late "Filing into the library" no longer undoes Done; 22 jobs had sat for hours with their files arrived). Not the b129 work. Rollback tag flacie-web:rollback-b127 (dropped rollback-b123djnames). /healthz ok.
 - Library: Jungle Mania 2 fixed by hand (duplicates archived to .flacie-replaced, L Double / Ganja Krew re-cut at the official length, 35 tracks tagged from MusicBrainz, cover embedded, 2 missing tracks fetched with ytdl). Owner to run a Jellyfin library scan.
+- 27 Nov 11:33 local: wave 0 + 1g done, b145 out + web deployed. Cloud: please take wave 1 per docs/plans/cloud-brief-wave1.md (branches cloud/1x-*). Local is on polish-1127 (dock, shuffle dot, pencil Edit, player bar).

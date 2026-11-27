@@ -28,3 +28,25 @@ a.detail-shuffle { text-decoration: none; }
   .detail-head { flex-direction: column; align-items: flex-start; padding-top: 28px; }
   .detail-head .cover.detail-cover { width: min(64vw, 260px); height: min(64vw, 260px); }
 }
+
+/* ONE APP 1h: a wide screen (1600 px and up) uses its height instead of leaving a band under a short album, artist, genre or made-for-you
+   page: the cover and its header stand in a column of their own on the left, as tall as the window and staying put, the songs on the right */
+@media (min-width: 1600px) and (min-height: 700px) {
+  main.content:has(> .detail-head) { display: grid; grid-template-columns: minmax(420px, 32%) minmax(0, 1fr); column-gap: 48px; align-items: start; }
+  main.content:has(> .detail-head) > * { grid-column: 2; min-width: 0; }
+  main.content:has(> .detail-head) > .detail-head {
+    grid-column: 1; grid-row: 1 / span 40; position: sticky; top: 16px; box-sizing: border-box; min-height: calc(100dvh - var(--top, 64px) - 40px);
+    flex-direction: column; flex-wrap: nowrap; align-items: flex-start; justify-content: flex-start; margin: 0; padding: 32px; border-radius: 28px;
+    border: 1px solid var(--k-rim); background-color: var(--k-glass); }   /* a kit card the window's height, so its lower part reads as the card, not a gap */
+  main.content:has(> .detail-head) > .detail-head .cover.detail-cover { width: min(100%, 46vh); height: auto; aspect-ratio: 1; }
+  main.content:has(> .detail-head) > .detail-head .detail-text { flex: none; width: 100%; }
+  main.content:has(> .detail-head) > .detail-head h1 { font-size: clamp(38px, 3.2vw, 60px); }
+}
+/* Favourites does the same on a wide screen: its hero in a column on the left, the songs on the right (the playlist page keeps its own layout) */
+@media (min-width: 1600px) and (min-height: 700px) {
+  .fav-page { display: grid; grid-template-columns: minmax(420px, 32%) minmax(0, 1fr); column-gap: 48px; align-items: start; }
+  .fav-page > .pl-hero { position: sticky; top: 16px; box-sizing: border-box; min-height: calc(100dvh - var(--top, 64px) - 40px); margin: 0; border-radius: 28px; border: 1px solid var(--k-rim);
+    flex-direction: column; align-items: flex-start; justify-content: flex-start; }
+  .fav-page > .pl-hero .pl-cover { width: min(100%, 46vh); height: auto; aspect-ratio: 1; }
+  .fav-page > .pl-main { min-width: 0; }
+}

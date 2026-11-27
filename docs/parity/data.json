@@ -1,8 +1,12 @@
 {
  "web": {
-  "at": "2026-11-27 12:46",
+  "at": "2026-11-27 16:08",
   "sizes": {
    "p360x640": {
+    "library": {
+     "img": "img/web-p360x640-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-p360x640-album.jpg",
      "flags": []
@@ -10,9 +14,21 @@
     "artist": {
      "img": "img/web-p360x640-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-p360x640-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p360x640-account.jpg",
+     "flags": []
     }
    },
    "p375x667": {
+    "library": {
+     "img": "img/web-p375x667-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-p375x667-album.jpg",
      "flags": []
@@ -20,9 +36,21 @@
     "artist": {
      "img": "img/web-p375x667-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-p375x667-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p375x667-account.jpg",
+     "flags": []
     }
    },
    "p390x844": {
+    "library": {
+     "img": "img/web-p390x844-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-p390x844-album.jpg",
      "flags": []
@@ -30,9 +58,21 @@
     "artist": {
      "img": "img/web-p390x844-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-p390x844-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p390x844-account.jpg",
+     "flags": []
     }
    },
    "p412x915": {
+    "library": {
+     "img": "img/web-p412x915-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-p412x915-album.jpg",
      "flags": []
@@ -40,9 +80,21 @@
     "artist": {
      "img": "img/web-p412x915-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-p412x915-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p412x915-account.jpg",
+     "flags": []
     }
    },
    "p412x1000": {
+    "library": {
+     "img": "img/web-p412x1000-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-p412x1000-album.jpg",
      "flags": []
@@ -50,9 +102,30 @@
     "artist": {
      "img": "img/web-p412x1000-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-p412x1000-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 76–94% (18% of the height)",
+       "band": {
+        "top": 0.7558095238095238,
+        "h": 0.18361904761904763
+       }
+      }
+     ]
+    },
+    "account": {
+     "img": "img/web-p412x1000-account.jpg",
+     "flags": []
     }
    },
    "fold-cover": {
+    "library": {
+     "img": "img/web-fold-cover-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-fold-cover-album.jpg",
      "flags": []
@@ -60,9 +133,21 @@
     "artist": {
      "img": "img/web-fold-cover-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-fold-cover-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-fold-cover-account.jpg",
+     "flags": []
     }
    },
    "fold-inner": {
+    "library": {
+     "img": "img/web-fold-inner-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-fold-inner-album.jpg",
      "flags": []
@@ -70,9 +155,21 @@
     "artist": {
      "img": "img/web-fold-inner-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-fold-inner-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-fold-inner-account.jpg",
+     "flags": []
     }
    },
    "p-land": {
+    "library": {
+     "img": "img/web-p-land-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-p-land-album.jpg",
      "flags": []
@@ -80,9 +177,21 @@
     "artist": {
      "img": "img/web-p-land-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-p-land-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p-land-account.jpg",
+     "flags": []
     }
    },
    "tab768x1024": {
+    "library": {
+     "img": "img/web-tab768x1024-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-tab768x1024-album.jpg",
      "flags": [
@@ -99,9 +208,30 @@
     "artist": {
      "img": "img/web-tab768x1024-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-tab768x1024-favourites.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 85–100% (15% of the height)",
+       "band": {
+        "top": 0.8515625,
+        "h": 0.1484375
+       }
+      }
+     ]
+    },
+    "account": {
+     "img": "img/web-tab768x1024-account.jpg",
+     "flags": []
     }
    },
    "tab1024x768": {
+    "library": {
+     "img": "img/web-tab1024x768-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-tab1024x768-album.jpg",
      "flags": [
@@ -118,9 +248,21 @@
     "artist": {
      "img": "img/web-tab1024x768-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-tab1024x768-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-tab1024x768-account.jpg",
+     "flags": []
     }
    },
    "lap1280x720": {
+    "library": {
+     "img": "img/web-lap1280x720-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-lap1280x720-album.jpg",
      "flags": []
@@ -128,19 +270,27 @@
     "artist": {
      "img": "img/web-lap1280x720-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-lap1280x720-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1280x720-account.jpg",
+     "flags": []
     }
    },
    "lap1366x768": {
-    "album": {
-     "img": "img/web-lap1366x768-album.jpg",
-     "flags": []
-    },
-    "artist": {
-     "img": "img/web-lap1366x768-artist.jpg",
+    "account": {
+     "img": "img/web-lap1366x768-account.jpg",
      "flags": []
     }
    },
    "lap1366-125": {
+    "library": {
+     "img": "img/web-lap1366-125-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-lap1366-125-album.jpg",
      "flags": []
@@ -148,9 +298,21 @@
     "artist": {
      "img": "img/web-lap1366-125-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-lap1366-125-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1366-125-account.jpg",
+     "flags": []
     }
    },
    "lap1366-150": {
+    "library": {
+     "img": "img/web-lap1366-150-library.jpg",
+     "flags": []
+    },
     "album": {
      "img": "img/web-lap1366-150-album.jpg",
      "flags": []
@@ -158,90 +320,32 @@
     "artist": {
      "img": "img/web-lap1366-150-artist.jpg",
      "flags": []
+    },
+    "favourites": {
+     "img": "img/web-lap1366-150-favourites.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1366-150-account.jpg",
+     "flags": []
     }
    },
    "pc1920x1080": {
-    "album": {
-     "img": "img/web-pc1920x1080-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 63–100% (37% of the height)",
-       "band": {
-        "top": 0.6287037037037037,
-        "h": 0.3712962962962963
-       }
-      }
-     ]
-    },
-    "artist": {
-     "img": "img/web-pc1920x1080-artist.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 66–100% (34% of the height)",
-       "band": {
-        "top": 0.662962962962963,
-        "h": 0.337037037037037
-       }
-      }
-     ]
+    "account": {
+     "img": "img/web-pc1920x1080-account.jpg",
+     "flags": []
     }
    },
    "uw2560x1080": {
-    "album": {
-     "img": "img/web-uw2560x1080-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 63–100% (37% of the height)",
-       "band": {
-        "top": 0.6287037037037037,
-        "h": 0.3712962962962963
-       }
-      }
-     ]
-    },
-    "artist": {
-     "img": "img/web-uw2560x1080-artist.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 65–100% (35% of the height)",
-       "band": {
-        "top": 0.65,
-        "h": 0.35
-       }
-      }
-     ]
+    "account": {
+     "img": "img/web-uw2560x1080-account.jpg",
+     "flags": []
     }
    },
    "4k-200": {
-    "album": {
-     "img": "img/web-4k-200-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 63–100% (37% of the height)",
-       "band": {
-        "top": 0.6273148148148148,
-        "h": 0.3726851851851852
-       }
-      }
-     ]
-    },
-    "artist": {
-     "img": "img/web-4k-200-artist.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 66–100% (34% of the height)",
-       "band": {
-        "top": 0.6615740740740741,
-        "h": 0.3384259259259259
-       }
-      }
-     ]
+    "account": {
+     "img": "img/web-4k-200-account.jpg",
+     "flags": []
     }
    }
   }

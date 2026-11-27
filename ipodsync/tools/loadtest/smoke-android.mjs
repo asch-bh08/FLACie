@@ -174,7 +174,10 @@ async function main() {
   if (miniNode) { tapAt(400, miniNode.cy); await sleep(2500); }
   shot(S('10-now-playing'));
   ui = dump();
-  const upBtn = ui && (find(ui, /^Up next$/i) ?? find(ui, /Up next|Queue/i));
+  // no Up next button in the row since 26 Nov (owner): More lists it (the Up next line under the controls and swiping go there too)
+  const moreBtn = ui && ui.filter((q) => label(q) === 'More').sort((a, b) => b.cy - a.cy)[0];
+  if (moreBtn) { tapNode(moreBtn); await sleep(1500); ui = dump(); }
+  const upBtn = ui && find(ui, /^Up next$/i);
   if (upBtn) { tapNode(upBtn); await sleep(2000); }
   shot(S('11-up-next'));
   ui = dump();

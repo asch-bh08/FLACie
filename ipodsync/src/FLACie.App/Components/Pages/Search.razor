@@ -17,21 +17,21 @@
                 <span class="job-text"><b>@j.Label</b><small>@j.Message</small></span>
             </div>
         }
-        @if (jobs.Any(x => x.Finished)) { <button class="btn ghost" @onclick="() => Downloads.DismissFinished(Session)">Clear finished</button> }
+        @if (jobs.Any(x => x.Finished)) { <button class="k-btn-sm" @onclick="() => Downloads.DismissFinished(Session)">Clear finished</button> }
     </section>
 }
 @if (q.Trim().Length == 0)
 {
     @* nothing typed: Search is where you browse (what the Explore page was): its tabs, its filters and the overview *@
     <header class="page-head">
-        <h2 class="page-title">Search <i>your music</i></h2>
+        <h2 class="page-title k-title">Search your <i>music</i></h2>
         <p class="sub">@Lib.Songs.Count.ToString("N0") songs · @Lib.Albums.Count.ToString("N0") albums · @Lib.Artists.Count.ToString("N0") artists. Type above to search; anything you don't have shows up under More music, ready to download.</p>
     </header>
     @if (Session.RecentSearches is { Count: > 0 } recent)
     {
         <section class="recent-searches" aria-label="Recent searches">
-            <div class="rs-head"><h2 class="section">Recent searches</h2><button class="btn ghost" @onclick="() => { Session.ClearRecentSearches(); SaveProfile(); }">Clear</button></div>
-            <div class="chips">@foreach (var r in recent) { <a class="chip" href="@("/search?q=" + Uri.EscapeDataString(r))">@r</a> }</div>
+            <div class="rs-head"><h2 class="section k-section">Recent searches</h2><button class="k-btn-sm" @onclick="() => { Session.ClearRecentSearches(); SaveProfile(); }">Clear</button></div>
+            <div class="chips">@foreach (var r in recent) { <a class="k-btn-sm" href="@("/search?q=" + Uri.EscapeDataString(r))">@r</a> }</div>
         </section>
     }
     <MusicTabs Active="Overview" />
@@ -48,7 +48,7 @@ else
             <Icon Name="download" Size="22" />
             <span><b>A @songLink.Service song</b><small>@songLink.Url.Replace("https://", "")</small></span>
             @if (linkAsked == songLink.Url) { <span class="hint" role="status">Getting it: it shows under Downloads above and joins your library when it's done.</span> }
-            else { <button class="btn primary" disabled="@(!Session.Services.Any)" @onclick="() => { linkAsked = songLink.Url; Downloads.Link(Session, songLink.Url); }">Get this song</button> }
+            else { <button class="k-btn primary" disabled="@(!Session.Services.Any)" @onclick="() => { linkAsked = songLink.Url; Downloads.Link(Session, songLink.Url); }">Get this song</button> }
         </section>
     }
     <ExploreBar Compact="true" Changed="OnFilters" />
@@ -63,7 +63,7 @@ else
     {
         var (rows, copies) = SearchLayout.FoldCopies(ShownWebSongs(), s => s.Title, askedSong);
         <section class="sr-dl" aria-label="More music to download">
-            <h2 class="section">More music <i>to download</i>@(webBusy ? " (searching…)" : "")</h2>
+            <h2 class="section k-section">More music <i>to download</i>@(webBusy ? " (searching…)" : "")</h2>
             <p class="sr-dl-note">Not in your library yet@(Downloads.Allowed ? ": download what you want to keep" : "").</p>
             @* with downloads off on this server (the Dashboard's "Allow downloads") these are only what exists: no download buttons and no "set up downloads" hint *@
             @if (Downloads.Allowed && !Session.Services.Any && isAdmin) { <p class="hint">These aren't in your library. Download services you run yourself can be set up in the <a href="/dashboard#downloads">Server admin</a>; only download music you own or have permission to download.</p> }
@@ -79,7 +79,7 @@ else
                             <span class="card-title">@a.CleanTitle</span>
                             <span class="card-sub">@a.Artist · @a.Kind</span>
                             @if (ja is not null) { <span class="track-dl @(ja.Stage == DownloadStage.Failed ? "bad" : ja.Stage == DownloadStage.Done ? "ok" : "")"><i aria-hidden="true"></i>@ja.Message@(ja.Current is { } ca && !ja.Finished ? " · " + OpenSourceSettings.Name(ca) : ja.Source is { } sa ? " · from " + OpenSourceSettings.Name(sa) : "")</span> }
-                            @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
+                            @if (Downloads.Allowed) { <button class="k-btn-sm" disabled="@(!Session.Services.Any || ja is { Finished: false })" @onclick="() => Downloads.Album(Session, a)"><Icon Name="download" Size="16" />@(ja is { Finished: false } ? "Downloading…" : ja is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
                         </div>
                     }
                 </div>
@@ -134,7 +134,7 @@ else
             </span>
             <span class="track-time">@Time(s.DurationMs / 1000.0)</span>
             <span class="track-actions">
-            @if (Downloads.Allowed) { <button class="btn" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
+            @if (Downloads.Allowed) { <button class="k-btn-sm" disabled="@(!Session.Services.Any || jb is { Finished: false } || inLib)" @onclick="() => Downloads.Song(Session, s)"><Icon Name="download" Size="16" />@(jb is { Finished: false } ? "Downloading…" : inLib ? "In your library" : jb is { Stage: DownloadStage.Failed } ? "Try again" : "Download")</button> }
             <span class="dl-more">
                 <button class="icon-btn" aria-haspopup="menu" aria-expanded="@((dlMenu == hiKey) ? "true" : "false")" aria-label="@MoreLabel(s.Title)" @onclick="() => dlMenu = dlMenu == hiKey ? null : hiKey" title="@MoreLabel(s.Title)"><Icon Name="lines" Size="20" /></button>
                 @if (dlMenu == hiKey)
@@ -148,7 +148,7 @@ else
                 }
             </span>
             </span>
-            @if (isAdmin && hiAsk == hiKey) { <div class="hires-ask track-ask" role="group" aria-label="Download in Hi-Res?"><b>Download "@s.Title" in Hi-Res?</b><span>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). If no Hi-Res copy exists, you get the normal quality instead. Only this song.</span><span class="hires-actions"><button class="btn hires solid" @onclick="() => { hiAsk = null; Downloads.Song(Session, s, true); }">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = null">Cancel</button></span></div> }
+            @if (isAdmin && hiAsk == hiKey) { <div class="hires-ask track-ask" role="group" aria-label="Download in Hi-Res?"><b>Download “@s.Title” in Hi-Res?</b><span>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). If no Hi-Res copy exists, you get the normal quality instead. Only this song.</span><span class="hires-actions"><button class="btn hires solid" @onclick="() => { hiAsk = null; Downloads.Song(Session, s, true); }">Download Hi-Res</button><button class="k-btn-sm" @onclick="() => hiAsk = null">Cancel</button></span></div> }
         </li>;
     }
     // the Filters panel changed: the Playlists view follows its genre and decade

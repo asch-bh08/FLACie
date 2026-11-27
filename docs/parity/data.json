@@ -1,394 +1,150 @@
 {
  "web": {
-  "at": "2026-11-27 11:56",
+  "at": "2026-11-27 12:49",
   "sizes": {
    "p360x640": {
-    "home": {
-     "img": "img/web-p360x640-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-p360x640-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-p360x640-favourites.jpg",
+    "search": {
+     "img": "img/web-p360x640-search.jpg",
      "flags": []
     }
    },
    "p375x667": {
-    "home": {
-     "img": "img/web-p375x667-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-p375x667-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-p375x667-favourites.jpg",
+    "search": {
+     "img": "img/web-p375x667-search.jpg",
      "flags": []
     }
    },
    "p390x844": {
-    "home": {
-     "img": "img/web-p390x844-home.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 6–23% (17% of the height)",
-       "band": {
-        "top": 0.058056872037914695,
-        "h": 0.16824644549763032
-       }
-      }
-     ]
-    },
-    "library": {
-     "img": "img/web-p390x844-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-p390x844-favourites.jpg",
+    "search": {
+     "img": "img/web-p390x844-search.jpg",
      "flags": []
     }
    },
    "p412x915": {
-    "home": {
-     "img": "img/web-p412x915-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-p412x915-library.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 78–95% (17% of the height)",
-       "band": {
-        "top": 0.7822647793505412,
-        "h": 0.16569525395503748
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-p412x915-favourites.jpg",
+    "search": {
+     "img": "img/web-p412x915-search.jpg",
      "flags": []
     }
    },
    "p412x1000": {
-    "home": {
-     "img": "img/web-p412x1000-home.jpg",
+    "search": {
+     "img": "img/web-p412x1000-search.jpg",
      "flags": []
-    },
-    "library": {
-     "img": "img/web-p412x1000-library.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 72–95% (24% of the height)",
-       "band": {
-        "top": 0.7158095238095238,
-        "h": 0.23657142857142857
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-p412x1000-favourites.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 76–94% (18% of the height)",
-       "band": {
-        "top": 0.7558095238095238,
-        "h": 0.18361904761904763
-       }
-      }
-     ]
     }
    },
    "fold-cover": {
-    "home": {
-     "img": "img/web-fold-cover-home.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 6–24% (18% of the height)",
-       "band": {
-        "top": 0.05529157667386609,
-        "h": 0.18185745140388768
-       }
-      }
-     ]
-    },
-    "library": {
-     "img": "img/web-fold-cover-library.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 78–95% (17% of the height)",
-       "band": {
-        "top": 0.7801295896328294,
-        "h": 0.16587473002159828
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-fold-cover-favourites.jpg",
+    "search": {
+     "img": "img/web-fold-cover-search.jpg",
      "flags": []
     }
    },
    "fold-inner": {
-    "home": {
-     "img": "img/web-fold-inner-home.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 6–21% (15% of the height)",
-       "band": {
-        "top": 0.058823529411764705,
-        "h": 0.15211397058823528
-       }
-      }
-     ]
-    },
-    "library": {
-     "img": "img/web-fold-inner-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-fold-inner-favourites.jpg",
+    "search": {
+     "img": "img/web-fold-inner-search.jpg",
      "flags": []
     }
    },
    "p-land": {
-    "home": {
-     "img": "img/web-p-land-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-p-land-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-p-land-favourites.jpg",
-     "flags": []
+    "search": {
+     "img": "img/web-p-land-search.jpg",
+     "flags": [
+      {
+       "kind": "hscroll",
+       "text": "scrolls sideways (870 wide in 844)"
+      }
+     ]
     }
    },
    "tab768x1024": {
-    "home": {
-     "img": "img/web-tab768x1024-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-tab768x1024-library.jpg",
+    "search": {
+     "img": "img/web-tab768x1024-search.jpg",
      "flags": [
       {
-       "kind": "band",
-       "text": "empty band 71–100% (29% of the height)",
-       "band": {
-        "top": 0.70703125,
-        "h": 0.29296875
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-tab768x1024-favourites.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 85–100% (15% of the height)",
-       "band": {
-        "top": 0.8515625,
-        "h": 0.1484375
-       }
+       "kind": "hscroll",
+       "text": "scrolls sideways (791 wide in 768)"
       }
      ]
     }
    },
    "tab1024x768": {
-    "home": {
-     "img": "img/web-tab1024x768-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-tab1024x768-library.jpg",
+    "search": {
+     "img": "img/web-tab1024x768-search.jpg",
      "flags": [
       {
-       "kind": "band",
-       "text": "empty band 84–100% (16% of the height)",
-       "band": {
-        "top": 0.8359375,
-        "h": 0.1640625
-       }
+       "kind": "hscroll",
+       "text": "scrolls sideways (1057 wide in 1024)"
       }
      ]
-    },
-    "favourites": {
-     "img": "img/web-tab1024x768-favourites.jpg",
-     "flags": []
     }
    },
    "lap1280x720": {
-    "home": {
-     "img": "img/web-lap1280x720-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-lap1280x720-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-lap1280x720-favourites.jpg",
-     "flags": []
+    "search": {
+     "img": "img/web-lap1280x720-search.jpg",
+     "flags": [
+      {
+       "kind": "hscroll",
+       "text": "scrolls sideways (1316 wide in 1280)"
+      }
+     ]
     }
    },
    "lap1366x768": {
-    "home": {
-     "img": "img/web-lap1366x768-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-lap1366x768-library.jpg",
+    "search": {
+     "img": "img/web-lap1366x768-search.jpg",
      "flags": [
       {
-       "kind": "band",
-       "text": "empty band 84–100% (16% of the height)",
-       "band": {
-        "top": 0.8359375,
-        "h": 0.1640625
-       }
+       "kind": "hscroll",
+       "text": "scrolls sideways (1402 wide in 1366)"
       }
      ]
-    },
-    "favourites": {
-     "img": "img/web-lap1366x768-favourites.jpg",
-     "flags": []
     }
    },
    "lap1366-125": {
-    "home": {
-     "img": "img/web-lap1366-125-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-lap1366-125-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-lap1366-125-favourites.jpg",
-     "flags": []
+    "search": {
+     "img": "img/web-lap1366-125-search.jpg",
+     "flags": [
+      {
+       "kind": "hscroll",
+       "text": "scrolls sideways (1129 wide in 1093)"
+      }
+     ]
     }
    },
    "lap1366-150": {
-    "home": {
-     "img": "img/web-lap1366-150-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-lap1366-150-library.jpg",
-     "flags": []
-    },
-    "favourites": {
-     "img": "img/web-lap1366-150-favourites.jpg",
-     "flags": []
+    "search": {
+     "img": "img/web-lap1366-150-search.jpg",
+     "flags": [
+      {
+       "kind": "hscroll",
+       "text": "scrolls sideways (939 wide in 911)"
+      }
+     ]
     }
    },
    "pc1920x1080": {
-    "home": {
-     "img": "img/web-pc1920x1080-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-pc1920x1080-library.jpg",
+    "search": {
+     "img": "img/web-pc1920x1080-search.jpg",
      "flags": [
       {
-       "kind": "band",
-       "text": "empty band 59–100% (41% of the height)",
-       "band": {
-        "top": 0.5944444444444444,
-        "h": 0.40555555555555556
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-pc1920x1080-favourites.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 73–100% (27% of the height)",
-       "band": {
-        "top": 0.7314814814814815,
-        "h": 0.26851851851851855
-       }
+       "kind": "hscroll",
+       "text": "scrolls sideways (1956 wide in 1920)"
       }
      ]
     }
    },
    "uw2560x1080": {
-    "home": {
-     "img": "img/web-uw2560x1080-home.jpg",
+    "search": {
+     "img": "img/web-uw2560x1080-search.jpg",
      "flags": []
-    },
-    "library": {
-     "img": "img/web-uw2560x1080-library.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 59–100% (41% of the height)",
-       "band": {
-        "top": 0.5944444444444444,
-        "h": 0.40555555555555556
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-uw2560x1080-favourites.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 73–100% (27% of the height)",
-       "band": {
-        "top": 0.7314814814814815,
-        "h": 0.26851851851851855
-       }
-      }
-     ]
     }
    },
    "4k-200": {
-    "home": {
-     "img": "img/web-4k-200-home.jpg",
-     "flags": []
-    },
-    "library": {
-     "img": "img/web-4k-200-library.jpg",
+    "search": {
+     "img": "img/web-4k-200-search.jpg",
      "flags": [
       {
-       "kind": "band",
-       "text": "empty band 59–100% (41% of the height)",
-       "band": {
-        "top": 0.5944444444444444,
-        "h": 0.40555555555555556
-       }
-      }
-     ]
-    },
-    "favourites": {
-     "img": "img/web-4k-200-favourites.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 73–100% (27% of the height)",
-       "band": {
-        "top": 0.7314814814814815,
-        "h": 0.26851851851851855
-       }
+       "kind": "hscroll",
+       "text": "scrolls sideways (1956 wide in 1920)"
       }
      ]
     }

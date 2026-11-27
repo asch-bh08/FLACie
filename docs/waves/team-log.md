@@ -5,6 +5,11 @@
 - Phone: Library tab onto the kit (Title/Section, SmallButton for "All N" and the source chips, LibTiles = kit card glass/rim r22, row height, Body/Small); Home's four shortcuts = kit Slot; "Offline" -> "Downloads" (the screen it opens).
 - Tests: C# 2366 pass; android testDebugUnitTest + assembleDebug green (phone side unit-tested only, no emulator here); Playwright 1-pages + 1w-kit + new 1w-library 38 pass (1-pages ignores newer Chromium's "unload is not allowed" notice).
 - Left: Favourites untouched (both sides use the playlist hero, which Local owns); web Library has no Recent/New songs tiles (no web pages for them); the rail/tab bar still lists Favourites/Playlists (part 10 switches to Library); parity flags an empty band under Library on 1920+ (short page; 1h).
+## 27 Nov Cloud: 1b Search (branch cloud/1b-search)
+- Web: Search title = kit Title ("Search your music"), every h2.section also k-section (24 px, h2.section.k-section in kit.css), kind filters / recent searches / genres / similar artists / See all / Clear / Download = k-btn-sm, "Get this song" = k-btn primary; kit search field in kit.css (.top-search: pill r24, 48 tall, 44 when tight, surface-2, rim); Hi-Res ask uses curly quotes.
+- Phone: SearchPill = the same field (r24, 48, Kit.surface2, rim); catalog song/album pages and "More music to download" use kit Title/Label (chips, headers, pills were already kit wrappers).
+- Tests: C# 2366 pass; android unit + assembleDebug green (phone unit-tested only); Playwright 1-pages, all 1w-, 1z-fit-everywhere, 1z-np-fits-all and the search specs: 174 pass; new 1w-search (field size, kit sections, filters r16, one on). 1y-recent-search / 1z-search-filter now find the kit class.
+- Left: the Top result card itself is unchanged (already liked); old .sr-kinds/.recent-searches .chip rules are dead CSS for wave 2.
 
 ## 12 Nov ~16:45: b136 RELEASED + DEPLOYED
 - https://github.com/asch-bh08/FLACie/releases/tag/v1.0.0-b136 ; frank runs b136 (rollback flacie-web:rollback-b136pre; b135pre, b134a kept).

@@ -15,7 +15,7 @@ async function signIn(page: Page) {
 }
 
 const sections = (page: Page) => page.locator('main section.sr-section').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')));
-const lit = (page: Page) => page.getByTestId('kinds').locator('.chip.on').allInnerTexts();
+const lit = (page: Page) => page.getByTestId('kinds').locator('.k-btn-sm.on').allInnerTexts();
 
 test('the kind chips are one choice: Albums only albums, Playlists only playlists', async ({ page }) => {
   test.setTimeout(90_000);

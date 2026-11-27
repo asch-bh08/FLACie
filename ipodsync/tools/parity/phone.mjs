@@ -207,7 +207,8 @@ const steps = {
   account: async () => { await fresh(); await tapRe(/^Account: /, 0); await tapRe(/^Account$/, 0); },
   np: async () => { npOpen = false; await openNp(); },
   'np-lyrics': () => npTab(/^Lyrics$/),
-  'np-upnext': () => npTab(/^Up next$/),
+  // no Up next slot since 26 Nov (1g): the More sheet lists it (swiping and the Up next line under the controls go there too)
+  'np-upnext': async () => { await openNp(); await tapRe(/^More$/, 0.5); await tapRe(/^Up next$/, 0.2); },
   'np-info': () => npTab(/^(Info|Song info)$/),
 };
 

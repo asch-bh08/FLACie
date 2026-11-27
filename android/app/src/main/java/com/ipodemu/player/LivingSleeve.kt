@@ -543,7 +543,7 @@ private fun SleeveTitle(nav: PlayerNav, t: Track, p: SleevePalette, modifier: Mo
         val heartShape = RoundedCornerShape(Kit.rButtonSmall)
         Box(
             Modifier.size(Kit.sizes(false).icon).clip(heartShape).drawBehind { drawRect(p.tone.value) }.focusRing(heartShape)
-                .semantics { contentDescription = if (fav) "Unfavorite" else "Favorite"; role = Role.Button }.clickable { app.userData.toggleFavorite(t) },
+                .semantics { contentDescription = if (fav) "Remove from favourites" else "Add to favourites"; role = Role.Button }.clickable { app.userData.toggleFavorite(t) },
             contentAlignment = Alignment.Center,
         ) { GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(24.dp), if (fav) p.main.value else p.toneFg.value) }
         // the shortest screens have no row of slots: More sits here, beside the heart, at no extra height
@@ -1067,8 +1067,6 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
             val close: (() -> Unit) -> () -> Unit = { action -> { onDismiss(); action() } }
             val off = app.offline.entry(t.path)
             val song = buildList {
-                if (t.isMusic && t.album.isNotEmpty()) add(MoreRow("Go to album", { GlyphIcon(Glyph.ALBUM, Modifier.size(24.dp), it) }, t.album, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }))
-                if (t.isMusic && t.artist.isNotEmpty()) add(MoreRow("Go to artist", { GlyphIcon(Glyph.ARTIST, Modifier.size(24.dp), it) }, t.artist, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }))
                 // (Info and Lyrics are their own buttons under the cover, so they are not repeated here: owner, 7 Nov, "menus are too complicated";
                 // only on a screen too short for that row, where More is all that is left of it, are they listed here, first)
                 if (panes) {
@@ -1079,11 +1077,13 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     // Up next has no slot of its own now (swiping, or the line under the controls on a tall phone): here too, so a tap always reaches it
                     add(MoreRow("Up next", { GlyphIcon(Glyph.QUEUE, Modifier.size(24.dp), it) }, null, true, close { onOpen("queue") }))
                 }
-                add(MoreRow("Rate", { GlyphIcon(Glyph.STAR, Modifier.size(24.dp), it) }, app.userData.rating(t).takeIf { it > 0 }?.let { RatingStore.label(it) } ?: "None", true, close { nav.sheet = ratingSheet(app, t) }))
-                if (t.isMusic) add(MoreRow("MusicBrainz match", { GlyphIcon(Glyph.SEARCH, Modifier.size(24.dp), it) }, null, true, close { musicBrainzSheet(app, nav, t) }))
+                // the same words in the same order as every other song menu (docs/plans/one-app-words.md); this sheet has room, so More…'s four are listed flat at the end
+                if (t.isMusic && t.artist.isNotEmpty()) add(MoreRow("Go to artist", { GlyphIcon(Glyph.ARTIST, Modifier.size(24.dp), it) }, t.artist, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }))
+                if (t.isMusic && t.album.isNotEmpty()) add(MoreRow("Go to album", { GlyphIcon(Glyph.ALBUM, Modifier.size(24.dp), it) }, t.album, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }))
+                add(MoreRow("Share", { ShareIcon(it) }, null, false, close { shareTrack(ctx, t) }))
                 if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
-                    if (off == null) add(MoreRow("Download for offline", { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), it) }, null, false, close {
-                        val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading \"${t.title}\"" else "Already offline")
+                    if (off == null) add(MoreRow("Download", { GlyphIcon(Glyph.DOWN, Modifier.size(24.dp), it) }, null, false, close {
+                        val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading “${t.title}”" else "Already downloaded")
                     }))
                     else {
                         val failed = off.state == com.ipodemu.library.offline.OfflineState.FAILED
@@ -1092,14 +1092,16 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                             close { if (failed) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path) }))
                     }
                 }
-                add(MoreRow("Share", { ShareIcon(it) }, null, false, close { shareTrack(ctx, t) }))
-                if (app.ui.isAdmin && t.isMusic && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank() && !t.path.contains("[Hi-Res]", ignoreCase = true))
-                    add(MoreRow("Hi-Res version", { GlyphIcon(Glyph.IPOD, Modifier.size(24.dp), it) }, null, true, close {
-                        nav.sheet = SheetSpec("Get a Hi-Res copy?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.", listOf(
-                            SheetItem("Yes, download Hi-Res", Glyph.DOWN) { app.library.requestDownload(t.artist, t.title, t.album, t.durationMs, hiRes = true, fallbackToNormal = false) },
-                            SheetItem("Cancel", Glyph.CLOSE) { },
-                        ))
-                    }))
+                if (t.isMusic) add(MoreRow("Not for me…", { GlyphIcon(Glyph.CLOSE, Modifier.size(24.dp), it) }, null, true, close {
+                    nav.sheet = SheetSpec("Not for me", t.title, listOf(
+                        SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("Fewer songs like “${t.title}”") },
+                        SheetItem("Never pick this song", Glyph.CLOSE) { thumbsDown(app, t) },
+                    ))
+                }))
+                add(MoreRow("Rate…", { GlyphIcon(Glyph.STAR, Modifier.size(24.dp), it) }, app.userData.rating(t).takeIf { it > 0 }?.let { RatingStore.label(it) } ?: "None", true, close { nav.sheet = ratingSheet(app, t) }))
+                if (djSongAvailable(app, t)) add(MoreRow("The DJ and this song…", { GlyphIcon(Glyph.DJ, Modifier.size(24.dp), it) }, null, true, close { nav.sheet = djSongSheet(app, t) }))
+                if (hiResAllowed(app, t)) add(MoreRow("✦ Hi-Res version…", { GlyphIcon(Glyph.IPOD, Modifier.size(24.dp), it) }, null, true, close { nav.sheet = hiResAsk(app, t) }))
+                if (t.isMusic) add(MoreRow("Fix the match…", { GlyphIcon(Glyph.SEARCH, Modifier.size(24.dp), it) }, null, true, close { musicBrainzSheet(app, nav, t) }))
             }
             val playback = listOf(
                 MoreRow("Speed", { GaugeIcon(it) }, com.ipodemu.playback.SpeedPolicy.label(app.player.speed), true, close { nav.sheet = speedSheet(app) }),
@@ -1148,8 +1150,8 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         MoreTile("Play next", Glyph.NEXT, p, false, Modifier.weight(1f), close { app.player.addNext(t); app.ui.say("“${t.title}” plays next") })
                         MoreTile("Add to queue", Glyph.QUEUE, p, false, Modifier.weight(1f), close { app.player.addToQueue(t); app.ui.say("Added “${t.title}” to the queue") })
-                        MoreTile(if (fav) "Favourite" else "Favourite", if (fav) Glyph.HEART_FILLED else Glyph.HEART, p, fav, Modifier.weight(1f)) { app.userData.toggleFavorite(t) }
-                        MoreTile("Add to playlist", Glyph.PLUS, p, false, Modifier.weight(1f), close { nav.sheet = playlistPicker(app, nav, t) })
+                        MoreTile(if (fav) "Remove from favourites" else "Add to favourites", if (fav) Glyph.HEART_FILLED else Glyph.HEART, p, fav, Modifier.weight(1f)) { app.userData.toggleFavorite(t) }
+                        MoreTile("Add to playlist…", Glyph.PLUS, p, false, Modifier.weight(1f), close { nav.sheet = playlistPicker(app, nav, t) })
                     }
                     MoreGroup("Song", song)
                     MoreGroup("Playback", playback)

@@ -523,9 +523,9 @@ private fun SourceBadge(source: com.ipodemu.library.TrackSource) {
 }
 
 private fun swipeAction(code: Int, app: App, t: Track, fav: Boolean, ctx: android.content.Context): SwipeAction? = when (code) {
-    1 -> SwipeAction("Play next", Glyph.QUEUE, { Color(0xFF2A5FB0) }) { app.player.addNext(t); android.widget.Toast.makeText(ctx, "Playing next", android.widget.Toast.LENGTH_SHORT).show() }
-    2 -> SwipeAction(if (fav) "Unfavorite" else "Favorite", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t) }
-    3 -> SwipeAction("Add to queue", Glyph.PLUS, { Color(0xFF2A5FB0) }) { app.player.addToQueue(t); android.widget.Toast.makeText(ctx, "Added to queue", android.widget.Toast.LENGTH_SHORT).show() }
+    1 -> SwipeAction("Play next", Glyph.QUEUE, { Color(0xFF2A5FB0) }) { app.player.addNext(t); android.widget.Toast.makeText(ctx, "“${t.title}” plays next", android.widget.Toast.LENGTH_SHORT).show() }
+    2 -> SwipeAction(if (fav) "Remove from favourites" else "Add to favourites", if (fav) Glyph.CLOSE else Glyph.HEART_FILLED, { Color(0xFFD9427A) }) { app.userData.toggleFavorite(t) }
+    3 -> SwipeAction("Add to queue", Glyph.PLUS, { Color(0xFF2A5FB0) }) { app.player.addToQueue(t); android.widget.Toast.makeText(ctx, "Added “${t.title}” to the queue", android.widget.Toast.LENGTH_SHORT).show() }
     else -> null
 }
 
@@ -533,24 +533,24 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     // the everyday choices first, in words, and the rarer ones one tap further in (owner, 7 Nov: "menus are too complicated"); as on the web
     val ud = app.userData
     val items = ArrayList<SheetItem>()
-    items += SheetItem("Play next", Glyph.PLAY) { app.player.addNext(t) }
-    items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t) }
+    items += SheetItem("Play next", Glyph.PLAY) { app.player.addNext(t); app.ui.say("“${t.title}” plays next") }
+    items += SheetItem("Add to queue", Glyph.QUEUE) { app.player.addToQueue(t); app.ui.say("Added “${t.title}” to the queue") }
     items += SheetItem("Add to playlist…", Glyph.PLUS) { nav.sheet = playlistPicker(app, nav, t) }
-    items += SheetItem(if (ud.isFavorite(t)) "Remove from favourites" else "Add to favourites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { ud.toggleFavorite(t) }
+    items += SheetItem(if (ud.isFavorite(t)) "Remove from favourites" else "Add to favourites", if (ud.isFavorite(t)) Glyph.HEART_FILLED else Glyph.HEART) { val was = ud.isFavorite(t); ud.toggleFavorite(t); app.ui.say(if (was) "Removed “${t.title}” from favourites" else "Added “${t.title}” to favourites") }
     if (t.isMusic && t.artist.isNotEmpty()) items += SheetItem("Go to artist", Glyph.ARTIST) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }
     if (t.isMusic && t.album.isNotEmpty()) items += SheetItem("Go to album", Glyph.ALBUM) { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ALBUM, t.albumKey)) }
     if (t.isMusic) items += SheetItem("Share", Glyph.SHARE) { shareTrack(app, t) }
     if (t.source == com.ipodemu.library.TrackSource.JELLYFIN) {
         val off = app.offline.entry(t.path)
-        if (off == null) items += SheetItem("Download for offline", Glyph.DOWN) { val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading \"${t.title}\"" else "Already offline") }
-        else items += SheetItem(when (off.state) { com.ipodemu.library.offline.OfflineState.DONE -> "Remove download"; com.ipodemu.library.offline.OfflineState.FAILED -> "Download failed: try again"; else -> "Cancel download" }, if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) Glyph.DOWN else Glyph.CLOSE) {
+        if (off == null) items += SheetItem("Download", Glyph.DOWN) { val n = app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL); app.ui.say(if (n > 0) "Downloading “${t.title}”" else "Already downloaded") }
+        else items += SheetItem(when (off.state) { com.ipodemu.library.offline.OfflineState.DONE -> "Remove download"; com.ipodemu.library.offline.OfflineState.FAILED -> "Download again"; else -> "Cancel download" }, if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) Glyph.DOWN else Glyph.CLOSE) {
             if (off.state == com.ipodemu.library.offline.OfflineState.FAILED) app.offline.enqueue(listOf(t), com.ipodemu.library.offline.OfflineReason.MANUAL) else app.offline.remove(t.path)
         }
     }
     items += extra
     if (t.isMusic) items += SheetItem("Not for me…", Glyph.CLOSE) {
         nav.sheet = SheetSpec("Not for me", t.title, listOf(
-            SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("You'll hear less like \"${t.title}\"") },
+            SheetItem("Less like this", Glyph.MORE) { app.listened(com.ipodemu.library.ListenKind.LESS_LIKE_THIS, t); app.ui.say("Fewer songs like “${t.title}”") },
             SheetItem("Never pick this song", Glyph.CLOSE) { thumbsDown(app, t) },
         ))
     }
@@ -558,29 +558,37 @@ fun openTrackSheet(app: App, nav: PlayerNav, t: Track, extra: List<SheetItem> = 
     nav.sheet = SheetSpec(t.title, t.artist.ifEmpty { null }, items)
 }
 
-/** A song menu's rarer choices: the rating, the DJ's choice for it, its MusicBrainz match, and (administrators) a Hi-Res copy. */
+/** More… on a song menu (the web's is the same four, in the same order): Rate…, The DJ and this song…, ✦ Hi-Res version…, Fix the match…. */
 private fun trackMoreSheet(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val items = ArrayList<SheetItem>()
-    items += SheetItem("Rate" + (app.userData.rating(t).takeIf { it > 0 }?.let { "  (" + RatingStore.label(it) + ")" } ?: "") + "…", Glyph.STAR) { nav.sheet = ratingSheet(app, t) }
-    // the DJ's choice for this song (kept on the account by title and artist): the one in force is ticked
-    if (t.isMusic && app.player.djAvailable && com.ipodemu.playback.DjRules.songKey(t.title, t.artist).isNotEmpty())
-        for ((label, choice, on) in com.ipodemu.playback.DjRules.songMenu(app.player.djSettings, t.title, t.artist))
-            items += SheetItem(label, Glyph.DJ, selected = on, group = "DJ") {
-                app.player.setDjSong(t.title, t.artist, choice) { app.ui.say("Couldn't save the DJ choice: $it") }
-                app.ui.say(when (choice) { true -> "The DJ will always introduce \"${t.title}\""; false -> "The DJ won't talk over \"${t.title}\""; null -> "The DJ treats \"${t.title}\" as usual" })
-            }
-    if (t.isMusic) items += SheetItem("MusicBrainz match…", Glyph.INFO) { musicBrainzSheet(app, nav, t) }
-    // administrators only: a Hi-Res copy of a song already in the library (saved beside it; nothing is downloaded instead if none exists)
-    if (app.ui.isAdmin && t.isMusic && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank() && !t.path.contains("[Hi-Res]", ignoreCase = true)) {
-        items += SheetItem("✦ Hi-Res version…", Glyph.DOWN) {
-            nav.sheet = SheetSpec("Get a Hi-Res copy?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.", listOf(
-                SheetItem("Yes, download Hi-Res", Glyph.DOWN) { app.library.requestDownload(t.artist, t.title, t.album, t.durationMs, hiRes = true, fallbackToNormal = false) },
-                SheetItem("Cancel", Glyph.CLOSE) { },
-            ))
-        }
-    }
+    items += SheetItem("Rate…", Glyph.STAR) { nav.sheet = ratingSheet(app, t) }
+    if (djSongAvailable(app, t)) items += SheetItem("The DJ and this song…", Glyph.DJ) { nav.sheet = djSongSheet(app, t) }
+    if (hiResAllowed(app, t)) items += SheetItem("✦ Hi-Res version…", Glyph.DOWN) { nav.sheet = hiResAsk(app, t) }
+    if (t.isMusic) items += SheetItem("Fix the match…", Glyph.INFO) { musicBrainzSheet(app, nav, t) }
     return SheetSpec(t.title, "More", items)
 }
+
+/** The DJ's choice for a song is kept on the account by title and artist, so it needs a DJ and a name to key on. */
+internal fun djSongAvailable(app: App, t: Track) = t.isMusic && app.player.djAvailable && com.ipodemu.playback.DjRules.songKey(t.title, t.artist).isNotEmpty()
+
+/** The DJ's choice for this song, the one in force ticked. */
+internal fun djSongSheet(app: App, t: Track): SheetSpec {
+    val items = ArrayList<SheetItem>()
+    for ((label, choice, on) in com.ipodemu.playback.DjRules.songMenu(app.player.djSettings, t.title, t.artist))
+        items += SheetItem(label, Glyph.DJ, selected = on, group = "DJ") {
+            app.player.setDjSong(t.title, t.artist, choice) { app.ui.say("Couldn't save the DJ choice: $it") }
+            app.ui.say(when (choice) { true -> "The DJ will always introduce “${t.title}”"; false -> "The DJ won't talk over “${t.title}”"; null -> "The DJ treats “${t.title}” as usual" })
+        }
+    return SheetSpec("The DJ and this song", t.title, items)
+}
+
+/** Administrators only: a Hi-Res copy of a song already in the library (saved beside it; nothing is downloaded instead if none exists). */
+internal fun hiResAllowed(app: App, t: Track) = app.ui.isAdmin && t.isMusic && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank() && !t.path.contains("[Hi-Res]", ignoreCase = true)
+
+internal fun hiResAsk(app: App, t: Track) = SheetSpec("Get a Hi-Res copy?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.", listOf(
+    SheetItem("Download Hi-Res", Glyph.DOWN) { app.library.requestDownload(t.artist, t.title, t.album, t.durationMs, hiRes = true, fallbackToNormal = false) },
+    SheetItem("Cancel", Glyph.CLOSE) { },
+))
 
 /**
  * The person does not want this song: the server is told (Autoplay and Home stop suggesting it), it leaves Up next and Autoplay's list, and if
@@ -591,7 +599,7 @@ internal fun thumbsDown(app: App, t: Track) {
     app.autoplay.dislike(t)
     hideOnHome(t)
     app.player.thumbsDown(t)
-    app.ui.say("Thumbs down: \"${t.title}\" won't be suggested again")
+    app.ui.say("“${t.title}” won't be picked for you again")
 }
 
 internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
@@ -599,7 +607,7 @@ internal fun playlistPicker(app: App, nav: PlayerNav, t: Track): SheetSpec {
     val items = ArrayList<SheetItem>()
     // on the kit (owner, 26 Nov: the old list was outdated): New playlist first, then each playlist as a list row with its cover and its size;
     // one that already has the song says so and is ticked
-    items += SheetItem("New playlist...", Glyph.PLUS, tile = true) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added “${t.title}” to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
+    items += SheetItem("New playlist…", Glyph.PLUS, tile = true) { nav.nameDialog = { name -> val p = ud.createPlaylist(name, t.path); app.ui.say("Added “${t.title}” to $name", "Undo") { ud.removeFromPlaylist(p.id, t.path) } } }
     shownPlaylists(app).forEach { p ->
         // the cover from the first few songs only: this list is built on the tap that opens it
         val cover = com.ipodemu.playback.BrowseTree.playlistCover(p.paths.asSequence().take(8).mapNotNull { app.library.resolve(it, ud.meta[it]) }.toList())
@@ -820,7 +828,7 @@ private fun HomeScreen(nav: PlayerNav, snap: PlayerSnap) {
                     GlossPill("Shuffle All", { val s = lib.songs(); if (s.isNotEmpty()) { app.player.shuffleAll(s) } }, icon = Glyph.SHUFFLE, height = 32.dp)
                     // shuffles what is queued after the song playing; off puts the queue back in order (Shuffle All starts a new shuffled queue)
                     GlossPill(if (snap.shuffle) "Shuffle on" else "Shuffle off", { app.shuffleTap() }, icon = Glyph.SHUFFLE, height = 32.dp, primary = snap.shuffle)
-                    GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
+                    GlossPill("Favourites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 32.dp)
                     GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 32.dp)
                     GlossPill("Offline music", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 32.dp)
                     GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 32.dp)
@@ -1253,7 +1261,7 @@ private fun NewPlaylistRow(nav: PlayerNav, withField: Boolean = true) {
             withContext(Dispatchers.Main) { app.ui.say(m) }
         }
     }
-    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = "" } }
+    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made “$n”"); name = "" } }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (withField) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             androidx.compose.foundation.text.BasicTextField(
@@ -1309,7 +1317,7 @@ private fun NewPlaylistTile() {
     var open by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     val fr = remember { androidx.compose.ui.focus.FocusRequester() }
-    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made \"$n\""); name = ""; open = false } }
+    fun create() { val n = name.trim(); if (n.isNotEmpty()) { app.userData.createPlaylist(n); app.ui.say("Made “$n”"); name = ""; open = false } }
     if (!open) {
         Row(
             Modifier.padding(4.dp).height(44.dp).clip(RoundedCornerShape(50)).border(1.dp, sc.onBg.copy(alpha = .28f), RoundedCornerShape(50))
@@ -1369,18 +1377,18 @@ private fun playlistSheet(app: com.ipodemu.App, nav: PlayerNav, p: com.ipodemu.l
     val ud = app.userData
     return SheetSpec(p.name, songCount(p.paths.size), listOfNotNull(
         // share the Jellyfin copy with someone else on the same server (it then shows in their Jellyfin and FLACie)
-        p.jfId?.takeIf { app.prefs.signedIn }?.let { jf -> SheetItem("Share with...", Glyph.ARTIST) {
+        p.jfId?.takeIf { app.prefs.signedIn }?.let { jf -> SheetItem("Share with…", Glyph.ARTIST) {
             val toast = { m: String -> android.widget.Toast.makeText(app, m, android.widget.Toast.LENGTH_LONG).show() }
             app.account.otherUsers { users, err ->
                 if (err != null || users.isEmpty()) toast(err ?: "No other users on this server")
-                else nav.sheet = SheetSpec("Share \"${p.name}\"", "They can play it; only you can change it", users.map { (uid, name) ->
-                    SheetItem(name, Glyph.ARTIST) { app.account.sharePlaylist(jf, uid, false) { m -> toast(if (m == "Shared") "Shared \"${p.name}\" with $name" else m) } }
+                else nav.sheet = SheetSpec("Share “${p.name}”", "They can play it; only you can change it", users.map { (uid, name) ->
+                    SheetItem(name, Glyph.ARTIST) { app.account.sharePlaylist(jf, uid, false) { m -> toast(if (m == "Shared") "Shared “${p.name}” with $name" else m) } }
                 })
             }
         } },
         SheetItem("Delete playlist", Glyph.CLOSE) {
-            nav.sheet = SheetSpec("Delete \"${p.name}\"?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
-                SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Cancel", Glyph.BACK) {}))
+            nav.sheet = SheetSpec("Delete “${p.name}”?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
+                SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Keep it", Glyph.CHECK) {}))
         },
     ))
 }
@@ -1434,14 +1442,14 @@ private fun PlaylistsList(nav: PlayerNav) {
         item {
             if (LocalStyle.current.modern) NewPlaylistRow(nav)
             else IpodRow({ nav.nameDialog = { ud.createPlaylist(it) } }, height = 52.dp, leading = { IconTile(Glyph.PLUS, size = 44.dp) }) { hi ->
-                Txt("New Playlist...", size = 16f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.accent)
+                Txt("New Playlist…", size = 16f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.accent)
             }
         }
         item {
             val favs = ud.favorites.size
             IpodRow({ nav.push(Screen.Detail(DetailKind.FAVORITES)) }, height = 56.dp, leading = { IconTile(Glyph.HEART_FILLED, size = 44.dp, tint = Color(0xFFE5486B)) },
                 trailing = { CountChevron(favs) }) { hi ->
-                Txt("Favorites", size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
+                Txt("Favourites", size = 17f, weight = FontWeight.Medium, color = if (hi) Color.White else sc.onBg)
             }
         }
         items(shownPlaylists(app), key = { it.id }) { p ->
@@ -1452,18 +1460,18 @@ private fun PlaylistsList(nav: PlayerNav) {
             IpodRow({ nav.push(Screen.Detail(DetailKind.USER, p.id)) },
                 onLong = { nav.sheet = SheetSpec(p.name, songCount(p.paths.size), listOfNotNull(
                     // share the Jellyfin copy with someone else on the same server (it then shows in their Jellyfin and FLACie)
-                    p.jfId?.takeIf { app.prefs.signedIn }?.let { jf -> SheetItem("Share with...", Glyph.ARTIST) {
+                    p.jfId?.takeIf { app.prefs.signedIn }?.let { jf -> SheetItem("Share with…", Glyph.ARTIST) {
                         val toast = { m: String -> android.widget.Toast.makeText(app, m, android.widget.Toast.LENGTH_LONG).show() }
                         app.account.otherUsers { users, err ->
                             if (err != null || users.isEmpty()) toast(err ?: "No other users on this server")
-                            else nav.sheet = SheetSpec("Share \"${p.name}\"", "They can play it; only you can change it", users.map { (uid, name) ->
-                                SheetItem(name, Glyph.ARTIST) { app.account.sharePlaylist(jf, uid, false) { m -> toast(if (m == "Shared") "Shared \"${p.name}\" with $name" else m) } }
+                            else nav.sheet = SheetSpec("Share “${p.name}”", "They can play it; only you can change it", users.map { (uid, name) ->
+                                SheetItem(name, Glyph.ARTIST) { app.account.sharePlaylist(jf, uid, false) { m -> toast(if (m == "Shared") "Shared “${p.name}” with $name" else m) } }
                             })
                         }
                     } },
                     SheetItem("Delete playlist", Glyph.CLOSE) {
-                    nav.sheet = SheetSpec("Delete \"${p.name}\"?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
-                        SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Cancel", Glyph.BACK) {}))
+                    nav.sheet = SheetSpec("Delete “${p.name}”?", if (p.jfId != null) "It is also deleted from your Jellyfin account" else null, listOf(
+                        SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(p.id) }, SheetItem("Keep it", Glyph.CHECK) {}))
                 })) },
                 height = 56.dp, leading = { ArtImage(first, Modifier.size(44.dp), thumb = true, corner = 10.dp) },
                 trailing = { Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { DownloadedListMark(p.paths); CountChevron(p.paths.size) } }) { hi ->
@@ -1659,7 +1667,7 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
                             owned != null -> GlossPill("Play", { app.player.play(listOf(owned), 0, null, from = "search") }, height = 40.dp)
                             busy -> Txt(com.ipodemu.library.DownloadTags.runningText(com.ipodemu.library.DownloadTags.stageText(status!!.stage, status.message)), size = 14f, color = sc.onBgDim)
                             else -> GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download", {
-                                app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…")
+                                app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting “${s.title}”…")
                             }, icon = Glyph.DOWNLOADED, height = 40.dp)
                         }
                     }
@@ -1672,7 +1680,7 @@ private fun CatalogSongScreen(d: Screen.CatalogSong, nav: PlayerNav, snap: Playe
                     val vStatus = app.library.downloads[app.library.songKey(v.artist, v.title)]
                     WebRow(v.title, "${v.artist} · ${v.album}", v.artUrl, vOwned, vStatus,
                         onPlay = { vOwned?.let { app.player.play(listOf(it), 0, null, from = "search") } },
-                        onDownload = { app.library.requestDownload(v.artist, v.title, v.album, v.durationMs, artUrl = v.artUrl); app.ui.say("Getting \"${v.title}\"…") },
+                        onDownload = { app.library.requestDownload(v.artist, v.title, v.album, v.durationMs, artUrl = v.artUrl); app.ui.say("Getting “${v.title}”…") },
                         onOpen = { nav.push(Screen.CatalogSong(v, listOf(s) + d.versions.filter { it != v })) })
                 }
             }
@@ -1709,13 +1717,13 @@ private fun CatalogAlbumScreen(d: Screen.CatalogAlbum, nav: PlayerNav, snap: Pla
                     Box(Modifier.padding(top = 8.dp)) {
                         if (busy) Txt(status!!.message, size = 14f, color = sc.onBgDim)
                         else GlossPill(if (status?.stage == DownloadStage.FAILED) "Retry download" else "Download ${a.kind.lowercase()}", {
-                            app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…")
+                            app.library.requestAlbum(a); app.ui.say("Getting “${a.cleanTitle}”…")
                         }, icon = Glyph.DOWNLOADED, height = 40.dp)
                     }
                 }
             }
             val list = tracks
-            if (list == null) item { Txt("Loading the songs...", Modifier.padding(24.dp), size = 14f, color = sc.onBgDim) }
+            if (list == null) item { Txt("Loading the songs…", Modifier.padding(24.dp), size = 14f, color = sc.onBgDim) }
             else {
                 item { SectionHeader("Songs") }
                 items(list, key = { "t" + it.trackNo + it.discNo + it.title }) { s ->
@@ -1759,13 +1767,13 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
     Column(Modifier.fillMaxSize()) {
         TopBar(if (LocalStyle.current.modern) "" else title, nav, showBack = true)
         if (tracks.isEmpty() && missing.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (failed) "Couldn't load this playlist. Check the connection and try again" else if (full == null) "Loading..." else "None of this playlist's songs are on this phone yet") }
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState(if (failed) "Couldn't load this playlist. Check the connection and try again" else if (full == null) "Loading…" else "None of this playlist's songs are on this phone yet") }
             return@Column
         }
         SongList(tracks, nav, snap, showArt = false, numbered = true, missing = missing, header = {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 DetailHeader(art, title, full?.subtitle.orEmpty(), info, tracks, nav, null, if (outside) "Playlist · ${com.ipodemu.library.MadeLists.source(d.id)}" else "Made for you", null)
-                DesignChip(if (added) "Added to my playlists" else if (saving) "Adding..." else "Add to my playlists", added, {
+                DesignChip(if (added) "Added to my playlists" else if (saving) "Adding…" else "Add to my playlists", added, {
                     if (!added && !saving) {
                         saving = true
                         madeScope.launch {
@@ -1774,7 +1782,7 @@ private fun MadeScreen(d: Screen.Made, nav: PlayerNav, snap: PlayerSnap) {
                                 com.ipodemu.library.MadeLists.saved.add(d.id); added = true
                                 // the server wrote it to the account; a sync brings it into the phone's playlists, as an import does
                                 app.account.sync()
-                                app.ui.say("Added \"$title\" to your playlists")
+                                app.ui.say("Added “$title” to your playlists")
                             } catch (e: Exception) { app.ui.say(com.ipodemu.library.FriendlyError.of(e, "Couldn't add the playlist"), warn = true) }
                             saving = false
                         }
@@ -1838,7 +1846,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             DesignChip("Clear all", false, {
                 nav.sheet = SheetSpec("Clear all favourites?", "${tracks.size} songs. Every device you're signed in on follows.", listOf(
-                    SheetItem("Yes, clear them", Glyph.CLOSE) {
+                    SheetItem("Clear all", Glyph.CLOSE) {
                         val was = app.userData.clearFavorites()
                         app.ui.say("Cleared ${was.size} favourites", "Undo") { app.userData.restoreFavorites(was) }
                     },
@@ -1858,7 +1866,7 @@ private fun DetailHeader(art: String?, title: String, line1: String, line2: Stri
 /** A playlist's More: Rename, Remove duplicates, Delete (and Share where the page has no Share button of its own). */
 private fun playlistMoreSheet(app: App, nav: PlayerNav, title: String, playlistId: String, tracks: List<Track>, withShare: Boolean) = SheetSpec(title, "Playlist", listOfNotNull(
     if (withShare) SheetItem("Share", Glyph.SHARE) { shareSongs(app, "playlist", title, tracks) } else null,
-    SheetItem("Rename", Glyph.NOTE) { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to \"$n\"") } },
+    SheetItem("Rename", Glyph.NOTE) { nav.nameDialogRename = title; nav.nameDialog = { n -> app.userData.rename(playlistId, n); app.ui.say("Renamed to “$n”") } },
     SheetItem("Remove duplicates", Glyph.CHECK) {
         val ud = app.userData
         val n = ud.removeDuplicates(playlistId) { p -> app.library.resolve(p, ud.meta[p])?.matchKey ?: p }
@@ -1906,7 +1914,7 @@ private fun PlaylistHeader(look: PlaylistLook, art: String?, title: String, fact
             // Favourites: Clear all, asked first, with Undo (other devices follow: each removal is recorded)
             if (kind == "Your favourites" && tracks.isNotEmpty()) ToolSlot("Clear all", Glyph.CLOSE, {
                 nav.sheet = SheetSpec("Clear all favourites?", "${tracks.size} songs. Every device you're signed in on follows.", listOf(
-                    SheetItem("Yes, clear them", Glyph.CLOSE) {
+                    SheetItem("Clear all", Glyph.CLOSE) {
                         val was = app.userData.clearFavorites()
                         app.ui.say("Cleared ${was.size} favourites", "Undo") { app.userData.restoreFavorites(was) }
                     },
@@ -2174,15 +2182,15 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                 onOpen = { searchFocus.clearFocus(); nav.push(Screen.CatalogSong(s, more)) },
                 onPlay = { searchFocus.clearFocus(); owned?.let { if (snap.track?.path == it.path) { if (!snap.playing) app.player.toggle(); nav.coverFrom = null; nav.nowPlaying = true } else { app.player.play(listOf(it), 0, null, from = "search") } } },
                 // said at once: on a weak signal the row's status can take a while to change, and the tap looked like it did nothing (owner, 1 Nov)
-                onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") },
+                onDownload = { searchFocus.clearFocus(); app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting “${s.title}”…") },
                 picked = picks?.contains(webId(s)), onPick = { picks = (picks ?: PickSet()).toggle(webId(s)) },
                 // the three-line menu: Download, Hi-Res (administrators, per song, after a confirmation: the files are several times the size), Find on YouTube
                 onHiRes = {
                     val items = ArrayList<SheetItem>()
-                    items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting \"${s.title}\"…") }
+                    items += SheetItem("Download", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, artUrl = s.artUrl); app.ui.say("Getting “${s.title}”…") }
                     if (app.ui.isAdmin && app.prefs.slskdUrl.isNotBlank() && app.prefs.slskdApiKey.isNotBlank() && app.prefs.fileMoverUrl.isNotBlank()) items += SheetItem("✦ Hi-Res download…", Glyph.DOWN) {
-                        nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only \"${s.title}\" is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
-                            SheetItem("Yes, download \"${s.title}\" in Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
+                        nav.sheet = SheetSpec("Download in Hi-Res?", "Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). Only “${s.title}” is downloaded, as a separate [Hi-Res] copy. If no Hi-Res copy exists you get the normal quality instead.", listOf(
+                            SheetItem("Download Hi-Res", Glyph.DOWN) { app.library.requestDownload(s.artist, s.title, s.album, s.durationMs, hiRes = true) },
                             SheetItem("Cancel", Glyph.CLOSE) { },
                         ))
                     }
@@ -2337,7 +2345,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                         }
                     }
                     val shownLists = allLists
-                    if (shownLists == null) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Finding playlists...", size = 13f, color = sc.onBgDim) } }
+                    if (shownLists == null) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Finding playlists…", size = 13f, color = sc.onBgDim) } }
                     else if (shownLists.isEmpty()) item { Txt("No playlists for this yet.", Modifier.padding(16.dp), size = 14f, color = sc.onBgDim) }
                     // two covers a row
                     else items(shownLists.chunked(2), key = { row -> "pl" + row.first().id }) { row ->
@@ -2367,7 +2375,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                                     val owned = ownedAlbums[ownedAlbumKey(a.artist, a.cleanTitle)]
                                     AlbumCard(a, owned != null, dl[app.library.albumKey(a)],
                                         onOpen = { searchFocus.clearFocus(); owned?.let { nav.push(Screen.Detail(DetailKind.ALBUM, it.tracks.first().albumKey)) } ?: nav.push(Screen.CatalogAlbum(a)) },
-                                        onDownload = { app.library.requestAlbum(a); app.ui.say("Getting \"${a.cleanTitle}\"…") })
+                                        onDownload = { app.library.requestAlbum(a); app.ui.say("Getting “${a.cleanTitle}”…") })
                                 }
                             }
                         }
@@ -2384,7 +2392,7 @@ private fun SearchScreen(nav: PlayerNav, snap: PlayerSnap) {
                             if (copiesOpen) items(webCopies, key = { s -> "wc${s.artist}${s.title}" }) { s -> webSongRow(s) }
                         }
                     }
-                    if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more...", size = 13f, color = sc.onBgDim) } }
+                    if (webLoading) item { Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) { Txt("Searching for more…", size = 13f, color = sc.onBgDim) } }
                     if (!webLoading && w.songs.isEmpty() && !app.ui.guest) item { DownloadRequestBar(app, q) }
                 }
             }
@@ -2557,7 +2565,7 @@ private fun AlbumCard(a: WebCatalog.Album, owned: Boolean, status: DownloadStatu
                 .semantics { contentDescription = if (owned) "Open ${a.cleanTitle}" else "Download ${a.cleanTitle}" }.padding(horizontal = 8.dp), contentAlignment = Alignment.Center) {
                 when {
                     owned -> Txt("Open", size = 12f, weight = FontWeight.Medium, color = Color.White)
-                    busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 12f, weight = FontWeight.Medium, color = Color.White)
+                    busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "…", size = 12f, weight = FontWeight.Medium, color = Color.White)
                     else -> GlyphIcon(Glyph.DOWN, Modifier.size(16.dp), sc.accent.readableInk())
                 }
             }
@@ -2602,7 +2610,7 @@ private fun WebRow(title: String, subtitle: String, imageUrl: String?, owned: Tr
             val compact = SearchFit.compactActions(cfg.screenWidthDp.toFloat(), cfg.fontScale)
             if (picked == null) when {
                 owned != null -> if (compact) IconAction(Glyph.PLAY, "Play $title", onPlay, tint = sc.accent) else GlossPill("Play", onPlay, height = 32.dp)
-                busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "...", size = 13f, weight = FontWeight.Medium, color = sc.accent)
+                busy -> Txt(Regex("""\d+%""").find(status!!.message)?.value ?: "…", size = 13f, weight = FontWeight.Medium, color = sc.accent)
                 else -> Row(horizontalArrangement = Arrangement.spacedBy(if (compact) 0.dp else 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (onHiRes != null) IconAction(Glyph.LIST, "More download options for $title", onHiRes, size = 44.dp)
                     if (compact) IconAction(Glyph.DOWN, if (failed) "Retry $title" else actionLabel, onDownload, tint = if (failed) Color(0xFFFF9C9C) else sc.accent)
@@ -2719,8 +2727,8 @@ private fun DownloadRequestBar(app: App, query: String) {
     val title = if (parts.size > 1) parts[1].trim() else query
     val status = app.library.downloads[app.library.songKey(artist, title)]
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Txt(if (parts.size > 1) "Not in the catalog." else "Not in the catalog. Typing \"Artist - Title\" finds the right file faster.", size = 13f, color = sc.onBgDim, maxLines = 3)
-        GlossPill(if (artist.isNotEmpty()) "Download \"$title\" by $artist" else "Download \"$query\"", { app.library.requestDownload(artist, title, "") }, height = 40.dp)
+        Txt(if (parts.size > 1) "Not in the catalog." else "Not in the catalog. Typing “Artist - Title” finds the right file faster.", size = 13f, color = sc.onBgDim, maxLines = 3)
+        GlossPill(if (artist.isNotEmpty()) "Download “$title” by $artist" else "Download “$query”", { app.library.requestDownload(artist, title, "") }, height = 40.dp)
         status?.let { s ->
             val color = when (s.stage) {
                 DownloadStage.DONE -> Color(0xFF7CE0A0)
@@ -2991,7 +2999,7 @@ private fun playShelf(app: App, tracks: List<Track>, t: Track, title: String) {
     // the card hands over its own song, which is found again by its path in the queue (HomeShelves.startOf), not by its place on the shelf
     val start = com.ipodemu.library.HomeShelves.startOf(tracks, t)
     if (start == null) {
-        app.ui.say(if (app.autoplay.fetch(t)) "Getting \"${t.title}\": it plays when it arrives" else "Downloads aren't set up on this phone", warn = !app.library.downloadsConfigured())
+        app.ui.say(if (app.autoplay.fetch(t)) "Getting “${t.title}”: it plays when it arrives" else "Downloads aren't set up on this phone", warn = !app.library.downloadsConfigured())
         return
     }
     app.player.play(start.queue, start.index, null, title, from = "home")
@@ -3040,7 +3048,7 @@ private fun SearchIdle(nav: PlayerNav) {
         }
         SectionHeader("Jump to")
         androidx.compose.foundation.layout.FlowRow(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            GlossPill("Favorites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)
+            GlossPill("Favourites", { nav.push(Screen.Detail(DetailKind.FAVORITES)) }, icon = Glyph.HEART, height = 36.dp)
             GlossPill("Recent", { nav.push(Screen.Detail(DetailKind.RECENT)) }, icon = Glyph.CLOCK, height = 36.dp)
             GlossPill("Offline music", { nav.push(Screen.Downloads) }, icon = Glyph.DOWNLOADED, height = 36.dp)
             GlossPill("Recently added", { nav.push(Screen.Detail(DetailKind.DOWNLOADS)) }, icon = Glyph.PLUS, height = 36.dp)
@@ -3064,7 +3072,7 @@ fun musicBrainzSheet(app: App, nav: PlayerNav, t: Track) {
     val items = ArrayList<SheetItem>()
     items += SheetItem("Find a different match", Glyph.SEARCH) { mbSearch(app, nav, t) }
     if (chosen.releaseMbid != null || chosen.releaseGroupMbid != null) items += SheetItem("Use the cover from the Cover Art Archive", Glyph.ALBUM) {
-        app.ui.say("Looking for a cover...")
+        app.ui.say("Looking for a cover…")
         mb.useFrontCover(t, chosen) { r -> app.ui.say(when (r) { 1 -> "Cover replaced. It shows from the next screen you open."; 0 -> "The Cover Art Archive has no picture for this release."; else -> "The Cover Art Archive did not answer." }) }
     }
     if (t.artKey != null && mb.pins.has(t.artKey!!)) items += SheetItem("Use the original cover", Glyph.CLOSE) { mb.originalCover(t); app.ui.say("Original cover back. It shows from the next screen you open.") }
@@ -3073,7 +3081,7 @@ fun musicBrainzSheet(app: App, nav: PlayerNav, t: Track) {
 }
 
 private fun mbSearch(app: App, nav: PlayerNav, t: Track) {
-    nav.sheet = SheetSpec("MusicBrainz", "Looking it up...", emptyList())
+    nav.sheet = SheetSpec("MusicBrainz", "Looking it up…", emptyList())
     app.mb.search(t) { ranked ->
         val items = ArrayList<SheetItem>()
         if (ranked == null) items += SheetItem("MusicBrainz did not answer. Try again in a minute.", Glyph.CLOSE) { }
@@ -3089,7 +3097,7 @@ private fun mbSearch(app: App, nav: PlayerNav, t: Track) {
 fun ratingSheet(app: App, t: Track): SheetSpec {
     val cur = app.userData.rating(t)
     val items = ArrayList<SheetItem>()
-    for (n in 5 downTo 1) items += SheetItem(RatingStore.label(n), Glyph.STAR, selected = n == cur) { app.userData.setRating(t, n); app.ui.say("Rated \"${t.title}\": " + RatingStore.label(n)) }
+    for (n in 5 downTo 1) items += SheetItem(RatingStore.label(n), Glyph.STAR, selected = n == cur) { app.userData.setRating(t, n); app.ui.say("Rated “${t.title}”: " + RatingStore.label(n)) }
     if (cur > 0) items += SheetItem("Clear the rating", Glyph.CLOSE) { app.userData.setRating(t, 0) }
     return SheetSpec("Rate", t.title, items)
 }
@@ -3219,7 +3227,7 @@ private fun EditPlaylistScreen(id: String, nav: PlayerNav, snap: PlayerSnap) {
                             app.ui.say(if (n == 0) "No duplicates in this playlist" else "Removed $n duplicate${if (n == 1) "" else "s"}", warn = n == 0)
                         }, icon = Glyph.CHECK)
                         DesignChip("Delete playlist", false, {
-                            nav.sheet = SheetSpec("Delete \"${pl.name}\"?", "${tracks.size} songs. This can't be undone here.", listOf(
+                            nav.sheet = SheetSpec("Delete “${pl.name}”?", "${tracks.size} songs. This can't be undone here.", listOf(
                                 SheetItem("Delete", Glyph.CLOSE) { ud.deletePlaylist(id); nav.pop(); nav.pop() }, SheetItem("Keep it", Glyph.CHECK) { }))
                         }, icon = Glyph.CLOSE)
                     }

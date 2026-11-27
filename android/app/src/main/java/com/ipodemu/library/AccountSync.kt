@@ -49,7 +49,7 @@ class AccountSync(private val app: App) {
 
     fun signInWithPassword(server: String, user: String, password: String) {
         val base = normalise(server)
-        run("Signing in...") {
+        run("Signing in…") {
             val body = JSONObject().put("Username", user).put("Pw", password)
             val (code, text) = http("POST", "$base/Users/AuthenticateByName", null, body.toString())
             if (code == 401) throw IOException("Wrong username or password")
@@ -63,7 +63,7 @@ class AccountSync(private val app: App) {
         cancelQuickConnect()
         qcJob = scope.launch {
             try {
-                busy = true; status = "Asking the server for a code..."
+                busy = true; status = "Asking the server for a code…"
                 val (ec, et) = http("GET", "$base/QuickConnect/Enabled", null, null)
                 if (ec !in 200..299) throw IOException("Can't reach server (HTTP $ec)")
                 if (!et.trim().equals("true", true)) throw IOException("Quick Connect is turned off on this server. Sign in with a password instead.")
@@ -72,7 +72,7 @@ class AccountSync(private val app: App) {
                 val init = JSONObject(it)
                 val secret = init.getString("Secret")
                 quickCode = init.getString("Code")
-                status = "Waiting for approval..."
+                status = "Waiting for approval…"
                 val deadline = System.currentTimeMillis() + 5 * 60_000
                 while (System.currentTimeMillis() < deadline) {
                     delay(2000)
@@ -136,14 +136,14 @@ class AccountSync(private val app: App) {
      * each try takes the lock on its own, so Sync now is never stuck behind the waiting. */
     fun sync(background: Boolean = false) {
         if (!prefs.signedIn) return
-        if (!background) { run("Syncing...") { syncNow() }; return }
+        if (!background) { run("Syncing…") { syncNow() }; return }
         if (retryJob?.isActive == true) return
         retryJob = scope.launch {
             try {
                 kotlinx.coroutines.withContext(BackgroundWork) {
                     SyncRetry.attempt(listOf(20_000L, 60_000L, 180_000L), thenEvery = 300_000L) {
                         if (!prefs.signedIn) return@attempt
-                        busy = true; status = "Syncing..."
+                        busy = true; status = "Syncing…"
                         try { lock.withLock { syncNow() } } catch (e: Exception) { status = FriendlyError.of(e); throw e } finally { busy = false }
                     }
                 }
@@ -216,7 +216,7 @@ class AccountSync(private val app: App) {
         NasSmb.writeText(prefs.nasUsername, prefs.nasPassword, prefs.nasDomain, prefs.nasHost, prefs.nasShare, nasProfilePath(), profile.toString(2))
 
     /** Sign in with a NAS login: the share must be reachable with these credentials. Its profile (if any) is pulled. */
-    fun signInWithNas(host: String, share: String, folder: String, user: String, password: String, domain: String) = run("Connecting to $host...") {
+    fun signInWithNas(host: String, share: String, folder: String, user: String, password: String, domain: String) = run("Connecting to $host…") {
         val (ok, info) = NasDirectClient().testConnection(host.trim(), share.trim(), folder.trim(), user.trim(), password, domain.trim())
         if (!ok) { status = "Could not sign in: ${info ?: "the NAS didn't accept that login"}"; return@run }
         prefs.nasHost = host.trim(); prefs.nasShare = share.trim(); prefs.nasFolder = folder.trim()

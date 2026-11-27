@@ -35,52 +35,12 @@
             }
             <span class="track-time">@(t.DurationMs > 0 ? Time(t.DurationMs / 1000.0) : "")</span>
             <button class="icon-btn @(Session.IsFavorite(t) ? "on" : "")" @onclick="() => { Toast.Hearted(Session, t, SaveProfile); }" aria-label="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")" title="@(Session.IsFavorite(t) ? "Remove from favourites" : "Add to favourites")"><Icon Name="@(Session.IsFavorite(t) ? "heart-fill" : "heart")" /></button>
-            <button class="icon-btn" @onclick="() => { menu = menu == idx ? -1 : idx; sub = string.Empty; }" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")" title="More for @t.Title"><Icon Name="more" /></button>
+            <button class="icon-btn" @onclick="() => { menu = menu == idx ? -1 : idx; }" aria-label="More for @t.Title" aria-expanded="@((menu == idx) ? "true" : "false")" title="More for @t.Title"><Icon Name="more" /></button>
             @if (menu == idx)
             {
-                <div class="menu" role="menu">
-                    <button role="menuitem" @onclick='() => { Player.PlayNext(t); Toast.Show($"“{t.Title}” plays next"); menu = -1; }'>Play next</button>
-                    <button role="menuitem" @onclick='() => { Player.AddToQueue(t); Toast.Show($"Added “{t.Title}” to the queue"); menu = -1; }'>Add to queue</button>
-                    @* every playlist used to be listed here, one "Add to …" each: now one entry opens them (owner, 7 Nov: "menus are too complicated") *@
-                    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "pl" ? "true" : "false")" @onclick='() => Sub("pl")'>Add to playlist <span aria-hidden="true" class="chev">›</span></button>
-                    @if (sub == "pl")
-                    {
-                        @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
-                        @foreach (var p in Session.Playlists)
-                        {
-                            <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, t, SaveProfile); menu = -1; }">Add to @p.Name</button>
-                        }
-                    }
-                    @if (OnMove is not null)
-                    {
-                        <button role="menuitem" disabled="@(idx == 0)" @onclick="() => { OnMove(idx, idx - 1); menu = -1; }">Move up</button>
-                        <button role="menuitem" disabled="@(idx == Tracks.Count - 1)" @onclick="() => { OnMove(idx, idx + 1); menu = -1; }">Move down</button>
-                    }
-                    <hr class="menu-sep" />
-                    <button role="menuitem" @onclick='async () => { menu = -1; await Sharing.ShareAsync(Session, "song", t.Title, [t]); }'>Share</button>
-                    <button role="menuitem" @onclick="() => { menu = -1; StartSelecting(idx); }">Select songs</button>
-                    <hr class="menu-sep" />
-                    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "nope" ? "true" : "false")" @onclick='() => Sub("nope")'>Not for me <span aria-hidden="true" class="chev">›</span></button>
-                    @if (sub == "nope")
-                    {
-                        <button role="menuitem" class="sub" @onclick='() => { menu = -1; Feedback.LessLikeThis(Session, t); Toast.Show($"Fewer songs like “{t.Title}”"); }'>Less like this</button>
-                        <button role="menuitem" class="sub" @onclick='() => { menu = -1; gone.Add(t.Path); _ = Feedback.ThumbDown(Session, t, Player); Toast.Show($"“{t.Title}” will not be picked for you again"); }'>Never pick this song</button>
-                    }
-                    @if (Player.Dj is not null)
-                    {
-                        <button role="menuitem" class="has-sub" aria-expanded="@(sub == "dj" ? "true" : "false")" @onclick='() => Sub("dj")'>The DJ and this song <span aria-hidden="true" class="chev">›</span></button>
-                        @if (sub == "dj") { <DjSongMenu Player="Player" Session="Session" Song="t" OnDone="() => menu = -1" /> }
-                    }
-                    @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(idx); menu = -1; }">Remove from playlist</button> }
-                    @if (admin && Downloads.Allowed && Session.Services.SoulseekReady &&!t.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase))
-                    {
-                        @if (hiAsk == idx)
-                        {
-                            <div class="menu-ask" role="group" aria-label="Get a Hi-Res copy?"><b>Get a Hi-Res copy?</b><small>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.</small><span class="hires-actions"><button class="btn hires solid" @onclick="() => GetHiRes(t)">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = -1">Cancel</button></span></div>
-                        }
-                        else { <button role="menuitem" class="menu-subtle" @onclick="() => AskHi(idx)"><span aria-hidden="true">✦</span> Hi-Res version…</button> }
-                    }
-                </div>
+                <SongMenu Song="t" OnClose="() => menu = -1" OnSelect="() => StartSelecting(idx)" OnNever="() => gone.Add(t.Path)"
+                          OnMove="OnMove is null ? null : d => OnMove(idx, idx + d)" CanMoveUp="@(idx > 0)" CanMoveDown="@(idx < Tracks.Count - 1)"
+                          OnRemove="OnRemove is null ? null : () => OnRemove(idx)" />
             }
         </li>
         @if (openVersions.Contains(t.Path)) { @VersionRows(t) }
@@ -141,10 +101,7 @@
     [Parameter] public Action<int>? OnRemove { get; set; }
     /// <summary>Set on a playlist page: move the song at the first index to the second.</summary>
     [Parameter] public Action<int, int>? OnMove { get; set; }
-    int menu = -1, hiAsk = -1;
-    // the open sub-menu of a song's menu ("pl", "nope", "dj"): one at a time, so the menu never grows past the screen
-    string sub = "";
-    void Sub(string which) => sub = sub == which ? "" : which;
+    int menu = -1;
     // songs thumbed down here leave the list at once (the list itself is the page's, and stays as it was)
     readonly HashSet<string> gone = [];
 
@@ -172,15 +129,7 @@
         Toast.Show(added == l.Count ? $"Added {Songs(added)} to {p.Name}" : $"Added {Songs(added)} to {p.Name} ({l.Count - added} already there)");
         StopSelecting();
     }
-    [Inject] IDownloads Downloads { get; set; } = default!;
     [Inject] Toasts Toast { get; set; } = default!;
-    [Inject] Sharing Sharing { get; set; } = default!;
-    [Inject] IJSRuntime Js { get; set; } = default!;
-    async Task AskHi(int idx) { hiAsk = idx; StateHasChanged(); await Task.Delay(30); try { await Js.InvokeVoidAsync("flacie.menuToEnd"); } catch (Exception) { } }
-    [Inject] IConfiguration Conf { get; set; } = default!;
-    bool admin => AdminAccess.Is(Session, Conf);
-    // administrators only: a Hi-Res copy of a song already in the library (saved beside it; the normal download runs instead only when asked for from Search)
-    void GetHiRes(Track t) { menu = -1; hiAsk = -1; Downloads.Song(Session, new CatalogSong(t.Artist, t.Title, t.Album, null, t.DurationMs, t.TrackNo, t.DiscNo), true, false); }
     // the song that is already playing is not started over: a click resumes it if paused, or opens the full-screen player
     Task Go(int i)
     {

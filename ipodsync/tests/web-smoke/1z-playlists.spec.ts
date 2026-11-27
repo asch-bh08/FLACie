@@ -106,7 +106,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       await edit.click();
       await page.waitForURL(/\/edit$/);
       await page.getByRole('button', { name: 'Delete playlist' }).click();
-      await page.getByRole('button', { name: /^Delete "/ }).click();
+      await page.getByRole('button', { name: 'Delete', exact: true }).click();
       await page.waitForURL(/\/playlists$/);
 
       await live(page, '/favorites');

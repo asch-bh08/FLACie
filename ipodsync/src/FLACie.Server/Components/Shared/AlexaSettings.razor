@@ -9,7 +9,7 @@
 @inject DownloadPolicy Policy
 
 <section class="panel set" id="alexa">
-    <div class="set-head"><h2>Alexa</h2><p class="hint">Play your library on an Echo: "Alexa, ask FLACie to play Blinding Lights". Off until an administrator switches it on. Setup steps are in the self-hosting guide.</p></div>
+    <div class="set-head"><h2>Alexa</h2><p class="hint">Play your library on an Echo: “Alexa, ask FLACie to play Blinding Lights”. Off until an administrator switches it on. Setup steps are in the self-hosting guide.</p></div>
     @if (admin)
     {
         <label class="switch-row">
@@ -46,13 +46,13 @@
         <div class="set-head"><h3>Link your Alexa</h3></div>
         @if (pair is null)
         {
-            <p class="hint">Make a one-time code, then say to your Echo: "Alexa, ask FLACie to link", and answer with "my code is" and the six digits. The code works once, for ten minutes.</p>
+            <p class="hint">Make a one-time code, then say to your Echo: “Alexa, ask FLACie to link”, and answer with “my code is” and the six digits. The code works once, for ten minutes.</p>
             <div class="row-actions"><button class="btn primary" @onclick="NewCode">Create a code</button></div>
         }
         else
         {
-            <p>Say: <b>"my code is @string.Join(' ', pair.Code.ToCharArray())"</b></p>
-            <p class="hint">Valid until @(pair.Expires.ToLocalTime().ToString("HH:mm")). Open the FLACie skill first ("Alexa, open FLACie").</p>
+            <p>Say: <b>“my code is @string.Join(' ', pair.Code.ToCharArray())”</b></p>
+            <p class="hint">Valid until @(pair.Expires.ToLocalTime().ToString("HH:mm")). Open the FLACie skill first (“Alexa, open FLACie”).</p>
             <div class="row-actions"><button class="btn" @onclick="() => pair = null">Done</button></div>
         }
     }

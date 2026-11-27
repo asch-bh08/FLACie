@@ -13,7 +13,7 @@ public class ImportResultTests
     public void A_cancelled_fetch_goes_back_in_the_queue_and_a_real_failure_stays_a_failure()
     {
         Assert.Equal("pending", ImportManager.StateAfter(new(false, [], "Cancelled")).State);
-        Assert.Equal(("failed", "Waiting for a peer..."), ImportManager.StateAfter(new(false, [], "Waiting for a peer...")));
+        Assert.Equal(("failed", "Waiting for a peer…"), ImportManager.StateAfter(new(false, [], "Waiting for a peer…")));
         Assert.Equal("requested", ImportManager.StateAfter(new(true, [], "")).State);
     }
 }

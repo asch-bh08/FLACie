@@ -1,0 +1,118 @@
+@inherits UserComponent
+@* The song menu, the one every song list uses (TrackList, Songs). Items and words are the phone's (openTrackSheet) and docs/plans/one-app-words.md:
+   Play next · Add to queue · Add to playlist… · Add to / Remove from favourites · Go to artist · Go to album · Share · Download ·
+   (on a playlist: Move up, Move down, Remove from playlist) · Not for me… · More… (Rate…, The DJ and this song…, ✦ Hi-Res version…, Fix the match…).
+   "Remove download" is the phone's: a browser keeps nothing offline, so the web only ever has Download. *@
+<div class="menu" role="menu">
+    <button role="menuitem" @onclick='() => { Player.PlayNext(Song); Toast.Show($"“{Song.Title}” plays next"); Close(); }'>Play next</button>
+    <button role="menuitem" @onclick='() => { Player.AddToQueue(Song); Toast.Show($"Added “{Song.Title}” to the queue"); Close(); }'>Add to queue</button>
+    @* every playlist used to be listed here, one "Add to …" each: now one entry opens them (owner, 7 Nov: "menus are too complicated") *@
+    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "pl" ? "true" : "false")" @onclick='() => Sub("pl")'>Add to playlist… <span aria-hidden="true" class="chev">›</span></button>
+    @if (sub == "pl")
+    {
+        @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
+        @foreach (var p in Session.Playlists)
+        {
+            <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, Song, SaveProfile); Close(); }">Add to @p.Name</button>
+        }
+    }
+    <button role="menuitem" @onclick="() => { Toast.Hearted(Session, Song, SaveProfile); Close(); }">@(Session.IsFavorite(Song) ? "Remove from favourites" : "Add to favourites")</button>
+    <a role="menuitem" href="/artist/@Uri.EscapeDataString(ArtistKey)" @onclick="() => GoTo(true)" @onclick:preventDefault="true">Go to artist</a>
+    @if (Song.Album.Length > 0) { <a role="menuitem" href="/album/@Uri.EscapeDataString(Song.AlbumKey)" @onclick="() => GoTo(false)" @onclick:preventDefault="true">Go to album</a> }
+    <button role="menuitem" @onclick='async () => { Close(); await Sharing.ShareAsync(Session, "song", Song.Title, [Song]); }'>Share</button>
+    <a role="menuitem" href="/stream?p=@Uri.EscapeDataString(Song.Path)" download="@FileName(Song)" @onclick="Close">Download</a>
+    @if (OnMove is not null)
+    {
+        <button role="menuitem" disabled="@(!CanMoveUp)" @onclick="() => { OnMove(-1); Close(); }">Move up</button>
+        <button role="menuitem" disabled="@(!CanMoveDown)" @onclick="() => { OnMove(1); Close(); }">Move down</button>
+    }
+    @if (OnRemove is not null) { <button role="menuitem" class="danger" @onclick="() => { OnRemove(); Close(); }">Remove from playlist</button> }
+    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "nope" ? "true" : "false")" @onclick='() => Sub("nope")'>Not for me… <span aria-hidden="true" class="chev">›</span></button>
+    @if (sub == "nope")
+    {
+        <button role="menuitem" class="sub" @onclick='() => { Feedback.LessLikeThis(Session, Song); Toast.Show($"Fewer songs like “{Song.Title}”"); Close(); }'>Less like this</button>
+        <button role="menuitem" class="sub" @onclick="Never">Never pick this song</button>
+    }
+    <button role="menuitem" class="has-sub" aria-expanded="@(sub == "more" ? "true" : "false")" @onclick='() => Sub("more")'>More… <span aria-hidden="true" class="chev">›</span></button>
+    @if (sub == "more")
+    {
+        var stars = Session.Rating(Song);
+        <button role="menuitem" class="sub has-sub" aria-expanded="@(more2 == "rate" ? "true" : "false")" @onclick='() => More2("rate")'>Rate… <small class="menu-val">@Ratings.Label(stars)</small></button>
+        @if (more2 == "rate")
+        {
+            <div class="stars sub" role="group" aria-label="Rate this song">
+                @for (var i = 1; i <= 5; i++)
+                {
+                    var n = i;
+                    <button type="button" class="star @(n <= stars ? "on" : "")" aria-label="@Ratings.Label(n)" aria-pressed="@(n == stars ? "true" : "false")" @onclick="() => Rate(n == stars ? 0 : n)" title="@Ratings.Label(n)"><Icon Name="@(n <= stars ? "star-fill" : "star")" Size="22" /></button>
+                }
+            </div>
+        }
+        @if (Player.Dj is not null)
+        {
+            <button role="menuitem" class="sub has-sub" aria-expanded="@(more2 == "dj" ? "true" : "false")" @onclick='() => More2("dj")'>The DJ and this song…</button>
+            @if (more2 == "dj") { <DjSongMenu Player="Player" Session="Session" Song="Song" OnDone="Close" /> }
+        }
+        @if (HiResAllowed)
+        {
+            @if (hiAsk)
+            {
+                <div class="menu-ask" role="group" aria-label="Get a Hi-Res copy?"><b>Get a Hi-Res copy?</b><small>Hi-Res files are 2 to 5 times bigger (roughly 40 to 200 MB). It is saved next to this one. If no Hi-Res copy exists, nothing is changed.</small><span class="hires-actions"><button class="btn hires solid" @onclick="GetHiRes">Download Hi-Res</button><button class="btn ghost" @onclick="() => hiAsk = false">Cancel</button></span></div>
+            }
+            else { <button role="menuitem" class="sub menu-subtle" @onclick="AskHi"><span aria-hidden="true">✦</span> Hi-Res version…</button> }
+        }
+        <button role="menuitem" class="sub has-sub" aria-expanded="@(more2 == "mb" ? "true" : "false")" @onclick='() => More2("mb")'>Fix the match…</button>
+        @if (more2 == "mb") { <MusicBrainzMatch Track="Song" /> }
+        @if (OnSelect is not null) { <button role="menuitem" class="sub" @onclick="() => { OnSelect(); Close(); }">Select songs</button> }
+    }
+</div>
+@code {
+    [Parameter, EditorRequired] public Track Song { get; set; } = default!;
+    /// <summary>Whatever the menu did, it is done: the list closes it.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+    /// <summary>On a playlist: take the song out.</summary>
+    [Parameter] public Action? OnRemove { get; set; }
+    /// <summary>On a playlist: move the song one place (-1 up, +1 down).</summary>
+    [Parameter] public Action<int>? OnMove { get; set; }
+    [Parameter] public bool CanMoveUp { get; set; } = true;
+    [Parameter] public bool CanMoveDown { get; set; } = true;
+    /// <summary>"Never pick this song" was chosen: the list takes the song out at once (it is also told to the listening log here).</summary>
+    [Parameter] public Action? OnNever { get; set; }
+    /// <summary>Choosing several songs; only lists that can do it offer it.</summary>
+    [Parameter] public Action? OnSelect { get; set; }
+    [Inject] IDownloads Downloads { get; set; } = default!;
+    [Inject] Toasts Toast { get; set; } = default!;
+    [Inject] Sharing Sharing { get; set; } = default!;
+    [Inject] IJSRuntime Js { get; set; } = default!;
+    [Inject] IConfiguration Conf { get; set; } = default!;
+    // the open sub-menu ("pl", "nope", "more") and, inside More…, the open one of Rate…, The DJ and this song…, Fix the match…: one at a time, so the menu never grows past the screen
+    string sub = "", more2 = "";
+    bool hiAsk;
+    string ArtistKey => Song.AlbumArtist.Length > 0 ? Song.AlbumArtist : Song.Artist;
+    // administrators only: a Hi-Res copy of a song already in the library (saved beside it; the normal download runs instead only when asked for from Search)
+    bool HiResAllowed => AdminAccess.Is(Session, Conf) && Downloads.Allowed && Session.Services.SoulseekReady && !Song.Path.Contains("[Hi-Res]", StringComparison.OrdinalIgnoreCase);
+    void Sub(string which) { sub = sub == which ? "" : which; more2 = ""; }
+    void More2(string which) => more2 = more2 == which ? "" : which;
+    Task Close() => OnClose.InvokeAsync();
+    static string FileName(Track t) => string.Concat($"{t.Artist} - {t.Title}".Split(Path.GetInvalidFileNameChars())) + (MediaInfo.FromExtension(t.FilePath ?? "") is { Length: > 0 } e ? "." + e : "");
+    void GoTo(bool artist)
+    {
+        _ = Close();
+        Nav.NavigateTo(artist ? "/artist/" + Uri.EscapeDataString(ArtistKey) : "/album/" + Uri.EscapeDataString(Song.AlbumKey));
+    }
+    void Never()
+    {
+        _ = Feedback.ThumbDown(Session, Song, Player);
+        OnNever?.Invoke();
+        Toast.Show(Feedback.NeverPicked(Song));
+        _ = Close();
+    }
+    // the stars also go to Jellyfin as the item's own rating (best effort), as the Now Playing rating does
+    void Rate(int stars)
+    {
+        Session.SetRating(Song, stars); SaveProfile();
+        if (Song.JellyfinId is { Length: > 0 } id && Session.Jellyfin is { } a) _ = Task.Run(async () => { try { await Jellyfin.SetRatingAsync(a, id, stars); } catch { } });
+    }
+    async Task AskHi() { hiAsk = true; StateHasChanged(); await Task.Delay(30); try { await Js.InvokeVoidAsync("flacie.menuToEnd"); } catch (Exception) { } }
+    void GetHiRes() { hiAsk = false; _ = Close(); Downloads.Song(Session, new CatalogSong(Song.Artist, Song.Title, Song.Album, null, Song.DurationMs, Song.TrackNo, Song.DiscNo), true, false); }
+}

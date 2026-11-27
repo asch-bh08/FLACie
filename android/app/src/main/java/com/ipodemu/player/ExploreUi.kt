@@ -133,13 +133,13 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
 
     Column(Modifier.fillMaxSize()) {
         // a short screen (the RG Rotate is 360 dp tall): no title bar, so the header leaves room for the list; Favorites moves into the row of views
-        if (!shortScreen) ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) }) }
+        if (!shortScreen) ModernTopBar("Explore", null) { IconAction(Glyph.HEART, "Favourites and sources", { nav.push(Screen.Sources) }) }
         // the five views, as one quiet row
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             // design I: the tabs are outlined chips, the open one filled (as on the web's Explore)
             val modern = LocalStyle.current.modern
             for (t in listOf("Songs", "Albums", "Artists", "Genres", "Charts")) if (modern) DesignChip(t, tab == t, { tab = t }) else GlossPill(t, { tab = t }, primary = tab == t, height = 38.dp)
-            if (shortScreen) IconAction(Glyph.HEART, "Favorites and sources", { nav.push(Screen.Sources) })
+            if (shortScreen) IconAction(Glyph.HEART, "Favourites and sources", { nav.push(Screen.Sources) })
         }
         if (tab == "Charts") { ChartsPanel(nav, snap); return@Column }
         // one line: the filter box, Filters (with how many are on) and Sort
@@ -152,7 +152,7 @@ fun ExploreScreen(nav: PlayerNav, snap: PlayerSnap) {
                 nav.sheet = SheetSpec("Sort", null, (sorts ?: emptyList()).map { (id, label) -> SheetItem(label, if (id == sort) Glyph.CHECK else Glyph.LIST) { sort = id } })
             }, size = 46.dp)
         }
-        if (r?.fuzzy == true && query.isNotBlank()) Txt("No exact match for \"${query.trim()}\", showing the closest matches", Modifier.padding(horizontal = 20.dp, vertical = 2.dp), size = 13f, color = sc.accent)
+        if (r?.fuzzy == true && query.isNotBlank()) Txt("No exact match for “${query.trim()}”, showing the closest matches", Modifier.padding(horizontal = 20.dp, vertical = 2.dp), size = 13f, color = sc.accent)
         // what is on, each one tappable to turn off (only shown when something is)
         if (activeFilters > 0 || letter.isNotEmpty()) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (letter.isNotEmpty()) GlossPill("Letter $letter", { letter = "" }, icon = Glyph.CLOSE, height = 32.dp)

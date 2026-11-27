@@ -276,20 +276,7 @@ var pairPlaylists = hasHero && (plays.Count > 0 || Made.Count > 0) && Shows("pla
                             @if (heroMenu)
                             {
                                 <button class="scrim" aria-label="Close" @onclick="() => heroMenu = false"></button>
-                                <div class="menu" role="menu">
-                                    <button role="menuitem" @onclick='() => { Player.PlayNext(hs); Toast.Show($"“{hs.Title}” plays next"); heroMenu = false; }'>Play next</button>
-                                    <button role="menuitem" @onclick='() => { Player.AddToQueue(hs); Toast.Show($"Added “{hs.Title}” to the queue"); heroMenu = false; }'>Add to queue</button>
-                                    <button role="menuitem" class="has-sub" aria-expanded="@(heroSub ? "true" : "false")" @onclick="() => heroSub = !heroSub">Add to playlist <span aria-hidden="true" class="chev">›</span></button>
-                                    @if (heroSub)
-                                    {
-                                        @if (!Session.Playlists.Any()) { <small class="menu-note">No playlists yet. Make one on the Playlists page.</small> }
-                                        @foreach (var p in Session.Playlists) { <button role="menuitem" class="sub" @onclick="() => { Toast.Added(Session, p, hs, SaveProfile); heroMenu = false; }">Add to @p.Name</button> }
-                                    }
-                                    <hr class="menu-sep" />
-                                    @if (Lib.Albums.FirstOrDefault(g => g.Tracks.Any(t => t.Path == hs.Path)) is { } hg) { <a role="menuitem" href="@AlbumLink(hg)">Go to album</a> }
-                                    <a role="menuitem" href="/artist/@Uri.EscapeDataString(hsArtist)">Go to artist</a>
-                                    <button role="menuitem" @onclick='async () => { heroMenu = false; await Sharing.ShareAsync(Session, "song", hs.Title, [hs]); }'>Share</button>
-                                </div>
+                                <SongMenu Song="hs" OnClose="() => heroMenu = false" />
                             }
                         </span>
                     </span>

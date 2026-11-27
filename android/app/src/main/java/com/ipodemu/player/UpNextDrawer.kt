@@ -61,7 +61,7 @@ fun saveQueueAsPlaylist(app: App) {
     val name = queuePlaylistName(app.player.contextName, app.userData.playlists.toList().map { it.name })
     val pl = app.userData.createPlaylist(name)
     for (t in songs) app.userData.addToPlaylist(pl.id, t.path)
-    app.ui.say("Saved the queue as \"$name\"")
+    app.ui.say("Saved the queue as “$name”")
 }
 
 fun removeFromQueueWithUndo(app: App, index: Int) {

@@ -61,7 +61,7 @@ public static partial class ArtistResolve
             if (swapped.Contains(t))
             {
                 var who = names.TryGetValue(Key(t.Title), out var named) && named.Any(char.IsUpper) ? named : t.Title.Trim();
-                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [who], who, $"the title and the artist are swapped (the file is \"{System.IO.Path.GetFileNameWithoutExtension(t.FilePath ?? t.Path).Trim()}\")", Capitals(artist)));
+                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [who], who, $"the title and the artist are swapped (the file is “{System.IO.Path.GetFileNameWithoutExtension(t.FilePath ?? t.Path).Trim()}”)", Capitals(artist)));
                 continue;
             }
             // a song whose title is an artist's name with three songs here, not proven swapped by its files: for a person to look at, not this check
@@ -86,7 +86,7 @@ public static partial class ArtistResolve
             // 2. "X of Y": the same person as X (when X is an artist of its own here, and not The X)
             if (OfGroup().Match(artist) is { Success: true } of && Key(of.Groups[1].Value) is var ok && ok.Length > 0 && !ok.StartsWith("the ") && names.TryGetValue(ok, out var person) && ok != k)
             {
-                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [person], Key(albumArtist) == k ? person : albumArtist, $"\"{artist}\" is {person}"));
+                changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, [person], Key(albumArtist) == k ? person : albumArtist, $"“{artist}” is {person}"));
                 continue;
             }
             // 3. "Eminem feat. Dido": the lead, with the others featured
@@ -95,8 +95,8 @@ public static partial class ArtistResolve
                 // the album artist leads when the tag names them ("Free; Pras; Queen; Wyclef Jean" on Queen's Greatest Hits III is Queen's; owner, 6 Nov)
                 if (parts.FindIndex(x => Key(x) == Key(albumArtist)) is > 0 and var ai) { var a = parts[ai]; parts.RemoveAt(ai); parts.Insert(0, a); }
                 var leadName = parts[0];
-                var why = parts.Count == 1 && Regex.Split(artist, @"\s*[;/,]\s*").FirstOrDefault(x => Label().IsMatch(x.Trim())) is { } label ? $"\"{label.Trim()}\" is the soundtrack's label, not an artist"
-                    : parts.Count == 1 ? $"the tag \"{artist}\" is written \"{leadName}\""
+                var why = parts.Count == 1 && Regex.Split(artist, @"\s*[;/,]\s*").FirstOrDefault(x => Label().IsMatch(x.Trim())) is { } label ? $"“{label.Trim()}” is the soundtrack's label, not an artist"
+                    : parts.Count == 1 ? $"the tag “{artist}” is written “{leadName}”"
                     : Feat().IsMatch(artist) ? $"{leadName} with {string.Join(", ", parts.Skip(1))} featured"
                     : $"the tag lists {parts.Count} artists: {string.Join(", ", parts)}";
                 changes.Add(new(t.JellyfinId!, t.Path, t.Title, t.Album, [artist], albumArtist, parts, Key(albumArtist) == k ? leadName : albumArtist, why));

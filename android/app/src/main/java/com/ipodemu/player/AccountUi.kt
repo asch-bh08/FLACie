@@ -104,7 +104,7 @@ fun AccountScreen() {
                 Txt("Your connected services, playlists, favourites and preferences are kept in $kept, so signing in with either on another device brings them back. They include the services' passwords and API keys, which the server's admins can read.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 7)
                 Txt(acct.status ?: syncedLabel(prefs.accountSyncedAt), size = 14f, color = Color(0xFF7CE0A0), maxLines = 3)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    GlossPill(if (acct.busy) "Syncing..." else "Sync now", { acct.sync() }, primary = true)
+                    GlossPill(if (acct.busy) "Syncing…" else "Sync now", { acct.sync() }, primary = true)
                     // signing out leads back to the login screen
                     GlossPill("Sign out", { acct.signOut(); ui.setLogin(""); ui.accountOpen = false })
                 }
@@ -150,12 +150,12 @@ fun JellyfinSignInForm() {
                         Txt(code.chunked(3).joinToString(" "), Modifier.padding(top = 8.dp), size = 40f, weight = FontWeight.Bold, color = Color.White)
                     }
                     GlossPill("Cancel", { acct.cancelQuickConnect() })
-                } else GlossPill(if (acct.busy) "Signing in..." else "Sign in with Quick Connect", { if (server.isNotBlank()) acct.startQuickConnect(server) }, primary = true)
+                } else GlossPill(if (acct.busy) "Signing in…" else "Sign in with Quick Connect", { if (server.isNotBlank()) acct.startQuickConnect(server) }, primary = true)
                 GlossPill("Use username and password instead", { acct.cancelQuickConnect(); usePassword = true })
             } else {
                 Field("Username", user, { user = it }, "", KeyboardType.Text)
                 Field("Password", pass, { pass = it }, "", KeyboardType.Password, secret = true)
-                GlossPill(if (acct.busy) "Signing in..." else "Sign in", { if (server.isNotBlank() && user.isNotBlank()) acct.signInWithPassword(server, user.trim(), pass) }, primary = true)
+                GlossPill(if (acct.busy) "Signing in…" else "Sign in", { if (server.isNotBlank() && user.isNotBlank()) acct.signInWithPassword(server, user.trim(), pass) }, primary = true)
                 GlossPill("Use Quick Connect instead", { usePassword = false })
             }
             acct.status?.let { Txt(it, size = 14f, color = if (acct.busy || acct.quickCode != null) Color(0xCCFFFFFF) else Color(0xFFFFB0B0), maxLines = 3) }

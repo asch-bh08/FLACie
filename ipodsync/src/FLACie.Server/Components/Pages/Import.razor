@@ -30,12 +30,12 @@ else
         @if (error is not null) { <p class="form-error" role="alert">@error</p> }
         @if (songNote is not null) { <p class="hint" role="status" data-testid="import-song-note">@songNote</p> }
         <label class="switch-row imp-switch">
-            <span><b>Replace playlists with the same name</b><small>An existing playlist of that name (a tag like "(FLAC)" is ignored) is made to hold exactly the imported songs</small></span>
+            <span><b>Replace playlists with the same name</b><small>An existing playlist of that name (a tag like “(FLAC)” is ignored) is made to hold exactly the imported songs</small></span>
             <input type="checkbox" role="switch" data-testid="import-replace" checked="@replace" @onchange="e => replace = (bool)(e.Value ?? false)" /><i class="switch" aria-hidden="true"></i>
         </label>
         <div class="imp-drop">
             <InputFile OnChange="Upload" accept=".xml,.m3u,.m3u8,.csv,.txt,.text" aria-label="Choose a playlist file" />
-            <span><b>Or drop a file</b> · iTunes Library.xml, M3U, a Spotify CSV, or text with one "Artist - Title" a line (## starts a playlist)</span>
+            <span><b>Or drop a file</b> · iTunes Library.xml, M3U, a Spotify CSV, or text with one “Artist - Title” a line (## starts a playlist)</span>
             @if (busy) { <span class="hint">Reading…</span> }
         </div>
         @if (!Session.Services.Any) { <p class="imp-text">Downloads aren't set up yet, so only songs you already have are added. Set them up in the <a href="/dashboard#downloads">Server admin</a>.</p> }

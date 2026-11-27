@@ -90,7 +90,7 @@
             <button class="btn" @onclick="RunCharts" disabled="@chartsBusy">@(chartsBusy ? "Running…" : "Run now")</button>
             <span class="hint">@(State.Charts.LastRun.Length > 0 ? "Last run " + State.Charts.LastRun + ": " + State.Charts.LastNote : "Not run yet. It runs by itself once a day.")</span>
         </div>
-        <p class="hint">New songs are added to your library every day (lossless where Soulseek has it, about 25 to 35 MB each, so roughly @((State.Charts.Lists.Count * State.Charts.PerList * 30 / 1024.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)) GB a day, @((State.Charts.Lists.Count * State.Charts.PerList * 30 * 30 / 1024.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture)) GB a month with these settings). The lists also appear as playlists called "Charts: …". It runs on its own, even after the server restarts.</p>
+        <p class="hint">New songs are added to your library every day (lossless where Soulseek has it, about 25 to 35 MB each, so roughly @((State.Charts.Lists.Count * State.Charts.PerList * 30 / 1024.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)) GB a day, @((State.Charts.Lists.Count * State.Charts.PerList * 30 * 30 / 1024.0).ToString("0", System.Globalization.CultureInfo.InvariantCulture)) GB a month with these settings). The lists also appear as playlists called “Charts: …”. It runs on its own, even after the server restarts.</p>
     }
 </section>
 }
@@ -181,7 +181,7 @@
     }
     async Task CheckJamendo()
     {
-        jmChecking = true; osNote = "Checking...";
+        jmChecking = true; osNote = "Checking…";
         try
         {
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };

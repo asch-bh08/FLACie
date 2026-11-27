@@ -353,7 +353,7 @@ test.describe('the full-screen player bar on a PC', () => {
     await page.locator('.ls-dock .np-more button').first().click();
     await expect(menu.getByRole('menuitem', { name: /^Speed/ })).toContainText('1.5x');
     await expect(menu.getByRole('menuitem', { name: /^Sleep timer/ })).toBeVisible();
-    await expect(menu.getByRole('menuitem', { name: /^Rating/ })).toBeVisible();
+    await expect(menu.getByRole('menuitem', { name: /^Rate…/ })).toBeVisible();
     await page.screenshot({ path: 'test-results/web-a-more.png' });
   });
 });

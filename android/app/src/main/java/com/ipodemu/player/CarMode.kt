@@ -156,7 +156,7 @@ fun CarScreen(onExit: () -> Unit) {
                         onClick = { app.shuffleTap() }) { GlyphIcon(Glyph.SHUFFLE, Modifier.size(28.dp), if (snap.shuffle) accent else ink) }
                     app.userData.rev
                     val fav = t != null && app.userData.isFavorite(t)
-                    CarButton(if (fav) "Remove from favourites" else "Favourite", Modifier.weight(1f), 72.dp, ink.copy(alpha = .12f), ink, onClick = { t?.let { app.userData.toggleFavorite(it) } }) {
+                    CarButton(if (fav) "Remove from favourites" else "Add to favourites", Modifier.weight(1f), 72.dp, ink.copy(alpha = .12f), ink, onClick = { t?.let { app.userData.toggleFavorite(it) } }) {
                         GlyphIcon(if (fav) Glyph.HEART_FILLED else Glyph.HEART, Modifier.size(30.dp), if (fav) accent else ink)
                     }
                     snap.dj?.let { dj ->

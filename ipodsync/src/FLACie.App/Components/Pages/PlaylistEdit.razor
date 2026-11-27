@@ -35,7 +35,8 @@ else
             <div class="pe-actions">
                 @if (confirm)
                 {
-                    <button class="btn danger" @onclick="Delete">Delete "@p.Name"</button>
+                    <span class="pe-ask" role="alert">Delete “@p.Name”?</span>
+                    <button class="btn danger" @onclick="Delete">Delete</button>
                     <button class="btn" @onclick="() => confirm = false">Keep it</button>
                 }
                 else

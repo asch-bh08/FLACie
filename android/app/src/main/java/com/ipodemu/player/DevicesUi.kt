@@ -79,10 +79,10 @@ fun DevicesScreen() {
     val dim = Color(0x99FFFFFF)
 
     fun carryOn(m: WhereYouWere.Moment) {
-        status = "Finding the songs..."
+        status = "Finding the songs…"
         scope.launch {
             val ok = try { c.carryOn(withContext(Dispatchers.IO) { web.whereOne(m.id) }) } catch (_: Exception) { false }
-            status = if (ok) "Carrying on: ${m.title}, ${WhereYouWere.where(m.positionMs, m.context)}." else "\"${m.title}\" can't be found here right now."
+            status = if (ok) "Carrying on: ${m.title}, ${WhereYouWere.where(m.positionMs, m.context)}." else "“${m.title}” can't be found here right now."
         }
     }
 
@@ -110,7 +110,7 @@ fun DevicesScreen() {
             SectionTitle("Other devices")
             if (!c.available) Empty("Connect needs a Jellyfin sign-in.", "Sign in with Jellyfin to see and control your other devices.")
             else {
-                if (!c.connected) Txt("Connecting to Jellyfin...", size = 13.5f, color = dim)
+                if (!c.connected) Txt("Connecting to Jellyfin…", size = 13.5f, color = dim)
                 for (s in others) {
                     val playing = s.itemId != null
                     val pos = s.estimatedMs(now)

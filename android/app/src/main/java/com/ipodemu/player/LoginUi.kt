@@ -122,7 +122,7 @@ fun NasSignInForm() {
         Field("Music folder in the share (optional)", folder, { folder = it }, "", KeyboardType.Text)
         Field("Username", user, { user = it }, "", KeyboardType.Text)
         Field("Password", pass, { pass = it }, "", KeyboardType.Password, secret = true)
-        GlossPill(if (acct.busy) "Checking..." else "Sign in", {
+        GlossPill(if (acct.busy) "Checking…" else "Sign in", {
             if (host.isNotBlank() && share.isNotBlank() && !acct.busy) acct.signInWithNas(host, share, folder, user, pass, "")
         }, primary = true, height = 44.dp)
         acct.status?.let { Txt(it, size = 14f, color = if (acct.busy) Color(0xCCFFFFFF) else Color(0xFFFFB0B0), maxLines = 3) }

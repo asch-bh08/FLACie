@@ -72,7 +72,7 @@ object DownloadTags {
 
     /** The stage text of a running job: the request itself reads as "Starting...", the rest is the job's own message. */
     fun stageText(stage: DownloadStage, message: String): String =
-        if (stage == DownloadStage.REQUESTED || message.isBlank()) "Starting..." else message
+        if (stage == DownloadStage.REQUESTED || message.isBlank()) "Starting…" else message
 
     /**
      * ONE lookup, in this order: a running job > a finished (or failed) one within the window > a Cloud song's own added time within the window.

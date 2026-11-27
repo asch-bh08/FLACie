@@ -15,12 +15,14 @@ else
 <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@(a.ArtKey)" Class="detail-cover round" />
         <div class="detail-text">
-            <p class="eyebrow">Artist</p>
-            <h1>@Title(a.Name)</h1>
+            <p class="eyebrow k-label">Artist</p>
+            <h1 class="k-title">@Title(a.Name)</h1>
             <p class="detail-facts">@Facts(a.Tracks, albums.Count)</p>
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => Player.PlayInOrder(a.Tracks, a.Name)"><Icon Name="play" Size="22" />Play</button>
-                <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(a.Tracks, a.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="k-btn primary detail-play" @onclick="() => Player.PlayInOrder(a.Tracks, a.Name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="k-btn tone detail-shuffle" @onclick="() => Player.ShuffleAll(a.Tracks, a.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            </div>
+            <div class="k-slots detail-slots">
                 <ShareButton Title="@a.Name" Songs="a.Tracks" />
             </div>
         </div>

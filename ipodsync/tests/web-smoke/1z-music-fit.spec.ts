@@ -63,13 +63,17 @@ for (const [w, h] of [[1440, 900], [1024, 768], [390, 844]]) {
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(w);
     });
 
-    test('an album: Play, Shuffle and Share on one row inside the page; on a phone the cover is in the middle', async ({ page }) => {
+    test('an album: Play and Shuffle on one row, Share in the slot row under them, all inside the page; on a phone the cover is in the middle', async ({ page }) => {
       await live(page, '/albums');
       await page.locator('.grid .card').first().click();
       await page.waitForURL(/\/album\//); await page.waitForTimeout(1200);
       const main = await box(page, 'main.content');
+      // ONE APP 1c: the two main buttons on one row, the quiet actions (Share) in the kit slot row under them
       const btns = await page.locator('.detail-actions > *').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return { top: r.top, left: r.left, right: r.right }; }));
-      expect(btns.length).toBe(3);
+      expect(btns.length).toBe(2);
+      const share = await box(page, '.detail-slots .detail-share');
+      expect(share.top).toBeGreaterThan(btns[0].top);
+      expect(share.right).toBeLessThanOrEqual(main.right);
       for (const b of btns) { expect(Math.abs(b.top - btns[0].top)).toBeLessThan(2); expect(b.right).toBeLessThanOrEqual(main.right); expect(b.left).toBeGreaterThanOrEqual(main.left); }
       if (w < 761) {
         const cover = await box(page, '.detail-head .detail-cover'), head = await box(page, '.detail-head');

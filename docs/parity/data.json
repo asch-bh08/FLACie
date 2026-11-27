@@ -1,150 +1,245 @@
 {
  "web": {
-  "at": "2026-11-27 12:49",
+  "at": "2026-11-27 12:46",
   "sizes": {
    "p360x640": {
-    "search": {
-     "img": "img/web-p360x640-search.jpg",
+    "album": {
+     "img": "img/web-p360x640-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-p360x640-artist.jpg",
      "flags": []
     }
    },
    "p375x667": {
-    "search": {
-     "img": "img/web-p375x667-search.jpg",
+    "album": {
+     "img": "img/web-p375x667-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-p375x667-artist.jpg",
      "flags": []
     }
    },
    "p390x844": {
-    "search": {
-     "img": "img/web-p390x844-search.jpg",
+    "album": {
+     "img": "img/web-p390x844-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-p390x844-artist.jpg",
      "flags": []
     }
    },
    "p412x915": {
-    "search": {
-     "img": "img/web-p412x915-search.jpg",
+    "album": {
+     "img": "img/web-p412x915-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-p412x915-artist.jpg",
      "flags": []
     }
    },
    "p412x1000": {
-    "search": {
-     "img": "img/web-p412x1000-search.jpg",
+    "album": {
+     "img": "img/web-p412x1000-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-p412x1000-artist.jpg",
      "flags": []
     }
    },
    "fold-cover": {
-    "search": {
-     "img": "img/web-fold-cover-search.jpg",
+    "album": {
+     "img": "img/web-fold-cover-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-fold-cover-artist.jpg",
      "flags": []
     }
    },
    "fold-inner": {
-    "search": {
-     "img": "img/web-fold-inner-search.jpg",
+    "album": {
+     "img": "img/web-fold-inner-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-fold-inner-artist.jpg",
      "flags": []
     }
    },
    "p-land": {
-    "search": {
-     "img": "img/web-p-land-search.jpg",
-     "flags": [
-      {
-       "kind": "hscroll",
-       "text": "scrolls sideways (870 wide in 844)"
-      }
-     ]
+    "album": {
+     "img": "img/web-p-land-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-p-land-artist.jpg",
+     "flags": []
     }
    },
    "tab768x1024": {
-    "search": {
-     "img": "img/web-tab768x1024-search.jpg",
+    "album": {
+     "img": "img/web-tab768x1024-album.jpg",
      "flags": [
       {
-       "kind": "hscroll",
-       "text": "scrolls sideways (791 wide in 768)"
+       "kind": "band",
+       "text": "empty band 83–100% (17% of the height)",
+       "band": {
+        "top": 0.83251953125,
+        "h": 0.16748046875
+       }
       }
      ]
+    },
+    "artist": {
+     "img": "img/web-tab768x1024-artist.jpg",
+     "flags": []
     }
    },
    "tab1024x768": {
-    "search": {
-     "img": "img/web-tab1024x768-search.jpg",
+    "album": {
+     "img": "img/web-tab1024x768-album.jpg",
      "flags": [
       {
-       "kind": "hscroll",
-       "text": "scrolls sideways (1057 wide in 1024)"
+       "kind": "band",
+       "text": "empty band 86–100% (14% of the height)",
+       "band": {
+        "top": 0.8639322916666666,
+        "h": 0.13606770833333334
+       }
       }
      ]
+    },
+    "artist": {
+     "img": "img/web-tab1024x768-artist.jpg",
+     "flags": []
     }
    },
    "lap1280x720": {
-    "search": {
-     "img": "img/web-lap1280x720-search.jpg",
-     "flags": [
-      {
-       "kind": "hscroll",
-       "text": "scrolls sideways (1316 wide in 1280)"
-      }
-     ]
+    "album": {
+     "img": "img/web-lap1280x720-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-lap1280x720-artist.jpg",
+     "flags": []
     }
    },
    "lap1366x768": {
-    "search": {
-     "img": "img/web-lap1366x768-search.jpg",
-     "flags": [
-      {
-       "kind": "hscroll",
-       "text": "scrolls sideways (1402 wide in 1366)"
-      }
-     ]
+    "album": {
+     "img": "img/web-lap1366x768-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-lap1366x768-artist.jpg",
+     "flags": []
     }
    },
    "lap1366-125": {
-    "search": {
-     "img": "img/web-lap1366-125-search.jpg",
-     "flags": [
-      {
-       "kind": "hscroll",
-       "text": "scrolls sideways (1129 wide in 1093)"
-      }
-     ]
+    "album": {
+     "img": "img/web-lap1366-125-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-lap1366-125-artist.jpg",
+     "flags": []
     }
    },
    "lap1366-150": {
-    "search": {
-     "img": "img/web-lap1366-150-search.jpg",
-     "flags": [
-      {
-       "kind": "hscroll",
-       "text": "scrolls sideways (939 wide in 911)"
-      }
-     ]
+    "album": {
+     "img": "img/web-lap1366-150-album.jpg",
+     "flags": []
+    },
+    "artist": {
+     "img": "img/web-lap1366-150-artist.jpg",
+     "flags": []
     }
    },
    "pc1920x1080": {
-    "search": {
-     "img": "img/web-pc1920x1080-search.jpg",
+    "album": {
+     "img": "img/web-pc1920x1080-album.jpg",
      "flags": [
       {
-       "kind": "hscroll",
-       "text": "scrolls sideways (1956 wide in 1920)"
+       "kind": "band",
+       "text": "empty band 63–100% (37% of the height)",
+       "band": {
+        "top": 0.6287037037037037,
+        "h": 0.3712962962962963
+       }
+      }
+     ]
+    },
+    "artist": {
+     "img": "img/web-pc1920x1080-artist.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 66–100% (34% of the height)",
+       "band": {
+        "top": 0.662962962962963,
+        "h": 0.337037037037037
+       }
       }
      ]
     }
    },
    "uw2560x1080": {
-    "search": {
-     "img": "img/web-uw2560x1080-search.jpg",
-     "flags": []
+    "album": {
+     "img": "img/web-uw2560x1080-album.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 63–100% (37% of the height)",
+       "band": {
+        "top": 0.6287037037037037,
+        "h": 0.3712962962962963
+       }
+      }
+     ]
+    },
+    "artist": {
+     "img": "img/web-uw2560x1080-artist.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 65–100% (35% of the height)",
+       "band": {
+        "top": 0.65,
+        "h": 0.35
+       }
+      }
+     ]
     }
    },
    "4k-200": {
-    "search": {
-     "img": "img/web-4k-200-search.jpg",
+    "album": {
+     "img": "img/web-4k-200-album.jpg",
      "flags": [
       {
-       "kind": "hscroll",
-       "text": "scrolls sideways (1956 wide in 1920)"
+       "kind": "band",
+       "text": "empty band 63–100% (37% of the height)",
+       "band": {
+        "top": 0.6273148148148148,
+        "h": 0.3726851851851852
+       }
+      }
+     ]
+    },
+    "artist": {
+     "img": "img/web-4k-200-artist.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 66–100% (34% of the height)",
+       "band": {
+        "top": 0.6615740740740741,
+        "h": 0.3384259259259259
+       }
       }
      ]
     }

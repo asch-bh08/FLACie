@@ -17,17 +17,19 @@ else
 <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@(g.ArtKey)" Class="detail-cover" />
         <div class="detail-text">
-            <p class="eyebrow">Album</p>
-            <h1>@Title(g.Name)</h1>
+            <p class="eyebrow k-label">Album</p>
+            <h1 class="k-title">@Title(g.Name)</h1>
             <p class="detail-artist"><a href="/artist/@Uri.EscapeDataString(head.AlbumArtist)">@head.AlbumArtist</a></p>
             <p class="detail-facts">@Facts(g.Tracks, head.Year, rows.Count + waiting.Count)</p>
             <div class="detail-actions">
-                <button class="detail-play" @onclick="() => Player.PlayInOrder(g.Tracks, g.Name)"><Icon Name="play" Size="22" />Play</button>
-                <button class="detail-shuffle" @onclick="() => Player.ShuffleAll(g.Tracks, g.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+                <button class="k-btn primary detail-play" @onclick="() => Player.PlayInOrder(g.Tracks, g.Name)"><Icon Name="play" Size="22" />Play</button>
+                <button class="k-btn tone detail-shuffle" @onclick="() => Player.ShuffleAll(g.Tracks, g.Name)"><Icon Name="shuffle" Size="18" />Shuffle</button>
+            </div>
+            <div class="k-slots detail-slots">
                 <ShareButton Title="@g.Name" Songs="g.Tracks" />
                 @if (missing > 0 && Downloads.Ready(Session))
                 {
-                    <button class="detail-shuffle" @onclick="() => FetchAll(waiting)" data-testid="fetch-all"><Icon Name="download" Size="18" />Fetch all @missing</button>
+                    <button class="k-slot" @onclick="() => FetchAll(waiting)" data-testid="fetch-all"><Icon Name="download" Size="22" /><span>Fetch all @missing</span></button>
                 }
             </div>
         </div>

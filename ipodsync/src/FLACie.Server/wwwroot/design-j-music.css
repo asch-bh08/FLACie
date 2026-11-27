@@ -75,3 +75,17 @@ main.content .pl-hero .pl-play { border-radius: 999px; }
   .row-scroll > .card .cover { transition: none; }
   .row-scroll > .card:hover .cover, .row-scroll > .card:active .cover, .grid > .card:active .cover { transform: none; }
 }
+
+/* ONE APP 1c (album, artist, genre, made): Play and Shuffle are the kit's two main buttons (one rounded-rectangle shape, 56 tall, 52 when tight;
+   Shuffle keeps its cover-tinted fill), and the quiet actions (Share, Fetch all, Add to my playlists) are one row of kit slots under them, as on
+   the playlist page and the phone's album page */
+main.content .detail-actions > .k-btn { height: var(--k-btn); padding: 0 26px; gap: 8px; border-radius: var(--k-r-btn); font: 600 15px/1 var(--k-sans); }
+main.content .detail-actions > .k-btn:hover { transform: none; filter: brightness(1.08); }
+/* the cover's colours live on the page, not on :root where the kit's --k-cover is worked out, so name them here */
+main.content .detail-actions > .k-btn.primary { background: var(--np-accent); color: var(--np-accent-fg, #1a120c); }
+main.content .detail-actions > .k-btn.tone { background: color-mix(in srgb, var(--np-accent) 22%, transparent); color: var(--ink); }
+.detail-slots { margin-top: 10px; max-width: 520px; }
+@media (max-width: 760px) {
+  main.content .detail-actions > .k-btn { flex: 1 1 0; height: var(--k-btn); padding: 0 14px; font-size: 15px; }
+  .detail-slots { max-width: none; }
+}

@@ -120,6 +120,29 @@ h2.section.k-section { font-size: 24px; line-height: 1.1; }
 .k-search:focus-within, .top-search:focus-within { background: var(--surface-2); border-color: color-mix(in srgb, var(--ink) 40%, transparent); }
 @media (max-height: 700px), (max-width: 360px) { .k-search, .top-search { height: 44px; } }
 
+/* ---------------------------------------------------------------- More and menus (ONE APP 1f)
+   More (the account menu): who you are, then every place as a grid of kit slots, Sign out apart at the end */
+.account-menu.am-more { width: min(380px, calc(100vw - 24px)); padding: 14px; }
+.am-more .am-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0; }
+.account-menu.am-more .am-grid > a.k-slot { flex-direction: column; justify-content: center; gap: 4px; width: auto; height: var(--k-slot); padding: 0 6px;
+  border: 1px solid var(--k-rim); border-radius: var(--k-r-slot); background: var(--k-glass); font: 600 12.5px/1.1 var(--k-sans); text-align: center; }
+.account-menu.am-more .am-grid > a.k-slot:hover { background: color-mix(in srgb, var(--ink) 10%, var(--k-glass)); }
+.account-menu.am-more .am-out { width: 100%; justify-content: center; padding: 0 18px; border-radius: var(--k-r-btn); border: 1px solid var(--k-line); }
+/* a phone-width window: every popover menu is a bottom sheet, as the phone's (owner decision 3); Now Playing's, the player bar's and the playlist
+   page's menus keep their own placement */
+@keyframes k-sheet-in { from { translate: 0 28px; opacity: 0; } }   /* translate, not transform: a menu's own transform (its popover placement) is cancelled below */
+@media (max-width: 760px) {
+  .account-menu, .menu:not(.np-menu):not(.bar-menu):not(.pl-menu), .dd-menu, .dl-menu {
+    position: fixed !important; inset: auto 0 0 0 !important; width: auto !important; min-width: 0 !important; max-width: none !important;
+    max-height: min(82vh, 680px); overflow-y: auto; overscroll-behavior: contain; box-sizing: border-box; z-index: 300;
+    padding: 22px 12px calc(14px + env(safe-area-inset-bottom)) !important; border-radius: 22px 22px 0 0 !important;
+    box-shadow: 0 0 0 100vmax #0000008c; transform: none !important; transform-origin: bottom center; animation: k-sheet-in .24s cubic-bezier(.2, .8, .2, 1) backwards !important; }
+  .account-menu::before, .menu:not(.np-menu):not(.bar-menu):not(.pl-menu)::before, .dd-menu::before, .dl-menu::before {
+    content: ""; position: absolute; top: 8px; left: 50%; width: 40px; height: 4px; margin-left: -20px; border-radius: 2px; background: var(--k-rim); }
+  .menu:not(.np-menu):not(.bar-menu):not(.pl-menu) > :is(button, a)[role=menuitem], .dd-menu .dd-opt { min-height: 52px; font-size: 16px; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: reduce) { .account-menu, .menu, .dd-menu, .dl-menu { animation: none !important; } }
+
 /* ---------------------------------------------------------------- toast: bottom, surface-3, warn = amber words */
 .k-toast, .toast { border-radius: 14px; background: var(--surface-3); border: 1px solid var(--line); color: var(--ink); font: 15px/1.35 var(--k-sans); cursor: pointer; }
 .k-toast.warn, .toast.warn { border-color: var(--line); color: var(--k-amber); }

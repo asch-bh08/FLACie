@@ -61,3 +61,12 @@ test('every server-wide endpoint answers 403 to a normal user', async ({ page })
   }, calls);
   for (const [m, u] of calls) expect(got[m + ' ' + u], m + ' ' + u).toBe(403);
 });
+
+// sign the listener out again, so its live session does no more background work while the specs after this one run
+test.afterAll(async ({ browser }) => {
+  const page = await browser.newPage();
+  await open(page, '/settings');
+  await page.locator('form[action="/auth/logout"] button').first().click().catch(() => {});
+  await page.waitForTimeout(1000);
+  await page.close();
+});

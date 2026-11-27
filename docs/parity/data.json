@@ -1,244 +1,267 @@
 {
  "web": {
-  "at": "2026-11-27 12:46",
+  "at": "2026-11-27 14:53",
   "sizes": {
    "p360x640": {
-    "album": {
-     "img": "img/web-p360x640-album.jpg",
+    "settings": {
+     "img": "img/web-p360x640-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-p360x640-artist.jpg",
+    "downloads": {
+     "img": "img/web-p360x640-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p360x640-account.jpg",
      "flags": []
     }
    },
    "p375x667": {
-    "album": {
-     "img": "img/web-p375x667-album.jpg",
+    "settings": {
+     "img": "img/web-p375x667-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-p375x667-artist.jpg",
+    "downloads": {
+     "img": "img/web-p375x667-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p375x667-account.jpg",
      "flags": []
     }
    },
    "p390x844": {
-    "album": {
-     "img": "img/web-p390x844-album.jpg",
+    "settings": {
+     "img": "img/web-p390x844-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-p390x844-artist.jpg",
+    "downloads": {
+     "img": "img/web-p390x844-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p390x844-account.jpg",
      "flags": []
     }
    },
    "p412x915": {
-    "album": {
-     "img": "img/web-p412x915-album.jpg",
+    "settings": {
+     "img": "img/web-p412x915-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-p412x915-artist.jpg",
+    "downloads": {
+     "img": "img/web-p412x915-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p412x915-account.jpg",
      "flags": []
     }
    },
    "p412x1000": {
-    "album": {
-     "img": "img/web-p412x1000-album.jpg",
+    "settings": {
+     "img": "img/web-p412x1000-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-p412x1000-artist.jpg",
+    "downloads": {
+     "img": "img/web-p412x1000-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p412x1000-account.jpg",
      "flags": []
     }
    },
    "fold-cover": {
-    "album": {
-     "img": "img/web-fold-cover-album.jpg",
+    "settings": {
+     "img": "img/web-fold-cover-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-fold-cover-artist.jpg",
+    "downloads": {
+     "img": "img/web-fold-cover-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-fold-cover-account.jpg",
      "flags": []
     }
    },
    "fold-inner": {
-    "album": {
-     "img": "img/web-fold-inner-album.jpg",
+    "settings": {
+     "img": "img/web-fold-inner-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-fold-inner-artist.jpg",
+    "downloads": {
+     "img": "img/web-fold-inner-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-fold-inner-account.jpg",
      "flags": []
     }
    },
    "p-land": {
-    "album": {
-     "img": "img/web-p-land-album.jpg",
+    "settings": {
+     "img": "img/web-p-land-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-p-land-artist.jpg",
+    "downloads": {
+     "img": "img/web-p-land-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p-land-account.jpg",
      "flags": []
     }
    },
    "tab768x1024": {
-    "album": {
-     "img": "img/web-tab768x1024-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 83–100% (17% of the height)",
-       "band": {
-        "top": 0.83251953125,
-        "h": 0.16748046875
-       }
-      }
-     ]
+    "settings": {
+     "img": "img/web-tab768x1024-settings.jpg",
+     "flags": []
     },
-    "artist": {
-     "img": "img/web-tab768x1024-artist.jpg",
+    "downloads": {
+     "img": "img/web-tab768x1024-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-tab768x1024-account.jpg",
      "flags": []
     }
    },
    "tab1024x768": {
-    "album": {
-     "img": "img/web-tab1024x768-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 86–100% (14% of the height)",
-       "band": {
-        "top": 0.8639322916666666,
-        "h": 0.13606770833333334
-       }
-      }
-     ]
+    "settings": {
+     "img": "img/web-tab1024x768-settings.jpg",
+     "flags": []
     },
-    "artist": {
-     "img": "img/web-tab1024x768-artist.jpg",
+    "downloads": {
+     "img": "img/web-tab1024x768-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-tab1024x768-account.jpg",
      "flags": []
     }
    },
    "lap1280x720": {
-    "album": {
-     "img": "img/web-lap1280x720-album.jpg",
+    "settings": {
+     "img": "img/web-lap1280x720-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-lap1280x720-artist.jpg",
+    "downloads": {
+     "img": "img/web-lap1280x720-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1280x720-account.jpg",
      "flags": []
     }
    },
    "lap1366x768": {
-    "album": {
-     "img": "img/web-lap1366x768-album.jpg",
+    "settings": {
+     "img": "img/web-lap1366x768-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-lap1366x768-artist.jpg",
+    "downloads": {
+     "img": "img/web-lap1366x768-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1366x768-account.jpg",
      "flags": []
     }
    },
    "lap1366-125": {
-    "album": {
-     "img": "img/web-lap1366-125-album.jpg",
+    "settings": {
+     "img": "img/web-lap1366-125-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-lap1366-125-artist.jpg",
+    "downloads": {
+     "img": "img/web-lap1366-125-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1366-125-account.jpg",
      "flags": []
     }
    },
    "lap1366-150": {
-    "album": {
-     "img": "img/web-lap1366-150-album.jpg",
+    "settings": {
+     "img": "img/web-lap1366-150-settings.jpg",
      "flags": []
     },
-    "artist": {
-     "img": "img/web-lap1366-150-artist.jpg",
+    "downloads": {
+     "img": "img/web-lap1366-150-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1366-150-account.jpg",
      "flags": []
     }
    },
    "pc1920x1080": {
-    "album": {
-     "img": "img/web-pc1920x1080-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 63–100% (37% of the height)",
-       "band": {
-        "top": 0.6287037037037037,
-        "h": 0.3712962962962963
-       }
-      }
-     ]
+    "settings": {
+     "img": "img/web-pc1920x1080-settings.jpg",
+     "flags": []
     },
-    "artist": {
-     "img": "img/web-pc1920x1080-artist.jpg",
+    "downloads": {
+     "img": "img/web-pc1920x1080-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-pc1920x1080-account.jpg",
      "flags": [
       {
        "kind": "band",
-       "text": "empty band 66–100% (34% of the height)",
+       "text": "empty band 72–100% (28% of the height)",
        "band": {
-        "top": 0.662962962962963,
-        "h": 0.337037037037037
+        "top": 0.7231481481481481,
+        "h": 0.27685185185185185
        }
       }
      ]
     }
    },
    "uw2560x1080": {
-    "album": {
-     "img": "img/web-uw2560x1080-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 63–100% (37% of the height)",
-       "band": {
-        "top": 0.6287037037037037,
-        "h": 0.3712962962962963
-       }
-      }
-     ]
+    "settings": {
+     "img": "img/web-uw2560x1080-settings.jpg",
+     "flags": []
     },
-    "artist": {
-     "img": "img/web-uw2560x1080-artist.jpg",
+    "downloads": {
+     "img": "img/web-uw2560x1080-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-uw2560x1080-account.jpg",
      "flags": [
       {
        "kind": "band",
-       "text": "empty band 65–100% (35% of the height)",
+       "text": "empty band 72–100% (28% of the height)",
        "band": {
-        "top": 0.65,
-        "h": 0.35
+        "top": 0.7231481481481481,
+        "h": 0.27685185185185185
        }
       }
      ]
     }
    },
    "4k-200": {
-    "album": {
-     "img": "img/web-4k-200-album.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 63–100% (37% of the height)",
-       "band": {
-        "top": 0.6273148148148148,
-        "h": 0.3726851851851852
-       }
-      }
-     ]
+    "settings": {
+     "img": "img/web-4k-200-settings.jpg",
+     "flags": []
     },
-    "artist": {
-     "img": "img/web-4k-200-artist.jpg",
+    "downloads": {
+     "img": "img/web-4k-200-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-4k-200-account.jpg",
      "flags": [
       {
        "kind": "band",
-       "text": "empty band 66–100% (34% of the height)",
+       "text": "empty band 72–100% (28% of the height)",
        "band": {
-        "top": 0.6615740740740741,
-        "h": 0.3384259259259259
+        "top": 0.7226851851851852,
+        "h": 0.2773148148148148
        }
       }
      ]

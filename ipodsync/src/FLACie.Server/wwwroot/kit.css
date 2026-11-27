@@ -120,6 +120,15 @@ h2.section.k-section { font-size: 24px; line-height: 1.1; }
 .k-search:focus-within, .top-search:focus-within { background: var(--surface-2); border-color: color-mix(in srgb, var(--ink) 40%, transparent); }
 @media (max-height: 700px), (max-width: 360px) { .k-search, .top-search { height: 44px; } }
 
+/* ---------------------------------------------------------------- the settings family (ONE APP 1d: Settings, Account, Downloads, sign-in, headphone test):
+   their buttons are the kit's small button (44, r16, sans 15/600; primary = the accent, danger = red outline), their choices and tabs the small
+   button with ink for the chosen one, their headings the kit's Title (30) and Section (24); the phone's SettingsUi draws the same */
+.sp .btn, .login .btn { box-sizing: border-box; min-height: var(--k-btn-sm); height: auto; padding: 0 18px; border-radius: var(--k-r-btn); font: 600 15px/1.2 var(--k-sans); }
+.sp .btn.danger, .login .btn.danger { background: none; border: 1px solid color-mix(in srgb, var(--danger) 60%, transparent); color: var(--danger); }
+.sp .subnav a, .sp .seg button, .sp .seg .chip, .login .tab, .hp .hp-tabs button { min-height: var(--k-btn-sm); border-radius: var(--k-r-btn); font-weight: 600; }
+.sp .page-head h1 { font-size: 30px; line-height: 1.05; }
+.sp .set-head h2, .sp .panel > h2, .sp .admin-block h2, .sp .shelf-head h2 { font-size: 24px; line-height: 1.1; }
+
 /* ---------------------------------------------------------------- toast: bottom, surface-3, warn = amber words */
 .k-toast, .toast { border-radius: 14px; background: var(--surface-3); border: 1px solid var(--line); color: var(--ink); font: 15px/1.35 var(--k-sans); cursor: pointer; }
 .k-toast.warn, .toast.warn { border-color: var(--line); color: var(--k-amber); }

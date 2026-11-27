@@ -67,7 +67,7 @@ fun AccountScreen() {
                     }
                     Column {
                         Txt(who, size = 22f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
-                        Txt(if (viaNas) "Signed in with a NAS" else "Signed in with Jellyfin", size = 14f, color = Color(0x99FFFFFF))
+                        Small(if (viaNas) "Signed in with a NAS" else "Signed in with Jellyfin", color = Color(0x99FFFFFF))
                     }
                 }
                 // the numbers: from the server when FLACie Web is reachable (its library is the whole account), else what this phone holds
@@ -80,12 +80,12 @@ fun AccountScreen() {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("Songs" to st.songs, "Albums" to st.albums, "Artists" to st.artists, "Playlists" to st.playlists, "Favourites" to st.favourites).forEach { (label, n) ->
                         Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Txt("$n", size = 18f, weight = FontWeight.Bold, color = Color.White, maxLines = 1)
+                            Body("$n", weight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             Txt(label, size = 10f, color = Color(0x99FFFFFF), maxLines = 1)
                         }
                     }
                 }
-                Txt("Connected", size = 16f, weight = FontWeight.SemiBold, color = Color.White)
+                Body("Connected", weight = FontWeight.SemiBold, color = Color.White)
                 listOf(
                     Triple("Jellyfin", prefs.hasJellyfinAccount, if (prefs.hasJellyfinAccount) "${prefs.accountUserName} on ${prefs.accountServer.removePrefix("https://").removePrefix("http://")}" else "Not connected"),
                     Triple("NAS", prefs.hasNasAccount, if (prefs.hasNasAccount) "${prefs.nasHost}/${prefs.nasShare}" else "Not connected"),
@@ -95,14 +95,14 @@ fun AccountScreen() {
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0x14FFFFFF)).padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.size(10.dp).clip(androidx.compose.foundation.shape.CircleShape).background(if (on) Color(0xFF7CE0A0) else Color(0x55FFFFFF)))
                         Column(Modifier.weight(1f)) {
-                            Txt(name, size = 15f, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
-                            Txt(detail, size = 13f, color = Color(0x99FFFFFF), maxLines = 1)
+                            Body(name, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+                            Small(detail, color = Color(0x99FFFFFF), maxLines = 1)
                         }
                     }
                 }
                 val kept = listOfNotNull("this NAS".takeIf { prefs.hasNasAccount }, "Jellyfin (${prefs.accountUserName})".takeIf { prefs.hasJellyfinAccount }).joinToString(" and ")
-                Txt("Your connected services, playlists, favourites and preferences are kept in $kept, so signing in with either on another device brings them back. They include the services' passwords and API keys, which the server's admins can read.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 7)
-                Txt(acct.status ?: syncedLabel(prefs.accountSyncedAt), size = 14f, color = Color(0xFF7CE0A0), maxLines = 3)
+                Small("Your connected services, playlists, favourites and preferences are kept in $kept, so signing in with either on another device brings them back. They include the services' passwords and API keys, which the server's admins can read.", color = Color(0xCCFFFFFF), maxLines = 7)
+                Small(acct.status ?: syncedLabel(prefs.accountSyncedAt), color = Color(0xFF7CE0A0), maxLines = 3)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     GlossPill(if (acct.busy) "Syncing…" else "Sync now", { acct.sync() }, primary = true)
                     // signing out leads back to the login screen
@@ -110,13 +110,13 @@ fun AccountScreen() {
                 }
                 // add the other kind of account, so the profile is kept in both
                 if (!prefs.hasJellyfinAccount) {
-                    Txt("Also keep it in a Jellyfin account", size = 16f, weight = FontWeight.SemiBold, color = Color.White)
+                    Body("Also keep it in a Jellyfin account", weight = FontWeight.SemiBold, color = Color.White)
                     JellyfinSignInForm()
                 }
                 return@Column
             }
-            Txt("You're using FLACie as a guest", size = 18f, weight = FontWeight.SemiBold, color = Color.White)
-            Txt("Guest mode plays this device's music only. Sign in with Jellyfin or a NAS to stream, download and keep your playlists and settings in sync.", size = 14f, color = Color(0xCCFFFFFF), maxLines = 5)
+            Body("You're using FLACie as a guest", weight = FontWeight.SemiBold, color = Color.White)
+            Small("Guest mode plays this device's music only. Sign in with Jellyfin or a NAS to stream, download and keep your playlists and settings in sync.", color = Color(0xCCFFFFFF), maxLines = 5)
             GlossPill("Sign in", { ui.setLogin(""); ui.accountOpen = false }, primary = true)
         }
     }
@@ -138,15 +138,15 @@ fun JellyfinSignInForm() {
             var found by remember { mutableStateOf(emptyList<com.ipodemu.library.JellyfinDiscovery.Found>()) }
             androidx.compose.runtime.LaunchedEffect(Unit) { found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { com.ipodemu.library.JellyfinDiscovery.find() } }
             if (found.isNotEmpty() && found.none { it.address == server.trimEnd('/') }) {
-                Txt("Found on this network", size = 13f, color = Color(0x99FFFFFF))
+                Small("Found on this network", color = Color(0x99FFFFFF))
                 found.forEach { f -> GlossPill("${f.name}  ·  ${f.address}", { server = f.address }) }
             }
             if (!usePassword) {
                 val code = acct.quickCode
                 if (code != null) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x1AFFFFFF)).padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Txt("Enter this code in a signed-in Jellyfin app", size = 14f, color = Color(0xCCFFFFFF), align = TextAlign.Center)
-                        Txt("(Settings > Quick Connect)", size = 13f, color = Color(0x99FFFFFF), align = TextAlign.Center)
+                        Small("Enter this code in a signed-in Jellyfin app", color = Color(0xCCFFFFFF), align = TextAlign.Center)
+                        Small("(Settings > Quick Connect)", color = Color(0x99FFFFFF), align = TextAlign.Center)
                         Txt(code.chunked(3).joinToString(" "), Modifier.padding(top = 8.dp), size = 40f, weight = FontWeight.Bold, color = Color.White)
                     }
                     GlossPill("Cancel", { acct.cancelQuickConnect() })
@@ -158,16 +158,16 @@ fun JellyfinSignInForm() {
                 GlossPill(if (acct.busy) "Signing in…" else "Sign in", { if (server.isNotBlank() && user.isNotBlank()) acct.signInWithPassword(server, user.trim(), pass) }, primary = true)
                 GlossPill("Use Quick Connect instead", { usePassword = false })
             }
-            acct.status?.let { Txt(it, size = 14f, color = if (acct.busy || acct.quickCode != null) Color(0xCCFFFFFF) else Color(0xFFFFB0B0), maxLines = 3) }
+            acct.status?.let { Small(it, color = if (acct.busy || acct.quickCode != null) Color(0xCCFFFFFF) else Color(0xFFFFB0B0), maxLines = 3) }
     }
 }
 
 @Composable
 internal fun Field(label: String, value: String, onChange: (String) -> Unit, hint: String, type: KeyboardType, secret: Boolean = false) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Txt(label, size = 13f, color = Color(0x99FFFFFF))
+        Small(label, color = Color(0x99FFFFFF))
         Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0x22FFFFFF)).padding(14.dp)) {
-            if (value.isEmpty() && hint.isNotEmpty()) Txt(hint, size = 16f, color = Color(0x66FFFFFF))
+            if (value.isEmpty() && hint.isNotEmpty()) Body(hint, color = Color(0x66FFFFFF))
             BasicTextField(
                 value, onChange, singleLine = true, cursorBrush = SolidColor(Color.White),
                 textStyle = TextStyle(color = Color.White, fontSize = 16.sp),

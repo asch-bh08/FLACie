@@ -129,7 +129,7 @@ fun DownloadsScreen() {
                 item(key = "h-$id") {
                     val n = if (id == "running") running.size else by[id]?.size ?: 0
                     Row(Modifier.padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Txt("$name  $n", Modifier.weight(1f), size = 17f, weight = FontWeight.Bold, color = Color.White)
+                        Body("$name  $n", Modifier.weight(1f), weight = FontWeight.Bold, color = Color.White)
                         // Retry all, as on the web's Downloads page (owner, 25 Nov): the server's failed downloads start again
                         if (id == "failed" && web.available && by["failed"].orEmpty().any { it.origin == "server" })
                             GlossPill("Retry all", {
@@ -141,12 +141,12 @@ fun DownloadsScreen() {
                     }
                 }
                 if (id == "running") {
-                    if (running.isEmpty()) item(key = "e-running") { Txt("Nothing is downloading.", size = 13f, color = Color(0x99FFFFFF)) }
+                    if (running.isEmpty()) item(key = "e-running") { Small("Nothing is downloading.", color = Color(0x99FFFFFF)) }
                     items(running) { r -> RunningCard(r) }
                 } else {
                     val rows = by[id] ?: emptyList()
                     if (rows.isEmpty()) item(key = "e-$id") {
-                        Txt(when (id) { "failed" -> "Nothing failed."; "soulseek" -> "Nothing came from Soulseek yet."; "lidarr" -> "Nothing came from Lidarr yet."; else -> "Nothing came from the Internet Archive, Audius or Jamendo yet." }, size = 13f, color = Color(0x99FFFFFF))
+                        Small(when (id) { "failed" -> "Nothing failed."; "soulseek" -> "Nothing came from Soulseek yet."; "lidarr" -> "Nothing came from Lidarr yet."; else -> "Nothing came from the Internet Archive, Audius or Jamendo yet." }, color = Color(0x99FFFFFF))
                     }
                     val limit = shown[id] ?: 15
                     items(rows.take(limit), key = { "${it.origin}-${it.id}" }) { r ->
@@ -173,8 +173,8 @@ private fun RunningCard(r: RunningLine) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Palette.surface).padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ArtImage(r.artKey, Modifier.size(44.dp), thumb = true, corner = 8.dp)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Txt(r.label, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
-            Txt(r.message, size = 13f, color = Color(0xCCFFFFFF), maxLines = 2)
+            Body(r.label, weight = FontWeight.SemiBold, maxLines = 1)
+            Small(r.message, color = Color(0xCCFFFFFF), maxLines = 2)
             Txt((r.current?.let { "Working on ${OpenSourceNames.of(it)} · " } ?: "") + "${kindText(r.kind)} · ${took(System.currentTimeMillis() - r.startedAt)} so far" + if (r.origin == "server") " · on the server" else "", size = 11.5f, color = Color(0x99FFFFFF), maxLines = 2)
         }
         if (r.current != null) SourceTag(r.current)
@@ -187,8 +187,8 @@ private fun RecordCard(r: DownloadRecord, open: Boolean, toggle: () -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ArtImage(r.artKey, Modifier.size(44.dp), thumb = true, corner = 8.dp)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Txt(r.label, size = 15f, weight = FontWeight.SemiBold, maxLines = 1)
-                Txt(r.message, size = 13f, color = if (r.done) Color(0xCCFFFFFF) else Color(0xFFFF7A8A), maxLines = 2)
+                Body(r.label, weight = FontWeight.SemiBold, maxLines = 1)
+                Small(r.message, color = if (r.done) Color(0xCCFFFFFF) else Color(0xFFFF7A8A), maxLines = 2)
                 Txt("${kindText(r.kind)} · ${clock(r.finishedAt)} (${ago(r.finishedAt)}) · took ${took(r.finishedAt - r.startedAt)}" + if (r.origin == "server") " · on the server" else "", size = 11.5f, color = Color(0x99FFFFFF), maxLines = 3)
             }
             SourceTag(r.source, failed = !r.done)
@@ -233,7 +233,7 @@ fun DownloadActivityBar(onOpenOffline: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         GlyphIcon(Glyph.DOWN, Modifier.size(16.dp), sc.accent)
-        Txt(text, Modifier.weight(1f), size = 13f, weight = FontWeight.Medium, color = sc.onBg, maxLines = 1)
-        Txt("See", size = 13f, weight = FontWeight.SemiBold, color = sc.accent)
+        Small(text, Modifier.weight(1f), weight = FontWeight.Medium, color = sc.onBg, maxLines = 1)
+        Small("See", weight = FontWeight.SemiBold, color = sc.accent)
     }
 }

@@ -84,24 +84,24 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
         Column(Modifier.fillMaxWidth().then(if (tapRow) Modifier.clickable { onClick(); rev++ } else Modifier).padding(horizontal = 16.dp, vertical = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                    Txt(title, size = 16f, weight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = sc.onBg, maxLines = 2)
-                    if (desc != null) Txt(desc, Modifier.padding(top = 2.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
+                    Body(title, weight = androidx.compose.ui.text.font.FontWeight.SemiBold, color = sc.onBg, maxLines = 2)
+                    if (desc != null) Small(desc, Modifier.padding(top = 2.dp), color = sc.onBgDim, maxLines = 4)
                 }
                 if (stacked) { if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim) }
                 else when {
                     toggle -> SwitchPill(value == "On")
                     action != null -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (value != null) Txt(value, Modifier.widthIn(max = 120.dp), size = 13f, color = sc.onBgDim, maxLines = 2)
+                        if (value != null) Small(value, Modifier.widthIn(max = 120.dp), color = sc.onBgDim, maxLines = 2)
                         DesignChip(action, false, { onClick(); rev++ })
                     }
                     else -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (value != null && choices == null) Txt(value, Modifier.widthIn(max = 150.dp), size = 15f, color = sc.onBgDim, maxLines = 1)
+                        if (value != null && choices == null) Body(value, Modifier.widthIn(max = 150.dp), color = sc.onBgDim, maxLines = 1)
                         if (chevron) GlyphIcon(Glyph.CHEVRON, Modifier.size(18.dp), sc.onBgDim)
                     }
                 }
             }
             if (stacked) Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (shownValue != null) Txt(shownValue, Modifier.weight(1f, fill = false), size = 14f, color = sc.onBgDim, maxLines = 2)
+                if (shownValue != null) Small(shownValue, Modifier.weight(1f, fill = false), color = sc.onBgDim, maxLines = 2)
                 if (action != null) DesignChip(action, false, { onClick(); rev++ })
             }
             // the choices wrap onto a second line on a narrow phone rather than run off the edge (a sideways scroll hid "Data saver" at 360 dp)
@@ -255,9 +255,9 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             SettingRow("Device voice", if (dj.deviceVoice) "On" else "Off", toggle = true, desc = "Use this phone's own voice for the DJ instead of the DJ's voice. Off: if the DJ's voice can't be made, the DJ stays quiet.") {
                                 save(org.json.JSONObject().put("deviceVoice", !dj.deviceVoice), dj.copy(deviceVoice = !dj.deviceVoice))
                             }
-                            if (loaded && !dj.voiceReady) Txt("Cloudflare isn't set up yet; until it is, the DJ stays quiet unless Device voice is on.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4)
+                            if (loaded && !dj.voiceReady) Small("Cloudflare isn't set up yet; until it is, the DJ stays quiet unless Device voice is on.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = sc.onBgDim, maxLines = 4)
                         }
-                        djMsg?.let { Txt(it, Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 4) }
+                        djMsg?.let { Small(it, Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = sc.onBgDim, maxLines = 4) }
                     }
                 }
                 at["sources"] = 3
@@ -331,7 +331,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             for (pair in tiles.chunked(2)) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 for ((v, k) in pair) Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).border(1.dp, Palette.line, RoundedCornerShape(18.dp)).background(Palette.surface2).padding(16.dp)) {
                                     SerifTitle(v, size = 34f, italicWords = -1)
-                                    MonoLabel(k, Modifier.padding(top = 6.dp), size = 10.5f, maxLines = 2)
+                                    Label(k, Modifier.padding(top = 6.dp), maxLines = 2)
                                 }
                                 if (pair.size == 1) Box(Modifier.weight(1f))
                             }
@@ -359,7 +359,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                         }
                     }
                 }
-                if (!canAdmin) item { Txt("Server admin is for whoever runs the server.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), size = 13f, color = sc.onBgDim, maxLines = 3) }
+                if (!canAdmin) item { Small("Server admin is for whoever runs the server.", Modifier.padding(horizontal = 16.dp, vertical = 8.dp), color = sc.onBgDim, maxLines = 3) }
             }
             if (dashboard && canAdmin) {
                 item {
@@ -434,7 +434,7 @@ private fun SettingsBody(nav: PlayerNav, dashboard: Boolean) {
                             }
                             SettingRow("Music storage", if (s.musicTotal > 0) "${size(s.musicFree)} free of ${size(s.musicTotal)}" else "Unknown") { }
                         }
-                        msg?.let { Txt(it, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), size = 13f, color = sc.onBgDim, maxLines = 4) }
+                        msg?.let { Small(it, Modifier.padding(horizontal = 16.dp, vertical = 10.dp), color = sc.onBgDim, maxLines = 4) }
                     }
                 }
             }
@@ -529,8 +529,8 @@ internal fun setMatches(q: String, vararg text: String?): Boolean {
 internal fun SetPanel(title: String, hint: String?, content: @Composable () -> Unit) {
     if (LocalSetQuery.current.isNotBlank()) { Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth()) { content() }; return }
     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Palette.surface).border(1.dp, Palette.line, RoundedCornerShape(20.dp)).padding(vertical = 14.dp)) {
-        SerifTitle(title, Modifier.padding(horizontal = 16.dp), size = 26f)
-        if (hint != null) Txt(hint, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp), size = 13.5f, color = LocalScheme.current.onBgDim, maxLines = 6)
+        Section(title, Modifier.padding(horizontal = 16.dp))
+        if (hint != null) Small(hint, Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 6.dp), color = LocalScheme.current.onBgDim, maxLines = 6)
         content()
     }
 }
@@ -541,8 +541,8 @@ internal fun SetFacts(rows: List<Pair<String, String>>) {
     if (LocalSetQuery.current.isNotBlank()) return   // Find a setting shows only matching rows
     Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for ((k, v) in rows) Row(verticalAlignment = Alignment.Top) {
-            MonoLabel(k, Modifier.width(84.dp).padding(top = 3.dp), size = 10.5f)
-            Txt(v, Modifier.weight(1f), size = 15f, maxLines = 3)
+            Label(k, Modifier.width(84.dp).padding(top = 3.dp))
+            Body(v, Modifier.weight(1f), maxLines = 3)
         }
     }
 }
@@ -584,10 +584,10 @@ private fun DjLevelRow(title: String, desc: String, value: Int, onSet: (Int) -> 
     Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Txt(title, size = 15f, maxLines = 2)
-                Txt(desc, size = 13f, color = sc.onBgDim, maxLines = 4)
+                Body(title, maxLines = 2)
+                Small(desc, color = sc.onBgDim, maxLines = 4)
             }
-            Txt("$shown%", size = 14f, color = sc.onBgDim)
+            Small("$shown%", color = sc.onBgDim)
         }
         androidx.compose.foundation.Canvas(
             Modifier.fillMaxWidth().height(40.dp)
@@ -623,7 +623,7 @@ private fun SettingsFind(query: String, onChange: (String) -> Unit) {
         .padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         GlyphIcon(Glyph.SEARCH, Modifier.size(18.dp), sc.onBgDim)
         Box(Modifier.weight(1f).padding(start = 10.dp)) {
-            if (query.isEmpty()) Txt("Find a setting", size = 15f, color = sc.onBgDim)
+            if (query.isEmpty()) Body("Find a setting", color = sc.onBgDim)
             androidx.compose.foundation.text.BasicTextField(query, onChange, Modifier.fillMaxWidth().semantics { contentDescription = "Find a setting" }, singleLine = true,
                 textStyle = androidx.compose.ui.text.TextStyle(color = sc.onBg, fontSize = androidx.compose.ui.unit.TextUnit(15f, androidx.compose.ui.unit.TextUnitType.Sp)), cursorBrush = androidx.compose.ui.graphics.SolidColor(sc.accent))
         }

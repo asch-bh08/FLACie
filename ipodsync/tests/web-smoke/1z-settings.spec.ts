@@ -44,15 +44,15 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
       });
     }
 
-    test('Settings: rounded cards and round pill sub-nav', async ({ page }) => {
+    test('Settings: rounded cards and a kit small-button sub-nav', async ({ page }) => {
       await openLive(page, '/settings');
       const card = page.locator('.sp .panel.set').first();
       await expect(card).toBeVisible({ timeout: 15_000 });
       expect(parseFloat(await card.evaluate((e) => getComputedStyle(e).borderTopLeftRadius))).toBeGreaterThanOrEqual(18);
       const chip = page.locator('.sp .subnav a').first();
       expect(await chip.evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Archivo');
-      // a full pill: the corner radius is at least half the height
-      expect(await chip.evaluate((e) => parseFloat(getComputedStyle(e).borderTopLeftRadius) >= e.getBoundingClientRect().height / 2)).toBe(true);
+      // ONE APP 1d: one button shape: the kit's small button, a rounded rectangle (r16), not a full pill
+      expect(await chip.evaluate((e) => getComputedStyle(e).borderTopLeftRadius)).toBe('16px');
       expect(await chip.evaluate((e) => getComputedStyle(e).backgroundColor)).toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
       expect(await page.locator('.sp .set-head h2').first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Instrument Serif');
     });

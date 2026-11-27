@@ -67,11 +67,11 @@ fun OfflineScreen(nav: PlayerNav) {
                 item {
                     Card {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Txt("${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(used)}", size = 17f, weight = FontWeight.SemiBold)
-                            Txt("${OfflineMath.formatBytes(m.freeBytes)} free on the phone", size = 13f, color = sc.onBgDim)
+                            Body("${OfflineMath.songs(m.doneCount)}, ${OfflineMath.formatBytes(used)}", weight = FontWeight.SemiBold)
+                            Small("${OfflineMath.formatBytes(m.freeBytes)} free on the phone", color = sc.onBgDim)
                             val pending = m.pendingCount; val failed = m.failedCount
-                            if (pending > 0) Txt(m.statusLine.ifEmpty { "$pending waiting to download" }, size = 13f, color = sc.accent)
-                            if (failed > 0) Txt("$failed failed", size = 13f, color = sc.onBgDim)
+                            if (pending > 0) Small(m.statusLine.ifEmpty { "$pending waiting to download" }, color = sc.accent)
+                            if (failed > 0) Small("$failed failed", color = sc.onBgDim)
                         }
                     }
                 }
@@ -103,7 +103,7 @@ fun OfflineScreen(nav: PlayerNav) {
                     }
                 }
                 item { SectionHeader("Offline music") }
-                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Nothing yet. Open a song's menu and choose Download, or switch on Keep favourites offline.", size = 14f, color = sc.onBgDim) } }
+                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Small("Nothing yet. Open a song's menu and choose Download, or switch on Keep favourites offline.", color = sc.onBgDim) } }
                 items(entries.sortedWith(compareBy({ it.state != OfflineState.DONE }, { -it.addedMs })), key = { it.key }) { e ->
                     OfflineEntryRow(e, onPlay = { play(app, entries, e) }, onRemove = { m.remove(e.path) }, onRetry = { m.enqueue(listOf(e.toTrack()), e.reason) })
                 }
@@ -215,7 +215,7 @@ fun DownloadsScreen(nav: PlayerNav) {
                 Box(Modifier.size(44.dp).clip(androidx.compose.foundation.shape.RoundedCornerShape(50)).semantics { contentDescription = "More for ${s.list.name}" }.clickable { rowSheet(s) }, contentAlignment = Alignment.Center) { GlyphIcon(Glyph.MORE, Modifier.size(20.dp), rowDim()) }
             } }) { hi ->
             Column {
-                Txt(s.list.name, size = 16f, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
+                Body(s.list.name, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
                 Txt(s.list.detail, size = 12.5f, color = rowDim())
             }
         }
@@ -228,17 +228,17 @@ fun DownloadsScreen(nav: PlayerNav) {
                 item {
                     Card {
                         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Txt(DownloadsOverview.storageLine(doneCount, m.usedBytes), size = 17f, weight = FontWeight.SemiBold)
-                            Txt("These play with no signal. ${OfflineMath.formatBytes(m.freeBytes)} free on the phone", size = 13f, color = sc.onBgDim)
-                            DownloadsOverview.progressLine(doneCount, pending, m.waitReason())?.let { Txt(it, size = 13f, color = sc.accent) }
-                            DownloadsOverview.failedLine(failed)?.let { Txt(it, size = 13f, color = sc.onBgDim) }
+                            Body(DownloadsOverview.storageLine(doneCount, m.usedBytes), weight = FontWeight.SemiBold)
+                            Small("These play with no signal. ${OfflineMath.formatBytes(m.freeBytes)} free on the phone", color = sc.onBgDim)
+                            DownloadsOverview.progressLine(doneCount, pending, m.waitReason())?.let { Small(it, color = sc.accent) }
+                            DownloadsOverview.failedLine(failed)?.let { Small(it, color = sc.onBgDim) }
                         }
                     }
                 }
                 // on the Downloads screen itself too: the owner looked for it here, not in the gear's settings
                 item { var on by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(app.prefs.offlineAutoFavorites) }
                     Card { OfflineRow("Download favourites automatically", toggle = on) { app.prefs.offlineAutoFavorites = !on; on = !on; app.offlineSyncSoon() } } }
-                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Txt("Open an album or a playlist and tap Download, or use a song's menu and choose Download.", size = 14f, color = sc.onBgDim, maxLines = 4) } }
+                if (entries.isEmpty()) item { Box(Modifier.fillMaxWidth().padding(24.dp)) { Small("Open an album or a playlist and tap Download, or use a song's menu and choose Download.", color = sc.onBgDim, maxLines = 4) } }
                 else item {
                     Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (songs.isNotEmpty()) {
@@ -254,7 +254,7 @@ fun DownloadsScreen(nav: PlayerNav) {
                 if (trouble.isNotEmpty()) {
                     item { SectionHeader(if (trouble.any { it.state == OfflineState.FAILED }) "Not finished" else "On their way") }
                     items(trouble.take(20), key = { "t" + it.key }) { e -> OfflineEntryRow(e, onPlay = { }, onRemove = { m.remove(e.path) }, onRetry = { m.enqueue(listOf(e.toTrack()), e.reason) }) }
-                    if (trouble.size > 20) item { Box(Modifier.fillMaxWidth().padding(16.dp)) { Txt("and ${trouble.size - 20} more", size = 13f, color = sc.onBgDim) } }
+                    if (trouble.size > 20) item { Box(Modifier.fillMaxWidth().padding(16.dp)) { Small("and ${trouble.size - 20} more", color = sc.onBgDim) } }
                 }
                 if (songs.isNotEmpty()) item { SectionHeader("Songs") }
                 items(songs, key = { "s" + it.key }) { e -> OfflineEntryRow(e, onPlay = { play(app, songs, e, "Offline music") }, onRemove = { m.remove(e.path) }) }
@@ -275,8 +275,8 @@ private fun play(app: com.ipodemu.App, entries: List<OfflineEntry>, e: OfflineEn
 @Composable
 private fun OfflineRow(title: String, value: String? = null, toggle: Boolean? = null, onClick: () -> Unit) {
     IpodRow(onClick, height = 58.dp, trailing = {
-        if (toggle != null) SwitchPill(toggle) else if (value != null) Txt(value, size = 15f, color = rowDim(), maxLines = 1)
-    }) { hi -> Txt(title, size = 16f, weight = FontWeight.Medium, color = if (hi) androidx.compose.ui.graphics.Color.White else LocalScheme.current.onBg) }
+        if (toggle != null) SwitchPill(toggle) else if (value != null) Body(value, color = rowDim(), maxLines = 1)
+    }) { hi -> Body(title, weight = FontWeight.Medium, color = if (hi) androidx.compose.ui.graphics.Color.White else LocalScheme.current.onBg) }
 }
 
 @Composable
@@ -292,10 +292,10 @@ private fun OfflineEntryRow(e: OfflineEntry, onPlay: () -> Unit, onRemove: () ->
                 OfflineState.QUEUED -> "Waiting"
                 OfflineState.FAILED -> "Failed"
             }
-            Txt(label, size = 13f, color = if (e.state == OfflineState.FAILED) sc.accent else rowDim(), maxLines = 1)
+            Small(label, color = if (e.state == OfflineState.FAILED) sc.accent else rowDim(), maxLines = 1)
         }) { hi ->
         Column {
-            Txt(e.title, size = 15f, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
+            Body(e.title, weight = FontWeight.SemiBold, color = if (hi) androidx.compose.ui.graphics.Color.White else sc.onBg)
             Txt(OfflineMath.rowDetail(e.state, e.artist, e.album, e.error), size = 12.5f, color = if (e.state == OfflineState.FAILED && !hi) sc.accent else rowDim())
         }
     }
@@ -353,6 +353,6 @@ fun KeepNewSongsSwitch(tracks: List<Track>, listId: String) {
         m.setKept(listId, !kept); if (!kept) app.offlineSyncSoon()
     }.semantics(mergeDescendants = true) { stateDescription = if (kept) "On" else "Off" }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         SwitchPill(kept)
-        Txt("Download new songs added to this playlist", size = 13f, color = sc.onBgDim, maxLines = 2)
+        Small("Download new songs added to this playlist", color = sc.onBgDim, maxLines = 2)
     }
 }

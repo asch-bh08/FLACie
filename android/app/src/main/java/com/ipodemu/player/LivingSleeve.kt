@@ -589,10 +589,11 @@ private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifie
     // NowPlayingFit says big or a step down; only a very narrow screen shrinks them further, gaps too, so the three always fit
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
         val k = NowPlayingFit.controlsScale(maxWidth.value, big)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(NowPlayingFit.GAP.dp * k, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
-            SleevePillButton(Glyph.PREV, "Previous", p, k, big) { app.player.prev() }
-            SleevePlay(snap.playing, p, k, big, focus = true) { app.player.toggle() }
-            SleevePillButton(Glyph.NEXT, "Next", p, k, big) { app.player.next() }
+        // the three share the whole row (play the widest): fixed widths left a gap at each end big enough for two more buttons (owner, 28 Nov)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) { SleevePillButton(Glyph.PREV, "Previous", p, k, big, fill = true) { app.player.prev() } }
+            Box(Modifier.weight(1.4f)) { SleevePlay(snap.playing, p, k, big, focus = true, fill = true) { app.player.toggle() } }
+            Box(Modifier.weight(1f)) { SleevePillButton(Glyph.NEXT, "Next", p, k, big, fill = true) { app.player.next() } }
         }
     }
 }
@@ -641,14 +642,14 @@ private fun DjPlainButton(on: Boolean, onClick: () -> Unit, onLong: () -> Unit, 
 
 /** Previous and next: the kit's rounded rectangle in the cover's tone, big unless the screen is tight ([big]); [k] shrinks it on a very narrow one. */
 @Composable
-private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, k: Float = 1f, big: Boolean = true, onClick: () -> Unit) {
+private fun SleevePillButton(g: Glyph, label: String, p: SleevePalette, k: Float = 1f, big: Boolean = true, fill: Boolean = false, onClick: () -> Unit) {
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
     val shape = RoundedCornerShape(Kit.rButton)
     val w = if (big) NowPlayingFit.PILL_W else NowPlayingFit.PILL_W_TIGHT
     val h = if (big) NowPlayingFit.PILL_H else NowPlayingFit.PILL_H_TIGHT
     Box(
-        Modifier.size(w.dp * k, h.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        (if (fill) Modifier.fillMaxWidth().height(h.dp * k) else Modifier.size(w.dp * k, h.dp * k)).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(shape).drawBehind { drawRect(p.tone.value) }.focusRing(shape)
             .semantics { contentDescription = label; role = Role.Button }.clickable(src, null, onClick = onClick),
         contentAlignment = Alignment.Center,
@@ -785,7 +786,7 @@ private fun CoverFrame(
  * [focus] hands it the focus when the player opens, for a keyboard or remote; [onClick] plays or pauses this phone, or the device being controlled.
  */
 @Composable
-private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, big: Boolean = true, focus: Boolean = false, label: String? = null, onClick: () -> Unit) {
+private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, big: Boolean = true, focus: Boolean = false, label: String? = null, fill: Boolean = false, onClick: () -> Unit) {
     val playFocus = remember { FocusRequester() }
     if (focus) LaunchedEffect(Unit) { try { playFocus.requestFocus() } catch (_: Exception) {} }
     val src = remember { MutableInteractionSource() }
@@ -796,7 +797,7 @@ private fun SleevePlay(playing: Boolean, p: SleevePalette, k: Float = 1f, big: B
     val w = if (big) NowPlayingFit.PLAY_W else NowPlayingFit.PLAY_W_TIGHT
     val h = if (big) NowPlayingFit.PLAY_H else NowPlayingFit.PLAY_H_TIGHT
     Box(
-        Modifier.size(w.dp * k, h.dp * k).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
+        (if (fill) Modifier.fillMaxWidth().height(h.dp * k) else Modifier.size(w.dp * k, h.dp * k)).graphicsLayer { val s = if (pressed) .95f else 1f; scaleX = s; scaleY = s }
             .clip(shape).drawBehind { drawRect(p.main.value) }
             // the ring only for a keyboard or remote: the player hands focus to play when it opens, and a finger should not see that
             .then(if (focused && keys) Modifier.border(3.dp, Ink, shape) else Modifier)

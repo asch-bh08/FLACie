@@ -1049,11 +1049,12 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
     val lib = app.library
     app.userData.rev
     Column(Modifier.fillMaxSize()) {
-        TopBar(kind.title, nav, showBack = true) { TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) } }
+        TopBar(OneLibrary.title(kind), nav, showBack = true) { TopAction(Glyph.SEARCH, "Search") { nav.push(Screen.Search) } }
         when (kind) {
-            LibKind.SONGS -> {
+            // one library with source tags (ONE APP consolidate): Jellyfin, Plex and NAS open Songs with that source's chip on
+            LibKind.SONGS, LibKind.JELLYFIN, LibKind.PLEX, LibKind.NAS -> {
                 var sort by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableIntStateOf(0) }
-                var sourceFilter by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<com.ipodemu.library.TrackSource?>(null) }
+                var sourceFilter by androidx.compose.runtime.saveable.rememberSaveable(kind) { androidx.compose.runtime.mutableStateOf(OneLibrary.sourceOf(kind)) }
                 val libRev = LocalLibRev.current
                 val allSongs = remember(sort, libRev) { sortedSongs(lib, app.userData, sort) }
                 // Offline only: just the songs kept on this phone (they play without a connection)
@@ -1075,9 +1076,6 @@ private fun LibraryScreen(kind: LibKind, nav: PlayerNav, snap: PlayerSnap) {
             LibKind.ARTISTS -> GroupList(lib.artists(), nav, circle = true) { Screen.Detail(DetailKind.ARTIST, it.name) }
             LibKind.GENRES -> GroupList(lib.genres(), nav, circle = false) { Screen.Detail(DetailKind.GENRE, it.name) }
             LibKind.PLAYLISTS -> PlaylistsList(nav)
-            LibKind.JELLYFIN -> SongList(remember(LocalLibRev.current) { lib.jellyfinTracks.sortedBy { sortKey(it.title) } }, nav, snap, showArt = true, sections = 1)
-            LibKind.PLEX -> SongList(remember(LocalLibRev.current) { lib.plexTracks.sortedBy { sortKey(it.title) } }, nav, snap, showArt = true, sections = 1)
-            LibKind.NAS -> SongList(remember(LocalLibRev.current) { lib.nasOnlyTracks().sortedBy { sortKey(it.title) } }, nav, snap, showArt = true, sections = 1)
         }
     }
 }
@@ -3319,4 +3317,16 @@ private fun EditPlaylistScreen(id: String, nav: PlayerNav, snap: PlayerSnap) {
 private fun playlistIndexOf(app: App, id: String, t: Track): Int {
     val ud = app.userData; val lib = app.library
     return ud.playlists.firstOrNull { it.id == id }?.paths?.indexOfFirst { it == t.path || lib.resolve(it, ud.meta[it])?.path == t.path } ?: -1
+}
+
+/** One library with source tags (ONE APP consolidate, docs/plans/one-app-consolidate.md): the Jellyfin, Plex and NAS lists are Songs with that
+ *  source's chip on. Pure, unit-tested (OneLibraryTest). */
+object OneLibrary {
+    fun sourceOf(kind: LibKind): com.ipodemu.library.TrackSource? = when (kind) {
+        LibKind.JELLYFIN -> com.ipodemu.library.TrackSource.JELLYFIN
+        LibKind.PLEX -> com.ipodemu.library.TrackSource.PLEX
+        LibKind.NAS -> com.ipodemu.library.TrackSource.NAS
+        else -> null
+    }
+    fun title(kind: LibKind): String = if (sourceOf(kind) != null) "Songs" else kind.title
 }

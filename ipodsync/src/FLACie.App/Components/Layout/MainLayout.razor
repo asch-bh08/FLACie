@@ -49,9 +49,25 @@
         if (!firstRender) return;
         try { if (await Js.InvokeAsync<string?>("flacie.unstash", "flacie.rail") == "1") { collapsed = true; StateHasChanged(); } } catch (Exception) { }
     }
-    protected override void OnInitialized() { Nav.LocationChanged += Moved; Frame.Changed += Redraw; }
+    protected override void OnInitialized() { Nav.LocationChanged += Moved; Frame.Changed += Redraw; retroGate = Nav.RegisterLocationChangingHandler(LoadRetro); }
+    // the Retro / iPod theme's styles and scripts are only on /retro and /ipod (App.razor, about 30% of a page's bytes): a move there from the app
+    // fetches them first, in their old places in the page, and only then goes on, so the theme has them and the music keeps playing (no reload)
+    IDisposable? retroGate;
+    async ValueTask LoadRetro(Microsoft.AspNetCore.Components.Routing.LocationChangingContext ctx)
+    {
+        // never blocks a move: an exception here would cancel the navigation (a relative target such as NavigateTo("/") once did)
+        try
+        {
+            var path = Nav.ToAbsoluteUri(ctx.TargetLocation).AbsolutePath;
+            if (!path.StartsWith("/retro", StringComparison.OrdinalIgnoreCase) && !path.StartsWith("/ipod", StringComparison.OrdinalIgnoreCase)) return;
+            await Js.InvokeVoidAsync("flacieLoadRetro",
+                new[] { Assets["ipod.css"], Assets["ipod-touch.css"], Assets["desk.css"], Assets["retro.css"], Assets["design-j-retro.css"] },
+                new[] { Assets["desk.js"], Assets["retro.js"] });
+        }
+        catch (Exception) { }
+    }
     // every page declares its frame (Frame.razor; the page walk 1w-frame checks it), so a move needs no reset: the new page's declaration wins
     void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
     void Redraw() => InvokeAsync(StateHasChanged);
-    public void Dispose() { Nav.LocationChanged -= Moved; Frame.Changed -= Redraw; }
+    public void Dispose() { Nav.LocationChanged -= Moved; Frame.Changed -= Redraw; retroGate?.Dispose(); }
 }

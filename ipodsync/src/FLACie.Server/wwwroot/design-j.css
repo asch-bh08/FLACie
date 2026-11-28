@@ -91,10 +91,14 @@ main.content > :nth-child(3) { animation: j-in .32s var(--j-ease) .08s backwards
 .pl-newbar .btn { height: 36px; border-radius: 999px; }
 
 /* ---- Car mode (/car, Car.razor; owner, 12 Nov): the whole window, the song big, a live visualiser, and only big buttons. In the cover's colours. ---- */
+/* Car mode keeps the look it has had: retro.css (loaded on every page until 28 Nov) set .car to absolute on #07080c, after this rule, by a class
+   that happens to share the name; now that retro.css is only on /retro, the same values are here so Car does not change. (Car's own gradient below
+   never showed; whether it should is the owner's call.) */
 .car { position: fixed; inset: 0; z-index: 250; display: grid; gap: 16px; padding: max(16px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
     grid-template: "top" auto "song" auto "seek" auto "viz" 1fr "ctl" auto "ext" auto / 1fr;
     background: linear-gradient(180deg, var(--tone, #24525a), var(--ground, #101416) 55%, #000); color: #f4efe6; outline: none;
     --ink: #f4efe6; --ink-2: #f4efe6a6; }
+.car { position: absolute; inset: 0; background: #07080c; }
 .car-top { grid-area: top; display: flex; align-items: center; justify-content: space-between; }
 .car-tag { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent);
     font: 500 12px/1 "DM Mono", monospace; letter-spacing: .14em; text-transform: uppercase; }

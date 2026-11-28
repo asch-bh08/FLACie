@@ -12,6 +12,8 @@
     <link rel="icon" href="icon-192.png" sizes="192x192" type="image/png" />
     <link rel="apple-touch-icon" href="icon-180.png" />
     <link rel="manifest" href="manifest.webmanifest" />
+    @* the Retro / iPod theme's styles and scripts (about 30% of the page's bytes) only where it is shown, /retro and /ipod; a move into it from
+       the app fetches them first, in these same places (MainLayout's location-changing handler, flacieLoadRetro), so the music keeps playing *@
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["fonts/ls/fonts.css"]" />
     <link rel="stylesheet" href="@Assets["design-i.css"]" />
@@ -25,11 +27,11 @@
     <link rel="stylesheet" href="@Assets["design-j.css"]" />
     <link rel="stylesheet" href="@Assets["design-j-settings.css"]" />
     <link rel="stylesheet" href="@Assets["living-sleeve.css"]" />
-    <link rel="stylesheet" href="@Assets["ipod.css"]" />
-    <link rel="stylesheet" href="@Assets["ipod-touch.css"]" />
-    <link rel="stylesheet" href="@Assets["desk.css"]" />
-    <link rel="stylesheet" href="@Assets["retro.css"]" />
-    <link rel="stylesheet" href="@Assets["design-j-retro.css"]" />
+    @if (Retro) { <link rel="stylesheet" href="@Assets["ipod.css"]" /> }
+    @if (Retro) { <link rel="stylesheet" href="@Assets["ipod-touch.css"]" /> }
+    @if (Retro) { <link rel="stylesheet" href="@Assets["desk.css"]" /> }
+    @if (Retro) { <link rel="stylesheet" href="@Assets["retro.css"]" /> }
+    @if (Retro) { <link rel="stylesheet" href="@Assets["design-j-retro.css"]" /> }
     <link rel="stylesheet" href="@Assets["design-j-music.css"]" />
     <link rel="stylesheet" href="@Assets["design-j-motion.css"]" />
     <link rel="stylesheet" href="@Assets["devices.css"]" />
@@ -52,8 +54,8 @@
     <script src="@Assets["flacie.js"]"></script>
     <script src="@Assets["motion.js"]"></script>
     <script src="@Assets["headphones.js"]"></script>
-    <script src="@Assets["desk.js"]"></script>
-    <script src="@Assets["retro.js"]"></script>
+    @if (Retro) { <script src="@Assets["desk.js"]"></script> }
+    @if (Retro) { <script src="@Assets["retro.js"]"></script> }
     <script src="_framework/blazor.web.js" autostart="false"></script>
     <script>
       // patient reconnecting (a lost signal, a phone asleep): retry for a long time, and when the server was restarted (the old page can no longer continue) reload by itself once it is back
@@ -69,5 +71,6 @@
 @code {
     [CascadingParameter] HttpContext HttpContext { get; set; } = default!;
     // the login page is a plain form page (it has to set the sign-in cookie); everything else is live
+    bool Retro => HttpContext.Request.Path.StartsWithSegments("/retro") || HttpContext.Request.Path.StartsWithSegments("/ipod");
     IComponentRenderMode? PageMode => HttpContext.Request.Path.StartsWithSegments("/login") ? null : InteractiveServer;
 }

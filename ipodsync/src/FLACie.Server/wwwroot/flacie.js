@@ -2182,3 +2182,19 @@ flacie.focusRow = (list, i) => { list?.querySelectorAll(":scope > li .pe-handle"
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
   }, { passive: true });
 })();
+
+// the Retro / iPod theme's files are only on /retro and /ipod (App.razor). Moving there from the app (MainLayout's location-changing handler) loads
+// them first: the stylesheets where they stood in the page (before design-j-music.css, so the cascade is as it was), then the scripts in order;
+// it resolves once they are all in. Called again, it does nothing.
+window.flacieHasRetro = () => !!window.retro && !!window.desk;
+window.flacieLoadRetro = (css, js) => {
+  if (window.flacieHasRetro()) return Promise.resolve();
+  if (window._flacieRetroLoading) return window._flacieRetroLoading;
+  const before = [...document.querySelectorAll('link[rel=stylesheet]')].find((l) => /design-j-music/.test(l.getAttribute("href") || ""));
+  const loaded = (el) => new Promise((ok) => { el.onload = ok; el.onerror = ok; });
+  const sheets = css.map((href) => { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = href; const p = loaded(l); before ? before.before(l) : document.head.append(l); return p; });
+  window._flacieRetroLoading = Promise.all(sheets).then(async () => {
+    for (const src of js) { const s = document.createElement("script"); s.src = src; const p = loaded(s); document.body.append(s); await p; }
+  }).finally(() => { window._flacieRetroLoading = null; });
+  return window._flacieRetroLoading;
+};

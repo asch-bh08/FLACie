@@ -948,3 +948,31 @@ body.np-open .dj-bar { display: none; }
 }
 /* on its side a phone has no height to spare: the sheet stays as it was, the song's controls one swipe down */
 @media (max-width: 900px) and (orientation: landscape) and (max-height: 500px) { .ls-side-ctl { display: none !important; } }
+/* the PC dock's Volume slot (owner, 28 Nov: "slider squeezed, the word wastes room" / "just remove the text"): no word and no number, one row:
+   mute, the slider taking all the room between, Sound options; the slider still says Volume and its level to a screen reader */
+@media (min-width: 761px) {
+  .ls-dock .ls-tiles .ls-volpill { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: minmax(0, 1fr); padding: 2px 4px; column-gap: 2px; }
+  .ls-dock .ls-volpill > .ls-volpill-bar { grid-column: 2; grid-row: 1; width: 100% !important; height: 26px; align-self: center; }
+  .ls-dock .ls-volpill > .ls-volpill-mute { grid-column: 1; grid-row: 1; width: 30px !important; height: 30px !important; }
+  .ls-dock .ls-volpill > .ls-volpill-more { grid-column: 3; grid-row: 1; width: 30px !important; height: 30px !important; }
+  .ls-dock .ls-volpill > .ls-volpill-mute svg, .ls-dock .ls-volpill > .ls-volpill-more svg { width: 18px; height: 18px; }
+  .ls-dock .ls-volpill > .ls-volpill-num, .ls-dock .ls-volpill-word { display: none !important; }
+}
+/* a tall phone (owner, 28 Nov): the play row and the row of slots grow with the screen's height instead of leaving gaps (up to +16 / +16 px by
+   ~960 px tall, as the phone's NowPlayingFit.heightGrow); Up next's line shows only where there is room left for it */
+@media (max-width: 760px) and (orientation: portrait) {
+  .ls { --np-grow: clamp(0px, calc((100dvh - 780px) / 11), 16px); }
+  .ls .ls-pillbtn { height: calc(64px + var(--np-grow)) !important; }
+  .ls .ls-ring { height: calc(72px + var(--np-grow)) !important; }
+  .ls .ls-play { height: calc(72px + var(--np-grow)) !important; margin-top: calc((72px + var(--np-grow)) / -2) !important; }
+  .ls .ls-actions .ls-slot, .ls .ls-actions .np-more.p .ls-more-btn { height: calc(60px + var(--np-grow)) !important; min-height: calc(60px + var(--np-grow)); }
+}
+@media (max-width: 760px) and (orientation: portrait) and (max-height: 819px) { .ls .ls-peek { display: none !important; } }
+/* previous / play / next share the whole row on a phone-width window (play the widest), as on the phone (owner, 28 Nov: fixed widths left a
+   gap at each end of the row) */
+@media (max-width: 760px) and (orientation: portrait) {
+  .ls .ls-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); column-gap: 12px; }
+  .ls .ls-prev, .ls .ls-next { justify-self: stretch !important; width: auto !important; }
+  .ls .ls-ring { justify-self: stretch !important; width: auto !important; }
+  .ls .ls-play { left: 0 !important; top: 0 !important; width: 100% !important; margin: 0 !important; }
+}

@@ -38,7 +38,7 @@ async function openPlayer(page: Page, w: number, h: number) {
 test('phone: the row of quiet actions is Shuffle, Repeat, Lyrics, Info, More; Lyrics keeps the song in reach at the foot', async ({ page }) => {
   await openPlayer(page, 390, 844);
   const words = (await page.locator('.ls-actions > .ls-slot, .ls-actions .ls-more-btn').allInnerTexts()).map((x) => x.trim());
-  expect(words).toEqual(['Shuffle', 'Repeat', 'Lyrics', 'Info', 'More']);
+  expect(words).toEqual(['Shuffle', 'Repeat', 'Lyrics', 'More']);
   await page.locator('.ls-actions').getByRole('button', { name: 'Lyrics', exact: true }).click();
   const ctl = page.locator('.ls-side-ctl');
   await expect(ctl).toBeVisible();

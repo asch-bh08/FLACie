@@ -242,7 +242,8 @@ fun LivingSleeveBody(snap: PlayerSnap, nav: PlayerNav) {
                 if (fit.layout != NowPlayingFit.Layout.SIDE) {
                     if (fit.actions == NowPlayingFit.Actions.MORE_ONLY) Spacer(Modifier.height(maxDp(nav0 + 10.dp, 18.dp)))
                     else Box(Modifier.fillMaxWidth().padding(top = 6.dp, bottom = maxDp(nav0 + 10.dp, 18.dp))) {
-                        SleeveActions(snap, false, pane, toggle, addToPlaylist, fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
+                        SleeveActions(snap, false, pane, grow = if (fit.fits && fit.layout != NowPlayingFit.Layout.SIDE) NowPlayingFit.heightGrow(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.toFloat()) else 1f,
+                            onOpen = toggle, onAdd = addToPlaylist, actions = fit.actions, fill = Color(0x14FFFFFF)) { moreMode = "all" }
                     }
                 }
             }
@@ -414,7 +415,8 @@ private fun SleeveStage(snap: PlayerSnap, nav: PlayerNav, t: Track, p: SleevePal
                 SleeveTitle(nav, t, p, Modifier.padding(horizontal = 22.dp), fit, onMore.takeIf { !wide && fit.actions == NowPlayingFit.Actions.MORE_ONLY })
                 Spacer(Modifier.height(if (h < 700.dp) 10.dp else 16.dp))
             }
-            SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp), fit.bigControls)
+            val grow = if (cramped || wide) 1f else NowPlayingFit.heightGrow(androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp.toFloat())
+            SleeveControls(snap, p, Modifier.padding(horizontal = 14.dp), fit.bigControls, grow)
             Spacer(Modifier.height(12.dp))
             val room = spare + if (peekOn) peekH else 0.dp
             val wantPeek = !wide && card == null && room > 56.dp
@@ -583,12 +585,13 @@ private fun rememberWaveShape(t: Track): State<IntArray?> {
 }
 
 @Composable
-private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, big: Boolean) {
+private fun SleeveControls(snap: PlayerSnap, p: SleevePalette, modifier: Modifier, big: Boolean, grow: Float = 1f) {
     val app = LocalApp.current
     // previous | play | next, alone in their row so they can be big (owner, 26 Nov: car mode's feel); shuffle and repeat are slots (1g-2).
     // NowPlayingFit says big or a step down; only a very narrow screen shrinks them further, gaps too, so the three always fit
     BoxWithConstraints(modifier.fillMaxWidth().widthIn(max = 520.dp)) {
-        val k = NowPlayingFit.controlsScale(maxWidth.value, big)
+        // a tall screen: the row grows with the height instead of leaving gaps (NowPlayingFit.heightGrow; the three already fill the width)
+        val k = NowPlayingFit.controlsScale(maxWidth.value, big) * grow
         // the three share the whole row (play the widest): fixed widths left a gap at each end big enough for two more buttons (owner, 28 Nov)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) { SleevePillButton(Glyph.PREV, "Previous", p, k, big, fill = true) { app.player.prev() } }
@@ -888,7 +891,7 @@ private fun SleeveSeekLine(pos: State<Long>, dur: State<Long>, p: SleevePalette,
 // ---- Lyrics, Up next, More --------------------------------------------------------------------------------------------------
 
 @Composable
-private fun SleeveActions(snap: PlayerSnap, wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, fill: Color? = null, onMore: () -> Unit) {
+private fun SleeveActions(snap: PlayerSnap, wide: Boolean, tab: String?, onOpen: (String) -> Unit, onAdd: (() -> Unit)? = null, actions: NowPlayingFit.Actions = NowPlayingFit.Actions.FULL, fill: Color? = null, grow: Float = 1f, onMore: () -> Unit) {
     // Lyrics · More · Info · Add (owner, 26 Nov: no Up next slot, swiping and the Up next line under the controls go there; Add a little narrower).
     // Each is an icon over its word (icons alone left the owner's dad not knowing there were lyrics; 1 Nov); the open pane's slot is solid cream.
     // On a short screen (NowPlayingFit) the slots are 40 dp with the word alone, and at the last step only More is left, its sheet listing the panes
@@ -899,7 +902,7 @@ private fun SleeveActions(snap: PlayerSnap, wide: Boolean, tab: String?, onOpen:
         // the kit's Slot on Now Playing's darker glass, cream ink over the cover's colours (owner, 26 Nov: "dial them down a bit")
         @Composable
         fun Slot(label: String, word: String, on: Boolean, glyph: Glyph, onClick: () -> Unit, tab: Boolean = true, weight: Float = 1f) =
-            com.ipodemu.player.Slot(word, glyph, onClick, Modifier.weight(weight), on = on, description = label, tab = tab, compact = !full, fill = fill ?: Glass, ink = Ink, onInk = OnMain, rim = false)
+            com.ipodemu.player.Slot(word, glyph, onClick, Modifier.weight(weight).then(if (full && grow > 1f) Modifier.height((NowPlayingFit.SLOT_H * grow).dp) else Modifier), on = on, description = label, tab = tab, compact = !full, fill = fill ?: Glass, ink = Ink, onInk = OnMain, rim = false)
         // ONE APP 1g-2, layout B: Shuffle and Repeat are two-state slots here (ink when on), so the transport keeps its row alone; Add is in More
         val app = LocalApp.current
         for (id in NowPlayingSlots.of(actions)) when (id) {
@@ -1082,9 +1085,11 @@ private fun PlayerMoreSheet(open: Boolean, playbackOnly: Boolean, t: Track, nav:
                     add(MoreRow("Lyrics", { GlyphIcon(Glyph.LYRICS, Modifier.size(24.dp), it) }, null, true, close { onOpen("lyrics") }))
                     add(MoreRow("Up next", { GlyphIcon(Glyph.QUEUE, Modifier.size(24.dp), it) }, null, true, close { onOpen("queue") }))
                     add(MoreRow("Song info", { GlyphIcon(Glyph.INFO, Modifier.size(24.dp), it) }, null, true, close { onOpen("info") }))
-                } else if (upNext) {
+                } else {
                     // Up next has no slot of its own now (swiping, or the line under the controls on a tall phone): here too, so a tap always reaches it
-                    add(MoreRow("Up next", { GlyphIcon(Glyph.QUEUE, Modifier.size(24.dp), it) }, null, true, close { onOpen("queue") }))
+                    if (upNext) add(MoreRow("Up next", { GlyphIcon(Glyph.QUEUE, Modifier.size(24.dp), it) }, null, true, close { onOpen("queue") }))
+                    // Song info left the row under the controls (owner, 28 Nov: Shuffle, Repeat, Lyrics, More): it is here, first after Up next
+                    add(MoreRow("Song info", { GlyphIcon(Glyph.INFO, Modifier.size(24.dp), it) }, null, true, close { onOpen("info") }))
                 }
                 // the same words in the same order as every other song menu (docs/plans/one-app-words.md); this sheet has room, so More…'s four are listed flat at the end
                 if (t.isMusic && t.artist.isNotEmpty()) add(MoreRow("Go to artist", { GlyphIcon(Glyph.ARTIST, Modifier.size(24.dp), it) }, t.artist, true, close { nav.nowPlaying = false; nav.push(Screen.Detail(DetailKind.ARTIST, t.albumArtist.ifEmpty { t.artist })) }))

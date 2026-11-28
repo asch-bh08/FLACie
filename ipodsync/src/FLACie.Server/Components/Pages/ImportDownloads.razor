@@ -12,8 +12,8 @@
 else
 {
     <PageTitle>Downloads for @im.Name · FLACie</PageTitle>
-    <header class="page-head"><h1>Downloads for <i>@im.Name</i></h1>
-        @if (im.PlaylistId is { } pl) { <a class="btn ghost" href="/playlist/@pl">Open the playlist</a> }</header>
+    <Frame Title="@("Downloads for " + im.Name)" />
+<div class="page-lede">@if (im.PlaylistId is { } pl) { <a class="btn ghost" href="/playlist/@pl">Open the playlist</a> }</div>
     var rows = im.Songs.Select(s => (Song: s, Job: Downloads.JobFor(Session, s.Artist, s.Title))).ToList();
     <p class="sub">@rows.Count(r => r.Song.State is "owned" or "done") of @rows.Count in the library · @rows.Count(r => Failed(r.Song, r.Job)) couldn't be found</p>
     <ol class="imp-dl-list" data-testid="import-downloads">

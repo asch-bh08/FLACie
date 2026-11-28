@@ -30,8 +30,8 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
 
     test('charts: serif Explore title, song-style rows, rounded covers', async ({ page }) => {
       await live(page, '/charts');
-      const h1 = page.locator('.page-head h1');
-      await expect(h1.locator('i')).toHaveText('Explore');
+      const h1 = page.locator('.topbar .frame-title');   // the frame's title names the page (ONE APP 1k)
+      await expect(h1.locator('i')).toHaveText('Charts');
       expect(await font(h1)).toContain('Instrument Serif');
       // the mock has no internet chart: draw one row in the page's own markup so the styles can be read
       await page.evaluate(() => {

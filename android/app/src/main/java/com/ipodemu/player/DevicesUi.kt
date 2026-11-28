@@ -86,12 +86,15 @@ fun DevicesScreen() {
         }
     }
 
+    // ONE APP 1k: a Standard page of the frame (the shared top bar, the tab bar, the mini player); its own header only in the iPod theme's overlay
+    val frameNav = LocalPlayerNav.current
+    FramePage(frameNav, "Your devices") {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 640.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (frameNav == null) Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { ui.devicesOpen = false }, tint = Color.White)
                 Title("Your devices", Modifier.padding(start = 4.dp), color = Color.White)
             }
@@ -175,6 +178,7 @@ fun DevicesScreen() {
             GlossPill("Jam together", { ui.devicesOpen = false; ui.jamOpen = true }, icon = Glyph.JAM, height = 40.dp)
             Box(Modifier.height(24.dp))
         }
+    }
     }
 }
 

@@ -27,10 +27,11 @@ for (const [w, h] of [[390, 844], [1366, 900]]) {
   test(`devices and jam at ${w}x${h}: kit headings and buttons`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await open(page, '/devices');
-    expect(await page.locator('h1.k-title').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('30px');
+    // the title is the frame's (ONE APP 1k): serif 24 in the top bar on every page
+    expect(await page.locator('.topbar .frame-title').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('24px');
     expect(await page.locator('h2.dv-h.k-section').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('24px');
     await open(page, '/jam');
-    expect(await page.locator('h1.k-title').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('30px');
+    expect(await page.locator('.topbar .frame-title').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('24px');
     const b = page.locator('.sp-jam .k-btn, .sp-jam .k-btn-sm').first();
     if (await b.count()) expect(await b.evaluate((e) => getComputedStyle(e).borderTopLeftRadius)).toBe('16px');
     expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);

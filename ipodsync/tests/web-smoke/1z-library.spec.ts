@@ -51,8 +51,9 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
 
     test('albums: serif Explore title in italics, outlined tabs with the chosen one filled, rounded covers', async ({ page }) => {
       await live(page, '/albums');
-      const h1 = page.locator('.page-head h1');
-      await expect(h1.locator('i')).toHaveText('Explore');
+      // the frame's title names the page (ONE APP 1k: "Albums", was the shared "Explore")
+      const h1 = page.locator('.topbar .frame-title');
+      await expect(h1.locator('i')).toHaveText('Albums');
       expect(await font(h1)).toContain('Instrument Serif');
       const on = page.locator('.mood-chips .mood.on');
       await expect(on).toHaveText('Albums');
@@ -60,7 +61,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
       expect(await on.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe(await off.evaluate((e) => getComputedStyle(e).backgroundColor));
       expect(await off.evaluate((e) => getComputedStyle(e).borderTopWidth)).toBe('1px');
       expect(await radius(page.locator('.grid .card .cover').first())).toBeGreaterThanOrEqual(14);
-      expect(await font(page.locator('.page-head .sub'))).toContain('DM Mono');
+      expect(await font(page.locator('.page-lede .sub'))).toContain('DM Mono');
       expect(await font(page.locator('.x-ftoggle'))).toContain('Archivo');
       expect(await radius(page.locator('.x-ftoggle'))).toBeLessThanOrEqual(14);
       expect(await noSideScroll(page)).toBe(true);
@@ -68,14 +69,14 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
 
     test('songs, artists and genres keep their tabs, filters and rows in the same look', async ({ page }) => {
       await live(page, '/songs');
-      await expect(page.locator('.page-head h1 i')).toHaveText('Explore');
+      await expect(page.locator('.topbar .frame-title i')).toHaveText('Songs');
       await expect(page.getByRole('button', { name: /Shuffle/ })).toBeVisible();
       await expect(page.locator('.tracks .track').first()).toBeVisible();
       expect(await font(page.locator('.tracks .track-time').first())).toContain('DM Mono');
       expect(await noSideScroll(page)).toBe(true);
-      for (const p of ['/artists', '/genres']) {
+      for (const [p, t] of [['/artists', 'Artists'], ['/genres', 'Genres']]) {
         await page.goto(p);
-        await expect(page.locator('.page-head h1 i')).toHaveText('Explore');
+        await expect(page.locator('.topbar .frame-title i')).toHaveText(t);
         expect(await noSideScroll(page)).toBe(true);
       }
     });

@@ -103,10 +103,13 @@ fun DownloadsScreen() {
     val log = (lib.downloadLog.all() + (server?.log ?: emptyList())).sortedByDescending { it.finishedAt }
     val by = log.groupBy { sectionOf(it) }
 
+    // ONE APP 1k: a Standard page of the frame (the shared top bar, the tab bar, the mini player); its own header only in the iPod theme's overlay
+    val frameNav = LocalPlayerNav.current
+    FramePage(frameNav, "Downloads") {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(Modifier.widthIn(max = 620.dp).fillMaxSize(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                if (frameNav == null) Row(verticalAlignment = Alignment.CenterVertically) {
                     IconAction(Glyph.BACK, "Back", { ui.downloadsOpen = false }, tint = Color.White)
                     Txt("Download log", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
                 }
@@ -157,6 +160,7 @@ fun DownloadsScreen() {
             }
             item { Box(Modifier.size(24.dp)) }
         }
+    }
     }
 }
 

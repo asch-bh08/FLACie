@@ -1,251 +1,351 @@
 {
  "web": {
-  "at": "2026-11-27 18:01",
+  "at": "2026-11-28 16:17",
   "sizes": {
    "p360x640": {
-    "np": {
-     "img": "img/web-p360x640-np.jpg",
+    "library": {
+     "img": "img/web-p360x640-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-p360x640-np-lyrics.jpg",
-     "flags": [
-      {
-       "kind": "band",
-       "text": "empty band 18–80% (63% of the height)",
-       "band": {
-        "top": 0.1796875,
-        "h": 0.625
-       }
-      }
-     ]
+    "playlist-edit": {
+     "img": "img/web-p360x640-playlist-edit.jpg",
+     "flags": []
     },
-    "np-info": {
-     "img": "img/web-p360x640-np-info.jpg",
+    "settings": {
+     "img": "img/web-p360x640-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-p360x640-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p360x640-account.jpg",
      "flags": []
     }
    },
    "p375x667": {
-    "np": {
-     "img": "img/web-p375x667-np.jpg",
+    "library": {
+     "img": "img/web-p375x667-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-p375x667-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-p375x667-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-p375x667-np-info.jpg",
+    "settings": {
+     "img": "img/web-p375x667-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-p375x667-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p375x667-account.jpg",
      "flags": []
     }
    },
    "p390x844": {
-    "np": {
-     "img": "img/web-p390x844-np.jpg",
+    "library": {
+     "img": "img/web-p390x844-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-p390x844-np-lyrics.jpg",
+    "album": {
+     "img": "img/web-p390x844-album.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-p390x844-np-info.jpg",
+    "playlist-edit": {
+     "img": "img/web-p390x844-playlist-edit.jpg",
      "flags": []
     }
    },
    "p412x915": {
-    "np": {
-     "img": "img/web-p412x915-np.jpg",
+    "library": {
+     "img": "img/web-p412x915-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-p412x915-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-p412x915-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-p412x915-np-info.jpg",
+    "settings": {
+     "img": "img/web-p412x915-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-p412x915-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p412x915-account.jpg",
      "flags": []
     }
    },
    "p412x1000": {
-    "np": {
-     "img": "img/web-p412x1000-np.jpg",
+    "library": {
+     "img": "img/web-p412x1000-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-p412x1000-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-p412x1000-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-p412x1000-np-info.jpg",
+    "settings": {
+     "img": "img/web-p412x1000-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-p412x1000-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-p412x1000-account.jpg",
      "flags": []
     }
    },
    "fold-cover": {
-    "np": {
-     "img": "img/web-fold-cover-np.jpg",
+    "library": {
+     "img": "img/web-fold-cover-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-fold-cover-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-fold-cover-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-fold-cover-np-info.jpg",
+    "settings": {
+     "img": "img/web-fold-cover-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-fold-cover-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-fold-cover-account.jpg",
      "flags": []
     }
    },
    "fold-inner": {
-    "np": {
-     "img": "img/web-fold-inner-np.jpg",
+    "library": {
+     "img": "img/web-fold-inner-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-fold-inner-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-fold-inner-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-fold-inner-np-info.jpg",
+    "settings": {
+     "img": "img/web-fold-inner-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-fold-inner-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-fold-inner-account.jpg",
      "flags": []
     }
    },
    "p-land": {
-    "np": {
-     "img": "img/web-p-land-np.jpg",
+    "album": {
+     "img": "img/web-p-land-album.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-p-land-np-lyrics.jpg",
-     "flags": []
-    },
-    "np-info": {
-     "img": "img/web-p-land-np-info.jpg",
+    "playlist-edit": {
+     "img": "img/web-p-land-playlist-edit.jpg",
      "flags": []
     }
    },
    "tab768x1024": {
-    "np": {
-     "img": "img/web-tab768x1024-np.jpg",
+    "library": {
+     "img": "img/web-tab768x1024-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-tab768x1024-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-tab768x1024-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-tab768x1024-np-info.jpg",
+    "settings": {
+     "img": "img/web-tab768x1024-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-tab768x1024-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-tab768x1024-account.jpg",
      "flags": []
     }
    },
    "tab1024x768": {
-    "np": {
-     "img": "img/web-tab1024x768-np.jpg",
+    "library": {
+     "img": "img/web-tab1024x768-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-tab1024x768-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-tab1024x768-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-tab1024x768-np-info.jpg",
+    "settings": {
+     "img": "img/web-tab1024x768-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-tab1024x768-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-tab1024x768-account.jpg",
      "flags": []
     }
    },
    "lap1280x720": {
-    "np": {
-     "img": "img/web-lap1280x720-np.jpg",
+    "library": {
+     "img": "img/web-lap1280x720-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-lap1280x720-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-lap1280x720-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-lap1280x720-np-info.jpg",
+    "settings": {
+     "img": "img/web-lap1280x720-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-lap1280x720-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1280x720-account.jpg",
      "flags": []
     }
    },
    "lap1366x768": {
-    "np": {
-     "img": "img/web-lap1366x768-np.jpg",
+    "library": {
+     "img": "img/web-lap1366x768-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-lap1366x768-np-lyrics.jpg",
-     "flags": []
+    "album": {
+     "img": "img/web-lap1366x768-album.jpg",
+     "flags": [
+      {
+       "kind": "band",
+       "text": "empty band 86–100% (14% of the height)",
+       "band": {
+        "top": 0.85546875,
+        "h": 0.14453125
+       }
+      }
+     ]
     },
-    "np-info": {
-     "img": "img/web-lap1366x768-np-info.jpg",
+    "playlist-edit": {
+     "img": "img/web-lap1366x768-playlist-edit.jpg",
      "flags": []
     }
    },
    "lap1366-125": {
-    "np": {
-     "img": "img/web-lap1366-125-np.jpg",
+    "library": {
+     "img": "img/web-lap1366-125-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-lap1366-125-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-lap1366-125-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-lap1366-125-np-info.jpg",
+    "settings": {
+     "img": "img/web-lap1366-125-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-lap1366-125-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-lap1366-125-account.jpg",
      "flags": []
     }
    },
    "lap1366-150": {
-    "np": {
-     "img": "img/web-lap1366-150-np.jpg",
+    "library": {
+     "img": "img/web-lap1366-150-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-lap1366-150-np-lyrics.jpg",
+    "album": {
+     "img": "img/web-lap1366-150-album.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-lap1366-150-np-info.jpg",
+    "playlist-edit": {
+     "img": "img/web-lap1366-150-playlist-edit.jpg",
      "flags": []
     }
    },
    "pc1920x1080": {
-    "np": {
-     "img": "img/web-pc1920x1080-np.jpg",
+    "library": {
+     "img": "img/web-pc1920x1080-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-pc1920x1080-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-pc1920x1080-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-pc1920x1080-np-info.jpg",
+    "settings": {
+     "img": "img/web-pc1920x1080-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-pc1920x1080-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-pc1920x1080-account.jpg",
      "flags": []
     }
    },
    "uw2560x1080": {
-    "np": {
-     "img": "img/web-uw2560x1080-np.jpg",
+    "library": {
+     "img": "img/web-uw2560x1080-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-uw2560x1080-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-uw2560x1080-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-uw2560x1080-np-info.jpg",
+    "settings": {
+     "img": "img/web-uw2560x1080-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-uw2560x1080-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-uw2560x1080-account.jpg",
      "flags": []
     }
    },
    "4k-200": {
-    "np": {
-     "img": "img/web-4k-200-np.jpg",
+    "library": {
+     "img": "img/web-4k-200-library.jpg",
      "flags": []
     },
-    "np-lyrics": {
-     "img": "img/web-4k-200-np-lyrics.jpg",
+    "playlist-edit": {
+     "img": "img/web-4k-200-playlist-edit.jpg",
      "flags": []
     },
-    "np-info": {
-     "img": "img/web-4k-200-np-info.jpg",
+    "settings": {
+     "img": "img/web-4k-200-settings.jpg",
+     "flags": []
+    },
+    "downloads": {
+     "img": "img/web-4k-200-downloads.jpg",
+     "flags": []
+    },
+    "account": {
+     "img": "img/web-4k-200-account.jpg",
      "flags": []
     }
    }

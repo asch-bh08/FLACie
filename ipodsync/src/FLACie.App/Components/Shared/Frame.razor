@@ -1,0 +1,11 @@
+@inject PageFrame State
+@* ONE APP 1k: a page says what it is (its type, title and up to two actions) and the frame draws the rest: the top bar with back and the title,
+   the tab bar and the mini player (Standard), nothing of them (Full screen), or nothing but the content (Plain). It draws nothing itself. *@
+@code {
+    [Parameter] public PageType Type { get; set; } = PageType.Standard;
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+    /// <summary>The page draws a hero with its own heading: the top bar shows the title as plain text (one heading per page).</summary>
+    [Parameter] public bool Hero { get; set; }
+    protected override void OnParametersSet() => State.Set(Type, Title, Actions, Hero);
+}

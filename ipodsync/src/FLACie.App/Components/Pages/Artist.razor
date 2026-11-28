@@ -12,6 +12,7 @@ else
     var keys = a.Tracks.Select(t => t.AlbumKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
     var albums = Lib.Albums.Where(g => keys.Contains(g.Tracks[0].AlbumKey)).ToList();
     <PageTitle>@a.Name · FLACie</PageTitle>
+<Frame Title="@a.Name" Hero="true" />
 <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@(a.ArtKey)" Class="detail-cover round" />
         <div class="detail-text">

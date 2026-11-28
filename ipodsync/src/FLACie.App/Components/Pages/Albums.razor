@@ -3,7 +3,8 @@
 @inherits UserComponent
 @inject ExploreState X
 <PageTitle>Explore · FLACie</PageTitle>
-<header class="page-head"><h1><i>Explore</i></h1><p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Albums.Count : Lib.Albums.Count.ToString()) albums</p></header>
+<Frame Title="Albums" />
+<div class="page-lede"><p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Albums.Count : Lib.Albums.Count.ToString()) albums</p></div>
 <MusicTabs Active="Albums" />
 <ExploreBar Tab="Albums" Changed="Refresh" />
 <LibraryStatus />

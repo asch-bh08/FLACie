@@ -3,12 +3,10 @@
 @inherits UserComponent
 @inject IDownloads Downloads
 <PageTitle>Playlists · FLACie</PageTitle>
-<header class="page-head pl-head">
-    <h1><i>Playlists</i></h1>
-    @if (Session.Playlists.Count > 0) { <p class="sub">@Session.Playlists.Count @(Session.Playlists.Count == 1 ? "playlist" : "playlists")</p> }
+<Frame Title="Playlists" />
+<div class="page-lede">@if (Session.Playlists.Count > 0) { <p class="sub">@Session.Playlists.Count @(Session.Playlists.Count == 1 ? "playlist" : "playlists")</p> }
     @* importing a playlist (iTunes, M3U, a text list) lives here now, not in the menu *@
-    @if (AppHost.Server && Downloads.MayBulk(Session)) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }
-</header>
+    @if (AppHost.Server && Downloads.MayBulk(Session)) { <a class="btn" href="/import"><Icon Name="download" Size="16" />Import a playlist</a> }</div>
 @* a new playlist: one small line above the playlists (owner, 12 Nov: the cover-sized "new playlist" tile was far too big) *@
 <form class="pl-newbar" @onsubmit="Create">
     <span class="pl-newbar-plus" aria-hidden="true"><Icon Name="plus" Size="18" /></span>

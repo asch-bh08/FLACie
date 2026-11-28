@@ -14,6 +14,7 @@ else
     var (rows, waiting) = AlbumRows.Build(listed ?? [], g.Tracks, (a, t) => Downloads.JobFor(Session, a, t));
     var missing = waiting.Count(w => !w.Failed && w.Status == "Not downloaded yet");
     <PageTitle>@g.Name · FLACie</PageTitle>
+<Frame Title="@g.Name" Hero="true" />
 <header class="detail-head" @ref="headEl">
         <Cover ArtKey="@(g.ArtKey)" Class="detail-cover" />
         <div class="detail-text">

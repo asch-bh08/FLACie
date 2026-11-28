@@ -13,10 +13,8 @@ else
 {
     <div class="pl-page pe-page" @ref="pageEl">
         @* the top bar stays at the top while the list scrolls, so Done is always one tap away (owner, 27 Nov) *@
-        <header class="pe-head">
-            <h1 class="k-title">Edit <i>playlist</i></h1>
-            <a class="k-btn primary pe-done" href="/playlist/@p.Id"><Icon Name="check" Size="18" />Done</a>
-        </header>
+        @* the frame's top bar holds the title and Done (always on screen, owner 27 Nov) *@
+        <Frame Title="Edit playlist"><Actions><a class="k-btn-sm primary pe-done" href="/playlist/@p.Id"><Icon Name="check" Size="18" />Done</a></Actions></Frame>
         <section class="k-card pe-card" aria-label="Playlist">
             @if (renaming)
             {

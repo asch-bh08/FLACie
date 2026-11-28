@@ -3,6 +3,7 @@
 @implements IDisposable
 @inherits UserComponent
 @inject ExploreState X
+<Frame />
 <PageTitle>@(q.Length > 0 ? q + " · " : "")Search · FLACie</PageTitle>
 <h1 class="sr-only">Search</h1>
 @{ var jobs = Downloads.JobsOf(Session).Where(j => j.Kind == "Search").ToList(); }
@@ -23,10 +24,10 @@
 @if (q.Trim().Length == 0)
 {
     @* nothing typed: Search is where you browse (what the Explore page was): its tabs, its filters and the overview *@
-    <header class="page-head">
-        <h2 class="page-title k-title">Search your <i>music</i></h2>
+    @* the search box in the top bar is this page's title (ONE APP 1k); with nothing typed, one line says what is here *@
+    <div class="page-lede search-intro">
         <p class="sub">@Lib.Songs.Count.ToString("N0") songs · @Lib.Albums.Count.ToString("N0") albums · @Lib.Artists.Count.ToString("N0") artists. Type above to search; anything you don't have shows up under More music, ready to download.</p>
-    </header>
+    </div>
     @if (Session.RecentSearches is { Count: > 0 } recent)
     {
         <section class="recent-searches" aria-label="Recent searches">

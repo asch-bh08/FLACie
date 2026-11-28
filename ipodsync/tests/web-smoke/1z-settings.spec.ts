@@ -33,7 +33,7 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
     for (const [path, name] of pages) {
       test(`${path}: serif title with an italic last word, no sideways scroll`, async ({ page }) => {
         await openLive(page, path);
-        const h1 = page.locator('.sp h1').first();
+        const h1 = page.locator('.topbar .frame-title').first();   // the frame's title (ONE APP 1k)
         await expect(h1).toBeVisible({ timeout: 15_000 });
         expect(await h1.evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Instrument Serif');
         await expect(h1.locator('i')).toHaveCount(1);
@@ -59,7 +59,7 @@ for (const [w, h] of [[390, 844], [1440, 900]]) {
 
     test('Dashboard: pill sub-nav in the sans face', async ({ page }) => {
       await openLive(page, '/dashboard');
-      await expect(page.locator('.sp h1').first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('.topbar .frame-title').first()).toBeVisible({ timeout: 15_000 });
       expect(await page.locator('.sp .subnav a').first().evaluate((e) => getComputedStyle(e).fontFamily)).toContain('Archivo');
     });
 

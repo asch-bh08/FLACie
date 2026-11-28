@@ -32,7 +32,7 @@ for (const [w, h] of [[390, 844], [1366, 900]]) {
     const seg = await page.locator('.sp .seg button').first().evaluate((e) => ({ h: e.getBoundingClientRect().height, r: getComputedStyle(e).borderTopLeftRadius }));
     expect(seg.h).toBeGreaterThanOrEqual(43.5); expect(seg.r).toBe('16px');
     expect(await page.locator('.sp .set-head h2').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('24px');
-    expect(await page.locator('.sp .page-head h1').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('30px');
+    expect(await page.locator('.topbar .frame-title').first().evaluate((e) => getComputedStyle(e).fontSize)).toBe('24px');   // the frame's title (ONE APP 1k)
     for (const url of ['/account', '/downloads']) {
       await open(page, url);
       const r = await page.locator('.sp .btn').first().evaluate((e) => getComputedStyle(e).borderTopLeftRadius);

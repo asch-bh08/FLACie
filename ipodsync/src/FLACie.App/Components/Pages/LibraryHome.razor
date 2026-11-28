@@ -6,7 +6,7 @@
    then the library itself as tiles. Built from the kit (kit.css) so both sides read as one app. *@
 @{ var playlists = Session.Playlists; }
 <div class="lib-home">
-<header class="lib-head"><h1 class="k-title">Your <i>library</i></h1></header>
+<Frame Title="Your library" />
 
 <div class="lib-tiles" aria-label="Yours">
     <a class="lib-tile k-card" href="/favorites"><span class="lib-glyph"><Icon Name="heart" Size="22" /></span><span class="lib-tile-text"><b>Favourites</b><small>@Count(Session.Favorites.Count, "song")</small></span></a>

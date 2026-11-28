@@ -189,3 +189,53 @@ html.buffering .play::after { border-radius: calc(var(--k-r-btn) + 3px); }
 @media (min-width: 761px) and (max-width: 1100px) { .ls-volpill-more { border-radius: var(--k-r-btn); } }
 
 @media (prefers-reduced-motion: reduce) { .k-btn, .k-switch::after, .switch::after { transition: none; } }
+
+/* ---------------------------------------------------------------- the one frame (ONE APP 1k; PageFrame.cs, Frame.razor, TopBar.razor)
+   top bar: back (top left, one icon, every Standard page but the five tab roots) · the serif title (last word in italics) · up to two actions ·
+   account; a Full screen page (Car, Now Playing) has none of the bars */
+.top-left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.frame-back { flex: none; display: grid; place-items: center; width: var(--k-touch); height: var(--k-touch); margin-left: 4px; padding: 0; border: 0;
+  border-radius: var(--k-r-btn); background: var(--k-glass); color: var(--ink); cursor: pointer; }
+.frame-back:hover { background: color-mix(in srgb, var(--ink) 10%, var(--k-glass)); }
+.frame-title { min-width: 0; margin: 0; font-family: var(--k-serif); font-weight: 400; font-size: 24px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.frame-title i { font-style: italic; }
+.frame-actions { flex: none; display: flex; align-items: center; gap: 6px; }
+.app .topbar.has-title, .app:not(.full) .topbar.has-title { grid-template-columns: minmax(var(--rail), max-content) minmax(0, 640px) 1fr; }
+.topbar.has-title .top-left { padding-right: 16px; max-width: 46vw; }
+@media (max-width: 760px) {
+  /* a phone-width window: back · title · actions · account; the search box is the Search tab's (and every page without a title keeps it) */
+  .app .topbar.has-title, .app:not(.full) .topbar.has-title { grid-template-columns: minmax(0, 1fr) auto; }
+  .topbar.has-title .top-search { display: none; }
+  .topbar.has-title .top-left { max-width: none; padding-right: 0; }
+  .topbar.has-back .top-brand { display: none; }
+}
+/* Full screen: no top bar, no tab bar, no mini player, no DJ bar; the page has the whole window */
+.app.frame-full { display: block; }
+.app.frame-full > .topbar, .app.frame-full > .rail, .app.frame-full .player, .app.frame-full .djbar { display: none !important; }
+.app.frame-full > main.content { padding: 0; min-height: 100dvh; }
+/* what a page's old header held besides its title (counts, a lede, a button) is one quiet line at the top of the content */
+.page-lede { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin: 4px 0 18px; font: var(--k-small)/1.4 var(--k-sans); color: var(--dim); }
+.page-lede > p { margin: 0; }
+/* the phone-width tab bar is always the five tabs: they share the whole row equally (an old rule from when it held up to 11 scrolling links
+   pinned each at 64 px and left an empty strip on the right) */
+@media (max-width: 760px) {
+  .app:not(.full) .rail { overflow-x: hidden; }
+  .app:not(.full) .rail .rail-main > a { flex: 1 1 0 !important; min-width: 0 !important; padding: 6px 2px; }
+}
+/* sheets on a PC (ONE APP 1k): the song menu and More open centred over the page with a scrim, as one sheet, not hung off their button
+   (the dropdowns of a form stay where they are; Now Playing's, the player bar's and the playlist page's menus keep their own placement) */
+@media (min-width: 761px) {
+  .menu:not(.np-menu):not(.bar-menu):not(.pl-menu):not(.chip-pop), .account-menu {
+    position: fixed !important; inset: auto !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important;
+    width: min(420px, calc(100vw - 48px)) !important; max-height: min(80vh, 680px); overflow-y: auto; z-index: 300;
+    border-radius: var(--k-r-card) !important; box-shadow: 0 0 0 100vmax #0000008c, 0 30px 80px #0009; transform-origin: center; }
+}
+/* a page's counts ("67 songs") keep the kit's Label: DM Mono, small, spaced */
+.page-lede > .sub { font: 500 11px/1.4 var(--k-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+/* a narrow or zoomed PC window: a page with a title (and its actions, Edit playlist's Done) keeps the top bar to back · title · actions ·
+   account; the search box is the Search tab's there, as on a phone width (it ran under Done at 911 px) */
+@media (min-width: 761px) and (max-width: 1100px) {
+  .app .topbar.has-title, .app:not(.full) .topbar.has-title { grid-template-columns: minmax(0, 1fr) auto; }
+  .topbar.has-title .top-search { display: none; }
+  .topbar.has-title .top-left { max-width: none; }
+}

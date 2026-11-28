@@ -6,12 +6,14 @@
 @* Car mode (owner, 12 Nov: "easy on/off, keeps the screen on, less clutter, nice visualisers and buttons"): the song big, a live visualiser (a click changes it)
    and only the buttons a driver needs, each big: previous, play / pause, next, favourite, the DJ and the mic. The screen is kept awake while it is open
    (the browser's wake lock). Exit or Esc goes back. The same as the phone's car mode (CarMode.kt). *@
+<Frame Type="PageType.Full" />
 <PageTitle>Car mode · FLACie</PageTitle>
 @{ var t = Player.Current; }
 <div class="car" @onkeydown="Key" tabindex="-1" @ref="root">
+    @* a Full screen page of the one frame: no bars; its close top left, as every full screen page (swipe down closes too) *@
     <header class="car-top">
+        <button type="button" class="car-exit" data-frame-close @onclick="Exit" aria-label="Exit car mode"><Icon Name="x" Size="22" />Exit</button>
         <span class="car-tag"><i aria-hidden="true"></i>Car mode</span>
-        <button type="button" class="car-exit" @onclick="Exit" aria-label="Exit car mode"><Icon Name="x" Size="22" />Exit</button>
     </header>
     <div class="car-song">
         <Cover ArtKey="@(t?.ArtKey)" Class="car-cover" Full="true" />

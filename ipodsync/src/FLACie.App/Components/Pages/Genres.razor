@@ -3,7 +3,8 @@
 @inherits UserComponent
 @inject ExploreState X
 <PageTitle>Explore · FLACie</PageTitle>
-<header class="page-head"><h1><i>Explore</i></h1><p class="sub">@list.Count genres</p></header>
+<Frame Title="Genres" />
+<div class="page-lede"><p class="sub">@list.Count genres</p></div>
 <MusicTabs Active="Genres" />
 <ExploreBar Tab="Genres" Changed="Refresh" />
 <LibraryStatus />

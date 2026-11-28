@@ -28,7 +28,7 @@ for (const [w, h] of [[390, 844], [1366, 768]]) {
   test(`library page at ${w}x${h}: kit title, tiles in the phone's order, no sideways scroll`, async ({ page }) => {
     await page.setViewportSize({ width: w, height: h });
     await open(page, '/library');
-    await expect(page.locator('h1.k-title')).toHaveText(/Your library/);
+    await expect(page.locator('.topbar .frame-title')).toHaveText(/Your library/);   // the frame's title (ONE APP 1k)
     const names = await page.locator('.lib-tile b').allTextContents();
     expect(names).toEqual(['Favourites', 'Playlists', 'Artists', 'Albums', 'Songs', 'Genres']);
     const hrefs = await page.locator('.lib-tile').evaluateAll((as) => as.map((a) => a.getAttribute('href')));

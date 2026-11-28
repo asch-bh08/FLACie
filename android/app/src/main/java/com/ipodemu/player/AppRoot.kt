@@ -88,15 +88,17 @@ fun AppRoot(activity: MainActivity) {
             if (ui.plexSetupOpen) overlay { PlexSetupScreen() }
             if (ui.nasSetupOpen) overlay { NasSetupScreen() }
             if (ui.lidarrSetupOpen) overlay { LidarrSetupScreen() }
-            if (ui.downloadsOpen) overlay { DownloadsScreen() }
-            if (ui.headphonesOpen) overlay { HeadphoneTestScreen() }
-            if (ui.accountOpen) overlay { AccountScreen() }
+            // ONE APP 1k: in the modern theme these five are Standard pages of the frame (PlayerHost); the iPod theme keeps them as overlays
+            val ipod = ui.ipodTheme || wheel || ui.syncMode
+            if (ui.downloadsOpen && ipod) overlay { DownloadsScreen() }
+            if (ui.headphonesOpen && ipod) overlay { HeadphoneTestScreen() }
+            if (ui.accountOpen && ipod) overlay { AccountScreen() }
             // the remote is a full Now Playing: its cover colours reach the screen's edges and it keeps clear of the system bars itself
             if (ui.remoteOpen) CompositionLocalProvider(LocalStyle provides oStyle, LocalScheme provides if (ui.ipodTheme) LocalScheme.current else remember { buildModernScheme(null) }) {
                 Box(Modifier.fillMaxSize().background(Palette.bg)) { RemoteScreen() }
             }
-            if (ui.devicesOpen) overlay { DevicesScreen() }
-            if (ui.jamOpen) overlay { JamScreen() }
+            if (ui.devicesOpen && ipod) overlay { DevicesScreen() }
+            if (ui.jamOpen && ipod) overlay { JamScreen() }
             // car mode (owner, 12 Nov: "I liked it better the first time"): its own screen again
             if (ui.carOpen) overlay { CarScreen { ui.carOpen = false } }
             // why we are about to ask for a permission (music on this phone, notifications): never before sign-in

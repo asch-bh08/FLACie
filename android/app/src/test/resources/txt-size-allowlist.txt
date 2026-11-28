@@ -9,7 +9,7 @@ DownloadsUi.kt 8
 ExploreUi.kt 7
 ForYouUi.kt 6
 HeadphoneTestUi.kt 15
-InfoPanel.kt 10
+InfoPanel.kt 8
 IpodPicker.kt 17
 JamUi.kt 3
 JellyfinSetup.kt 7
@@ -24,7 +24,7 @@ NowPlayingUi.kt 13
 Offline.kt 1
 OfflineUi.kt 3
 PermissionUi.kt 4
-PlayerUi.kt 98
+PlayerUi.kt 97
 PlaylistRecsUi.kt 3
 PlexSetup.kt 7
 RemoteUi.kt 3

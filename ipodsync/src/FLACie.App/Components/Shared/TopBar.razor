@@ -3,12 +3,29 @@
 @inject IDownloads Dls
 @inject IServiceProvider TopServices
 @implements IDisposable
+@inject PageFrame Frame
 @* Along the top, like YT Music: the logo, one search box that works from every page, and the account at the right. *@
-<header class="topbar">
+@* ONE APP 1k, the one frame's top bar: back (top left, the same icon on every page but the five tab roots) · the page's serif title (last word in
+   italics) · up to two actions · the account. A tab root shows the logo where back would be. *@
+<header class="topbar @(Frame.Title is null ? "" : "has-title") @(Back ? "has-back" : "")">
     <span class="top-left">
-        @* the ☰: on the Explore pages it slides the menu in; elsewhere on a PC it folds the menu to its icons *@
+        @if (Back)
+        {
+            <button type="button" class="frame-back" onclick="history.length > 1 ? history.back() : location.assign('/')" aria-label="Back" title="Back"><Icon Name="chevron-left" Size="26" /></button>
+        }
+        else
+        {
+        @* the ☰: on a PC it folds the menu to its icons *@
         <button class="top-burger @(MenuOpen ? "open" : "")" @onclick="OnMenu" aria-label="Menu" title="Menu" aria-expanded="@(MenuOpen ? "true" : "false")" aria-controls="main-rail"><i></i><i></i><i></i></button>
         <a class="top-brand" href="/" aria-label="FLACie home"><Logo Size="32" Class="top-name-wrap" /></a>
+        }
+        @if (Frame.Title is { } title)
+        {
+            var (lead, last) = PageFrame.SplitTitle(title);
+            @* the page's one heading, unless its hero has it (Frame Hero) *@
+            if (Frame.Hero) { <p class="frame-title">@lead<i>@last</i></p> } else { <h1 class="frame-title">@lead<i>@last</i></h1> }
+        }
+        @if (Frame.Actions is { } acts) { <span class="frame-actions">@acts</span> }
     </span>
     @if (Full) { <h2 class="top-title">Explore</h2> }
     else {
@@ -62,10 +79,15 @@
     bool open;
     string Initial => Session.DisplayName.Length > 0 ? Session.DisplayName[..1].ToUpperInvariant() : "?";
 
+    // back on every Standard page but the five tab roots (PageFrame.IsTabRoot)
+    bool Back => Frame.Type == PageType.Standard && !PageFrame.IsTabRoot("/" + Nav.ToBaseRelativePath(Nav.Uri));
+    void FrameChanged() => InvokeAsync(StateHasChanged);
+
     protected override async Task OnInitializedAsync()
     {
         await base.OnInitializedAsync();
         Nav.LocationChanged += OnLocation;
+        Frame.Changed += FrameChanged;
         SyncFromUrl();
         ShareAddress();
     }
@@ -117,5 +139,5 @@
         Nav.NavigateTo("/search" + (q.Trim().Length > 0 ? "?q=" + Uri.EscapeDataString(q) : ""), replace: onSearch);
     }
 
-    public override void Dispose() { Nav.LocationChanged -= OnLocation; base.Dispose(); }
+    public override void Dispose() { Nav.LocationChanged -= OnLocation; Frame.Changed -= FrameChanged; base.Dispose(); }
 }

@@ -53,6 +53,7 @@ public static class MauiProgram
         builder.Services.AddSingleton<IDownloads, NoDownloads>();
         builder.Services.AddSingleton<IPlayerClients, NoClients>();
         builder.Services.AddScoped<Toasts>();
+        builder.Services.AddScoped<PageFrame>();
         builder.Services.AddScoped<ExploreState>();
 
         RetroHost.Version = "FLACie for Android " + AppInfo.Current.VersionString;

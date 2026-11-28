@@ -29,7 +29,7 @@ for (const [w, h] of [[1440, 900], [1024, 768], [390, 844]]) {
     test('Explore: the tabs, the search bar and the song rows stop short of the A–Z strip; the pills are round', async ({ page }) => {
       await live(page, '/songs');
       const rail = await box(page, '.az-rail');
-      for (const sel of ['.mood-chips[aria-label="Explore"]', '.x-bar', '.tracks .track', '.page-head .btn']) {
+      for (const sel of ['.mood-chips[aria-label="Explore"]', '.x-bar', '.tracks .track', '.page-lede .btn']) {
         const b = await box(page, sel);
         expect(b.right, `${sel} reaches the A–Z strip`).toBeLessThanOrEqual(rail.left);
         expect(b.left, `${sel} is off the left edge`).toBeGreaterThanOrEqual(0);

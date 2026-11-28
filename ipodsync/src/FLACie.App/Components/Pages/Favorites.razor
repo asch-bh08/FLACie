@@ -5,6 +5,7 @@
 @{ var tracks = Session.Resolve(Session.Favorites); }
 @* design I: like a playlist, a hero with the first song's cover in its own colours, a serif title with the last word in italics, mono facts, a big Play and a tinted Shuffle *@
 @* the colours are set on the whole page, so the playing row takes them too (as on a playlist) *@
+<Frame Title="Favourites" Hero="true" />
 <div class="pl-page fav-page" @ref="heroEl">
 <header class="pl-hero">
     <Cover ArtKey="@(tracks.Select(t => t.ArtKey).FirstOrDefault(k => k is not null))" Class="pl-cover" />

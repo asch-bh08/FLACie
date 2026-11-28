@@ -112,9 +112,12 @@ fun HeadphoneTestScreen() {
     @Composable fun Card(content: @Composable () -> Unit) = Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0x14FFFFFF)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) { content() }
     @Composable fun Hint(t: String) = Txt(t, Modifier.padding(horizontal = 4.dp, vertical = 4.dp), size = 13f, color = Color(0xB3FFFFFF), maxLines = 8)
 
+    // ONE APP 1k: a Standard page of the frame (the shared top bar, the tab bar, the mini player); its own header only in the iPod theme's overlay
+    val frameNav = LocalPlayerNav.current
+    FramePage(frameNav, "Headphone test") {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = 620.dp).fillMaxSize().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (frameNav == null) Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { engine.stop(); ui.headphonesOpen = false }, tint = Color.White)
                 Txt("Headphone test", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
             }
@@ -221,5 +224,6 @@ fun HeadphoneTestScreen() {
                 Box(Modifier.height(24.dp))
             }
         }
+    }
     }
 }

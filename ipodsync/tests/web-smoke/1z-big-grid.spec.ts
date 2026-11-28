@@ -20,7 +20,7 @@ async function signIn(page: Page) {
 }
 
 // how many the page's header says ("1,210 albums", "12 of 1,210 albums")
-const headCount = async (page: Page) => Number(((await page.locator('.page-head .sub').textContent()) || '').replace(/[^\d ]/g, ' ').trim().split(/\s+/).pop());
+const headCount = async (page: Page) => Number(((await page.locator('.page-lede .sub').textContent()) || '').replace(/[^\d ]/g, ' ').trim().split(/\s+/).pop());
 const elements = (page: Page) => page.evaluate(() => document.getElementsByTagName('*').length);
 
 // opens a page from inside the app (as the tabs do) and counts what the server sent for it over the live connection

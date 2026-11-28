@@ -56,7 +56,9 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     expect(await noSideScroll(page)).toBe(true);
     await page.screenshot({ path: `test-results/shots/playlist-edit-${name}.png` });
     // the kit's look (owner, 27 Nov): the top bar with Done sticks, rows as the kit's song row (a 52 cover, artist · album), ✕ and ≡ at least 48
-    expect(await page.locator('.pe-head').evaluate((e) => getComputedStyle(e).position)).toBe('sticky');
+    // Done is in the frame's top bar, which stays at the top while the list scrolls (ONE APP 1k)
+    expect(await page.locator('.topbar').evaluate((e) => getComputedStyle(e).position)).toBe('sticky');
+    await expect(page.locator('.topbar .pe-done')).toBeVisible();
     await expect(page.locator('.pe-list .track-sub').first()).toContainText('Lab Album');
     const cover = (await page.locator('.pe-row .cover').first().boundingBox())!;
     expect(Math.round(cover.width)).toBeGreaterThanOrEqual(52);

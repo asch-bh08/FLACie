@@ -67,4 +67,4 @@ h2.section { font-family: var(--serif); font-weight: 400; font-size: clamp(26px,
 }
 /* ONE APP 1h: a short Library never leaves one empty band at the bottom: the page is at least the window's height and the spare room is shared
    out between its sections (a tall phone, a tablet, a PC) */
-.lib-home { min-height: calc(100dvh - var(--top, 64px) - var(--tabs, 0px) - 40px); justify-content: space-between; }
+.lib-home { min-height: calc(100dvh - var(--top, 64px) - var(--tabs, 0px) - 40px); justify-content: space-evenly; }   /* (the frame took the title out of the page: the room is shared above, between and below) */

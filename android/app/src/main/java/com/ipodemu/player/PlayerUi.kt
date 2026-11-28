@@ -155,6 +155,13 @@ sealed interface Screen {
     data object Library : Screen
     /** Favorites, recents and every source (Jellyfin, Plex, NAS, voice memos): what the Library tab used to list. */
     data object Sources : Screen
+    // ONE APP 1k: these were overlays outside the player (no tab bar, no mini player, each its own header); now Standard pages of the frame
+    data object Devices : Screen
+    data object Jam : Screen
+    data object Account : Screen
+    /** The download log (what the server fetched), as against [Downloads], the songs kept on the phone. */
+    data object DownloadLog : Screen
+    data object Headphones : Screen
 }
 
 class SheetSpec(val title: String, val subtitle: String?, val items: List<SheetItem>)
@@ -257,6 +264,29 @@ fun PlayerHost(nav: PlayerNav) {
     BackHandler(enabled = !ui.pickerOpen && nav.sheet == null && nav.nameDialog == null && !nav.nowPlaying && nav.stack.size > 1) { nav.pop() }
 
     LaunchedEffect(nav.top) { WheelFocus.last = null }
+    // ONE APP 1k: Devices, Jam, Account, the download log and the headphone test are Standard pages of the frame. Everything that opened them
+    // (ui.devicesOpen = true ...) still does: the flag puts the page on the stack (the player closes for it), and leaving the page clears the flag
+    if (!ui.ipodTheme) {
+        val pages = listOf(Screen.Devices to { ui.devicesOpen }, Screen.Jam to { ui.jamOpen }, Screen.Account to { ui.accountOpen },
+            Screen.DownloadLog to { ui.downloadsOpen }, Screen.Headphones to { ui.headphonesOpen })
+        LaunchedEffect(nav) {
+            androidx.compose.runtime.snapshotFlow { pages.map { it.second() } }.collect { open ->
+                pages.forEachIndexed { i, (s, _) ->
+                    if (open[i]) { if (nav.stack.lastOrNull() != s) { nav.nowPlaying = false; if (s == Screen.Devices) nav.selectTab(Tab.DEVICES) else PageTypes.open(nav.stack, s) } }
+                    else if (nav.stack.lastOrNull() == s) PageTypes.close(nav.stack, s)
+                }
+            }
+        }
+        LaunchedEffect(nav) {
+            androidx.compose.runtime.snapshotFlow { nav.stack.toList() }.collect { now ->
+                if (ui.devicesOpen && Screen.Devices !in now) ui.devicesOpen = false
+                if (ui.jamOpen && Screen.Jam !in now) ui.jamOpen = false
+                if (ui.accountOpen && Screen.Account !in now) ui.accountOpen = false
+                if (ui.downloadsOpen && Screen.DownloadLog !in now) ui.downloadsOpen = false
+                if (ui.headphonesOpen && Screen.Headphones !in now) ui.headphonesOpen = false
+            }
+        }
+    }
     // the other devices' state, so the remote bar knows when something starts or stops elsewhere (quicker while one is showing)
     LaunchedEffect(app.connect.available) {
         while (app.connect.available) { if (app.connect.connected) app.connect.loadSessions(); delay(if (app.connect.remoteNow() != null) 3_000 else 8_000) }
@@ -383,6 +413,11 @@ private fun ScreenContent(screen: Screen, nav: PlayerNav, snap: PlayerSnap) {
         Screen.Music -> MusicMenu(nav)
         Screen.Library -> ExploreScreen(nav, snap)
         Screen.Sources -> LibraryHome(nav)
+        Screen.Devices -> DevicesScreen()
+        Screen.Jam -> JamScreen()
+        Screen.Account -> AccountScreen()
+        Screen.DownloadLog -> DownloadsScreen()
+        Screen.Headphones -> HeadphoneTestScreen()
     }
 }
 

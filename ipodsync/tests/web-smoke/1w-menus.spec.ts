@@ -49,12 +49,13 @@ test('phone width: the song menu and More are bottom sheets the width of the win
   await expect(page).toHaveURL(/\/devices/);
 });
 
-test('PC: More stays a popover under the account button', async ({ page }) => {
+test('PC: More is a sheet centred over the page (ONE APP 1k)', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 900 });
   await open(page, '/songs');
   await page.locator('.avatar-btn').click();
   await page.waitForTimeout(600);
   const a = await box(page, '.account-menu.am-more');
-  expect(a.t).toBeLessThan(120); expect(a.b).toBeLessThan(900);
+  const mid = (a.t + a.b) / 2, cx = (a.l + a.r) / 2;
+  expect(Math.abs(mid - 450)).toBeLessThan(40); expect(Math.abs(cx - 683)).toBeLessThan(40);
   await expect(page.locator('.account-menu').getByRole('menuitem', { name: 'Settings' })).toBeVisible();
 });

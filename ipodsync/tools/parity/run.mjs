@@ -109,6 +109,8 @@ async function web() {
   if (!pub) {
     pub = path.join(TMP, 'pub');
     log('web: publishing FLACie.Server');
+    // an empty folder every time: publish copies a file only when it is newer than the one there, so a build left by another checkout could win
+    fs.rmSync(pub, { recursive: true, force: true });
     const r = spawnSync('dotnet', ['publish', path.join(ROOT, 'ipodsync/src/FLACie.Server'), '-c', 'Release', '-o', pub, '--nologo', '-v', 'q'], { stdio: 'inherit' });
     if (r.status) throw new Error('dotnet publish failed');
   }

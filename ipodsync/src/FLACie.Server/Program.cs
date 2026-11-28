@@ -190,6 +190,7 @@ AppHost.Server = true;
 AppHost.DevicePicker = typeof(FLACie.Server.Components.Shared.DevicePicker);
 builder.Services.AddScoped<PlayerState>();
 builder.Services.AddScoped<Toasts>();
+builder.Services.AddScoped<PageFrame>();   // the one frame: what the page on screen has declared (ONE APP 1k)
 builder.Services.AddScoped<Sharing>();
 builder.Services.AddScoped<ExploreState>();
 // the live page connection: a phone that slept or lost signal for a while picks its page up again (30 minutes) instead of getting "connection was reset"

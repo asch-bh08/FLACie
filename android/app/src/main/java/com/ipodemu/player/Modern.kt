@@ -128,10 +128,11 @@ private fun Modifier.semanticsLabel(label: String) = this.semantics { contentDes
  */
 enum class Tab(val label: String, val glyph: Glyph, val root: Screen?) {
     HOME("Home", Glyph.NOTE, Screen.Home), SEARCH("Search", Glyph.SEARCH, Screen.Search),
-    LIBRARY("Library", Glyph.LIST, Screen.Sources), DEVICES("Devices", Glyph.DEVICES, null), SETTINGS("Settings", Glyph.GEAR, Screen.Settings),
+    LIBRARY("Library", Glyph.LIST, Screen.Sources), DEVICES("Devices", Glyph.DEVICES, Screen.Devices), SETTINGS("Settings", Glyph.GEAR, Screen.Settings),
 }
 
-fun PlayerNav.currentTab(): Tab = Tab.entries.firstOrNull { it.root != null && it.root == stack.first() } ?: Tab.HOME
+// the lit tab is the frame's: a page under a tab keeps it lit (PageTypes.tabFor, as the web's PageFrame.TabFor)
+fun PlayerNav.currentTab(): Tab = PageTypes.tabFor(stack.last())
 fun PlayerNav.selectTab(t: Tab) {
     val root = t.root ?: return
     nowPlaying = false; queueFromPlayer = false
@@ -153,7 +154,8 @@ fun tabsFor(guest: Boolean): List<Tab> = Tab.entries.filter { it != Tab.DEVICES 
 @Composable
 private fun tabPress(nav: PlayerNav): (Tab) -> Unit {
     val app = LocalApp.current
-    return { t -> when (t) { Tab.DEVICES -> app.ui.devicesOpen = true; else -> nav.selectTab(t) } }
+    // every tab opens its page now: Devices is a Standard page of the frame (ONE APP 1k), not a panel over the screen
+    return { t -> nav.selectTab(t) }
 }
 
 /** Bottom navigation bar for phones and the Fold's cover screen. */
@@ -318,5 +320,46 @@ private fun LibRow(title: String, g: Glyph, count: String, tint: Color? = null, 
         }
     }, trailing = { Txt(count, size = 14f, color = rowDim()) }) {
         Txt(title, size = 17f, weight = FontWeight.Medium)
+    }
+}
+
+/** The four page types of the one frame (docs/plans/one-app-consolidate.md; the web's PageType). */
+enum class PageType { STANDARD, FULL, SHEET, PLAIN }
+
+/**
+ * ONE APP 1k, the one frame on the phone: what each screen is. Every screen in the stack is a Standard page (the shared top bar, the tab bar,
+ * the mini player); Now Playing, the full-screen graph and Car are Full screen; menus are Sheets; sign-in and setup Plain (those are not in the
+ * stack). Pure, unit-tested (PageTypesTest); the web's twin is PageFrame.cs.
+ */
+object PageTypes {
+    fun typeOf(@Suppress("UNUSED_PARAMETER") s: Screen): PageType = PageType.STANDARD
+
+    fun isTabRoot(s: Screen): Boolean = Tab.entries.any { it.root == s }
+
+    fun tabFor(s: Screen): Tab = when (s) {
+        Screen.Home -> Tab.HOME
+        Screen.Search, Screen.Library -> Tab.SEARCH
+        Screen.Devices, Screen.Jam -> Tab.DEVICES
+        Screen.Settings, Screen.Dashboard, is Screen.Legal, Screen.Offline, Screen.Account, Screen.DownloadLog, Screen.Headphones -> Tab.SETTINGS
+        else -> Tab.LIBRARY
+    }
+
+    /** An open flag (ui.devicesOpen, ui.jamOpen ...) puts its page on top of the stack, once. */
+    fun open(stack: MutableList<Screen>, s: Screen) { if (stack.lastOrNull() != s) { stack.remove(s); stack.add(s) } }
+
+    /** Leaving a page (its flag cleared) takes it off the stack; a tab root stays. */
+    fun close(stack: MutableList<Screen>, s: Screen) { if (stack.size > 1 && !isTabRoot(s)) stack.remove(s) }
+}
+
+/**
+ * A Standard page of the one frame: the shared top bar (back top left unless the page is a tab root, the serif title, the account) over the
+ * page's content. [nav] is null where a screen is still an overlay (the iPod theme): then only the content, with the screen's own header.
+ */
+@Composable
+fun FramePage(nav: PlayerNav?, title: String, content: @Composable () -> Unit) {
+    if (nav == null) { content(); return }
+    Column(Modifier.fillMaxSize()) {
+        TopBar(title, nav, showBack = !PageTypes.isTabRoot(nav.top))
+        Box(Modifier.weight(1f).fillMaxWidth()) { content() }
     }
 }

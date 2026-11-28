@@ -4,11 +4,9 @@
 @inject ExploreState X
 @inject Toasts Toast
 <PageTitle>Explore · FLACie</PageTitle>
-<header class="page-head">
-    <h1><i>Explore</i></h1>
-    <p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Songs.Count : Lib.Songs.Count.ToString()) songs</p>
-    <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(list)" disabled="@(list.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle @(X.Filtering ? "these" : "all")</button></div>
-</header>
+<Frame Title="Songs" />
+<div class="page-lede"><p class="sub">@(X.Filtering ? list.Count + " of " + Lib.Songs.Count : Lib.Songs.Count.ToString()) songs</p>
+    <div class="chips"><button class="btn primary" @onclick="() => Player.ShuffleAll(list)" disabled="@(list.Count == 0)"><Icon Name="shuffle" Size="18" />Shuffle @(X.Filtering ? "these" : "all")</button></div></div>
 <MusicTabs Active="Songs" />
 <ExploreBar Tab="Songs" Changed="Refresh" />
 <LibraryStatus />

@@ -35,12 +35,15 @@ fun JamScreen() {
     BackHandler { ui.jamOpen = false }
     LaunchedEffect(jam.inJam) { while (!jam.inJam) { jam.loadGroups(); delay(5_000) } }
 
+    // ONE APP 1k: a Standard page of the frame (the shared top bar, the tab bar, the mini player); its own header only in the iPod theme's overlay
+    val frameNav = LocalPlayerNav.current
+    FramePage(frameNav, "Jam") {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 560.dp).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (frameNav == null) Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { ui.jamOpen = false }, tint = Color.White)
                 Title("Jam", Modifier.padding(start = 4.dp), color = Color.White)   // design I: the serif heading, as on the web
             }
@@ -75,5 +78,6 @@ fun JamScreen() {
             }
             jam.status?.let { Small(it, color = Color(0xFFFFB0B0), maxLines = 4) }
         }
+    }
     }
 }

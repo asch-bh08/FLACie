@@ -2149,3 +2149,36 @@ flacie.dragRows = (list, page) => {
 };
 flacie.focusRow = (list, i) => { list?.querySelectorAll(":scope > li .pe-handle")[i]?.focus(); };
 
+
+// ONE APP 1k, the one frame's gestures: on a Full screen page (Car) a swipe down from the top half closes it, the same as its close button
+// (data-frame-close); nothing else uses that swipe. Back is the browser's own (and its edge swipe).
+(() => {
+  let sx = 0, sy = 0, on = false;
+  addEventListener("touchstart", (e) => {
+    on = !!document.querySelector(".app.frame-full") && e.touches.length === 1 && e.touches[0].clientY < innerHeight / 2;
+    if (on) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; }
+  }, { passive: true });
+  addEventListener("touchend", (e) => {
+    if (!on) return; on = false;
+    const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+    if (dy > 120 && Math.abs(dx) < dy / 2) document.querySelector(".app.frame-full [data-frame-close]")?.click();
+  }, { passive: true });
+})();
+
+// ONE APP 1k, sheets (menus, More, pickers): a swipe down on a sheet that is scrolled to its top closes it, the same as Escape or a tap outside
+(() => {
+  const SHEETS = ".menu:not(.np-menu):not(.bar-menu), .account-menu, .dd-menu, .dl-menu";
+  let sheet = null, sy = 0, sx = 0;
+  addEventListener("touchstart", (e) => {
+    sheet = e.target.closest?.(SHEETS) ?? null;
+    if (sheet && sheet.scrollTop > 0) sheet = null;
+    if (sheet) { sy = e.touches[0].clientY; sx = e.touches[0].clientX; }
+  }, { passive: true });
+  addEventListener("touchend", (e) => {
+    if (!sheet) return;
+    const t = e.changedTouches[0], dy = t.clientY - sy, dx = t.clientX - sx; sheet = null;
+    if (dy < 80 || Math.abs(dx) > dy / 2) return;
+    document.querySelector(".top-account .scrim")?.click();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  }, { passive: true });
+})();

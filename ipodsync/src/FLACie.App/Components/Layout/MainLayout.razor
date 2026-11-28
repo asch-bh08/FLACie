@@ -2,8 +2,10 @@
 @implements IDisposable
 @inject NavigationManager Nav
 @inject IJSRuntime Js
+@inject PageFrame Frame
 @* the Explore pages keep the side menu like every other page (owner, overhaul 9 Nov: one frame everywhere); the ☰ folds it to icons there too *@
-<div class="app @(collapsed ? "collapsed" : "")">
+@* ONE APP 1k: the one frame. The page says its type (Frame.razor); a Full screen page has none of the bars *@
+<div class="app @(collapsed ? "collapsed" : "") frame-@(Frame.Type.ToString().ToLowerInvariant())">
     <TopBar Full="false" MenuOpen="false" OnMenu="Burger" />
     <nav class="rail" aria-label="Main" id="main-rail">
         @* design I: a short menu. Search holds what Explore was (browse when nothing is typed), Import is on Playlists, Downloads is in the Dashboard (administrators) *@
@@ -11,11 +13,12 @@
         @* ONE APP part 10: the same five places as the phone's tabs, first on a PC and the whole bottom bar on a phone-width window: Home, Search,
            Library (Favourites and Playlists are in it), Devices (server only) and Settings; the extras follow on a PC *@
         <div class="rail-group rail-main">
-            <NavLink href="/" Match="NavLinkMatch.All"><Icon Name="home" />Home</NavLink>
-            <a href="/search" class="@(InSearch ? "active" : "")"><Icon Name="search" />Search</a>
-            <a href="/library" class="@(InLibrary ? "active" : "")"><Icon Name="playlists" />Library</a>
-            @if (AppHost.Server) { <NavLink href="/devices" class="rail-tab"><Icon Name="devices" />Devices</NavLink> }
-            <NavLink href="/settings"><Icon Name="settings" />Settings</NavLink>
+            @* the lit tab is the frame's (PageFrame.TabFor): a page under a tab keeps it lit (Songs and an album: Library; Jam: Devices; Account: Settings) *@
+            <a href="/" class="@On("Home")"><Icon Name="home" />Home</a>
+            <a href="/search" class="@On("Search")"><Icon Name="search" />Search</a>
+            <a href="/library" class="@On("Library")"><Icon Name="playlists" />Library</a>
+            @if (AppHost.Server) { <a href="/devices" class="rail-tab @On("Devices")"><Icon Name="devices" />Devices</a> }
+            <a href="/settings" class="@On("Settings")"><Icon Name="settings" />Settings</a>
         </div>
         <div class="rail-group rail-extra">
             <p class="rail-label">More</p>
@@ -33,12 +36,7 @@
     <ToastHost />
 </div>
 @code {
-    // "All music" is lit for its four filters and their detail pages
-    bool InMusic { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/explore", "/songs", "/albums", "/artists", "/genres", "/charts", "/album/", "/artist/", "/genre/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
-    // Search is lit on the search page and everywhere you browse the music from it
-    bool InSearch => InMusic || ("/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]).StartsWith("/search", StringComparison.OrdinalIgnoreCase);
-    // Library is lit on its page and on the things it holds: Favourites, Playlists and a playlist
-    bool InLibrary { get { var p = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0]; return new[] { "/library", "/favorites", "/playlists", "/playlist/", "/made/" }.Any(x => p.StartsWith(x, StringComparison.OrdinalIgnoreCase)); } }
+    string On(string tab) => PageFrame.TabFor("/" + Nav.ToBaseRelativePath(Nav.Uri)) == tab ? "active" : "";
     // on a PC the ☰ folds the side menu down to its icons (and back), on every page; the choice is kept in this browser
     bool collapsed;
     async Task Burger()
@@ -51,7 +49,9 @@
         if (!firstRender) return;
         try { if (await Js.InvokeAsync<string?>("flacie.unstash", "flacie.rail") == "1") { collapsed = true; StateHasChanged(); } } catch (Exception) { }
     }
-    protected override void OnInitialized() => Nav.LocationChanged += Moved;
+    protected override void OnInitialized() { Nav.LocationChanged += Moved; Frame.Changed += Redraw; }
+    // every page declares its frame (Frame.razor; the page walk 1w-frame checks it), so a move needs no reset: the new page's declaration wins
     void Moved(object? s, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
-    public void Dispose() => Nav.LocationChanged -= Moved;
+    void Redraw() => InvokeAsync(StateHasChanged);
+    public void Dispose() { Nav.LocationChanged -= Moved; Frame.Changed -= Redraw; }
 }

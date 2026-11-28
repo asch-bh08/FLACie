@@ -49,12 +49,15 @@ fun AccountScreen() {
     fun close() { acct.cancelQuickConnect(); ui.accountOpen = false }
     BackHandler { close() }
 
+    // ONE APP 1k: a Standard page of the frame (the shared top bar, the tab bar, the mini player); its own header only in the iPod theme's overlay
+    val frameNav = LocalPlayerNav.current
+    FramePage(frameNav, "Account") {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 560.dp).fillMaxSize().imePadding().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (frameNav == null) Row(verticalAlignment = Alignment.CenterVertically) {
                 IconAction(Glyph.BACK, "Back", { close() }, tint = Color.White)
                 Txt("Account", Modifier.padding(start = 4.dp), size = 22f, weight = FontWeight.Bold, color = Color.White)
             }
@@ -119,6 +122,7 @@ fun AccountScreen() {
             Small("Guest mode plays this device's music only. Sign in with Jellyfin or a NAS to stream, download and keep your playlists and settings in sync.", color = Color(0xCCFFFFFF), maxLines = 5)
             GlossPill("Sign in", { ui.setLogin(""); ui.accountOpen = false }, primary = true)
         }
+    }
     }
 }
 

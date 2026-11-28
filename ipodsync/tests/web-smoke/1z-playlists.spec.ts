@@ -32,7 +32,7 @@ for (const [name, size] of [['phone', { width: 390, height: 844 }], ['pc', { wid
     test('playlists, a playlist and favourites in the new look', async ({ page }) => {
       const plName = 'Road trips ' + name;
       await live(page, '/playlists');
-      const h1 = page.locator('.page-head h1');
+      const h1 = page.locator('.topbar .frame-title');   // the frame's title (ONE APP 1k)
       expect(await font(h1)).toContain('Instrument Serif');
       await expect(h1.locator('i')).toHaveText('Playlists');
       const input = page.getByLabel('New playlist name');

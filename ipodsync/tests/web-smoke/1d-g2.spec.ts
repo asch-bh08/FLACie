@@ -48,10 +48,10 @@ test.describe('signed in', () => {
 
   test('artist and album routes ignore case', async ({ page }) => {
     await page.goto('/artist/aurora%20vale');
-    await expect(page.locator('h1')).toContainText('Aurora Vale');
+    await expect(page.locator('main h1')).toContainText('Aurora Vale');
     await expect(page.locator('body')).not.toContainText("isn't in your library");
     await page.goto('/artist/AURORA%20VALE');
-    await expect(page.locator('h1')).toContainText('Aurora Vale');
+    await expect(page.locator('main h1')).toContainText('Aurora Vale');
   });
 
   test('Settings > About shows the version, the server, the data folder and the licences', async ({ page }) => {
@@ -108,9 +108,11 @@ test.describe('signed in', () => {
   test('at 900x600 the serif name shows (design I has no tile) and the search box is not overlapped; the A-Z rail ends above the player bar', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 600 });
     await playFirst(page);
-    const name = page.locator('.top-brand .wordmark').first();
+    // the frame's top left (back and the serif page title since ONE APP 1k; the logo on a tab root) does not run into the search box
+    const name = page.locator('.topbar .top-left').first();
     await expect(name).toBeVisible();
-    const nb = (await name.boundingBox())!, sb = (await page.locator('.topbar > :nth-child(2)').boundingBox())!;   // the search box, or the page title on the music pages
+    // (under 1100 px a page with a title has no search box in its top bar: the Search tab has it; so the title block must clear the account)
+    const nb = (await name.boundingBox())!, sb = (await page.locator('.topbar .top-account').boundingBox())!;
     expect(nb.x + nb.width).toBeLessThanOrEqual(sb.x);
     const rail = page.locator('.az-rail');
     await expect(rail).toBeVisible();

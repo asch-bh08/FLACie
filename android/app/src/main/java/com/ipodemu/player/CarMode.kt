@@ -1,5 +1,6 @@
 package com.ipodemu.player
 
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -97,20 +98,26 @@ fun CarScreen(onExit: () -> Unit) {
     val dim = Color(0xA6F4EFE6)
     BoxWithConstraints(
         Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(tone, ground, Color.Black)))
-            .systemBarsPadding().padding(16.dp),
+            .systemBarsPadding().padding(16.dp)
+            // swipe down closes (every Full screen page); sideways stays the skip
+            .pointerInput(Unit) {
+                var dy = 0f
+                detectVerticalDragGestures(onDragStart = { dy = 0f }, onDragEnd = { if (dy > 120.dp.toPx()) onExit() }) { _, d -> dy += d }
+            },
     ) {
         val wide = maxWidth > maxHeight
         val top: @Composable () -> Unit = {
+            // a Full screen page of the one frame (ONE APP 1k): its close top left, as on the web's /car; a swipe down closes it too
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.clip(RoundedCornerShape(50)).background(accent.copy(alpha = .22f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                    MonoLabel("● Car mode", size = 12f, color = accent)
-                }
-                Spacer(Modifier.weight(1f))
                 Box(
-                    Modifier.height(56.dp).clip(RoundedCornerShape(28.dp)).background(ink.copy(alpha = .14f))
+                    Modifier.height(56.dp).clip(RoundedCornerShape(Kit.rButton)).background(ink.copy(alpha = .14f))
                         .semantics { contentDescription = "Exit car mode"; role = Role.Button }.clickable(onClick = onExit).padding(horizontal = 22.dp),
                     contentAlignment = Alignment.Center,
                 ) { Txt("✕  Exit", size = 18f, weight = FontWeight.Bold, color = ink) }
+                Spacer(Modifier.weight(1f))
+                Box(Modifier.clip(RoundedCornerShape(50)).background(accent.copy(alpha = .22f)).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                    MonoLabel("● Car mode", size = 12f, color = accent)
+                }
             }
         }
         val song: @Composable (Modifier) -> Unit = { m ->

@@ -193,6 +193,9 @@ for (const width of [375, 320]) {
       for (const b of boxes) { expect(b.w, b.href ?? '').toBeGreaterThanOrEqual(width < 360 ? 58 : 64); expect(b.h, b.href ?? '').toBeGreaterThanOrEqual(44); expect(b.text.length, b.href ?? '').toBeGreaterThan(0); }
       for (let i = 1; i < boxes.length; i++) expect(boxes[i].x, boxes[i].href ?? '').toBeGreaterThanOrEqual(boxes[i - 1].x + boxes[i - 1].w - 0.5);
       expect(boxes[boxes.length - 1].x + boxes[boxes.length - 1].w).toBeLessThanOrEqual(width + 1);
+      // and they share the whole bar: no empty strip at either end (owner, 28 Nov: "like a missing slot on the right")
+      expect(boxes[0].x).toBeLessThanOrEqual(6);
+      expect(boxes[boxes.length - 1].x + boxes[boxes.length - 1].w).toBeGreaterThanOrEqual(width - 6);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     }
     await page.locator('.avatar-btn').click();

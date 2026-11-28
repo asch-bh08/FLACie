@@ -189,3 +189,10 @@ html.buffering .play::after { border-radius: calc(var(--k-r-btn) + 3px); }
 @media (min-width: 761px) and (max-width: 1100px) { .ls-volpill-more { border-radius: var(--k-r-btn); } }
 
 @media (prefers-reduced-motion: reduce) { .k-btn, .k-switch::after, .switch::after { transition: none; } }
+
+/* the phone-width tab bar is always the five tabs: they share the whole row equally (an old rule from when it held up to 11 scrolling links
+   pinned each at 64 px and left an empty strip on the right) */
+@media (max-width: 760px) {
+  .app:not(.full) .rail { overflow-x: hidden; }
+  .app:not(.full) .rail .rail-main > a { flex: 1 1 0 !important; min-width: 0 !important; padding: 6px 2px; }
+}

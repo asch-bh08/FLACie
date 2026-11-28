@@ -89,6 +89,24 @@ Remove from playlist. Words: Favourites (never Favorites), "…" (one character)
   - unfolded (Fold inner / tablet / wide): the cover is too small with lots of wasted space: the cover should take the room
   - the full-screen Info graphs: their buttons need a revamp (onto the kit, even, worded like the dock)
   - method: mock 2-3 layouts side by side (phone tall, phone short, unfolded, PC) on the parity page before building, pick the best
+- 1k ONE PAGE FRAME (owner, 28 Nov, top priority: "every page is so different, every time I go to a new page something changes:
+  the text, the buttons, the labels, where the back button is, whether the navigation bar is there, whether I can swipe down / left
+  out / back, the features, whether I see the same stuff"). Write docs/plans/one-app-frame.md first, then make every page follow it,
+  web and phone:
+  - one page shell: top bar = back (top left, always the same place and icon) · serif title · up to two actions · account; no page
+    invents its own header
+  - the tab bar (Home, Search, Library, Devices, Settings) is on every page except Now Playing, full-screen graphs, sign-in and setup;
+    the same tab stays lit for pages under it
+  - gestures, the same everywhere: swipe right from the left edge = back on every stacked page; swipe down = close on every overlay
+    and sheet (Now Playing, menus, full-screen graphs); nothing else uses those swipes
+  - a page's header block: kit Title, one facts line (Label), Play / Shuffle (MainButton) when the page plays music, then one
+    Slot row of 3-5 actions, the rest in More; lists use the kit SongRow everywhere
+  - the same page has the same content on web and phone (a feature on one is on the other, or the gap is listed in the frame doc)
+  - a test per side that walks every page and checks: back button position, tab bar present or not per the rule, title style, slot
+    row, SongRow; and the parity page shows every page pair
+- 1g-3 Now Playing still needs bettering on the phone (owner, 28 Nov); b147 left a gap at each end of previous / play / next: fixed
+  locally (they share the row now); the More sheet on the phone is unchanged and needs the new look; web: Volume slot cramped
+  (slider squeezed, the word wastes room) and the full-screen graph's worded Shuffle / Repeat clip their words
 - Every page on every platform is in scope (web PC, web phone, Android, the Windows app's pages, Android Auto keeps its own car rules).
 
 - 1h Every screen size (owner, 26 Nov: "fits every aspect ratio, resolution, screen size"): one size list used by both checks — phones

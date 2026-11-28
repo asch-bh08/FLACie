@@ -151,6 +151,10 @@ object NowPlayingFit {
     fun transportW(big: Boolean): Float = if (big) 2 * PILL_W + PLAY_W + 2 * GAP else 2 * PILL_W_TIGHT + PLAY_W_TIGHT + 2 * GAP
 
     /** How much previous / play / next shrink in a row [room] dp wide: 1 where the three fit, less on a very narrow screen, never under .8. */
+    /** On a tall screen the play row and the row of slots grow with the height instead of leaving gaps (owner, 28 Nov): 1 up to 780 dp, rising to
+     *  1.25 by 960 dp. Only used where the plan already fits (never on a short or sideways phone). */
+    fun heightGrow(screenH: Float): Float = 1f + .25f * ((screenH - 780f) / 180f).coerceIn(0f, 1f)
+
     fun controlsScale(room: Float, big: Boolean = true): Float = (min(room, 520f) / transportW(big)).coerceIn(.8f, 1f)
 
     private fun gaps(stageH: Float) = if (stageH < 700f) 8f + 10f else 14f + 16f
@@ -217,7 +221,7 @@ object NowPlayingFit {
  *  own; Add to playlist is in More's sheet. Only when the row shrinks to More do Shuffle and Repeat go back beside the time. Pure, unit-tested. */
 object NowPlayingSlots {
     fun of(actions: NowPlayingFit.Actions): List<String> =
-        if (actions == NowPlayingFit.Actions.MORE_ONLY) listOf("more") else listOf("shuffle", "repeat", "lyrics", "info", "more")
+        if (actions == NowPlayingFit.Actions.MORE_ONLY) listOf("more") else listOf("shuffle", "repeat", "lyrics", "more")   // Info is in More (owner, 28 Nov)
 
     fun togglesBesideTime(actions: NowPlayingFit.Actions): Boolean = actions == NowPlayingFit.Actions.MORE_ONLY
 }

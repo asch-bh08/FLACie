@@ -106,8 +106,7 @@
                     <button class="ls-slot ls-slot-shuf @(Player.Shuffle ? "on" : "")" @onclick="() => { Player.ToggleShuffle(); }" aria-label="Shuffle @(Player.Shuffle ? "on" : "off")" aria-pressed="@(Player.Shuffle ? "true" : "false")"><Icon Name="shuffle" Size="20" /><span>Shuffle</span></button>
                     <button class="ls-slot ls-slot-rep @(Player.Repeat > 0 ? "on" : "")" @onclick="() => { Player.CycleRepeat(); }" aria-label="@(Player.Repeat switch { 1 => "Repeat all", 2 => "Repeat one", _ => "Repeat off" })" aria-pressed="@(Player.Repeat > 0 ? "true" : "false")"><Icon Name="repeat" Size="20" /><span>@(Player.Repeat == 2 ? "Repeat 1" : "Repeat")</span></button>
                     <button class="ls-slot @(panelOpen && tab == "lyrics" ? "on" : "")" @onclick='() => Open("lyrics")'><Icon Name="lyrics" Size="20" /><span>Lyrics</span></button>
-                    @* the song's facts and live graphs, one tap away (as in the Android app) *@
-                    <button class="ls-slot @(panelOpen && tab == "info" ? "on" : "")" @onclick='() => Open("info")'><Icon Name="info" Size="20" /><span>Info</span></button>
+                    @* Info is in More now (owner, 28 Nov: the row is Shuffle, Repeat, Lyrics, More) *@
                     @MoreMenu("p", t)
                 </div>
                 @* the next song in play order, in the band at the foot that no main control may use (the home gesture's); a tap opens Up next *@
@@ -403,6 +402,8 @@
             @* nine words, in groups, and the rarer choices one tap further in (owner, 7 Nov: "menus are too complicated, Now Playing's … has 11 items");
                Song info is the Info page beside the cover, so it is not here *@
             <div class="menu np-menu" role="menu">
+                @* the song's facts and graphs: first in the phone's More, since Info left the row under the controls (owner, 28 Nov) *@
+                @if (at == "p") { <button role="menuitem" @onclick='() => { more = false; Open("info"); }'>Song info</button> }
                 <button role="menuitem" @onclick='() => Plain(() => Player.PlayNext(t), $"“{t.Title}” plays next")'>Play next</button>
                 <button role="menuitem" @onclick='() => Plain(() => Player.AddToQueue(t), $"Added “{t.Title}” to the queue")'>Add to queue</button>
                 <button role="menuitem" class="has-sub" aria-expanded="@(plOpen ? "true" : "false")" @onclick="() => Sub(ref plOpen)">Add to playlist… <span aria-hidden="true" class="chev">›</span></button>

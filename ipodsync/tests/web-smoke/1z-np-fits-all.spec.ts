@@ -145,7 +145,7 @@ for (const [name, w, h, dpr] of sizes) {
       const rep = page.locator(phone ? '.ls-actions .ls-slot-rep' : '.ls-transport button[aria-label^="Repeat"]');
       for (let i = 0; i < 3 && (await rep.getAttribute('aria-label')) !== 'Repeat one'; i++) { await rep.click(); await page.waitForTimeout(300); }
       await expect(rep).toHaveAttribute('aria-label', 'Repeat one');
-      if (phone) await page.locator('.ls-actions').getByRole('button', { name: 'Info', exact: true }).click();
+      if (phone) { await page.locator('.ls-actions .ls-more-btn').click(); await page.getByRole('menuitem', { name: 'Song info' }).click(); }   // Info is in More (28 Nov)
       else await page.locator('.ls-seg [role=tab]', { hasText: 'Info' }).click();
       await expect(page.locator('.info .graph-box')).toBeVisible({ timeout: 20_000 });
       problems.push(...await graph(page, 'Info'));

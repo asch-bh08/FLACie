@@ -1632,3 +1632,10 @@ main.content { min-width: 0; }
   :is(.graph-box:fullscreen, .graph-box.full) .graph-transport > .icon-btn:not(.graph-plain) { width: 56px; }
   :is(.graph-box:fullscreen, .graph-box.full) .graph-play { width: 76px; }
 }
+/* the full-screen graph's Shuffle / Repeat are wide enough for their words (owner, 28 Nov: "Repeat 1" and "Shuffle" were clipped at 72 / 60 px) */
+:is(.graph-box:fullscreen, .graph-box.full) .graph-plain { width: 80px !important; padding: 0 4px; white-space: nowrap; }
+@media (max-width: 560px) { :is(.graph-box:fullscreen, .graph-box.full) .graph-plain { width: 68px !important; font-size: 11.5px; } }
+@media (max-width: 400px) {
+  :is(.graph-box:fullscreen, .graph-box.full) .graph-plain { width: 60px !important; padding: 0 2px; font-size: 10.5px; }
+  :is(.graph-box:fullscreen, .graph-box.full) .graph-transport { gap: 6px; }
+}

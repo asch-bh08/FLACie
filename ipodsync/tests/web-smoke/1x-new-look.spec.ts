@@ -82,7 +82,7 @@ test.describe('phone (390 x 844)', () => {
     const shuf = page.locator('.ls-actions .ls-slot-shuf'), rep = page.locator('.ls-actions .ls-slot-rep');
     await expect(shuf).toBeVisible(); await expect(rep).toBeVisible();
     const words = await page.locator('.ls-actions > .ls-slot, .ls-actions .ls-more-btn').allInnerTexts();
-    expect(words.map((w) => w.trim())).toEqual(['Shuffle', 'Repeat', 'Lyrics', 'Info', 'More']);
+    expect(words.map((w) => w.trim())).toEqual(['Shuffle', 'Repeat', 'Lyrics', 'More']);
     const before = await shuf.evaluate((e) => getComputedStyle(e).backgroundColor);
     await shuf.click(); await page.waitForTimeout(400);
     expect(await shuf.evaluate((e) => getComputedStyle(e).backgroundColor)).not.toBe(before);
@@ -99,8 +99,9 @@ test.describe('phone (390 x 844)', () => {
     const ring = (await page.locator('.ls-ring').boundingBox())!, time = (await page.locator('.ls-times').boundingBox())!;
     expect(time.y + time.height).toBeLessThanOrEqual(ring.y);
     expect(parseFloat(await page.locator('.ls-times').evaluate((e) => getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(14);
-    // Info is one tap away on a phone too
-    await page.locator('.ls-actions').getByRole('button', { name: 'Info', exact: true }).click();
+    // Info is two taps away on a phone: More, then Song info (owner, 28 Nov: the row is Shuffle, Repeat, Lyrics, More)
+    await page.locator('.ls-actions .ls-more-btn').click();
+    await page.getByRole('menuitem', { name: 'Song info' }).click();
     await expect(page.locator('.ls')).toHaveClass(/panel-open/);
     await expect(page.locator('.ls-seg [role=tab]', { hasText: 'Info' })).toHaveAttribute('aria-selected', 'true');
     await page.getByRole('button', { name: 'Back to the cover' }).click();
@@ -296,7 +297,10 @@ test.describe('the full-screen player bar on a PC', () => {
     for (const s of slots) { expect(s.w, s.n!).toBe(slots[0].w); expect(s.h, s.n!).toBe(60); expect(s.r, s.n!).toBe('18px'); expect(s.word, `${s.n} has its word under the icon`).toBe(true); }
     const vol = (await page.locator('.ls-tiles .ls-volpill').boundingBox())!;
     expect(Math.round(vol.height)).toBe(60);
-    await expect(page.locator('.ls-tiles .ls-volpill-word')).toHaveText('Volume');
+    // the Volume slot's slider has the slot's width (owner, 28 Nov: it was squeezed between the mute and options buttons, under a word)
+    expect((await page.locator('.ls-tiles .ls-volpill-bar').boundingBox())!.width).toBeGreaterThan(60);
+    // and no text in the slot (owner, 28 Nov: "just remove the text")
+    expect(await page.locator('.ls-tiles .ls-volpill').evaluate((e) => [...e.querySelectorAll('*')].filter((x) => x.childNodes.length && [...x.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim()) && getComputedStyle(x).display !== 'none' && (x as HTMLElement).offsetParent !== null).length)).toBe(0);
     // the gaps are all the same, on both sides
     const lefts = slots.filter((s) => s.right <= vol.x).sort((a, b) => a.x - b.x);
     const gaps = lefts.slice(1).map((s, i) => Math.round(s.x - lefts[i].right));
